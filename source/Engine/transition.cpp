@@ -284,6 +284,9 @@ void transitionTV () {
 
 void transitionBlinds () {
 	if (! transitionTextureName) reserveTransitionTexture();
+	// The blinds repeat down the screen. We set this on the transition
+	// texture, and not on whichever texture happens to be bound.
+	glBindTexture (GL_TEXTURE_2D, transitionTextureName);
 	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 	GLubyte * toScreen = transitionTexture;
