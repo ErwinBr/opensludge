@@ -38,6 +38,8 @@ bool hasFatal () {
 void displayFatal () {
 	if (fatalMessage) {
 		msgBox ("SLUDGE v" TEXT_VERSION " fatal error!", fatalMessage);
+		delete [] fatalMessage;
+		fatalMessage = NULL;
 	}
 }
 
@@ -65,9 +67,10 @@ int inFatal (const char * str) {
 	if (fatalMessage == NULL) fatalMessage = copyString ("Out of memory");
 
 	killSoundStuff ();
+	// We show the message while SDL and the game window still exist, so
+	// that the message box can belong to the window.
+	displayFatal ();
 	SDL_Quit();
-		
-	atexit (displayFatal);
 	exit (1);
 }
 

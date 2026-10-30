@@ -82,7 +82,9 @@ int32_t get4bytes (FILE * fp) {
 	f3 = fgetc (fp);
 	f4 = fgetc (fp);
 		
-	return (f1 + f2*256 + f3*256*256 + f4*256*256*256);
+	// We calculate without a sign, because f4*256*256*256 overflows an int
+	// when f4 is 128 or more.
+	return (int32_t) ((uint32_t) f1 + (uint32_t) f2 * 256 + (uint32_t) f3 * 256 * 256 + (uint32_t) f4 * 256 * 256 * 256);
 	
 	/*
 	 

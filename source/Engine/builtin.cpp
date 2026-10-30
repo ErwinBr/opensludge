@@ -36,6 +36,7 @@
 #include "thumbnail.h"
 #include "graphics.h"
 #include "utf8.h"
+#include "helpers.h"
 
 extern char * gamePath;
 
@@ -498,7 +499,7 @@ builtIn(pickOne)
 		fatal ("Built-in function should have at least 1 parameter");
 		return BR_ERROR;
 	}
-	int i = rand() % numParams;
+	int i = getRandom (numParams);
 
 	// Return value
 	while (numParams --) {
@@ -775,7 +776,7 @@ builtIn(random)
 
 	trimStack (fun -> stack);
 	if (num <= 0) num = 1;
-	setVariable (fun -> reg, SVT_INT, rand() % num);
+	setVariable (fun -> reg, SVT_INT, getRandom (num));
 	return BR_CONTINUE;
 }
 

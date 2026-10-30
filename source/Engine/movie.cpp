@@ -39,7 +39,7 @@
 extern int specialSettings;
 
 // in main.c
-int checkInput();
+void checkInput();
 extern int weAreDoneSoQuit;
 
 // Sludger.cpp
@@ -68,7 +68,10 @@ typedef struct audioQueue {
 
 audioQueue audioQ;
 
-Uint32 movieStartTick, movieCurrentTime;
+// The audio thread moves the start of the movie to keep the video in time
+// with the sound, so we read and write it atomically.
+SDL_AtomicU32 movieStartTick;
+Uint32 movieCurrentTime;
 
 long long audioNsPerByte;
 long long audioNsPlayed;
@@ -138,8 +141,9 @@ inline static int audio_queue_get(audioQueue *q, char **buffer)
 	if (audioBuf) {
 		// Synch video timer to audio
 		Uint32 tick = (Uint32) engineTicksMS()+100;
-		if (abs((long int)((tick - movieStartTick)-(audioBuf->time_ms))) > 300) {
-			movieStartTick = tick - audioBuf->time_ms;
+		Uint32 startTick = SDL_GetAtomicU32(&movieStartTick);
+		if (abs((long int)((tick - startTick)-(audioBuf->time_ms))) > 300) {
+			SDL_SetAtomicU32(&movieStartTick, tick - audioBuf->time_ms);
 		}
 				
 		q->first = audioBuf->next;
@@ -520,7 +524,8 @@ int playMovie (int fileNumber)
     if(vpx_codec_dec_init(&codec, interface, NULL, 0))
         die_codec(&codec, "Failed to initialize decoder for movie.");
 
-    unsigned char *frame = new unsigned char[256*1024];
+    long frameSize = 256*1024;
+    unsigned char *frame = new unsigned char[frameSize];
 	if (! checkNew (frame)) return false;
 
     const mkvparser::Cluster* pCluster = pSegment->GetFirst();
@@ -598,7 +603,7 @@ int playMovie (int fileNumber)
 
 	int frameCounter = 0;
 
-	movieStartTick = (Uint32) engineTicksMS();
+	SDL_SetAtomicU32(&movieStartTick, (Uint32) engineTicksMS());
 	#ifdef HAVE_GLES2
 	GLuint old_fbo;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&old_fbo);
@@ -644,10 +649,11 @@ int playMovie (int fileNumber)
 				const long size = theFrame.len;
 				//                const long long offset = theFrame.pos;
 
-				if( size > sizeof(frame) ) {
+				if( size > frameSize ) {
 					if( frame ) delete [] frame;
 					frame = new unsigned char[size];
 					if (! checkNew(frame)) return 0;
+					frameSize = size;
 				}
 /*
 				fprintf (stderr, "Block :%s,%s,%15lld\n",
@@ -820,8 +826,8 @@ movieHasEnded:	movieIsEnding = 1;
 			
 			videoBuffers *vB;
 			// Do we have decoded video waiting?
-			if (vB = videoQ.first) {
-				Uint32 tick = (Uint32) engineTicksMS() - movieStartTick;
+			if ((vB = videoQ.first)) {
+				Uint32 tick = (Uint32) engineTicksMS() - SDL_GetAtomicU32(&movieStartTick);
 				
 				// Is it time to display the frame yet?
 				if ((tick+1) < vB->time_ms) {
@@ -952,7 +958,7 @@ movieHasEnded:	movieIsEnding = 1;
 	
 	// Delete any remaining buffers
 	videoBuffers *vB = videoQ.first;
-	while (vB = videoQ.first) {
+	while ((vB = videoQ.first)) {
 		videoQ.first = vB->next;
 		delete [] vB->ytex;
 		delete [] vB->utex;
@@ -962,13 +968,21 @@ movieHasEnded:	movieIsEnding = 1;
 	videoQ.size = 0;
 
 	audioBuffers *aB = audioQ.first;
-	while (aB = audioQ.first) {
+	while ((aB = audioQ.first)) {
 		audioQ.first = aB->next;
 		delete [] aB->buffer;
 		delete aB;
 	}
 	audioQ.size = 0;
-	
+
+	delete [] frame;
+	SDL_DestroyCondition(videoQ.cond);
+	SDL_DestroyMutex(videoQ.mutex);
+	SDL_DestroyCondition(audioQ.cond);
+	SDL_DestroyMutex(audioQ.mutex);
+	videoQ.cond = audioQ.cond = NULL;
+	videoQ.mutex = audioQ.mutex = NULL;
+
 	Init_Timer();
 	glViewport (viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
 	setPixelCoords (false);

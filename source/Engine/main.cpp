@@ -301,10 +301,10 @@ int main(int argc, char *argv[]) try
 	if (! parseCaptureOptions (argc, argv)) return 1;
 
 	if (captureIsActive ()) {
-		srand (captureSeed ());
+		seedRandom (captureSeed ());
 	} else {
 		time_t t;
-		srand((unsigned) time(&t));
+		seedRandom ((unsigned) time(&t));
 	}
 
 	// When no game file is given, we look for one in bundleFolder. This is
