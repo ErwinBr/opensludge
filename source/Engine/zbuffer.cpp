@@ -12,8 +12,8 @@ extern int sceneWidth, sceneHeight;
 
 void killZBuffer () {
 	if (zBuffer.tex) {
-		deleteTextures (1, &zBuffer.texName);
-		zBuffer.texName = 0;
+		gfx::renderer->destroyTexture (zBuffer.texture);
+		zBuffer.texture = NULL;
 		delete [] zBuffer.tex;
 		zBuffer.tex = NULL;
 	}
@@ -111,13 +111,13 @@ bool setZBuffer (int y) {
 	
 	setResourceForFatal (-1);
 		
-	if (! zBuffer.texName) glGenTextures (1, &zBuffer.texName);
-	glBindTexture (GL_TEXTURE_2D, zBuffer.texName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	texImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, picWidth, picHeight, 0, GL_ALPHA, GL_UNSIGNED_BYTE, zBuffer.tex, zBuffer.texName);
+	if (zBuffer.texture) {
+		gfx::renderer->setTextureImage (zBuffer.texture, picWidth, picHeight, zBuffer.tex);
+	} else {
+		zBuffer.texture = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_R8, zBuffer.tex);
+	}
+	gfx::renderer->setTextureWrap (zBuffer.texture, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (zBuffer.texture, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 	
 	
 	return true;
@@ -127,17 +127,9 @@ void drawZBuffer(int x, int y, bool upsidedown) {
 	int i;
 	
 	if (! zBuffer.tex) return;
-	
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
-	glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-	glDepthMask (GL_TRUE);
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glBindTexture (GL_TEXTURE_2D, zBuffer.texName);
+	// We draw only into the depth buffer.
+	gfx::PipelineState state (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA, gfx::DEPTH_TEST_WRITE, gfx::MASK_NONE);
 	setPrimaryColor(1.0, 1.0, 1.0, 1.0);
 
 	for (i = 1; i<zBuffer.numPanels; i++) {
@@ -163,16 +155,10 @@ void drawZBuffer(int x, int y, bool upsidedown) {
 			backdropTexW, backdropTexH
 		}; 
 
-		glUniform1i(glGetUniformLocation(shader.texture, "zBuffer"), 1);
-		glUniform1f(glGetUniformLocation(shader.texture, "zBufferLayer"), i);
- 
-		drawQuad(shader.texture, vertices, 1, texCoords);
-		glUniform1i(glGetUniformLocation(shader.texture, "zBuffer"), 0);
+		gfx::DrawUniforms uniforms;
+		uniforms.zBuffer = true;
+		uniforms.zBufferLayer = i;
+		gfx::draw (state, uniforms, zBuffer.texture, vertices, texCoords);
 	}
-	
-	glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glDepthMask (GL_FALSE);
-	glDisable(GL_BLEND);	
-	glUseProgram(0);
 }
 

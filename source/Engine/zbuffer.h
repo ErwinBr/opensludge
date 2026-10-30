@@ -2,6 +2,7 @@
 #define _ZBUFFER_H_
 
 #include "sludge_gl.h"
+#include "renderer.h"
 
 struct zBufferData {
 	int width, height;
@@ -11,7 +12,7 @@ struct zBufferData {
 	int originalNum;
 
 	GLubyte * tex;
-	GLuint texName;
+	gfx::Texture * texture;
 };
 
 bool setZBuffer (int y);

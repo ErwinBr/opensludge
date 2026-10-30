@@ -2,6 +2,7 @@
 #define SPRITE_H
 
 #include "sludge_gl.h"
+#include "renderer.h"
 
 struct onScreenPerson;
 
@@ -18,8 +19,8 @@ public:
 	unsigned char * r;
 	unsigned char * g;
 	unsigned char * b;
-	GLuint * tex_names;
-	GLuint * burnTex_names;
+	gfx::Texture * * tex_names;
+	gfx::Texture * * burnTex_names;
 	int * tex_w, * tex_h;
 	int numTextures;
 	unsigned char originalRed, originalGreen, originalBlue, total;

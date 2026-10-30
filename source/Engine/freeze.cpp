@@ -23,7 +23,6 @@ extern screenRegion * allScreenRegions;
 extern screenRegion * overRegion;
 extern speechStruct * speech;
 extern inputType input;
-extern GLuint backdropTextureName;
 extern parallaxLayer * parallaxStuff;
 extern int lightMapNumber, zBufferNumber;
 extern eventHandlers * currentEvents;
@@ -41,12 +40,9 @@ extern unsigned int sceneWidth, sceneHeight;
 
 void shufflePeople ();
 
-GLuint freezeTextureName = 0;
+gfx::Texture * freezeTex = NULL;
 
 void freezeGraphics() {
-	glViewport (0, 0, realWinWidth, realWinHeight);
-
-	glGenTextures (1, &freezeTextureName);
 	int w = winWidth;
 	int h = winHeight;
 	if (! NPOT_textures) {
@@ -54,12 +50,10 @@ void freezeGraphics() {
 		h = getNextPOT(winHeight);
 	}
 
-	glBindTexture(GL_TEXTURE_2D, freezeTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0, freezeTextureName);
+	freezeTex = gfx::renderer->createTexture (w, h, gfx::TEX_RGBA8, NULL);
+	gfx::renderer->setTextureWrap (freezeTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (freezeTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+	gfx::RenderTarget * target = gfx::renderer->createTarget (freezeTex, true);
 
 	// Temporarily disable AA
 	int antiAlias = gameSettings.antiAlias;
@@ -97,19 +91,16 @@ void freezeGraphics() {
 				aPMVMatrix[i] = bPMVMatrix[i];
 			}
 			
-			// Render scene
-			glDepthMask (GL_TRUE);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear The Screen
-			glDepthMask (GL_FALSE);
-			
+			// Render scene, as if at the bottom left of the window, and
+			// copied from there into the texture
+			gfx::renderer->setTarget (target);
+			gfx::renderer->setViewport (x, y, realWinWidth, realWinHeight);
+			gfx::renderer->setScissor (x, y, w, h);
+			gfx::renderer->clear (true, true);
+
 			drawBackDrop ();				// Draw the room
 			drawZBuffer(cameraX, cameraY, false);
-			glEnable(GL_DEPTH_TEST);
 			drawPeople ();					// Then add any moving characters...
-			glDisable(GL_DEPTH_TEST);
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, x, y, 0, 0, w, h, freezeTextureName);
 			
 			y += h;
 		}
@@ -118,7 +109,8 @@ void freezeGraphics() {
 
 	gameSettings.antiAlias = antiAlias;
 
-	glViewport (viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
+	gfx::renderer->destroyTarget (target);
+	drawIntoWindow ();
 	setPixelCoords(false);
 }
 
@@ -130,7 +122,7 @@ bool freeze () {
 	// Grab a copy of the current scene
 	freezeGraphics();
 
-	newFreezer -> backdropTextureName = backdropTextureName;
+	newFreezer -> hadBackdrop = backdropTex != NULL;
 
 	int picWidth = sceneWidth;
 	int picHeight = sceneHeight;
@@ -141,9 +133,9 @@ bool freeze () {
 	newFreezer -> backdropTexture = new GLubyte [picHeight*picWidth*4];
 	if (! checkNew (newFreezer -> backdropTexture)) return false;	
 
-	saveTexture(backdropTextureName, newFreezer->backdropTexture);
-
-	backdropTextureName = 0;
+	gfx::Texture * oldBackdrop = backdropTex;
+	if (oldBackdrop) gfx::renderer->readTexture (oldBackdrop, newFreezer->backdropTexture);
+	setBackdropTexture (NULL);
 
 	newFreezer -> sceneWidth = sceneWidth;
 	newFreezer -> sceneHeight = sceneHeight;
@@ -152,10 +144,10 @@ bool freeze () {
 	newFreezer -> cameraZoom = cameraZoom;
 
 	newFreezer -> lightMapTexture = lightMap.data;
-	newFreezer -> lightMapTextureName = lightMap.name;
+	gfx::Texture * oldLightMap = lightMap.tex;
 	newFreezer -> lightMapNumber = lightMapNumber;
 	lightMap.data = NULL;
-	lightMap.name = 0;
+	lightMap.tex = NULL;
 
 	newFreezer -> parallaxStuff = parallaxStuff;
 	parallaxStuff = NULL;
@@ -176,25 +168,25 @@ bool freeze () {
 	}
 
 	// Copy the old scene to the new backdrop
-	deleteTextures (1, &backdropTextureName);
-	backdropTextureName = freezeTextureName;
+	gfx::Texture * reserved = backdropTex;
+	setBackdropTexture (freezeTex);
+	gfx::renderer->destroyTexture (reserved);
+	freezeTex = NULL;
 	backdropExists = true;
 
 	// Free texture memory used by old stuff
 	parallaxStuff = newFreezer -> parallaxStuff;
 	while (parallaxStuff) {
-		deleteTextures (1, &parallaxStuff -> textureName);
+		gfx::renderer->destroyTexture (parallaxStuff -> tex);
+		parallaxStuff -> tex = NULL;
 		parallaxStuff = parallaxStuff -> next;
 	}
 	if (newFreezer -> zBufferImage) {
-		deleteTextures (1, &zBuffer.texName);
+		gfx::renderer->destroyTexture (zBuffer.texture);
+		zBuffer.texture = NULL;
 	}
-	if (newFreezer -> lightMapTextureName) {
-		deleteTextures (1, &newFreezer -> lightMapTextureName);
-	}
-	if (newFreezer -> backdropTextureName) {
-		deleteTextures (1, &newFreezer -> backdropTextureName);
-	}
+	gfx::renderer->destroyTexture (oldLightMap);
+	gfx::renderer->destroyTexture (oldBackdrop);
 
 	newFreezer -> allPeople = allPeople;
 	allPeople = NULL;
@@ -262,10 +254,8 @@ void unfreeze (bool killImage) {
 
 	killLightMap ();
 	lightMap.data = frozenStuff -> lightMapTexture;
-	lightMap.name = frozenStuff -> lightMapTextureName;
 	lightMapNumber = frozenStuff -> lightMapNumber;
 	if (lightMapNumber) {
-		lightMap.name = 0;
 		loadLightMap(lightMapNumber);
 	}
 
@@ -274,7 +264,6 @@ void unfreeze (bool killImage) {
 	zBuffer.originalNum = frozenStuff -> zBufferNumber;
 	zBuffer.numPanels = frozenStuff -> zPanels;
 	if (zBuffer.numPanels) {
-		zBuffer.texName = 0;
 		setZBuffer (zBuffer.originalNum);
 	}
 
@@ -283,25 +272,13 @@ void unfreeze (bool killImage) {
 	reloadParallaxTextures ();
 
 	if (killImage) killBackDrop ();
-	backdropTextureName = frozenStuff -> backdropTextureName;
+	gfx::Texture * replaced = backdropTex;
+	setBackdropTexture (NULL);
+	gfx::renderer->destroyTexture (replaced);
 	if (backdropTexture) delete[] backdropTexture;
 	backdropTexture = frozenStuff -> backdropTexture;
 	backdropExists = true;
-	if (backdropTextureName) {
-		backdropTextureName = 0;
-		glGenTextures (1, &backdropTextureName);
-		glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		if (gameSettings.antiAlias < 0) {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-
+	if (frozenStuff -> hadBackdrop) {
 		int picWidth = sceneWidth;
 		int picHeight = sceneHeight;
 		if (! NPOT_textures) {
@@ -309,8 +286,11 @@ void unfreeze (bool killImage) {
 			picHeight = getNextPOT(picHeight);
 		}
 		// Restore the backdrop
-		texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, frozenStuff -> backdropTexture, backdropTextureName);
-
+		gfx::Texture * t = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, frozenStuff -> backdropTexture);
+		gfx::renderer->setTextureWrap (t, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+		gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+		gfx::renderer->setTextureFilter (t, filter, filter);
+		setBackdropTexture (t);
 	}
 
 	deleteAnim (mouseCursorAnim);

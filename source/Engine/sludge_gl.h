@@ -44,8 +44,24 @@
 	X(PFNGLUSEPROGRAMPROC, glUseProgram) \
 	X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer)
 
+// Frame buffer objects are part of OpenGL 3.0. Older drivers have them as
+// the extension EXT_framebuffer_object, with the same functions with EXT at
+// the end of their names.
+#define SLUDGE_GL_FBO_FUNCTIONS(X) \
+	X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+	X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
+	X(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus) \
+	X(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers) \
+	X(PFNGLDELETERENDERBUFFERSPROC, glDeleteRenderbuffers) \
+	X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer) \
+	X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
+	X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
+	X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) \
+	X(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage)
+
 #define SLUDGE_GL_DECLARE(type, name) extern type sludge_##name;
 SLUDGE_GL_FUNCTIONS(SLUDGE_GL_DECLARE)
+SLUDGE_GL_FBO_FUNCTIONS(SLUDGE_GL_DECLARE)
 #undef SLUDGE_GL_DECLARE
 
 // With these macros, a call to glUseProgram is a call through the function
@@ -75,6 +91,16 @@ SLUDGE_GL_FUNCTIONS(SLUDGE_GL_DECLARE)
 #define glUniformMatrix4fv sludge_glUniformMatrix4fv
 #define glUseProgram sludge_glUseProgram
 #define glVertexAttribPointer sludge_glVertexAttribPointer
+#define glBindFramebuffer sludge_glBindFramebuffer
+#define glBindRenderbuffer sludge_glBindRenderbuffer
+#define glCheckFramebufferStatus sludge_glCheckFramebufferStatus
+#define glDeleteFramebuffers sludge_glDeleteFramebuffers
+#define glDeleteRenderbuffers sludge_glDeleteRenderbuffers
+#define glFramebufferRenderbuffer sludge_glFramebufferRenderbuffer
+#define glFramebufferTexture2D sludge_glFramebufferTexture2D
+#define glGenFramebuffers sludge_glGenFramebuffers
+#define glGenRenderbuffers sludge_glGenRenderbuffers
+#define glRenderbufferStorage sludge_glRenderbufferStorage
 
 #endif
 

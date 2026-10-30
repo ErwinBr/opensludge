@@ -79,9 +79,9 @@ long long audioNsBuffered;
 long long audioBufferLen;
 bool movieSoundPlaying = false;
 int movieAudioIndex;
-GLuint yTextureName = 0;
-GLuint uTextureName = 0;
-GLuint vTextureName = 0;
+gfx::Texture * yTex = NULL;
+gfx::Texture * uTex = NULL;
+gfx::Texture * vTex = NULL;
 
 typedef struct videoBuffers {
 	GLubyte * ytex;
@@ -250,7 +250,7 @@ void setMovieViewport()
 		vpOffsetX = 0;
 	}
 
-	glViewport (vpOffsetX, vpOffsetY, vpWidth, vpHeight);
+	gfx::renderer->setViewport (vpOffsetX, vpOffsetY, vpWidth, vpHeight);
 
 	const GLfloat bPMVMatrix[] =
 	{
@@ -530,13 +530,12 @@ int playMovie (int fileNumber)
 
     const mkvparser::Cluster* pCluster = pSegment->GetFirst();
 
+	// We draw the movie straight into the window.
+	drawIntoWindow ();
 	setMovieViewport();
 
 	movieIsPlaying = playing;
 	movieIsEnding = 0;
-
-	glDepthMask (GL_FALSE);
-	glDisable(GL_DEPTH_TEST);
 
 	//const long long timeCode = pCluster->GetTimeCode();
 	long long time_ns = pCluster->GetTime();
@@ -604,11 +603,6 @@ int playMovie (int fileNumber)
 	int frameCounter = 0;
 
 	SDL_SetAtomicU32(&movieStartTick, (Uint32) engineTicksMS());
-	#ifdef HAVE_GLES2
-	GLuint old_fbo;
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&old_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	#endif
 	
 	while ( movieIsPlaying ) {
 
@@ -840,35 +834,20 @@ movieHasEnded:	movieIsEnding = 1;
 						
 					if (video_queue_get(&videoQ, &ytex, &utex, &vtex, &w, &h)) {
 						
-						if (! yTextureName) glGenTextures (1, &yTextureName);
-						if (! uTextureName) glGenTextures (1, &uTextureName);
-						if (! vTextureName) glGenTextures (1, &vTextureName);
-						glBindTexture (GL_TEXTURE_2D, yTextureName);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, w, h, 0,
-										 GL_ALPHA, GL_UNSIGNED_BYTE, ytex);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-						glBindTexture (GL_TEXTURE_2D, uTextureName);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, w>>1, h>>1, 0,
-										 GL_ALPHA, GL_UNSIGNED_BYTE, utex);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-						glBindTexture (GL_TEXTURE_2D, vTextureName);
-						glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, w>>1, h>>1, 0,
-										 GL_ALPHA, GL_UNSIGNED_BYTE, vtex);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-						glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-						
-						glBindTexture (GL_TEXTURE_2D, yTextureName);
-						glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
-										GL_ALPHA, GL_UNSIGNED_BYTE, ytex);
-						glBindTexture (GL_TEXTURE_2D, uTextureName);
-						glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w>>1, h>>1,
-											GL_ALPHA, GL_UNSIGNED_BYTE, utex);
-						glBindTexture (GL_TEXTURE_2D, vTextureName);
-						glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w>>1, h>>1,
-											GL_ALPHA, GL_UNSIGNED_BYTE, vtex);
+						// One channel for each of Y, U and V; U and V
+						// have half the width and height.
+						gfx::Texture * * planes[3] = { &yTex, &uTex, &vTex };
+						GLubyte * data[3] = { ytex, utex, vtex };
+						for (int i = 0; i < 3; i ++) {
+							int pw = i ? w>>1 : w;
+							int ph = i ? h>>1 : h;
+							if (* planes[i]) {
+								gfx::renderer->setTextureImage (* planes[i], pw, ph, data[i]);
+							} else {
+								* planes[i] = gfx::renderer->createTexture (pw, ph, gfx::TEX_R8, data[i]);
+							}
+							gfx::renderer->setTextureFilter (* planes[i], gfx::FILTER_LINEAR, gfx::FILTER_LINEAR);
+						}
 														
 						delete [] ytex;
 						delete [] utex;
@@ -888,59 +867,35 @@ movieHasEnded:	movieIsEnding = 1;
 		if (videoUpdated || movieIsPlaying == paused) {
 
 			// Clear The Screen
-			glClear(GL_COLOR_BUFFER_BIT);
+			gfx::renderer->clear (true, false);
 
 			// Display the current frame here
-			if (shader.yuv) {
-				glUseProgram(shader.yuv);
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture (GL_TEXTURE_2D, uTextureName);
-				glActiveTexture(GL_TEXTURE2);
-				glBindTexture (GL_TEXTURE_2D, vTextureName);
-				glActiveTexture(GL_TEXTURE0);
-			}
-			glBindTexture (GL_TEXTURE_2D, yTextureName);
-			glEnable(GL_BLEND);
-			//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-			setPMVMatrix(shader.yuv);
-			drawQuad(shader.yuv, vertices, 1, texCoords);
-
-			glUseProgram(0);
+			gfx::Texture * const planes[3] = { yTex, uTex, vTex };
+			gfx::Quad quad = { vertices, { texCoords, NULL, NULL } };
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_YUV, gfx::BLEND_ALPHA), gfx::DrawUniforms (), planes, quad);
 
 			if (movieIsPlaying == paused) {
 				pausefade -= 1.0 / 24;
 				if (pausefade<-1.0) pausefade = 1.0;
 
 				// Paused.
-				glEnable(GL_BLEND);
-
-				glUseProgram(shader.color);
-				setPMVMatrix(shader.color);
+				gfx::PipelineState state (gfx::PROG_COLOR, gfx::BLEND_ALPHA);
 				setPrimaryColor(0.0f, 0.0f, 0.0f, fabs(pausefade));
-				drawQuad(shader.color, vertices1, 0);
-				drawQuad(shader.color, vertices2, 0);
+				gfx::draw (state, gfx::DrawUniforms (), vertices1);
+				gfx::draw (state, gfx::DrawUniforms (), vertices2);
 				setPrimaryColor(1.0f, 1.0f, 1.0f, fabs(pausefade));
-				drawQuad(shader.color, vertices3, 0);
-				drawQuad(shader.color, vertices4, 0);
-				glUseProgram(0);
-
-
-				glDisable(GL_BLEND);
+				gfx::draw (state, gfx::DrawUniforms (), vertices3);
+				gfx::draw (state, gfx::DrawUniforms (), vertices4);
 
 				Wait_Frame();
 			}
-			glFlush();
-			swapGraphicsBuffers();
+			gfx::renderer->present ();
 
 		}
 		videoUpdated = false;
 	}
 
 	// Cleanup
-	#ifdef HAVE_GLES2
-	glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
-	#endif
 	movieIsPlaying = nothing;
 	for (int i =0; i<10; i++) Wait_Frame();
 	huntKillFreeSound(fileNumber);
@@ -951,10 +906,10 @@ movieHasEnded:	movieIsEnding = 1;
 	vorbis_comment_clear(&vorbisComment);
 	vorbis_info_clear(&vorbisInfo);
     delete pSegment;
-	deleteTextures (1, &yTextureName);
-	deleteTextures (1, &uTextureName);
-	deleteTextures (1, &vTextureName);
-	yTextureName = uTextureName = vTextureName = 0;
+	gfx::renderer->destroyTexture (yTex);
+	gfx::renderer->destroyTexture (uTex);
+	gfx::renderer->destroyTexture (vTex);
+	yTex = uTex = vTex = NULL;
 	
 	// Delete any remaining buffers
 	videoBuffers *vB = videoQ.first;
@@ -984,7 +939,7 @@ movieHasEnded:	movieIsEnding = 1;
 	videoQ.mutex = audioQ.mutex = NULL;
 
 	Init_Timer();
-	glViewport (viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
+	drawIntoWindow ();
 	setPixelCoords (false);
 	return 1;
 }

@@ -315,13 +315,8 @@ static void drawRectangle (int x1, int y1, int x2, int y2, float r, float g, flo
 		x1 / cameraZoom, y2 / cameraZoom, 0,
 		x2 / cameraZoom, y2 / cameraZoom, 0
 	};
-	glEnable (GL_BLEND);
-	glUseProgram (shader.color);
-	setPMVMatrix (shader.color);
 	setPrimaryColor (r, g, b, a);
-	drawQuad (shader.color, vertices, 0);
-	glUseProgram (0);
-	glDisable (GL_BLEND);
+	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), gfx::DrawUniforms (), vertices);
 }
 
 // Layout

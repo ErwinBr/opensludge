@@ -33,14 +33,19 @@ bool freeze ();
 void unfreeze (bool);	// Because FREEZE.H needs a load of other includes
 
 GLubyte * backdropTexture = NULL;
-GLuint backdropTextureName = 0;
+gfx::Texture * backdropTex = NULL;
+gfx::RenderTarget * backdropTarget = NULL;
 bool backdropExists = false;
 GLfloat backdropTexW = 1.0;
 GLfloat backdropTexH = 1.0;
 
+// A copy of the backdrop, from which we draw while we draw into the
+// backdrop, because we can't draw from a texture while we draw into it.
+static gfx::Texture * backdropCopy = NULL;
+
 texture lightMap;
 
-GLuint snapshotTextureName = 0;
+gfx::Texture * snapshotTex = NULL;
 float snapTexW = 1.0;
 float snapTexH = 1.0;
 
@@ -57,15 +62,47 @@ unsigned int currentBlankColour = makeColour (0, 0, 0);
 extern int cameraX, cameraY;
 extern float cameraZoom;
 
+void setBackdropTexture (gfx::Texture * t) {
+	if (backdropTarget) gfx::renderer->destroyTarget (backdropTarget);
+	backdropTarget = NULL;
+	backdropTex = t;
+	if (t) backdropTarget = gfx::renderer->createTarget (t, true);
+}
+
+gfx::Texture * copyOfBackdrop () {
+	int tw, th;
+	gfx::renderer->textureSize (backdropTex, &tw, &th);
+	if (backdropCopy) {
+		int cw, ch;
+		gfx::renderer->textureSize (backdropCopy, &cw, &ch);
+		if (cw != tw || ch != th) {
+			gfx::renderer->destroyTexture (backdropCopy);
+			backdropCopy = NULL;
+		}
+	}
+	if (! backdropCopy) {
+		backdropCopy = gfx::renderer->createTexture (tw, th, gfx::TEX_RGBA8, NULL);
+		gfx::renderer->setTextureWrap (backdropCopy, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	}
+	// We draw into the backdrop pixel for pixel, with the backdrop filtered
+	// as nearest, as setPixelCoords (true) sets it.
+	gfx::renderer->setTextureFilter (backdropCopy, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+
+	gfx::renderer->setScissor (0, 0, 0, 0);
+	gfx::renderer->setTarget (backdropTarget);
+	gfx::renderer->copyToTexture (backdropCopy, 0, 0, 0, 0, tw, th);
+	return backdropCopy;
+}
+
 void nosnapshot () {
-	deleteTextures (1, &snapshotTextureName);
-	snapshotTextureName = 0;
+	gfx::renderer->destroyTexture (snapshotTex);
+	snapshotTex = NULL;
 }
 
 void saveSnapshot(FILE * fp) {
-	if (snapshotTextureName) {
+	if (snapshotTex) {
 		fputc (1, fp);				// 1 for snapshot follows
-		saveCoreHSI (fp, snapshotTextureName, winWidth, winHeight);
+		saveCoreHSI (fp, snapshotTex, winWidth, winHeight);
 	} else {
 		fputc (0, fp);
 	}
@@ -79,7 +116,6 @@ bool snapshot () {
 
 	setPixelCoords (true);
 
-	glGenTextures (1, &snapshotTextureName);
 	int w = winWidth;
 	int h = winHeight;
 	if (! NPOT_textures) {
@@ -89,30 +125,23 @@ bool snapshot () {
 		snapTexH = ((double)winHeight) / h;
 	}
 
-	glBindTexture(GL_TEXTURE_2D, snapshotTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0, snapshotTextureName);
+	snapshotTex = gfx::renderer->createTexture (w, h, gfx::TEX_RGBA8, NULL);
+	gfx::renderer->setTextureWrap (snapshotTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (snapshotTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+	gfx::RenderTarget * target = gfx::renderer->createTarget (snapshotTex, true);
 
 	// Render scene
-	glDepthMask (GL_TRUE);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear The Screen
-	glDepthMask (GL_FALSE);
+	drawIntoTile (target, 0, 0, 0, 0, winWidth, winHeight);
 
 	drawBackDrop ();				// Draw the room
 	drawZBuffer(cameraX, cameraY, false);
 
-	glEnable(GL_DEPTH_TEST);
 	drawPeople ();					// Then add any moving characters...
-	glDisable(GL_DEPTH_TEST);
 	viewSpeech ();					// ...and anything being said
 	drawStatusBar ();
 
-	// Copy Our ViewPort To The Texture
-	copyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, viewportOffsetX, viewportOffsetY, winWidth, winHeight, snapshotTextureName);
-
+	gfx::renderer->destroyTarget (target);
+	drawIntoWindow ();
 	setPixelCoords (false);
 
 	unfreeze (false);
@@ -160,13 +189,13 @@ bool restoreSnapshot (FILE * fp) {
 		}
 	}
 
-	if (! snapshotTextureName) glGenTextures (1, &snapshotTextureName);
-	glBindTexture(GL_TEXTURE_2D, snapshotTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, snapshotTexture, snapshotTextureName);
+	if (snapshotTex) {
+		gfx::renderer->setTextureImage (snapshotTex, picWidth, picHeight, snapshotTexture);
+	} else {
+		snapshotTex = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, snapshotTexture);
+	}
+	gfx::renderer->setTextureWrap (snapshotTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (snapshotTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 
 	delete [] snapshotTexture;
 	snapshotTexture = NULL;
@@ -176,14 +205,15 @@ bool restoreSnapshot (FILE * fp) {
 
 
 void killBackDrop () {
-	deleteTextures (1, &backdropTextureName);
-	backdropTextureName = 0;
+	gfx::Texture * t = backdropTex;
+	setBackdropTexture (NULL);
+	gfx::renderer->destroyTexture (t);
 	backdropExists = false;
 }
 
 void killLightMap () {
-	deleteTextures (1, &lightMap.name);
-	lightMap.name = 0;
+	gfx::renderer->destroyTexture (lightMap.tex);
+	lightMap.tex = NULL;
 	if (lightMap.data) {
 		delete [] lightMap.data;
 		lightMap.data = NULL;
@@ -198,7 +228,7 @@ void killParallax () {
 		parallaxStuff = k -> next;
 
 		// Now kill the image
-		deleteTextures (1, &k -> textureName);
+		gfx::renderer->destroyTexture (k -> tex);
 		delete [] k -> texture;
 		delete k;
 		k = NULL;
@@ -217,8 +247,6 @@ bool reserveBackdrop () {
 	int picWidth = sceneWidth;
 	int picHeight = sceneHeight;
 
-	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
 	if (backdropTexture) delete [] backdropTexture;
 	if (! NPOT_textures) {
 		picWidth = getNextPOT(sceneWidth);
@@ -229,19 +257,17 @@ bool reserveBackdrop () {
 	backdropTexture = new GLubyte [picWidth*picHeight*4];
 	if (! checkNew (backdropTexture)) return false;
 
-	if (! backdropTextureName) glGenTextures (1, &backdropTextureName);
-	glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	if (gameSettings.antiAlias < 0) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	gfx::Texture * t = backdropTex;
+	if (t) {
+		gfx::renderer->setTextureImage (t, picWidth, picHeight, backdropTexture);
 	} else {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		t = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, backdropTexture);
 	}
-
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, backdropTexture, backdropTextureName);
+	gfx::renderer->setTextureWrap (t, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+	gfx::renderer->setTextureFilter (t, filter, filter);
+	// The size may have changed, so we make a new target.
+	setBackdropTexture (t);
 
 	return true;
 }
@@ -309,9 +335,7 @@ void blankScreen (int x1, int y1, int x2, int y2) {
 		while (yoffset < picHeight) {
 			int h = (picHeight-yoffset < viewportHeight) ? picHeight-yoffset : viewportHeight;
 
-			// Render the scene
-
-		
+			drawIntoTile (backdropTarget, x1+xoffset, y1+yoffset, 0, 0, w, h);
 
 			const GLfloat vertices[] = { 
 				-10.325f, -1.325f, 0.0f, 
@@ -320,20 +344,15 @@ void blankScreen (int x1, int y1, int x2, int y2) {
 				w+1.325f, h+1.325f, 0.0f 
 			};
 
-			glUseProgram(shader.color);
-			setPMVMatrix(shader.color);
 			setPrimaryColor(redValue(currentBlankColour)/255.0f, greenValue(currentBlankColour)/255.0f, blueValue(currentBlankColour)/255.0f, 1.0f);
-			drawQuad(shader.color, vertices, 0);
-			glUseProgram(0);
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, x1+xoffset, y1+yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
+			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR), gfx::DrawUniforms (), vertices);
 
 			yoffset += viewportHeight;
 		}
 		xoffset += viewportWidth;
 	}
 
+	drawIntoWindow ();
 	setPixelCoords (false);
 }
 
@@ -362,12 +381,10 @@ void hardScroll (int distance) {
 		while (yoffset < sceneHeight) {
 			int h = (sceneHeight-yoffset < viewportHeight) ? sceneHeight-yoffset : viewportHeight;
 
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
-
 			// Render the backdrop
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			gfx::renderer->setTextureFilter (backdropTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, xoffset, yoffset, 0, 0, w, h);
 
 			const GLfloat vertices[] = { 
 				(GLfloat)-xoffset, (GLfloat)-distance-yoffset, 0., 
@@ -376,19 +393,13 @@ void hardScroll (int distance) {
 				(GLfloat)sceneWidth-xoffset, (GLfloat)sceneHeight-distance-yoffset, 0. 
 			};
 
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, backdropTexCoords);
 
-			drawQuad(shader.texture, vertices, 1, backdropTexCoords);
-			glUseProgram(0);
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, xoffset, yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
-			
 			yoffset += viewportHeight;
 		}
 		xoffset += viewportWidth;
 	}
+	drawIntoWindow ();
 	setPixelCoords (false);
 }
 
@@ -412,11 +423,9 @@ void darkScreen () {
 			int h = (sceneHeight-yoffset < viewportHeight) ? sceneHeight-yoffset : viewportHeight;
 
 			// Render the scene - first the old backdrop
-		
-			//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			gfx::renderer->setTextureFilter (backdropTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, xoffset, yoffset, 0, 0, w, h);
 
 			const GLfloat vertices[] = { 
 				(GLfloat)-xoffset, (GLfloat)-yoffset, 0., 
@@ -432,37 +441,18 @@ void darkScreen () {
 				backdropTexW, backdropTexH
 			}; 
 
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, texCoords);
 
-			drawQuad(shader.texture, vertices, 1, texCoords);
-
-			// Then the darkness
-		
-			glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
-
-			glEnable(GL_BLEND);
-
-			glUseProgram(shader.color);
-			setPMVMatrix(shader.color);
+			// Then the darkness, without changing the alpha
 			setPrimaryColor(0.0f, 0.0f, 0.0f, 0.5f);
-			drawQuad(shader.color, vertices, 0);
-			glUseProgram(0);
-
-			glDisable(GL_BLEND);
-			glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, xoffset, yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
+			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA, gfx::DEPTH_OFF, gfx::MASK_RGB), gfx::DrawUniforms (), vertices);
 
 			yoffset += h;
-			glClear(GL_COLOR_BUFFER_BIT);
-
 		}
 		xoffset += w;
 	}
 
-
+	drawIntoWindow ();
 	setPixelCoords (false);
 }
 
@@ -480,20 +470,9 @@ void drawBackDrop () {
 
 	setPrimaryColor(1.0, 1.0, 1.0, 1.0);
 
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glEnable(GL_BLEND);
-
-	glUseProgram(shader.smartScaler);
-	GLuint uniform = glGetUniformLocation(shader.smartScaler, "useLightTexture");
-	if (uniform >= 0) glUniform1i(uniform, 0);
-
-	setPMVMatrix(shader.smartScaler);
-
-	if (gameSettings.antiAlias == 1) {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 1);
-	} else {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 0);
-	}
+	gfx::PipelineState state (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA);
+	gfx::DrawUniforms uniforms;
+	uniforms.antialias = gameSettings.antiAlias == 1;
 
 	if (parallaxStuff) {
 		parallaxLayer * ps = parallaxStuff;
@@ -503,8 +482,6 @@ void drawBackDrop () {
 		while (ps) {
 			ps -> cameraX = sortOutPCamera (cameraX, ps -> fractionX, (int)(sceneWidth - (float)winWidth/cameraZoom), (int)(ps -> width - (float)winWidth/cameraZoom));
 			ps -> cameraY = sortOutPCamera (cameraY, ps -> fractionY, (int)(sceneHeight - (float)winHeight/cameraZoom), (int)(ps -> height - (float)winHeight/cameraZoom));
-
-			glBindTexture (GL_TEXTURE_2D, ps->textureName);
 
 			float w = (ps->wrapS) ? sceneWidth : ps->width;
 			float h = (ps->wrapT) ? sceneHeight : ps->height;
@@ -531,13 +508,11 @@ void drawBackDrop () {
 				0.0f, texh,
 				texw, texh
 			}; 
-			drawQuad(shader.smartScaler, vertices, 1, texCoords);
+			gfx::draw (state, uniforms, ps->tex, vertices, texCoords);
 
 			ps = ps -> prev;
 		}
 	}
-
-	glBindTexture (GL_TEXTURE_2D, backdropTextureName);
 
 	const GLfloat backdropTexCoords[] = { 
 		0.0f, 0.0f,
@@ -553,11 +528,7 @@ void drawBackDrop () {
 		(GLfloat)sceneWidth- (GLfloat)cameraX, (GLfloat)sceneHeight- (GLfloat)cameraY, 0.
 	};
 
-	drawQuad(shader.smartScaler, vertices, 1, backdropTexCoords);
-
-	glDisable(GL_BLEND);
-
-	glUseProgram(0);
+	gfx::draw (state, uniforms, backdropTex, vertices, backdropTexCoords);
 }
 
 bool loadLightMap (int v) {
@@ -653,8 +624,6 @@ bool loadLightMap (int v) {
 	killLightMap ();
 	lightMapNumber = v;
 
-	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
 	if (lightMap.data) delete [] lightMap.data;
 
 	lightMap.data = new GLubyte [newPicWidth*newPicHeight*4];
@@ -698,18 +667,20 @@ bool loadLightMap (int v) {
 		}
 	}
 
-	if (! lightMap.name) glGenTextures (1, &lightMap.name);
-	glBindTexture(GL_TEXTURE_2D, lightMap.name);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, newPicWidth, newPicHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, lightMap.data, lightMap.name);
+	lightMap.tex = gfx::renderer->createTexture (newPicWidth, newPicHeight, gfx::TEX_RGBA8, lightMap.data);
+	gfx::renderer->setTextureWrap (lightMap.tex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (lightMap.tex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 
 	finishAccess ();
 	setResourceForFatal (-1);
 
 	return true;
+}
+
+static void setParallaxSampling (parallaxLayer * nP) {
+	gfx::renderer->setTextureWrap (nP->tex, nP->wrapS ? gfx::WRAP_REPEAT : gfx::WRAP_CLAMP, nP->wrapT ? gfx::WRAP_REPEAT : gfx::WRAP_CLAMP);
+	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+	gfx::renderer->setTextureFilter (nP->tex, filter, filter);
 }
 
 void reloadParallaxTextures () {
@@ -718,31 +689,12 @@ void reloadParallaxTextures () {
 
 	while (nP) {
 		//fprintf (stderr, "Reloading parallax. (%d, %d) ", nP->width, nP->height);
-		nP->textureName = 0;
-		glGenTextures (1, &nP->textureName);
-		glBindTexture (GL_TEXTURE_2D, nP->textureName);
-		if (nP -> wrapS)
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		else
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		if (nP -> wrapT)
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		else
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		if (gameSettings.antiAlias < 0) {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-
 		if (! NPOT_textures) {
-			texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, getNextPOT(nP->width), getNextPOT(nP->height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nP->texture, nP->textureName);
+			nP->tex = gfx::renderer->createTexture (getNextPOT(nP->width), getNextPOT(nP->height), gfx::TEX_RGBA8, nP->texture);
 		} else {
-			texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, nP->width, nP->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nP->texture, nP->textureName);
+			nP->tex = gfx::renderer->createTexture (nP->width, nP->height, gfx::TEX_RGBA8, nP->texture);
 		}
+		setParallaxSampling (nP);
 		nP = nP->next;
 	}
 }
@@ -906,26 +858,8 @@ bool loadParallax (unsigned short v, unsigned short fracX, unsigned short fracY)
 		}
 	}
 
-	glGenTextures (1, &nP->textureName);
-	glBindTexture (GL_TEXTURE_2D, nP->textureName);
-	if (nP -> wrapS)
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	else
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	if (nP -> wrapT)
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	else
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	if (gameSettings.antiAlias < 0) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	} else {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
-
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nP->texture, nP->textureName);
+	nP->tex = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, nP->texture);
+	setParallaxSampling (nP);
 
 	finishAccess ();
 	setResourceForFatal (-1);
@@ -1067,20 +1001,10 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 		}
 	}
 
-	GLuint tmpTex;
-
-	glGenTextures (1, &tmpTex);
-	glBindTexture(GL_TEXTURE_2D, tmpTex);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	if (gameSettings.antiAlias < 0) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	} else {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, backdropTexture, tmpTex);
+	gfx::Texture * tmpTex = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, backdropTexture);
+	gfx::renderer->setTextureWrap (tmpTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::Filter tmpFilter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+	gfx::renderer->setTextureFilter (tmpTex, tmpFilter, tmpFilter);
 
 
 	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -1119,7 +1043,8 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 		while (yoffset < realPicHeight) {
 			int h = (realPicHeight-yoffset < viewportHeight) ? realPicHeight-yoffset : viewportHeight;
 
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
+			gfx::Texture * copy = backdropExists ? copyOfBackdrop () : NULL;
+			drawIntoTile (backdropTarget, x+xoffset, y+yoffset, 0, 0, w, h);
 
 			const GLfloat vertices[] = { 
 				(GLfloat)-xoffset, (GLfloat)-yoffset, 0., 
@@ -1138,49 +1063,24 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 			if (backdropExists) {
 				// Render the sprite to the backdrop
 				// (using mulitexturing, so the old backdrop is seen where alpha < 1.0)
-				glActiveTexture(GL_TEXTURE2);
-				glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-				glActiveTexture(GL_TEXTURE0);
-
-				glUseProgram(shader.paste);
-				GLint uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-				if (uniform >= 0) glUniform1i(uniform, 0); // No lighting
-
-				setPMVMatrix(shader.paste);
-
 				setPrimaryColor(1.0, 1.0, 1.0, 1.0);
-				glBindTexture(GL_TEXTURE_2D, tmpTex);
-				//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-				drawQuad(shader.paste, vertices, 3, texCoords, NULL, btexCoords);
-
-				glUseProgram(0);
-
+				gfx::Texture * const textures[3] = { tmpTex, NULL, copy };
+				gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
+				gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
 			} else {
 				// It's all new - nothing special to be done.
-
-				glUseProgram(shader.texture);
-				setPMVMatrix(shader.texture);
-
-				glBindTexture(GL_TEXTURE_2D, tmpTex);
-
 				setPrimaryColor(1.0, 0.0, 0.0, 0.0);
-
-				drawQuad(shader.texture, vertices, 1, texCoords);
-
-				glUseProgram(0);
+				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), tmpTex, vertices, texCoords);
 			}
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, x+xoffset, y+yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
 
 			yoffset += viewportHeight;
 		}
 
 		xoffset += viewportWidth;
 	}
-	deleteTextures(1, &tmpTex);
+	gfx::renderer->destroyTexture (tmpTex);
 
+	drawIntoWindow ();
 	setPixelCoords (false);
 
 	backdropExists = true;
@@ -1347,21 +1247,10 @@ bool mixHSI (FILE * fp, int x, int y) {
 		}
 	}
 
-	GLuint tmpTex;
-
-	glGenTextures (1, &tmpTex);
-	glBindTexture(GL_TEXTURE_2D, tmpTex);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	if (gameSettings.antiAlias < 0) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	} else {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
-
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, backdropTexture, tmpTex);
+	gfx::Texture * tmpTex = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, backdropTexture);
+	gfx::renderer->setTextureWrap (tmpTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::Filter tmpFilter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+	gfx::renderer->setTextureFilter (tmpTex, tmpFilter, tmpFilter);
 
 
 	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -1377,23 +1266,12 @@ bool mixHSI (FILE * fp, int x, int y) {
 		while (yoffset < realPicHeight) {
 			int h = (realPicHeight-yoffset < viewportHeight) ? realPicHeight-yoffset : viewportHeight;
 
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, (x<0) ? xoffset : x+xoffset, (y<0) ? yoffset : y+yoffset, (x<0) ? -x : 0, (y<0) ? -y : 0, w, h);
 
 			// Render the sprite to the backdrop
 			// (using mulitexturing, so the backdrop is seen where alpha < 1.0)
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glActiveTexture(GL_TEXTURE0);
-
-			glUseProgram(shader.paste);
-			GLint uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-			if (uniform >= 0) glUniform1i(uniform, 0); // No lighting
-
-			setPMVMatrix(shader.paste);
-
 			setPrimaryColor(1.0, 1.0, 1.0, 0.5);
-			glBindTexture(GL_TEXTURE_2D, tmpTex);
-			//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 			const GLfloat vertices[] = { 
 				(GLfloat)-xoffset, (GLfloat)-yoffset, 0., 
@@ -1402,99 +1280,30 @@ bool mixHSI (FILE * fp, int x, int y) {
 				(GLfloat)realPicWidth-xoffset, (GLfloat)-yoffset+realPicHeight, 0.
 			};
 
-			drawQuad(shader.paste, vertices, 3, texCoords, NULL, btexCoords);
-
-			// Copy Our ViewPort To The Texture
-			glUseProgram(0);
-
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, (int) ((x<0) ? xoffset: x+xoffset), (int) ((y<0) ? yoffset: y+yoffset), (int) ((x<0) ?viewportOffsetX-x:viewportOffsetX), (int) ((y<0) ?viewportOffsetY-y:viewportOffsetY), w, h, backdropTextureName);
+			gfx::Texture * const textures[3] = { tmpTex, NULL, copy };
+			gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}
 
 		xoffset += viewportWidth;
 	}
-	deleteTextures(1, &tmpTex);
+	gfx::renderer->destroyTexture (tmpTex);
+	drawIntoWindow ();
 	setPixelCoords (false);
 	return true;
 }
 
-void saveCorePNG  (FILE * writer, GLuint texture, int w, int h) {
-	GLint tw, th;
-
-	glBindTexture (GL_TEXTURE_2D, texture);
-	getTextureDimensions(texture, &tw, &th);
+void saveCorePNG  (FILE * writer, gfx::Texture * texture, int w, int h) {
+	int tw, th;
+	gfx::renderer->textureSize (texture, &tw, &th);
 
 	GLubyte* image = new GLubyte [tw*th*4];
 	if (! checkNew (image)) return;
 
-	glPixelStorei (GL_PACK_ALIGNMENT, 1);
-//	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+	gfx::renderer->readTexture (texture, image);
 
-	#ifdef HAVE_GLES2
-	GLuint old_fbo, new_fbo;
-	GLint old_vp[4];
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&old_fbo);
-	glGetIntegerv(GL_VIEWPORT, old_vp);
-	glGenFramebuffers(1, &new_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, new_fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-	glViewport(0, 0, tw, th);
-	glReadPixels(0, 0, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, image);
-	glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
-	glViewport(old_vp[0], old_vp[1], old_vp[2], old_vp[3]);
-	glDeleteFramebuffers(1, &new_fbo);
-	#else
-	setPixelCoords (true);
-		
-
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-
-	const GLfloat texCoords[] = { 
-		0.0f, 0.0f,
-		1.0f, 0.0f,
-		0.0f, 1.0f,
-		1.0f, 1.0f
-	}; 
-
-	int xoffset = 0;
-	while (xoffset < tw) {
-		int w = (tw-xoffset < viewportWidth) ? tw-xoffset : viewportWidth;
-
-		int yoffset = 0;
-		while (yoffset < th) {
-			int h = (th-yoffset < viewportHeight) ? th-yoffset : viewportHeight;
-			
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
-
-			const GLfloat vertices[] = { 
-				(GLfloat)-xoffset, (GLfloat)-yoffset, 0., 
-				(GLfloat)tw-xoffset, (GLfloat)-yoffset, 0., 
-				(GLfloat)-xoffset, (GLfloat)-yoffset+th, 0.,
-				(GLfloat)tw-xoffset, (GLfloat)-yoffset+th, 0.
-			};
-
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
-
-			drawQuad(shader.texture, vertices, 1, texCoords);
-
-			glUseProgram(0);
-
-			for (int i = 0; i<h; i++)	{
-				glReadPixels(viewportOffsetX, viewportOffsetY+i, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, image+xoffset*4+(yoffset+i)*4*tw);
-			}
-			
-			yoffset += viewportHeight;
-		}
-		
-		xoffset += viewportWidth;
-	}
-	setPixelCoords (false);
-	#endif
-	
-	
-	
 	png_structp png_ptr = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if (!png_ptr) {
 		fatal ("Error saving image!");
@@ -1526,68 +1335,30 @@ void saveCorePNG  (FILE * writer, GLuint texture, int w, int h) {
 	image = NULL;
 }
 
-void saveCoreHSI (FILE * writer, GLuint texture, int w, int h) {
+unsigned short rgbTo565 (const unsigned char * rgb) {
+	// We keep the upper bits, as OpenGL on macOS and the OpenGL ES code of
+	// the engine did when they read pixels in this format.
+	unsigned short r = rgb[0] >> 3;
+	unsigned short g = rgb[1] >> 2;
+	unsigned short b = rgb[2] >> 3;
+	return (r << 11) | (g << 5) | b;
+}
 
-	GLint tw, th;
-	glBindTexture (GL_TEXTURE_2D, texture);
-	getTextureDimensions(texture, &tw, &th);
+void saveCoreHSI (FILE * writer, gfx::Texture * texture, int w, int h) {
+
+	int tw, th;
+	gfx::renderer->textureSize (texture, &tw, &th);
 
 	GLushort* image = new GLushort [tw*th];
 	if (! checkNew (image)) return;
 
-	glPixelStorei (GL_PACK_ALIGNMENT, 1);
-//	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, image);
-
-	setPixelCoords (true);
-	
-	
-
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	
-	const GLfloat texCoords[] = { 
-		0.0f, 0.0f,
-		1.0f, 0.0f,
-		0.0f, 1.0f,
-		1.0f, 1.0f
-	}; 
-
-	int xoffset = 0;
-	while (xoffset < tw) {
-		int w = (tw-xoffset < viewportWidth) ? tw-xoffset : viewportWidth;
-		
-		int yoffset = 0;
-		while (yoffset < th) {
-			int h = (th-yoffset < viewportHeight) ? th-yoffset : viewportHeight;
-			
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
-
-			const GLfloat vertices[] = { 
-				(GLfloat)-xoffset, (GLfloat)-yoffset, 0., 
-				(GLfloat)w-xoffset, (GLfloat)-yoffset, 0., 
-				(GLfloat)-xoffset, (GLfloat)-yoffset+h, 0.,
-				(GLfloat)w-xoffset, (GLfloat)-yoffset+h, 0.
-			};
-
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
-			drawQuad(shader.texture, vertices, 1, texCoords);
-			glUseProgram(0);
-			
-			for (int i = 0; i<h; i++)	{
-				glReadPixels(viewportOffsetX, viewportOffsetY+i, w, 1, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, image+xoffset+(yoffset+i)*tw);
-			}
-			
-			yoffset += viewportHeight;
-		}
-		
-		xoffset += viewportWidth;
+	GLubyte * rgba = new GLubyte [tw*th*4];
+	gfx::renderer->readTexture (texture, rgba);
+	for (int i = 0; i < tw*th; i ++) {
+		image[i] = rgbTo565 (rgba + i*4);
 	}
-	//glReadPixels(viewportOffsetX, viewportOffsetY, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	
-	setPixelCoords (false);
-	
-	
-	
+	delete [] rgba;
+
 	int x, y, lookAhead;
 	unsigned short int * fromHere, * lookPointer;
 
@@ -1619,7 +1390,7 @@ void saveCoreHSI (FILE * writer, GLuint texture, int w, int h) {
 }
 
 void saveHSI (FILE * writer) {
-	saveCorePNG  (writer, backdropTextureName, sceneWidth, sceneHeight);
+	saveCorePNG  (writer, backdropTex, sceneWidth, sceneHeight);
 }
 
 bool getRGBIntoStack (unsigned int x, unsigned int y, stackHandler * sH) {
@@ -1631,7 +1402,7 @@ bool getRGBIntoStack (unsigned int x, unsigned int y, stackHandler * sH) {
 
 	newValue.varType = SVT_NULL;
 
-	saveTexture (backdropTextureName, backdropTexture);
+	gfx::renderer->readTexture (backdropTex, backdropTexture);
 
 	GLubyte * target;
 	if (! NPOT_textures) {

@@ -11,26 +11,13 @@
 
 #include "sludge_gl.h"
 
+#include "renderer.h"
+
 struct texture {
 	GLubyte * data;
-	GLuint name;
+	gfx::Texture * tex;
 	int w, h;
 	double texW, texH;
-};
-
-struct shaders {
-	GLuint paste;
-	GLuint smartScaler;
-	GLuint yuv;
-	GLuint texture;
-	GLuint color;
-};
-
-struct textureList {
-	GLuint name;
-	GLsizei width;
-	GLsizei height; 
-	struct textureList * next;
 };
 
 // From Backdrop.cpp, but they're here anyway
@@ -44,15 +31,10 @@ extern int viewportOffsetX, viewportOffsetY;
 extern int realWinWidth, realWinHeight;
 
 extern bool NPOT_textures;
-extern shaders shader;
 extern GLfloat aPMVMatrix[];
 
 void setPrimaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
 void setSecondaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
-
-void drawQuad(GLint program, const GLfloat* vertices, int numTexCoords, ...);
-
-void setPMVMatrix(GLint program);
 
 void setPixelCoords (bool pixels);
 // Set the projection for drawing in game coordinates, with every sprite and
@@ -60,6 +42,22 @@ void setPixelCoords (bool pixels);
 // scale 1.
 void setGameMatrix (float scale);
 void setGraphicsWindow(bool fullscreen, bool restoreGraphics = true);
+
+// The engine used to draw at the origin of the window, with the projection
+// of setPixelCoords (true), and copy a rectangle from there into a
+// texture. Instead, we draw into the target of the texture, with the
+// viewport moved to where the rectangle came from and only in the
+// rectangle, which we clear first. srcX and srcY are where the rectangle
+// was in the viewport, and dstX and dstY where it went in the texture.
+void drawIntoTile (gfx::RenderTarget * target, int dstX, int dstY, int srcX, int srcY, int width, int height);
+// Draw into the window again, in the viewport of the game.
+void drawIntoWindow ();
+
+// Draw the frame of the game into the frame texture, which we copy into
+// the window with drawFrameIntoWindow. In between, the frame texture is the
+// frame without the mouse cursor.
+void beginFrame ();
+void drawFrameIntoWindow ();
 
 void setupOpenGLStuff();
 void updateViewport ();
@@ -72,30 +70,12 @@ extern SDL_Window * sludgeWindow;
 
 int getNextPOT(int n);
 
-void saveTexture (GLuint tex, GLubyte * data);
 // Read the area of the game in the frame we are drawing, top row first, as
 // RGBA. Free the pixels with delete [].
 unsigned char * readFramePixels (int * width, int * height);
 // Read the backdrop, top row first, as RGBA. Returns NULL without a
 // backdrop. Free the pixels with delete [].
 unsigned char * readBackdropPixels (int * width, int * height);
-
-void dcopyTexImage2D(GLenum target,  GLint level,  GLenum internalformat,  GLint x,  GLint y,  GLsizei width,  GLsizei height,  GLint border, GLuint name, const char *file, int line);
-void dcopyTexSubImage2D(GLenum target,  GLint level,  GLint xoffset,  GLint yoffset,  GLint x,  GLint y,  GLsizei width,  GLsizei height, GLuint name, const char *file, int line);
-void dtexImage2D(GLenum target,  GLint level,  GLint internalformat,  GLsizei width,  GLsizei height,  GLint border,  GLenum format,  GLenum type,  const GLvoid * data, GLuint name, const char *file, int line);
-void dtexSubImage2D(GLenum target,  GLint level,  GLint xoffset,  GLint yoffset,  GLsizei width,  GLsizei height,  GLenum format,  GLenum type,  const GLvoid * data, GLuint name, const char *file, int line);
-
-#define copyTexImage2D(target, level, internalformat, x, y,  width, height, border, name) dcopyTexImage2D(target,  level,  internalformat,  x,  y,  width,height, border, name, __FILE__, __LINE__)
-
-#define copyTexSubImage2D(target,  level,  xoffset,yoffset, x,  y,   width,   height, name) dcopyTexSubImage2D(target,  level,  xoffset,  yoffset,  x,  y,   width,  height, name, __FILE__, __LINE__)
-
-#define texImage2D(target,  level,  internalformat,  width,  height,  border,  format, type,  data,name) dtexImage2D( target,   level,  internalformat, width, height, border,  format,  type,  data, name, __FILE__, __LINE__)
-
-#define texSubImage2D( target,  level,   xoffset,   yoffset,   width,  height, format,  type,   data,name) dtexSubImage2D( target, level,   xoffset,  yoffset,  width,  height, format,  type,  data,  name, __FILE__, __LINE__)
-
-void deleteTextures(GLsizei n,  const GLuint * textures);
-
-void getTextureDimensions(GLuint name, GLint *width,  GLint *height);
 
 int printOglError (const char *file, int         line);
 #define printOpenGLError() printOglError(__FILE__, __LINE__)

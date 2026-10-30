@@ -13,7 +13,7 @@
 #include "sprbanks.h"
 #include "zbuffer.h"
 #include "backdrop.h"
-#include "shaders.h"
+#include "renderer.h"
 #include "movie.h"
 #include "stringy.h"
 #include "capture.h"
@@ -41,9 +41,8 @@ extern int specialSettings;
 
 void setMovieViewport();
 
-extern GLuint backdropTextureName;
+extern gfx::Texture * backdropTex;
 
-shaders shader;
 GLfloat aPMVMatrix[16];
 
 void sludgeDisplay ();
@@ -51,148 +50,16 @@ void sludgeDisplay ();
 GLfloat primaryColor[4];
 GLfloat secondaryColor[4];
 
-struct textureList *firstTexture = NULL;
+// The frame that we draw, as large as the viewport, which we copy into the
+// window. Without NPOT textures, the texture is a power of two larger.
+static gfx::Texture * frameTexture = NULL;
+static gfx::RenderTarget * frameTarget = NULL;
 
-textureList * addTexture () {
-	textureList * newTexture = new textureList;
-	newTexture -> next = firstTexture;
-	firstTexture = newTexture;
-	return newTexture;
-}
-
-void deleteTextures(GLsizei n,  const GLuint * textures)
-{
-	if (firstTexture == NULL) {
-		//debugOut("Deleting texture while list is already empty.\n");
-	} else {
-		for (int i = 0; i < n; i++) {
-			bool found = false;
-			textureList *list = firstTexture;
-			if (list->name == textures[i]) {
-				found = true;
-				firstTexture = list->next;
-				delete list;
-				continue;
-			}
-
-			while (list->next) {
-				if (list->next->name == textures[i]) {
-					found = true;
-					textureList *deleteMe = list->next;
-					list->next = list->next->next;
-					delete deleteMe;
-					break;
-				}
-				list = list->next;
-			}
-			//if (!found)
-			//	debugOut("Deleting texture that was not in list.\n");
-		}
-	}
-
-	glDeleteTextures(n, textures);
-}
-
-void getTextureDimensions(GLuint name, GLint *width,  GLint *height)
-{
-	textureList *list = firstTexture;
-	while (list) {
-		if (list->name == name)  {
-			*width = list->width;
-			*height = list->height;
-#if !defined(HAVE_GLES2)
-			//For the following test it is assumed that glBindTexture is always 
-			//called for the right texture before getTextureDimensions.
-			GLint tw, th;
-			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tw); 
-			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &th);
-			if (tw != *width || th != *height) {
-				debugOut ("Warning: Texture dimensions don't match: They are %ix%i, but SLUDGEs bookkeeping says %ix%i.\n", tw, th, *width, *height);
-			}
-#endif
-			return;
-		}
-		list = list->next;
-	}
-	fatal("Texture not found in list.\n");
-}
-
-void storeTextureDimensions(GLuint name, GLsizei width,  GLsizei height, const char *file, int line)
-{
-	if (! NPOT_textures && !(((height & (height - 1)) == 0) || ((width & (width - 1)) == 0))) {
-		debugOut("I was told to create a texture with dimensions %ix%i in %s @ line %d although NPOT textures are disabled.\n", width, height, file, line);
-		//height = getNextPOT(height);
-		//width = getNextPOT(width);
-	}
-
-	textureList *list = firstTexture;
-	while (list) {
-		if (list->name == name)  {
-			//debugOut("Texture dimensions are overwritten.\n");
-			break;
-		}
-		list = list->next;
-	}
-	if (list == NULL) {
-		list = addTexture();
-	}
-	list->name = name;
-	list->width = width;
-	list->height = height;
-}
-#ifdef HAVE_GLES2
-void glesCopyTexSubImage2D(GLenum target,  GLint level, GLint xoffset, GLint yoffset, GLint x,  GLint y,  GLsizei width,  GLsizei height)
-{
-	// Work around for broken glCopy(Sub)TexImage2D...
-    void* tmp = malloc(width*height*4);
-    glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
-    glTexSubImage2D(target, level, xoffset, yoffset, width, height, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
-    free(tmp);
-}
-void glesCopyTexImage2D(GLenum target,  GLint level,  GLenum internalformat,  GLint x,  GLint y,  GLsizei width,  GLsizei height,  GLint border)
-{
-	// Work around for broken glCopy(Sub)TexImage2D...
-	void* tmp = malloc(width*height*4);
-	glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
-	glTexImage2D(target, level, GL_RGBA, width, height, border, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
-	free(tmp);
-}
-#endif
-
-void dcopyTexImage2D(GLenum target,  GLint level,  GLenum internalformat,  GLint x,  GLint y,  GLsizei width,  GLsizei height,  GLint border, GLuint name, const char *file, int line)
-{
-	glBindTexture(GL_TEXTURE_2D, name);
-	#ifdef HAVE_GLES2_
-	glesCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
-	#else
-	glCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
-	#endif
-}
-
-void dcopyTexSubImage2D(GLenum target,  GLint level,  GLint xoffset,  GLint yoffset,  GLint x,  GLint y,  GLsizei width,  GLsizei height, GLuint name, const char *file, int line)
-{
-	glBindTexture(GL_TEXTURE_2D, name);
-	#ifdef HAVE_GLES2_
-	glesCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
-	#else
-	glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
-	#endif
-}
-
-void dtexImage2D(GLenum target,  GLint level,  GLint internalformat,  GLsizei width,  GLsizei height, 
-		GLint border,  GLenum format,  GLenum type,  const GLvoid * data, GLuint name, const char *file, int line)
-{
-	storeTextureDimensions(name, width,  height, file, line);
-	glBindTexture(GL_TEXTURE_2D, name);
-	glTexImage2D(target, level, internalformat, width, height, border, format, type,  data);
-}
-
-void dtexSubImage2D(GLenum target,  GLint level,  GLint xoffset,  GLint yoffset,  GLsizei width,  GLsizei height,
-		GLenum format,  GLenum type,  const GLvoid * data, GLuint name, const char *file, int line) 
-{
-	storeTextureDimensions(name, width,  height, file, line);
-	glBindTexture(GL_TEXTURE_2D, name);
-	glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, data);
+gfx::DrawUniforms::DrawUniforms ()
+	: useLightTexture (false), antialias (false), zBuffer (false), zBufferLayer (0.0f), modulateColor (false) {
+	memcpy (matrix, aPMVMatrix, sizeof (matrix));
+	memcpy (color, primaryColor, sizeof (color));
+	memcpy (secondaryColor, ::secondaryColor, sizeof (secondaryColor));
 }
 
 void setPrimaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -209,62 +76,6 @@ void setSecondaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 	secondaryColor[1] = g;
 	secondaryColor[2] = b;
 	secondaryColor[3] = a;
-}
-
-void drawQuad(GLint program, const GLfloat* vertices, int numTexCoords, ...)
-{
-	// The shaders have at most four texture coordinate attributes, myUV0 to
-	// myUV3.
-	if (numTexCoords > 4) numTexCoords = 4;
-	int i, vertexLoc, texCoordLocs[4];
-	const GLfloat* texCoords[4];
-
-	va_list vl;
-	va_start(vl,numTexCoords);
-	for (i=0;i<numTexCoords;i++)
-	{
-		texCoords[i]=va_arg(vl,const GLfloat*);
-	}
-	va_end(vl);
-
-	glUniform4f(glGetUniformLocation(program, "myColor"), primaryColor[0], primaryColor[1], primaryColor[2], primaryColor[3]);
-	if (program == shader.smartScaler || program == shader.paste)
-	{
-		glUniform4f(glGetUniformLocation(program, "mySecondaryColor"), secondaryColor[0], secondaryColor[1], secondaryColor[2], secondaryColor[3]);
-	}
-
-	vertexLoc = glGetAttribLocation(program, "myVertex");
-	if (numTexCoords > 0) texCoordLocs[0] = glGetAttribLocation(program, "myUV0");
-	if (numTexCoords > 1) texCoordLocs[1] = glGetAttribLocation(program, "myUV1");
-	if (numTexCoords > 2) texCoordLocs[2] = glGetAttribLocation(program, "myUV2");
-	if (numTexCoords > 3) texCoordLocs[3] = glGetAttribLocation(program, "myUV3");
- 		
-	glEnableVertexAttribArray(vertexLoc);
-	glVertexAttribPointer(vertexLoc, 3, GL_FLOAT, GL_FALSE, 0, vertices);
-
-	for (i=0;i<numTexCoords;i++)
-	{
-		if (texCoords[i]) {
-			glEnableVertexAttribArray(texCoordLocs[i]);
-			glVertexAttribPointer(texCoordLocs[i], 2, GL_FLOAT, GL_FALSE, 0, texCoords[i]);
-		}
-	}
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	for (i=0;i<numTexCoords;i++)
-	{
-		if (texCoords[i]) {
-			glDisableVertexAttribArray(texCoordLocs[i]);
-		}
-	}
-
-	glDisableVertexAttribArray(vertexLoc);
-}
-
-
-void setPMVMatrix(GLint program) {
-	glUniformMatrix4fv( glGetUniformLocation(program, "myPMVMatrix"), 1, GL_FALSE, aPMVMatrix);
 }
 
 void setGameMatrix (float scale) {
@@ -287,17 +98,8 @@ void setGameMatrix (float scale) {
 
 // This is for swapping settings between rendering to texture or to the screen
 void setPixelCoords (bool pixels) {
-	static int current = -1;
-//	if (current == pixels) return;
-	current = pixels;
-
-	glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-
 	if (pixels) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-		glClear(GL_COLOR_BUFFER_BIT);
+		if (backdropTex) gfx::renderer->setTextureFilter (backdropTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 
 		const GLfloat bPMVMatrix[] =
 		{
@@ -312,110 +114,90 @@ void setPixelCoords (bool pixels) {
 			aPMVMatrix[i] = bPMVMatrix[i];
 		}
 	} else {
-		if (gameSettings.antiAlias < 0) {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		if (backdropTex) {
+			gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+			gfx::renderer->setTextureFilter (backdropTex, filter, filter);
 		}
 
 		setGameMatrix (1);
 	}
 }
 
+void drawIntoTile (gfx::RenderTarget * target, int dstX, int dstY, int srcX, int srcY, int width, int height) {
+	gfx::renderer->setTarget (target);
+	gfx::renderer->setViewport (dstX - srcX, dstY - srcY, viewportWidth, viewportHeight);
+	gfx::renderer->setScissor (dstX, dstY, width, height);
+	gfx::renderer->clear (true, true);
+}
+
+void drawIntoWindow () {
+	gfx::renderer->setScissor (0, 0, 0, 0);
+	gfx::renderer->setTarget (NULL);
+	gfx::renderer->setViewport (viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
+}
+
 bool runningFullscreen = false;
 extern char * gameName;
 
-
-#if defined(HAVE_GLES2)
-void saveTexture (GLuint tex, GLubyte * data) {
-	// use an FBO to easily grab the texture...
-	static GLuint fbo = 0;
-	GLuint old_fbo;
-	GLint tw, th;
-	GLint old_vp[4];
-	if (fbo==0) {
-		glGenFramebuffers(1, &fbo);
-	}
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&old_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
-	getTextureDimensions(tex, &tw, &th);
-	glGetIntegerv(GL_VIEWPORT, old_vp);
-	glViewport(0,0, tw, th);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glReadPixels(0, 0, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glViewport(old_vp[0], old_vp[1], old_vp[2], old_vp[3]);
-	glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
+void beginFrame () {
+	gfx::renderer->setScissor (0, 0, 0, 0);
+	gfx::renderer->setTarget (frameTarget);
+	gfx::renderer->setViewport (0, 0, viewportWidth, viewportHeight);
 }
-#elif defined _WIN32
-// Replacement for glGetTexImage, because some ATI drivers are buggy.
-void saveTexture (GLuint tex, GLubyte * data) {
+
+void drawFrameIntoWindow () {
+	drawIntoWindow ();
+	gfx::renderer->clear (true, false);
+
+	// We draw the frame pixel for pixel, and keep the projection of the
+	// game for what comes next.
+	GLfloat gameMatrix[16];
+	memcpy (gameMatrix, aPMVMatrix, sizeof (gameMatrix));
 	setPixelCoords (true);
 
-	glBindTexture (GL_TEXTURE_2D, tex);
-
-	GLint tw, th;
-	getTextureDimensions(tex, &tw, &th);
-
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-
-	int xoffset = 0;
-	while (xoffset < tw) {
-		int w = (tw-xoffset < viewportWidth) ? tw-xoffset : viewportWidth;
-
-		int yoffset = 0;
-		while (yoffset < th) {
-			int h = (th-yoffset < viewportHeight) ? th-yoffset : viewportHeight;
-
-			glClear(GL_COLOR_BUFFER_BIT);	// Clear The Screen
-
-			const GLfloat vertices[] = { 
-				(GLfloat)-xoffset, (GLfloat)-yoffset, 0.f, 
-				(GLfloat)tw-xoffset, (GLfloat)-yoffset, 0.f, 
-				(GLfloat)-xoffset, (GLfloat)-yoffset+th, 0.f,
-				(GLfloat)tw-xoffset, (GLfloat)-yoffset+th, 0.f
-			};
-
-			const GLfloat texCoords[] = { 
-				0.0f, 0.0f,
-				1.0f, 0.0f,
-				0.0f, 1.0f,
-				1.0f, 1.0f
-			}; 
-
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
-
-			drawQuad(shader.texture, vertices, 1, texCoords);
-			glUseProgram(0);
-
-			for (int i = 0; i<h; i++)	{
-				glReadPixels(viewportOffsetX, viewportOffsetY+i, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, data+xoffset*4+(yoffset+i)*4*tw);
-			}
-
-			yoffset += viewportHeight;
-		}
-
-		xoffset += viewportWidth;
-	}
-	//glReadPixels(viewportOffsetX, viewportOffsetY, tw, th, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	int tw, th;
+	gfx::renderer->textureSize (frameTexture, &tw, &th);
+	const GLfloat vertices[] = {
+		0, 0, 0,
+		(GLfloat) viewportWidth, 0, 0,
+		0, (GLfloat) viewportHeight, 0,
+		(GLfloat) viewportWidth, (GLfloat) viewportHeight, 0
+	};
+	GLfloat u = (GLfloat) viewportWidth / tw;
+	GLfloat v = (GLfloat) viewportHeight / th;
+	const GLfloat texCoords[] = {
+		0, 0,
+		u, 0,
+		0, v,
+		u, v
+	};
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), frameTexture, vertices, texCoords);
 
 	setPixelCoords (false);
+	memcpy (aPMVMatrix, gameMatrix, sizeof (gameMatrix));
+}
 
+// Make the frame texture as large as the viewport.
+static void resizeFrame () {
+	int width = NPOT_textures ? viewportWidth : getNextPOT (viewportWidth);
+	int height = NPOT_textures ? viewportHeight : getNextPOT (viewportHeight);
+	if (frameTexture) {
+		int tw, th;
+		gfx::renderer->textureSize (frameTexture, &tw, &th);
+		if (tw == width && th == height) return;
+		gfx::renderer->destroyTarget (frameTarget);
+		gfx::renderer->destroyTexture (frameTexture);
+	}
+	frameTexture = gfx::renderer->createTexture (width, height, gfx::TEX_RGBA8, NULL);
+	gfx::renderer->setTextureFilter (frameTexture, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+	gfx::renderer->setTextureWrap (frameTexture, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	frameTarget = gfx::renderer->createTarget (frameTexture, true);
 }
-#else
-void saveTexture (GLuint tex, GLubyte * data) {
-	glBindTexture (GL_TEXTURE_2D, tex);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-}
-#endif
 
 unsigned char * readFramePixels (int * width, int * height) {
 	int w = viewportWidth, h = viewportHeight;
 	unsigned char * pixels = new unsigned char [(size_t) w * h * 4];
-	glReadPixels (viewportOffsetX, viewportOffsetY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	gfx::renderer->readPixels (viewportOffsetX, viewportOffsetY, w, h, pixels);
 
 	// OpenGL reads the bottom row first.
 	unsigned char * row = new unsigned char [(size_t) w * 4];
@@ -434,13 +216,13 @@ unsigned char * readFramePixels (int * width, int * height) {
 }
 
 unsigned char * readBackdropPixels (int * width, int * height) {
-	if (! backdropTextureName) return NULL;
+	if (! backdropTex) return NULL;
 
 	// Without NPOT textures, the texture can be bigger than the scene.
-	GLint tw, th;
-	getTextureDimensions (backdropTextureName, &tw, &th);
+	int tw, th;
+	gfx::renderer->textureSize (backdropTex, &tw, &th);
 	unsigned char * texture = new unsigned char [(size_t) tw * th * 4];
-	saveTexture (backdropTextureName, texture);
+	gfx::renderer->readTexture (backdropTex, texture);
 
 	int w = sceneWidth < (unsigned int) tw ? sceneWidth : tw;
 	int h = sceneHeight < (unsigned int) th ? sceneHeight : th;
@@ -457,165 +239,6 @@ unsigned char * readBackdropPixels (int * width, int * height) {
 
 SDL_Window * sludgeWindow = NULL;
 static SDL_GLContext glContext = NULL;
-
-static void buildShaderPrograms () {
-	GLint uniform;
-	const char *Vertex;
-	const char *Fragment;
-
-        Vertex = shaderFileRead("scale.vert");
-
-#if !defined(HAVE_GLES2)
-        Fragment = shaderFileRead("scale.frag");
-#else
-/*	const GLubyte *str;
-	int glDerivativesAvailable;
-	str = glGetString (GL_EXTENSIONS);
-	glDerivativesAvailable = (strstr((const char *)str, "GL_OES_standard_derivatives") != NULL);
-	if (!glDerivativesAvailable) {
-		debugOut("Extension \"GL_OES_standard_derivatives\" not available. Advanced anti-aliasing is not possible. Using linear anti-aliasing instead.");
-		gameSettings.antiAlias = -1;
-*/
-        	Fragment = shaderFileRead("scale_noaa.frag");
-//	}
-
-	Fragment = joinStrings("precision mediump float;\n", Fragment);
-#endif
-
-        if (! Vertex || ! Fragment) {
-            fatal ("Error loading \"scale\" shader program!", "Try re-installing the game. (scale.frag, scale_noaa.frag or scale.vert was not found.)");
-            gameSettings.antiAlias = -1;
-            shader.smartScaler = 0;
-        } else {
-
-            shader.smartScaler = buildShaders (Vertex, Fragment);
-			
-			if (! shader.smartScaler) {
-				fatal ("Error building \"scale\" shader program!");
-				gameSettings.antiAlias = -1;
-				shader.smartScaler = 0;
-			} else {
-				debugOut( "Built shader program: %d (smartScaler)\n", shader.smartScaler);
-				glUseProgram(shader.smartScaler);
-				uniform = glGetUniformLocation(shader.smartScaler, "Texture");
-				if (uniform >= 0) glUniform1i(uniform, 0);
-				uniform = glGetUniformLocation(shader.smartScaler, "lightTexture");
-				if (uniform >= 0) glUniform1i(uniform, 1);
-				uniform = glGetUniformLocation(shader.smartScaler, "useLightTexture");
-				if (uniform >= 0) glUniform1i(uniform, 0);
-				uniform = glGetUniformLocation(shader.smartScaler, "antialias");
-				if (uniform >= 0) glUniform1i(uniform, 0);
-			}
-        }
-
-	Vertex = shaderFileRead("fixScaleSprite.vert");
-	Fragment = shaderFileRead("fixScaleSprite.frag");
-
-#if defined(HAVE_GLES2)
-	Fragment = joinStrings("precision mediump float;\n", Fragment);
-#endif
-
-	if (! Vertex || ! Fragment) {
-		fatal ("Error loading \"fixScaleSprite\" shader program!", "Try re-installing the game. (fixScaleSprite.frag or fixScaleSprite.vert was not found.)");
-		shader.paste = 0;
-	} else {
-
-		shader.paste = buildShaders (Vertex, Fragment);
-		if (! shader.paste) {
-			fatal( "Error building \"fixScaleSprite\" shader program!");
-		} else {
-			debugOut( "Built shader program: %d (fixScaleSprite)\n", shader.paste);
-			glUseProgram(shader.paste);
-			uniform = glGetUniformLocation(shader.paste, "tex0");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-			uniform = glGetUniformLocation(shader.paste, "tex1");
-			if (uniform >= 0) glUniform1i(uniform, 1);
-			uniform = glGetUniformLocation(shader.paste, "tex2");
-			if (uniform >= 0) glUniform1i(uniform, 2);
-			uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-		}
-	}
-
-	Vertex = shaderFileRead("yuv.vert");
-	Fragment = shaderFileRead("yuv.frag");
-
-#if defined(HAVE_GLES2)
-	Fragment = joinStrings("precision mediump float;\n", Fragment);
-#endif
-
-	if (! Vertex || ! Fragment) {
-		fatal ("Error loading \"yuv\" shader program!", "Try re-installing the game. (yuv.frag or yuv.vert was not found.)");
-		shader.yuv = 0;
-	} else {
-
-		shader.yuv = buildShaders (Vertex, Fragment);
-		if (! shader.yuv) {
-			fatal( "Error building \"yuv\" shader program!");			
-		} else {
-			debugOut( "Built shader program: %d (yuv)\n", shader.yuv);
-			glUseProgram(shader.yuv);
-			uniform = glGetUniformLocation(shader.yuv, "Ytex");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-			uniform = glGetUniformLocation(shader.yuv, "Utex");
-			if (uniform >= 0) glUniform1i(uniform, 1);
-			uniform = glGetUniformLocation(shader.yuv, "Vtex");
-			if (uniform >= 0) glUniform1i(uniform, 2);
-		}
-	}
-
-	Vertex = shaderFileRead("texture.vert");
-	Fragment = shaderFileRead("texture.frag");
-
-#if defined(HAVE_GLES2)
-	Fragment = joinStrings("precision mediump float;\n", Fragment);
-#endif
-
-	if (! Vertex || ! Fragment) {
-		fatal ("Error loading \"texture\" shader program!", "Try re-installing the game. (texture.frag or texture.vert was not found.)");
-		shader.texture = 0;
-	} else {
-
-		shader.texture = buildShaders (Vertex, Fragment);
-		if (! shader.texture) {
-			fatal( "Error building \"texture\" shader program!");
-		} else {
-			debugOut( "Built shader program: %d (texture)\n", shader.texture);
-			glUseProgram(shader.texture);
-			uniform = glGetUniformLocation(shader.texture, "sampler2d");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-			uniform = glGetUniformLocation(shader.texture, "zBuffer");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-			uniform = glGetUniformLocation(shader.texture, "zBufferLayer");
-			if (uniform >= 0) glUniform1f(uniform, 0.);
-			uniform = glGetUniformLocation(shader.texture, "modulateColor");
-			if (uniform >= 0) glUniform1i(uniform, 0);
-		}
-	}
-
-	Vertex = shaderFileRead("color.vert");
-	Fragment = shaderFileRead("color.frag");
-
-#if defined(HAVE_GLES2)
-	Fragment = joinStrings("precision mediump float;\n", Fragment);
-#endif
-
-	if (! Vertex || ! Fragment) {
-		fatal ("Error loading \"color\" shader program!", "Try re-installing the game. (color.frag or color.vert was not found.)");
-		shader.color = 0;
-	} else {
-
-		shader.color = buildShaders (Vertex, Fragment);
-		if (! shader.color) {
-			fatal( "Error building \"color\" shader program!");
-		} else {
-			debugOut( "Built shader program: %d (color)\n", shader.color);
-			glUseProgram(shader.color);
-		}
-	}
-
-	glUseProgram(0);
-}
 
 // Set the area of the window in which we draw the game. We keep the aspect
 // ratio of the game and leave black bars in the rest of the window. With
@@ -652,15 +275,12 @@ void updateViewport () {
 	viewportOffsetX = (realWinWidth - viewportWidth) / 2;
 	viewportOffsetY = (realWinHeight - viewportHeight) / 2;
 
-	glViewport (viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
-
-	if (shader.smartScaler) {
-		glUseProgram (shader.smartScaler);
-		GLint uniform = glGetUniformLocation (shader.smartScaler, "scale");
+	if (gfx::renderer) {
 		float scale = (float) viewportWidth / (float) winWidth * 0.25;
 		if (scale > 1.0) scale = 1.0;
-		if (uniform >= 0) glUniform1f (uniform, scale);
-		glUseProgram (0);
+		gfx::renderer->setAntialiasScale (scale);
+		resizeFrame ();
+		drawIntoWindow ();
 	}
 
 	setPixelCoords (false);
@@ -775,15 +395,13 @@ static void createGraphicsWindow (bool fullscreen) {
 	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
 	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
 
-	buildShaderPrograms ();
-
-	/*
-	 * Set up OpenGL for 2D rendering.
-	 */
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_CULL_FACE);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	const char * error = NULL;
+	gfx::renderer = gfx::createGLRenderer (&error);
+	if (! gfx::renderer) {
+		msgBox ("Startup Error: Couldn't build the shader programs.", error);
+		SDL_Quit ();
+		exit (1);
+	}
 }
 
 // Switch between windowed and fullscreen, and create the window the first

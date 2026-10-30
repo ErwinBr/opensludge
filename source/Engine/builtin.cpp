@@ -65,7 +65,6 @@ extern char * * allBIFNames;
 extern inputType input;
 extern char * loadNow;
 
-extern GLuint backdropTextureName;
 
 
 extern float speechSpeed;

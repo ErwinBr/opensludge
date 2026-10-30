@@ -10,7 +10,7 @@
 #include "moreio.h"
 
 //extern unsigned short int * * backDropImage;
-extern GLuint backdropTextureName;
+extern gfx::Texture * backdropTex;
 
 #if 0
 // Raised
@@ -311,7 +311,7 @@ bool blurScreen () {
 		}
 
 		// Retrieve the texture
-		saveTexture (backdropTextureName, backdropTexture);
+		gfx::renderer->readTexture (backdropTex, backdropTexture);
 
 		for (y = 0; y < s_matrixEffectHeight; y ++)
 		{
@@ -391,7 +391,7 @@ bool blurScreen () {
 		delete [] sourceLine;
 		sourceLine = NULL;
 
-		texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, backdropTexture, backdropTextureName);
+		gfx::renderer->updateTexture (backdropTex, 0, 0, picWidth, picHeight, backdropTexture);
 		return true;
 	}
 	return false;

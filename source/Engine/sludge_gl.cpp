@@ -8,6 +8,7 @@
 
 #define SLUDGE_GL_DEFINE(type, name) type sludge_##name = NULL;
 SLUDGE_GL_FUNCTIONS(SLUDGE_GL_DEFINE)
+SLUDGE_GL_FBO_FUNCTIONS(SLUDGE_GL_DEFINE)
 #undef SLUDGE_GL_DEFINE
 
 const char * loadGLFunctions () {
@@ -16,6 +17,12 @@ const char * loadGLFunctions () {
 	if (! sludge_##name) return #name;
 	SLUDGE_GL_FUNCTIONS(SLUDGE_GL_LOAD)
 #undef SLUDGE_GL_LOAD
+#define SLUDGE_GL_LOAD_FBO(type, name) \
+	sludge_##name = (type) SDL_GL_GetProcAddress(#name); \
+	if (! sludge_##name) sludge_##name = (type) SDL_GL_GetProcAddress(#name "EXT"); \
+	if (! sludge_##name) return #name;
+	SLUDGE_GL_FBO_FUNCTIONS(SLUDGE_GL_LOAD_FBO)
+#undef SLUDGE_GL_LOAD_FBO
 	return NULL;
 }
 

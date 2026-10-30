@@ -3,8 +3,9 @@
  *
  * Each game has its own frame rate, for example 18 frames per second in Out
  * Of Order, and we draw the mouse cursor of the game in each frame. So that
- * the pointer moves smoothly, we keep a copy of each game frame without the
- * cursor.
+ * the pointer moves smoothly, we keep each game frame without the cursor:
+ * we draw the frame into the frame texture, and the cursor only into the
+ * window.
  * Between game frames, when the pointer moves, we show that copy again with
  * the cursor at the new position, at most once per refresh of the display.
  */
@@ -24,10 +25,7 @@
 extern inputType input;
 extern float cameraZoom;
 
-// The last game frame without the cursor, and the size of the viewport when
-// we saved it.
-static GLuint frameTexture = 0;
-static int frameTextureWidth = 0, frameTextureHeight = 0;
+// The size of the viewport of the last game frame in the frame texture.
 static int frameWidth, frameHeight;
 static bool haveFrame = false;
 
@@ -40,22 +38,6 @@ static Uint64 shownAt = 0;
 static float lastMouseX = -1, lastMouseY = -1;
 
 void saveFrameWithoutCursor () {
-	if (! frameTexture) glGenTextures (1, &frameTexture);
-	glBindTexture (GL_TEXTURE_2D, frameTexture);
-
-	int width = NPOT_textures ? viewportWidth : getNextPOT (viewportWidth);
-	int height = NPOT_textures ? viewportHeight : getNextPOT (viewportHeight);
-	if (width != frameTextureWidth || height != frameTextureHeight) {
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		frameTextureWidth = width;
-		frameTextureHeight = height;
-	}
-	glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, viewportOffsetX, viewportOffsetY, viewportWidth, viewportHeight);
-
 	frameWidth = viewportWidth;
 	frameHeight = viewportHeight;
 	haveFrame = true;
@@ -69,36 +51,13 @@ void forgetFrameWithoutCursor () {
 }
 
 bool drawFrameWithoutCursor () {
-	glClear (GL_COLOR_BUFFER_BIT);
-	if (! haveFrame) return false;
-
-	glDisable (GL_DEPTH_TEST);
-	glDisable (GL_BLEND);
+	if (! haveFrame || frameWidth != viewportWidth || frameHeight != viewportHeight) {
+		drawIntoWindow ();
+		gfx::renderer->clear (true, false);
+		return false;
+	}
+	drawFrameIntoWindow ();
 	setPixelCoords (false);
-
-	GLfloat w = (GLfloat) winWidth / cameraZoom;
-	GLfloat h = (GLfloat) winHeight / cameraZoom;
-	const GLfloat vertices[] = {
-		0, 0, 0,
-		w, 0, 0,
-		0, h, 0,
-		w, h, 0
-	};
-	// The rows that we copied into the texture start at the bottom of the
-	// window, so we draw the texture upside down.
-	GLfloat tw = (GLfloat) frameWidth / frameTextureWidth;
-	GLfloat th = (GLfloat) frameHeight / frameTextureHeight;
-	const GLfloat texCoords[] = {
-		0, th,
-		tw, th,
-		0, 0,
-		tw, 0
-	};
-	glUseProgram (shader.texture);
-	setPMVMatrix (shader.texture);
-	glBindTexture (GL_TEXTURE_2D, frameTexture);
-	drawQuad (shader.texture, vertices, 1, texCoords);
-	glUseProgram (0);
 	return true;
 }
 

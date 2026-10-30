@@ -19,7 +19,6 @@
 #include "shaders.h"
 
 extern zBufferData zBuffer;
-extern GLuint backdropTextureName;
 
 extern inputType input;
 extern int cameraX, cameraY;
@@ -30,9 +29,13 @@ unsigned char currentBurnR = 0, currentBurnG = 0, currentBurnB = 0;
 
 void forgetSpriteBank (spriteBank & forgetme) {
 
-	deleteTextures (forgetme.myPalette.numTextures, forgetme.myPalette.tex_names);
+	for (int i = 0; i < forgetme.myPalette.numTextures; i ++) {
+		gfx::renderer->destroyTexture (forgetme.myPalette.tex_names[i]);
+	}
 	if (forgetme.isFont) {
-		deleteTextures (forgetme.myPalette.numTextures, forgetme.myPalette.burnTex_names);
+		for (int i = 0; i < forgetme.myPalette.numTextures; i ++) {
+			gfx::renderer->destroyTexture (forgetme.myPalette.burnTex_names[i]);
+		}
 		delete [] forgetme.myPalette.burnTex_names;
 		forgetme.myPalette.burnTex_names = NULL;
 	}
@@ -120,11 +123,11 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 	maxheight = new int[total];
 	if (! checkNew (maxheight)) return false;
 
-	loadhere.myPalette.tex_names = new GLuint [total];
+	loadhere.myPalette.tex_names = new gfx::Texture * [total];
 	if (! checkNew (loadhere.myPalette.tex_names)) return false;
 
 	if (isFont) {
-		loadhere.myPalette.burnTex_names = new GLuint [total];
+		loadhere.myPalette.burnTex_names = new gfx::Texture * [total];
 		if (! checkNew (loadhere.myPalette.burnTex_names)) return false;
 	}
 	loadhere.myPalette.tex_w = new int [total];
@@ -356,42 +359,23 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 	spriteData = NULL;
 
 
-	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
-	glGenTextures (numTextures, loadhere.myPalette.tex_names);
-	if (isFont)
-		glGenTextures (numTextures, loadhere.myPalette.burnTex_names);
-
+	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
 
 	for (tex_num = 0; tex_num < numTextures; tex_num++) {
 
-		glBindTexture (GL_TEXTURE_2D, loadhere.myPalette.tex_names[tex_num]);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		if (gameSettings.antiAlias < 0) {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-		texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, totalwidth[tex_num], maxheight[tex_num], 0, GL_RGBA, GL_UNSIGNED_BYTE, tmp[tex_num], loadhere.myPalette.tex_names[tex_num]);
+		gfx::Texture * t = gfx::renderer->createTexture (totalwidth[tex_num], maxheight[tex_num], gfx::TEX_RGBA8, tmp[tex_num]);
+		gfx::renderer->setTextureWrap (t, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+		gfx::renderer->setTextureFilter (t, filter, filter);
+		loadhere.myPalette.tex_names[tex_num] = t;
 
 		delete[] tmp[tex_num];
 		tmp[tex_num] = NULL;
 
 		if (isFont) {
-			glBindTexture (GL_TEXTURE_2D, loadhere.myPalette.burnTex_names[tex_num]);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			if (gameSettings.antiAlias < 0) {
-				glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			} else {
-				glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-				glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			}
-			texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, totalwidth[tex_num], maxheight[tex_num], 0, GL_RGBA, GL_UNSIGNED_BYTE, tmp2[tex_num], loadhere.myPalette.burnTex_names[tex_num]);
+			gfx::Texture * b = gfx::renderer->createTexture (totalwidth[tex_num], maxheight[tex_num], gfx::TEX_RGBA8, tmp2[tex_num]);
+			gfx::renderer->setTextureWrap (b, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+			gfx::renderer->setTextureFilter (b, filter, filter);
+			loadhere.myPalette.burnTex_names[tex_num] = b;
 
 			delete[] tmp2[tex_num];
 			tmp2[tex_num] = NULL;
@@ -460,19 +444,10 @@ void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette
 
 			// Render the sprite to the backdrop
 			// (using mulitexturing, so the backdrop is seen where alpha < 1.0)
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glActiveTexture(GL_TEXTURE0);
-
-			glUseProgram(shader.paste);
-			GLint uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-			if (uniform >= 0) glUniform1i(uniform, 0); // No lighting
-
-			setPMVMatrix(shader.paste);
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, (x1<0) ? xoffset : x1+xoffset, (y1<0) ? yoffset : y1+yoffset, (x1<0) ? -x1 : 0, (y1<0) ? -y1 : 0, w, h);
 
 			setPrimaryColor(fontPal.originalRed/255.f, fontPal.originalGreen/255.f, fontPal.originalBlue/255.f, 1.0f);
-			glBindTexture (GL_TEXTURE_2D, fontPal.tex_names[single.texNum]);
-			//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 			const GLfloat vertices[] = { 
 				(GLfloat)-xoffset, (GLfloat)-yoffset, 0.,
@@ -488,17 +463,15 @@ void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette
 				tx2, ty2
 			}; 
 
-			drawQuad(shader.paste, vertices, 3, texCoords, NULL, btexCoords);
-
-			// Copy Our ViewPort To The Texture
-			glUseProgram(0);
-
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, (int) ((x1<0) ? xoffset: x1+xoffset), (int) ((y1<0) ? yoffset: y1+yoffset), (int) ((x1<0) ?viewportOffsetX-x1:viewportOffsetX), (int) ((y1<0) ?viewportOffsetY-y1:viewportOffsetY), w, h, backdropTextureName);
+			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], NULL, copy };
+			gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}
 		xoffset += viewportWidth;
 	}
+	drawIntoWindow ();
 	setPixelCoords (false);
 }
 
@@ -573,40 +546,24 @@ void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette 
 				single.width-1-xoffset, single.height-1-yoffset, 0.0f
 			};
 
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, (x1<0) ? xoffset : x1+xoffset, (y1<0) ? yoffset : y1+yoffset, 0, 0, w, h);
 
-			drawQuad(shader.texture, backdropVertices, 1, backdropTexCoords2);
-
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glActiveTexture(GL_TEXTURE0);
-
-			glUseProgram(shader.paste);
-			GLint uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-			if (uniform >= 0) glUniform1i(uniform, 0); // No lighting
-
-			setPMVMatrix(shader.paste);
-
-			glBindTexture (GL_TEXTURE_2D, fontPal.burnTex_names[single.texNum]);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, backdropVertices, backdropTexCoords2);
 
 //FIXME: Test this some more. Also pasting the backdrop again is not strictly necessary but allows using the paste shader.
-			drawQuad(shader.paste, spriteVertices, 3, spriteTexCoords, NULL,  backdropTexCoords);
-
-			glUseProgram(0);
-
-			// Copy Our ViewPort To The Texture
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, (x1<0) ? xoffset : x1+xoffset, (y1<0) ? yoffset: y1+yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
+			gfx::Texture * const textures[3] = { fontPal.burnTex_names[single.texNum], NULL, copy };
+			gfx::Quad quad = { spriteVertices, { spriteTexCoords, NULL, backdropTexCoords } };
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}
 		xoffset += viewportWidth;
 	}
+	drawIntoWindow ();
 	setPixelCoords (false);
 }
 
-extern GLuint backdropTextureName;
 
 void fontSprite (bool flip, int x, int y, sprite & single, const spritePalette & fontPal) {
 
@@ -642,26 +599,10 @@ void fontSprite (bool flip, int x, int y, sprite & single, const spritePalette &
 
 	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // GL_MODULATE instead of decal mixes the colours!
 	setPrimaryColor(fontPal.originalRed/255.f, fontPal.originalGreen/255.f, fontPal.originalBlue/255.f, 1.0f);
-	glBindTexture (GL_TEXTURE_2D, fontPal.tex_names[single.texNum]);
 
-	glUseProgram(shader.smartScaler);
-	GLuint uniform = glGetUniformLocation(shader.smartScaler, "useLightTexture");
-	if (uniform >= 0) glUniform1i(uniform, 0);
-
-	setPMVMatrix(shader.smartScaler);
-
-	if (gameSettings.antiAlias == 1) {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 1);
-	} else {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 0);
-	}
-
-	glEnable(GL_BLEND);
-
-	drawQuad(shader.smartScaler, vertices, 1, texCoords);
-
-	glDisable(GL_BLEND);
-	glUseProgram(0);
+	gfx::DrawUniforms uniforms;
+	uniforms.antialias = gameSettings.antiAlias == 1;
+	gfx::draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA), uniforms, fontPal.tex_names[single.texNum], vertices, texCoords);
 }
 
 void fontSprite (int x, int y, sprite & single, const spritePalette & fontPal) {
@@ -687,7 +628,6 @@ void setDrawMode (onScreenPerson * thisPerson) {
 	setPrimaryColor(curLight[0]*(255-thisPerson->colourmix)/65025.f, curLight[1]*(255-thisPerson->colourmix)/65025.f, curLight[2]*(255-thisPerson->colourmix)/65025.f, 1.0f - thisPerson->transparency/255.f);
 }
 
-extern GLuint backdropTextureName;
 bool checkColourChange (bool reset);
 
 bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, bool mirror) {
@@ -788,9 +728,6 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 			curLight[2] = target[2];
 		} else if (lightMapMode == LIGHTMAPMODE_PIXEL) {
 			curLight[0] = curLight[1] = curLight[2] = 255;
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture (GL_TEXTURE_2D, lightMap.name);
-			glActiveTexture(GL_TEXTURE0);
 		}
 	} else {
 		curLight[0] = curLight[1] = curLight[2] = 255;
@@ -801,21 +738,9 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 #endif
 	setDrawMode (thisPerson);
 
-	glBindTexture (GL_TEXTURE_2D, fontPal.tex_names[single.texNum]);
-
-	glEnable(GL_BLEND);
-
-	glUseProgram(shader.smartScaler);
-	GLuint uniform = glGetUniformLocation(shader.smartScaler, "useLightTexture");
-	if (uniform >= 0) glUniform1i(uniform, light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data);
-
-	setPMVMatrix(shader.smartScaler);
-
-	if (gameSettings.antiAlias == 1) {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 1);
-	} else {
-		glUniform1i(glGetUniformLocation(shader.smartScaler, "antialias"), 0);
-	}
+	gfx::DrawUniforms uniforms;
+	uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
+	uniforms.antialias = gameSettings.antiAlias == 1;
 
 	const GLfloat vertices[] = { 
 		x1, y1, z, 
@@ -836,15 +761,11 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 		tx1, ty2
 	}; 
 
-	drawQuad(shader.smartScaler, vertices, 2, texCoords, ltexCoords);
+	// Characters are drawn with the depth test, behind the z-buffer.
+	gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], uniforms.useLightTexture ? lightMap.tex : NULL, NULL };
+	gfx::Quad quad = { vertices, { texCoords, ltexCoords, NULL } };
+	gfx::renderer->draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA, gfx::DEPTH_TEST), uniforms, textures, quad);
 
-	glDisable(GL_BLEND);
-	glUseProgram(0);
-
-	if (light && lightMapMode == LIGHTMAPMODE_PIXEL) {
-		glActiveTexture(GL_TEXTURE1);
-		glActiveTexture(GL_TEXTURE0);
-	}
 	setSecondaryColor(0., 0., 0.,1.);
 	//glDisable(GL_COLOR_SUM); FIXME: replace line?
 
@@ -956,15 +877,10 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 			}
 		} else if (lightMapMode == LIGHTMAPMODE_PIXEL) {
 			curLight[0] = curLight[1] = curLight[2] = 255;
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture (GL_TEXTURE_2D, lightMap.name);
 		}
 	} else {
 		curLight[0] = curLight[1] = curLight[2] = 255;
 	}
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-	glActiveTexture(GL_TEXTURE0);
 
 	setPixelCoords (true);
 	GLfloat xoffset = 0.0f;
@@ -977,10 +893,9 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 			int h = (diffY-yoffset< viewportHeight) ? (int) (diffY-yoffset) : viewportHeight;
 
 			// Render the scene - first the old backdrop (so that it'll show through when the z-buffer is active
-			//glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			gfx::renderer->setTextureFilter (backdropTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+			gfx::Texture * copy = copyOfBackdrop ();
+			drawIntoTile (backdropTarget, (x1<0) ? xoffset : x1+xoffset, (y1<0) ? yoffset : y1+yoffset, (x1<0) ? -x1 : 0, (y1<0) ? -y1 : 0, w, h);
 
 			const GLfloat vertices[] = { 
 				-x1-xoffset, -y1-yoffset, 0.0f, 
@@ -996,31 +911,15 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 				backdropTexW, backdropTexH
 			}; 
 
-			glUseProgram(shader.texture);
-			setPMVMatrix(shader.texture);
-
-			drawQuad(shader.texture, vertices, 1, texCoords);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, texCoords);
 
 			// The z-buffer
 			if (useZB) {
-				glDepthMask (GL_TRUE);
-				glClear(GL_DEPTH_BUFFER_BIT);
 				drawZBuffer((int) (x1+xoffset+camX), (int) (y1+yoffset+camY), false);
-
-				glDepthMask (GL_FALSE);
-				glEnable(GL_DEPTH_TEST);
 			}
 
 			// Then the sprite
-			glUseProgram(shader.paste);
-			GLint uniform = glGetUniformLocation(shader.paste, "useLightTexture");
-			if (uniform >= 0) glUniform1i(uniform, light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data);
-
-			setPMVMatrix(shader.paste);
-
 			setDrawMode (thisPerson);
-
-			glBindTexture (GL_TEXTURE_2D, fontPal.tex_names[single.texNum]);
 
 			const GLfloat vertices2[] = { 
 				-xoffset, -yoffset, z, 
@@ -1041,22 +940,21 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 				tx1, ty2
 			}; 
 
-			drawQuad(shader.paste, vertices2, 3, texCoords2, ltexCoords, btexCoords);
+			gfx::DrawUniforms uniforms;
+			uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
+			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], uniforms.useLightTexture ? lightMap.tex : NULL, copy };
+			gfx::Quad quad = { vertices2, { texCoords2, ltexCoords, btexCoords } };
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE, gfx::BLEND_OFF, useZB ? gfx::DEPTH_TEST : gfx::DEPTH_OFF), uniforms, textures, quad);
 
 			setSecondaryColor(0., 0., 0., 1.);
 			//glDisable(GL_COLOR_SUM); FIXME: replace line?
-
-			// Copy Our ViewPort To The Texture
-			glUseProgram(0);
-
-			copyTexSubImage2D(GL_TEXTURE_2D, 0, (int) ((x1<0) ? xoffset: x1+xoffset), (int) ((y1<0) ? yoffset: y1+yoffset), (int) ((x1<0) ?viewportOffsetX-x1:viewportOffsetX), (int) ((y1<0) ?viewportOffsetY-y1:viewportOffsetY), w, h, backdropTextureName);
 
 			yoffset += viewportHeight;
 		}
 		xoffset += viewportWidth;
 	}
 
+	drawIntoWindow ();
 	setPixelCoords (false);
-	glUseProgram(0);
 }
 

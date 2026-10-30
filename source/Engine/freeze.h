@@ -2,8 +2,9 @@ struct frozenStuffStruct {
 	onScreenPerson * allPeople;
 	screenRegion * allScreenRegions;
 	GLubyte * backdropTexture;
-	GLuint backdropTextureName;
-	GLuint lightMapTextureName;
+	// We keep the pixels of the backdrop, and make a texture from them
+	// again when we unfreeze.
+	bool hadBackdrop;
 	GLubyte * lightMapTexture;
 	GLubyte * zBufferImage;
 	int zPanels;

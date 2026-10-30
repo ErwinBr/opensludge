@@ -123,9 +123,9 @@ void fixFont (spritePalette & spal) {
 	
 	spal.numTextures = theFont.myPalette.numTextures;
 
-	spal.tex_names = new GLuint [spal.numTextures];
+	spal.tex_names = new gfx::Texture * [spal.numTextures];
 	if (! checkNew (spal.tex_names)) return;	
-	spal.burnTex_names = new GLuint [spal.numTextures];
+	spal.burnTex_names = new gfx::Texture * [spal.numTextures];
 	if (! checkNew (spal.burnTex_names)) return;	
 	spal.tex_w = new int [spal.numTextures];
 	if (! checkNew (spal.tex_w)) return;	

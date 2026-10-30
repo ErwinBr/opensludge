@@ -94,6 +94,10 @@ static HANDLE interopDevice = NULL;
 static int width = 0, height = 0;
 static GLuint drawFramebuffer = 0, drawTexture = 0, drawDepthStencil = 0;
 
+unsigned int dxgiFramebuffer () {
+	return drawFramebuffer;
+}
+
 // The texture that we share with Direct3D.
 static ID3D11Texture2D * sharedTexture = NULL;
 static GLuint sharedGLTexture = 0, sharedFramebuffer = 0;

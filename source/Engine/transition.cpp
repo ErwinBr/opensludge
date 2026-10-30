@@ -7,7 +7,7 @@
 #include "graphics.h"
 #include "newfatal.h"
 
-extern GLuint snapshotTextureName;
+extern gfx::Texture * snapshotTex;
 extern unsigned char brightnessLevel;
 
 extern float snapTexW, snapTexH;
@@ -23,8 +23,6 @@ unsigned char fadeMode = 2;
 unsigned lastFrom, lastTo;
 
 void transitionFader () {
-	glEnable(GL_BLEND);
-	
 	const GLfloat vertices[] = { 
 		0.f, (GLfloat)winHeight, 0.f, 
 		(GLfloat)winWidth, (GLfloat)winHeight, 0.f, 
@@ -32,23 +30,13 @@ void transitionFader () {
 		(GLfloat)winWidth, 0.f, 0.f
 	};
 
-	glUseProgram(shader.color);
-	setPMVMatrix(shader.color);
 	setPrimaryColor(0.0f, 0.0f, 0.0f, 1.0f - brightnessLevel/255.f);
-	drawQuad(shader.color, vertices, 0);
-
-	glUseProgram(0);
-
-	glDisable(GL_BLEND);
+	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), gfx::DrawUniforms (), vertices);
 }
 
 void transitionCrossFader () {
 
-	if (! snapshotTextureName) return;
-
-	glBindTexture (GL_TEXTURE_2D,snapshotTextureName);
-	
-	glEnable(GL_BLEND);
+	if (! snapshotTex) return;
 
 	const GLfloat vertices[] = { 
 		0.f, (GLfloat)winHeight, 0.f, 
@@ -64,25 +52,16 @@ void transitionCrossFader () {
 		snapTexW, 0.0f
 	}; 
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 1);
 	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f - brightnessLevel/255.f);
-
-	drawQuad(shader.texture, vertices, 1, texCoords);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 0);
-	glUseProgram(0);
-
-	glDisable(GL_BLEND);
+	gfx::DrawUniforms uniforms;
+	uniforms.modulateColor = true;
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, snapshotTex, vertices, texCoords);
 }
 
 void transitionSnapshotBox () {
 	
-	if (! snapshotTextureName) return; 
+	if (! snapshotTex) return; 
 
-	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glBindTexture (GL_TEXTURE_2D,snapshotTextureName);
-	
 	float xScale = (float) brightnessLevel * winWidth / 510.f;	// 510 = 255*2
 	float yScale = (float) brightnessLevel * winHeight / 510.f;
 	
@@ -100,11 +79,7 @@ void transitionSnapshotBox () {
 		snapTexW, 0.0f
 	}; 
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-
-	drawQuad(shader.texture, vertices, 1, texCoords);
-	glUseProgram(0);
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), snapshotTex, vertices, texCoords);
 }
 
 //----------------------------------------------------
@@ -129,25 +104,22 @@ void resetRandW () {
 }
 
 GLubyte * transitionTexture = NULL;
-GLuint transitionTextureName = 0;
+gfx::Texture * transitionTex = NULL;
 
 bool reserveTransitionTexture () {
-	
-	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 	
 	if (! transitionTexture) {
 		transitionTexture = new GLubyte [256*256*4];
 		if (! checkNew (transitionTexture)) return false;
 	}
 	
-	if (! transitionTextureName) glGenTextures (1, &transitionTextureName);
-	glBindTexture (GL_TEXTURE_2D, transitionTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, transitionTexture, transitionTextureName);
+	if (transitionTex) {
+		gfx::renderer->setTextureImage (transitionTex, 256, 256, transitionTexture);
+	} else {
+		transitionTex = gfx::renderer->createTexture (256, 256, gfx::TEX_RGBA8, transitionTexture);
+	}
+	gfx::renderer->setTextureWrap (transitionTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+	gfx::renderer->setTextureFilter (transitionTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 	
 	return true;
 }
@@ -155,7 +127,7 @@ bool reserveTransitionTexture () {
 
 void transitionDisolve () {
 	
-	if (! transitionTextureName) reserveTransitionTexture();
+	if (! transitionTex) reserveTransitionTexture();
 
 	if (! brightnessLevel) {
 		transitionFader ();
@@ -190,9 +162,7 @@ void transitionDisolve () {
 		toScreen += 4;
 	} while (toScreen < end);
 
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, transitionTexture, transitionTextureName);
-
-	glEnable(GL_BLEND);
+	gfx::renderer->updateTexture (transitionTex, 0, 0, 256, 256, transitionTexture);
 
 	const GLfloat vertices[] = { 
 		0.f, (GLfloat)winHeight, 0.f, 
@@ -208,21 +178,15 @@ void transitionDisolve () {
 		1.0f, 0.0f
 	}; 
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 1);
 	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
-
-	drawQuad(shader.texture, vertices, 1, texCoords);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 0);
-	glUseProgram(0);
-
-	glDisable(GL_BLEND);
+	gfx::DrawUniforms uniforms;
+	uniforms.modulateColor = true;
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
 }
 
 void transitionTV () {
 
-	if (! transitionTextureName) reserveTransitionTexture();
+	if (! transitionTex) reserveTransitionTexture();
 
 	uint32_t n;
 	uint32_t y;
@@ -252,9 +216,7 @@ void transitionTV () {
 		toScreen += 4;
 	} while (toScreen < end);
 	
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, transitionTexture, transitionTextureName);
-	
-	glEnable(GL_BLEND);
+	gfx::renderer->updateTexture (transitionTex, 0, 0, 256, 256, transitionTexture);
 	
 	const GLfloat vertices[] = { 
 		0.f, (GLfloat)winHeight, 0.f, 
@@ -270,24 +232,16 @@ void transitionTV () {
 		1.0f, 0.0f
 	}; 
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 1);
 	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
-
-	drawQuad(shader.texture, vertices, 1, texCoords);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 0);
-	glUseProgram(0);
-
-	glDisable(GL_BLEND);	
+	gfx::DrawUniforms uniforms;
+	uniforms.modulateColor = true;
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);	
 }
 
 void transitionBlinds () {
-	if (! transitionTextureName) reserveTransitionTexture();
-	// The blinds repeat down the screen. We set this on the transition
-	// texture, and not on whichever texture happens to be bound.
-	glBindTexture (GL_TEXTURE_2D, transitionTextureName);
-	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	if (! transitionTex) reserveTransitionTexture();
+	// The blinds repeat down the screen.
+	gfx::renderer->setTextureWrap (transitionTex, gfx::WRAP_CLAMP, gfx::WRAP_REPEAT);
 
 	GLubyte * toScreen = transitionTexture;
 
@@ -296,9 +250,7 @@ void transitionBlinds () {
 	if (level) memset (toScreen, 0, 256*32*level);
 	if (level < 32) memset (toScreen+256*32*level, 255, 256*32*(32-level));
 	
-	texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, transitionTexture, transitionTextureName);
-
-	glEnable(GL_BLEND);
+	gfx::renderer->updateTexture (transitionTex, 0, 0, 256, 256, transitionTexture);
 
 	const GLfloat vertices[] = { 
 		0.f, (GLfloat)winHeight, 0.f, 
@@ -314,16 +266,10 @@ void transitionBlinds () {
 		1.0f, 25.0f
 	}; 
 
-	glUseProgram(shader.texture);
-	setPMVMatrix(shader.texture);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 1);
 	setPrimaryColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-	drawQuad(shader.texture, vertices, 1, texCoords);
-	glUniform1i(glGetUniformLocation(shader.texture, "modulateColor"), 0);
-	glUseProgram(0);
-
-	glDisable(GL_BLEND);
+	gfx::DrawUniforms uniforms;
+	uniforms.modulateColor = true;
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
 }
 
 //----------------------------------------------------

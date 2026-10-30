@@ -15,12 +15,12 @@ void unfreeze (bool);	// Because FREEZE.H needs a load of other includes
 
 int thumbWidth = 0, thumbHeight = 0;
 
-extern GLuint backdropTextureName;
+extern gfx::Texture * backdropTex;
+extern gfx::RenderTarget * backdropTarget;
+unsigned short rgbTo565 (const unsigned char * rgb);
 
 
 bool saveThumbnail (FILE * fp) {
-	GLuint thumbnailTextureName = 0;
-
 	put4bytes (thumbWidth, fp);
 	put4bytes (thumbHeight, fp);
 
@@ -29,22 +29,15 @@ bool saveThumbnail (FILE * fp) {
 
 
 		setPixelCoords (true);
-		glUseProgram(shader.texture);
-		setPMVMatrix(shader.texture);
 
-		glGenTextures (1, &thumbnailTextureName);
-		glBindTexture(GL_TEXTURE_2D, thumbnailTextureName);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, thumbWidth, thumbHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0, thumbnailTextureName);
+		gfx::Texture * thumbnailTex = gfx::renderer->createTexture (thumbWidth, thumbHeight, gfx::TEX_RGBA8, NULL);
+		gfx::renderer->setTextureWrap (thumbnailTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+		gfx::renderer->setTextureFilter (thumbnailTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+		gfx::RenderTarget * target = gfx::renderer->createTarget (thumbnailTex, false);
+		drawIntoTile (target, 0, 0, 0, 0, thumbWidth, thumbHeight);
 
 		// Render the backdrop (scaled)
-		//glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glBindTexture (GL_TEXTURE_2D, backdropTextureName);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		gfx::renderer->setTextureFilter (backdropTex, gfx::FILTER_LINEAR, gfx::FILTER_NEAREST);
 
 		const GLfloat vertices[] = { 
 			0., 0., 0., 
@@ -60,38 +53,24 @@ bool saveThumbnail (FILE * fp) {
 			backdropTexW, backdropTexH
 		}; 
 
-		drawQuad(shader.texture, vertices, 1, texCoords);
+		gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), backdropTex, vertices, texCoords);
 
-		if (gameSettings.antiAlias < 0) {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		}
-		deleteTextures (1, &thumbnailTextureName);
-		thumbnailTextureName = 0;
-		
-		// Save Our ViewPort
-		#ifdef HAVE_GLES2
-		GLushort* image = new GLushort [thumbWidth*thumbHeight];
-		GLuint* tmp = new GLuint [thumbWidth*thumbHeight];
-		if (! checkNew (image)) return false;
-		glReadPixels(viewportOffsetX, viewportOffsetY, thumbWidth, thumbHeight, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
-		for (int y = 0; y < thumbHeight; y ++) {
-			for (int x = 0; x < thumbWidth; x ++) {
-				const GLuint a = tmp[y*thumbWidth+x];
-				image[y*thumbWidth+x] =  ((a&0x00f80000)>>(16+3)) | ((a&0x0000fc00)>>(8+2-5)) | ((a&0x000000f8)<<(11-3));
-			}
-		}
-		delete[] tmp;
-		#else
+		gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+		gfx::renderer->setTextureFilter (backdropTex, filter, filter);
+
+		// Save the thumbnail, in 16 bits
 		GLushort* image = new GLushort [thumbWidth*thumbHeight];
 		if (! checkNew (image)) return false;
-		glReadPixels(viewportOffsetX, viewportOffsetY, thumbWidth, thumbHeight, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, image);
-		#endif
+		GLubyte * rgba = new GLubyte [thumbWidth*thumbHeight*4];
+		gfx::renderer->readPixels (0, 0, thumbWidth, thumbHeight, rgba);
+		for (int i = 0; i < thumbWidth*thumbHeight; i ++) {
+			image[i] = rgbTo565 (rgba + i*4);
+		}
+		delete [] rgba;
 
-		glUseProgram(0);
+		gfx::renderer->destroyTarget (target);
+		gfx::renderer->destroyTexture (thumbnailTex);
+		drawIntoWindow ();
 		setPixelCoords (false);
 
 		for (int y = 0; y < thumbHeight; y ++) {
@@ -109,7 +88,6 @@ bool saveThumbnail (FILE * fp) {
 
 void showThumbnail (char * filename, int atX, int atY) {
 	GLubyte * thumbnailTexture = NULL;
-	GLuint thumbnailTextureName = 0;
 
 	GLfloat texCoordW = 1.0;
 	GLfloat texCoordH = 1.0;	
@@ -152,13 +130,9 @@ void showThumbnail (char * filename, int atX, int atY) {
 
 		fclose (fp);
 
-		glGenTextures (1, &thumbnailTextureName);
-		glBindTexture(GL_TEXTURE_2D, thumbnailTextureName);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		texImage2D (GL_TEXTURE_2D, 0, GL_RGBA, picWidth, picHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, thumbnailTexture, thumbnailTextureName);
+		gfx::Texture * thumbnailTex = gfx::renderer->createTexture (picWidth, picHeight, gfx::TEX_RGBA8, thumbnailTexture);
+		gfx::renderer->setTextureWrap (thumbnailTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+		gfx::renderer->setTextureFilter (thumbnailTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
 
 		delete [] thumbnailTexture;
 		thumbnailTexture = NULL;
@@ -176,9 +150,6 @@ void showThumbnail (char * filename, int atX, int atY) {
 
 		setPixelCoords (true);
 
-		glUseProgram(shader.texture);
-		setPMVMatrix(shader.texture);
-
 		int xoffset = 0;
 		while (xoffset < fileWidth) {
 			int w = (fileWidth-xoffset < viewportWidth) ? fileWidth-xoffset : viewportWidth;
@@ -187,7 +158,7 @@ void showThumbnail (char * filename, int atX, int atY) {
 			while (yoffset < fileHeight) {
 				int h = (fileHeight-yoffset < viewportHeight) ? fileHeight-yoffset : viewportHeight;
 
-				glBindTexture (GL_TEXTURE_2D, thumbnailTextureName);
+				drawIntoTile (backdropTarget, atX+xoffset, atY+yoffset, 0, 0, w, h);
 
 				const GLfloat vertices[] = { 
 					(GLfloat)fileWidth-1.f-xoffset, (GLfloat)-yoffset, 0., 
@@ -203,21 +174,15 @@ void showThumbnail (char * filename, int atX, int atY) {
 					0.0f, texCoordH
 				}; 
 	
-				drawQuad(shader.texture, vertices, 1, texCoords);
-
-				glDisable(GL_BLEND);
-
-				// Copy Our ViewPort To The Texture
-				copyTexSubImage2D(GL_TEXTURE_2D, 0, atX+xoffset, atY+yoffset, viewportOffsetX, viewportOffsetY, w, h, backdropTextureName);
+				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), thumbnailTex, vertices, texCoords);
 
 				yoffset += viewportHeight;
 			}
 			xoffset += viewportWidth;
 		}
-		glUseProgram(0);
+		drawIntoWindow ();
 		setPixelCoords (false);
-		deleteTextures (1, &thumbnailTextureName);
-		thumbnailTextureName = 0;
+		gfx::renderer->destroyTexture (thumbnailTex);
 	}
 }
 

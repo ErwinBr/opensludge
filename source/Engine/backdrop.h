@@ -15,7 +15,7 @@ extern int lightMapMode;
 
 struct parallaxLayer {
 	GLubyte * texture;
-	GLuint textureName;
+	gfx::Texture * tex;
 	int width, height, speedX, speedY;
 	bool wrapS, wrapT;
 	unsigned short fileNum, fractionX, fractionY;
@@ -23,6 +23,17 @@ struct parallaxLayer {
 	parallaxLayer * next;
 	parallaxLayer * prev;
 };
+
+// The backdrop, and the target for drawing into it.
+extern gfx::Texture * backdropTex;
+extern gfx::RenderTarget * backdropTarget;
+// Make t the backdrop texture, with a new target.
+void setBackdropTexture (gfx::Texture * t);
+// Copy the backdrop, so that we can draw from the copy while we draw into
+// the backdrop. The copy is valid until the next call.
+gfx::Texture * copyOfBackdrop ();
+
+extern gfx::Texture * snapshotTex;
 
 bool resizeBackdrop (int x, int y);
 void killBackDrop ();
@@ -32,7 +43,7 @@ void drawBackDrop ();
 void blankScreen (int x1, int y1, int x2, int y2);
 void darkScreen ();
 void saveHSI (FILE * writer);
-void saveCoreHSI (FILE * writer, GLuint texture, int w, int h);
+void saveCoreHSI (FILE * writer, gfx::Texture * texture, int w, int h);
 bool loadHSI (FILE * fp, int, int, bool);
 bool mixHSI (FILE * fp, int x = 0, int y = 0);
 void drawHorizontalLine (unsigned int, unsigned int, unsigned int);

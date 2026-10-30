@@ -21,6 +21,9 @@ void resizeDXGIPresentation (int width, int height);
 // Show the frame that we drew, and wait for the display.
 void presentWithDXGI ();
 
+// The frame buffer object that takes the place of the window.
+unsigned int dxgiFramebuffer ();
+
 #endif
 
 #endif
