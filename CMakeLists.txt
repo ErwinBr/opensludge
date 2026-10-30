@@ -14,6 +14,8 @@ option(SLUDGE_BUNDLED_DEPS "Build all dependencies from source and link them sta
 option(SLUDGE_TESTS "Build the tests" ON)
 
 option(SLUDGE_ENGINE "Build the SLUDGE engine" ON)
+# The compiler is headless and builds everywhere. The Dev Kit needs it.
+option(SLUDGE_COMPILER "Build the headless sludge-compiler" ON)
 # The Dev Kit uses GTK 3, and so far we build it only on Linux and other
 # Unix systems.
 if(UNIX AND NOT APPLE)
@@ -33,6 +35,18 @@ endif()
 
 install(FILES AUTHORS README INSTALL DESTINATION ${SLUDGE_DOCDIR})
 
+if(SLUDGE_DEVKIT AND NOT SLUDGE_COMPILER)
+	message(STATUS "The Dev Kit needs the compiler, so we build it too")
+	set(SLUDGE_COMPILER ON)
+endif()
+
+if(SLUDGE_ENGINE OR SLUDGE_COMPILER)
+	include(cmake/Dependencies.cmake)
+endif()
+
+if(SLUDGE_COMPILER)
+	add_subdirectory(source/DevKit)
+endif()
 if(SLUDGE_DEVKIT)
 	add_subdirectory(GTK_Dev_Kit)
 endif()
@@ -41,8 +55,6 @@ if(SLUDGE_DOC)
 endif()
 
 if(SLUDGE_ENGINE)
-	include(cmake/Dependencies.cmake)
-
 	# On every device, we draw with OpenGL ES 2.0. On the OpenPandora, we always
 	# show the game in full screen, and we wait for the vertical sync of the
 	# framebuffer ourselves, because the graphics driver ignores the swap

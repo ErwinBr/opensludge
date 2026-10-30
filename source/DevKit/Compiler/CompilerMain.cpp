@@ -19,8 +19,9 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <getopt.h>
-#include <glib.h>
+#include <string>
 #include "project.hpp"
 #include "settings.h"
 #include "compiler.hpp"
@@ -41,9 +42,37 @@ bool errorBox (const char * head, const char * msg)
 	return false;
 }
 
+// The folder for the user's cached files, in which the compiler makes its
+// temporary folder: ~/Library/Caches on macOS, $XDG_CACHE_HOME or ~/.cache
+// on other Unix systems, and %LOCALAPPDATA% on Windows.
+static const char * userCacheDir ()
+{
+	static std::string dir;
+	if (! dir.empty()) return dir.c_str();
+
+#ifdef _WIN32
+	const char * local = getenv("LOCALAPPDATA");
+	if (local && local[0]) dir = local;
+	else if (getenv("TEMP")) dir = getenv("TEMP");
+	else dir = ".";
+#else
+	const char * home = getenv("HOME");
+	if (! home || ! home[0]) home = "/tmp";
+#ifdef __APPLE__
+	dir = std::string(home) + "/Library/Caches";
+#else
+	// The XDG Base Directory Specification says to ignore relative paths.
+	const char * xdg = getenv("XDG_CACHE_HOME");
+	if (xdg && xdg[0] == '/') dir = xdg;
+	else dir = std::string(home) + "/.cache";
+#endif
+#endif
+	return dir.c_str();
+}
+
 const char * getTempDir ()
 {
-	return g_get_user_cache_dir();
+	return userCacheDir();
 }
 
 bool fileExists(char * file) {
@@ -70,7 +99,8 @@ void printCmdlineUsage() {
 	fprintf(stdout, "Options:\n");
 	fprintf(stdout, "-k,	--keep-slx		Keep compressed image files that are generated during compilation.\n");
 	fprintf(stdout, "-t,	--string-file		Write a text file of the strings contained in the game.\n");
-	fprintf(stdout, "-s,	--strip-debug-info	Strip debug information from the game file.\n");
+	fprintf(stdout, "-s,	--strip-debug-info	Leave the debug information out of the game file\n");
+	fprintf(stdout, "	--silent		(the same as --strip-debug-info).\n");
 	fprintf(stdout, "-h,	--help			Print this help message\n\n");
 }
 
@@ -86,6 +116,8 @@ bool parseCmdlineParameters(int argc, char *argv[]) {
 		{
 			{"keep-slx",	no_argument,	   0, 'k' },
 			{"string-file",	no_argument,	   0, 't' },
+			{"strip-debug-info",	no_argument,	   0, 's' },
+			// The old name of --strip-debug-info.
 			{"silent",		no_argument,	   0, 's' },
 			{"help",		no_argument,	   0, 'h' },
 			{0,0,0,0} /* This is a filler for -1 */
@@ -115,7 +147,7 @@ bool parseCmdlineParameters(int argc, char *argv[]) {
 int main (int argc, char *argv[])
 {
 	char *fileList[1000];
-	int fileListNum;
+	int fileListNum = 0;
 
 	if (! parseCmdlineParameters(argc, argv) ) {
 		printCmdlineUsage();

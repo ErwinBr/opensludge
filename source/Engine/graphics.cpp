@@ -211,8 +211,11 @@ void setSecondaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 
 void drawQuad(GLint program, const GLfloat* vertices, int numTexCoords, ...)
 {
-	int i, vertexLoc, texCoordLocs[numTexCoords];
-	const GLfloat* texCoords[numTexCoords];
+	// The shaders have at most four texture coordinate attributes, myUV0 to
+	// myUV3.
+	if (numTexCoords > 4) numTexCoords = 4;
+	int i, vertexLoc, texCoordLocs[4];
+	const GLfloat* texCoords[4];
 
 	va_list vl;
 	va_start(vl,numTexCoords);
@@ -229,7 +232,7 @@ void drawQuad(GLint program, const GLfloat* vertices, int numTexCoords, ...)
 	}
 
 	vertexLoc = glGetAttribLocation(program, "myVertex");
-	texCoordLocs[0] = glGetAttribLocation(program, "myUV0");
+	if (numTexCoords > 0) texCoordLocs[0] = glGetAttribLocation(program, "myUV0");
 	if (numTexCoords > 1) texCoordLocs[1] = glGetAttribLocation(program, "myUV1");
 	if (numTexCoords > 2) texCoordLocs[2] = glGetAttribLocation(program, "myUV2");
 	if (numTexCoords > 3) texCoordLocs[3] = glGetAttribLocation(program, "myUV3");

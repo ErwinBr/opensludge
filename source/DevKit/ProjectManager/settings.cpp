@@ -346,7 +346,8 @@ void writeFinalData (FILE * mainFile) {
 
 	/* TODO - but not used by the engine anyway
 		SYSTEMTIME systemTime;*/
-	FILETIME fileTime;
+	// We write zeros, so that the same project always makes the same file.
+	FILETIME fileTime = {0, 0};
 	//GetSystemTime (& systemTime);
 	//SystemTimeToFileTime (& systemTime, & fileTime);
 	fwrite (& fileTime, sizeof (fileTime), 1, mainFile);

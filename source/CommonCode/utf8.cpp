@@ -200,8 +200,12 @@ int u8_strlen(char *s)
     int count = 0;
     int i = 0;
 
-    while (u8_nextchar(s, &i) != 0)
+    // We stop at the terminating NUL. Reading it with u8_nextchar would make
+    // it look at the byte after the end of the string.
+    while (s[i]) {
+        u8_nextchar(s, &i);
         count++;
+    }
 
     return count;
 }

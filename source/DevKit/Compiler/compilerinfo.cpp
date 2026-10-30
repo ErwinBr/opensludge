@@ -1,6 +1,3 @@
-#ifndef __APPLE__
-
-
 #include <stdio.h>
 #include "compilerinfo.h"
 
@@ -109,5 +106,3 @@ void setFinished(bool success)
 	info->finished = true;
 	(*setInfo)(info);
 }
-
-#endif

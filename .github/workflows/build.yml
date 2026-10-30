@@ -29,10 +29,15 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF
+          # With the engine, we build the headless compiler, and compile the
+          # example projects into build/games.
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
+            -DSLUDGE_COMPILER=ON
           cmake --build build
 
       - name: Test
+        # The tests check the hashes of the compiled games against
+        # tests/games.sha256, besides the engine tests.
         run: ctest --test-dir build --output-on-failure
 
       - name: Play the opening of Out Of Order
@@ -178,7 +183,9 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON
+          # We don't build the compiler on Windows yet.
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON \
+            -DSLUDGE_COMPILER=OFF
           cmake --build build
 
       - name: Test
@@ -213,7 +220,8 @@ jobs:
       - name: Build
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON \
-            -DSLUDGE_TESTS=OFF -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/mingw-i686.cmake
+            -DSLUDGE_TESTS=OFF -DSLUDGE_COMPILER=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/mingw-i686.cmake
           cmake --build build
 
       - name: Check the executable
@@ -254,13 +262,18 @@ jobs:
 
       - name: Build
         run: |
+          # With the engine, we build the headless compiler, and compile the
+          # example projects into build/games. On the Apple Silicon runner,
+          # the x86_64 compiler runs with Rosetta.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DSLUDGE_BUNDLED_DEPS=ON \
+            -DSLUDGE_BUNDLED_DEPS=ON -DSLUDGE_COMPILER=ON \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.min_macos }}
           cmake --build build
 
       - name: Test
+        # The tests check the hashes of the compiled games against
+        # tests/games.sha256, besides the engine tests.
         run: ctest --test-dir build --output-on-failure
 
       - name: Check the executable
@@ -268,11 +281,14 @@ jobs:
           file build/sludge-engine
           otool -L build/sludge-engine
           vtool -show-build build/sludge-engine
-          # We link dynamically to system libraries only.
-          if otool -L build/sludge-engine | tail -n +2 | grep -v -E '^\s+(/usr/lib/|/System/Library/)'; then
-            echo "Unexpected non-system library"
-            exit 1
-          fi
+          # We link dynamically to system libraries only, in the engine and
+          # in the compiler.
+          for exe in build/sludge-engine build/source/DevKit/sludge-compiler; do
+            if otool -L $exe | tail -n +2 | grep -v -E '^\s+(/usr/lib/|/System/Library/)'; then
+              echo "Unexpected non-system library in $exe"
+              exit 1
+            fi
+          done
           # On the Apple Silicon runner, we run the Intel build with Rosetta.
           arch -${{ matrix.arch }} build/sludge-engine --help
 

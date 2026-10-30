@@ -32,6 +32,9 @@ libsdl3-dev where it exists.
                                 default on Linux (see below).
      -DSLUDGE_ENGINE=OFF        Leave out the engine, for example to build
                                 only the Dev Kit.
+     -DSLUDGE_COMPILER=OFF      Leave out the headless compiler,
+                                sludge-compiler (see below). The Dev Kit
+                                needs it.
      -DSLUDGE_DOC=ON            Install the documentation and the example
                                 projects.
 
@@ -79,13 +82,43 @@ publish only OpenSLUDGE, leave out the Out Of Order zips and apps in the
 workflow. In the tests of the workflow, we play the opening of Out Of
 Order, so keep get-out-of-order.sh for those.
 
+Building the SLUDGE compiler
+****************************
+
+   The compiler, sludge-compiler, turns a SLUDGE project (.slp) into a game
+data file (.slg). It runs without a display and needs only libpng, which
+CMake builds from source if it is missing, so it builds on Linux and on
+macOS without GTK. To build only the compiler, run
+
+     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLUDGE_ENGINE=OFF \
+       -DSLUDGE_DEVKIT=OFF
+     cmake --build build
+
+and compile a project with `build/source/DevKit/sludge-compiler
+<project.slp>'. It writes the game file next to the project file, and
+`sludge-compiler --help' lists its options. It has not been ported to
+Windows yet, so the Windows builds in the workflow use
+-DSLUDGE_COMPILER=OFF.
+
+   With the function sludge_compile_game in cmake/SludgeCompileGame.cmake,
+we compile projects when we build: the example projects in
+doc/ExampleProjects go to build/games/Welcome.slg and
+build/games/VerbCoin.slg. `ctest --test-dir build' checks their hashes
+against tests/games.sha256, so that we notice when the compiler makes
+different game files. When the compiler changes on purpose, update the
+hashes with
+
+     (cd build/games && shasum -a 256 Welcome.slg VerbCoin.slg) \
+       > tests/games.sha256
+
 Building the SLUDGE Development Kit
 ***********************************
 
 Windows and Mac OS X
 ====================
 
-   So far, we build the Dev Kit with GTK 3 only on Linux. The Windows
+   So far, we build the Dev Kit with GTK 3 only on Linux. On macOS, the
+compiler builds without the Dev Kit (see above). The Windows
 installer script, sludge.nsi, is for the earlier Dev Kit with GTK+ 2.16
 and GtkGLExt, and the Xcode project in the "Mac Dev Kit" directory is
 for Mac OS X 10.4, so we cannot build the current Dev Kit with either of

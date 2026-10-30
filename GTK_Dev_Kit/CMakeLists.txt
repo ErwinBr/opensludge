@@ -1,10 +1,9 @@
-# The SLUDGE Dev Kit: the compiler, and the GTK 3 tools around it.
+# The SLUDGE Dev Kit: the GTK 3 tools around the compiler, which we build in
+# source/DevKit.
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0>=3.20 gthread-2.0 gobject-2.0 gmodule-2.0)
-pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
 pkg_check_modules(EPOXY REQUIRED IMPORTED_TARGET epoxy)
-pkg_check_modules(LIBPNG REQUIRED IMPORTED_TARGET libpng)
 
 set(SOURCE_DIR ${PROJECT_SOURCE_DIR}/source)
 set(DEVKIT_DIR ${SOURCE_DIR}/DevKit)
@@ -12,8 +11,6 @@ set(IMAGES_DIR ${PROJECT_SOURCE_DIR}/images)
 set(PKGDATADIR ${CMAKE_INSTALL_DATADIR}/sludge)
 
 include_directories(
-	${SOURCE_DIR}/CommonCode
-	${DEVKIT_DIR}/Common
 	${DEVKIT_DIR}/Compiler
 	${DEVKIT_DIR}/ProjectManager
 	${DEVKIT_DIR}/GraphicalTools
@@ -29,37 +26,6 @@ else()
 	add_compile_definitions(DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/sludge/")
 endif()
 
-# The code that the tools share, in static libraries.
-add_library(devkit-common STATIC
-	${DEVKIT_DIR}/Common/moreio.cpp
-	${DEVKIT_DIR}/Common/helpers.cpp
-	${DEVKIT_DIR}/Common/stringarray.cpp
-	${SOURCE_DIR}/CommonCode/tga.cpp
-	${SOURCE_DIR}/CommonCode/utf8.cpp
-)
-
-add_library(devkit-compiler STATIC
-	${DEVKIT_DIR}/ProjectManager/project.cpp
-	${DEVKIT_DIR}/ProjectManager/settings.cpp
-	${DEVKIT_DIR}/ProjectManager/messbox.cpp
-	${DEVKIT_DIR}/Compiler/compiler.cpp
-	${DEVKIT_DIR}/Compiler/compilerinfo.cpp
-	${DEVKIT_DIR}/Compiler/allknown.cpp
-	${DEVKIT_DIR}/Compiler/checkused.cpp
-	${DEVKIT_DIR}/Compiler/dumpfiles.cpp
-	${DEVKIT_DIR}/Compiler/floor.cpp
-	${DEVKIT_DIR}/Compiler/hsi.cpp
-	${DEVKIT_DIR}/Compiler/linker.cpp
-	${DEVKIT_DIR}/Compiler/objtype.cpp
-	${DEVKIT_DIR}/Compiler/preproc.cpp
-	${DEVKIT_DIR}/Compiler/realproc.cpp
-	${DEVKIT_DIR}/Compiler/sludge_functions.cpp
-	${DEVKIT_DIR}/Compiler/splitter.cpp
-	${DEVKIT_DIR}/Compiler/tokens.cpp
-	${DEVKIT_DIR}/Compiler/translation.cpp
-)
-target_link_libraries(devkit-compiler PUBLIC devkit-common PkgConfig::LIBPNG)
-
 # The drawing of the views of the floor maker, the z-buffer maker and the
 # sprite bank editor.
 add_library(devkit-graphics STATIC
@@ -68,14 +34,10 @@ add_library(devkit-graphics STATIC
 	${DEVKIT_DIR}/GraphicalTools/floormaker.cpp
 	${DEVKIT_DIR}/GraphicalTools/zbuffer.cpp
 )
-target_link_libraries(devkit-graphics PUBLIC devkit-common PkgConfig::EPOXY PkgConfig::LIBPNG)
+target_link_libraries(devkit-graphics PUBLIC devkit-common PkgConfig::EPOXY sludge::png)
 
 add_library(devkit-gtk STATIC SludgeApplication.cpp Common.cpp)
 target_link_libraries(devkit-gtk PUBLIC devkit-common PkgConfig::GTK)
-
-# The compiler runs without a display.
-add_executable(sludge-compiler CompilerMain.cpp)
-target_link_libraries(sludge-compiler PRIVATE devkit-compiler PkgConfig::GLIB)
 
 # Add a GTK tool, with its main source file, the class of its window, its
 # Windows resource script and any further source files.
@@ -103,8 +65,6 @@ target_link_libraries(sludge-floormaker PRIVATE devkit-graphics)
 target_link_libraries(sludge-zbuffermaker PRIVATE devkit-graphics)
 target_link_libraries(sludge-spritebankeditor PRIVATE devkit-graphics)
 target_link_libraries(sludge-projectmanager PRIVATE devkit-compiler)
-
-install(TARGETS sludge-compiler RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES
 	FloorMaker.glade ZBufferMaker.glade SpriteBankEditor.glade

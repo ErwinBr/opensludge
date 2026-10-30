@@ -1,9 +1,9 @@
-# Find or build the libraries of the engine, and make a target for each of
-# them, as follows.
+# Find or build the libraries of the engine and of the compiler, and make a
+# target for each of them, as follows.
 #
 #   sludge::sdl3   SDL 3
 #   sludge::vorbis libvorbisfile (with libvorbis and libogg)
-#   sludge::png    libpng
+#   sludge::png    libpng (the only one that the compiler needs)
 #   sludge::dumb   DUMB (tracker music)
 #   sludge::vpx    libvpx (for movies, only when SLUDGE_MOVIES is on)
 #
@@ -51,46 +51,6 @@ function(sludge_target name)
 endfunction()
 
 #
-# SDL 3
-#
-if(NOT SLUDGE_BUNDLED_DEPS)
-	find_package(SDL3 CONFIG QUIET)
-endif()
-if(TARGET SDL3::SDL3)
-	message(STATUS "Using system SDL ${SDL3_VERSION}")
-	sludge_target(sdl3 SDL3::SDL3)
-else()
-	message(STATUS "Building SDL from source")
-	set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-	set(SDL_STATIC ON CACHE BOOL "" FORCE)
-	set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-	set(SDL_TESTS OFF CACHE BOOL "" FORCE)
-	set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-	set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
-	sludge_fetch(SDL3 https://github.com/libsdl-org/SDL.git ${SLUDGE_SDL_TAG})
-	sludge_target(sdl3 SDL3-static)
-endif()
-
-#
-# Ogg Vorbis
-#
-if(NOT SLUDGE_BUNDLED_DEPS AND PkgConfig_FOUND)
-	pkg_check_modules(VORBISFILE QUIET IMPORTED_TARGET vorbisfile vorbis ogg)
-endif()
-if(TARGET PkgConfig::VORBISFILE)
-	message(STATUS "Using system libvorbis")
-	sludge_target(vorbis PkgConfig::VORBISFILE)
-else()
-	message(STATUS "Building libogg and libvorbis from source")
-	set(INSTALL_DOCS OFF CACHE BOOL "" FORCE)
-	# With OVERRIDE_FIND_PACKAGE, find_package(Ogg) in the libvorbis CMake
-	# files finds the libogg that we build here.
-	sludge_fetch(Ogg https://github.com/xiph/ogg.git ${SLUDGE_OGG_TAG} OVERRIDE_FIND_PACKAGE)
-	sludge_fetch(Vorbis https://github.com/xiph/vorbis.git ${SLUDGE_VORBIS_TAG})
-	sludge_target(vorbis vorbisfile vorbis ogg)
-endif()
-
-#
 # libpng
 #
 if(NOT SLUDGE_BUNDLED_DEPS)
@@ -136,6 +96,51 @@ else()
 	sludge_fetch(libpng https://github.com/pnggroup/libpng.git ${SLUDGE_PNG_TAG})
 	sludge_target(png png_static ZLIB::ZLIB)
 	target_include_directories(sludge_png INTERFACE ${libpng_SOURCE_DIR} ${libpng_BINARY_DIR})
+endif()
+
+# The compiler needs only libpng. The other libraries are for the engine.
+if(NOT SLUDGE_ENGINE)
+	return()
+endif()
+
+#
+# SDL 3
+#
+if(NOT SLUDGE_BUNDLED_DEPS)
+	find_package(SDL3 CONFIG QUIET)
+endif()
+if(TARGET SDL3::SDL3)
+	message(STATUS "Using system SDL ${SDL3_VERSION}")
+	sludge_target(sdl3 SDL3::SDL3)
+else()
+	message(STATUS "Building SDL from source")
+	set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+	set(SDL_STATIC ON CACHE BOOL "" FORCE)
+	set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+	set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+	set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+	set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+	sludge_fetch(SDL3 https://github.com/libsdl-org/SDL.git ${SLUDGE_SDL_TAG})
+	sludge_target(sdl3 SDL3-static)
+endif()
+
+#
+# Ogg Vorbis
+#
+if(NOT SLUDGE_BUNDLED_DEPS AND PkgConfig_FOUND)
+	pkg_check_modules(VORBISFILE QUIET IMPORTED_TARGET vorbisfile vorbis ogg)
+endif()
+if(TARGET PkgConfig::VORBISFILE)
+	message(STATUS "Using system libvorbis")
+	sludge_target(vorbis PkgConfig::VORBISFILE)
+else()
+	message(STATUS "Building libogg and libvorbis from source")
+	set(INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+	# With OVERRIDE_FIND_PACKAGE, find_package(Ogg) in the libvorbis CMake
+	# files finds the libogg that we build here.
+	sludge_fetch(Ogg https://github.com/xiph/ogg.git ${SLUDGE_OGG_TAG} OVERRIDE_FIND_PACKAGE)
+	sludge_fetch(Vorbis https://github.com/xiph/vorbis.git ${SLUDGE_VORBIS_TAG})
+	sludge_target(vorbis vorbisfile vorbis ogg)
 endif()
 
 #
