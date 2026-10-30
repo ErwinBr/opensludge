@@ -47,7 +47,7 @@ void killAllSpeech () {
 	while (speech -> allSpeech) {
 		killMe = speech -> allSpeech;
 		speech -> allSpeech = speech -> allSpeech -> next;
-		delete killMe -> textLine;
+		delete [] killMe -> textLine;
 		delete killMe;
 	}
 }

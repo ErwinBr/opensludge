@@ -229,7 +229,7 @@ bool initSludge (char * filename) {
 	char * checker = readString (fp);
 
 	if (strcmp (checker, "okSoFar")) return fatal (ERROR_BAD_HEADER, filename);
-	delete checker;
+	delete [] checker;
 	checker = NULL;
 
     unsigned char customIconLogo = fgetc (fp);
@@ -476,7 +476,7 @@ bool initSludge (char * filename) {
 
 	char * gameName = encodeFilename (gameNameOrig);
 
-	delete gameNameOrig;
+	delete [] gameNameOrig;
 
 	changeToUserDir ();
 
@@ -523,7 +523,7 @@ bool initSludge (char * filename) {
 
 		if (chdir (dataFolder)) return fatal ("This game's data folder is inaccessible!\nI can't access the following directory (maybe there's a file with the same name, or maybe it's read-protected):", dataFolder);
 
-		delete dataFolder;
+		delete [] dataFolder;
 	}
 
  	positionStatus (10, winHeight - 15);
@@ -755,9 +755,9 @@ void finishFunction (loadedFunction * fun) {
 
 	pauseFunction (fun);
 	if (fun -> stack) fatal (ERROR_NON_EMPTY_STACK);
-	delete fun -> compiledLines;
+	delete [] fun -> compiledLines;
 	for (a = 0; a < fun -> numLocals; a ++) unlinkVar (fun -> localVars[a]);
-	delete fun -> localVars;
+	delete [] fun -> localVars;
 	unlinkVar (fun -> reg);
 	delete fun;
 	fun = NULL;
@@ -768,9 +768,9 @@ void abortFunction (loadedFunction * fun) {
 
 	pauseFunction (fun);
 	while (fun -> stack) trimStack (fun -> stack);
-	delete fun -> compiledLines;
+	delete [] fun -> compiledLines;
 	for (a = 0; a < fun -> numLocals; a ++) unlinkVar (fun -> localVars[a]);
-	delete fun -> localVars;
+	delete [] fun -> localVars;
 	unlinkVar (fun -> reg);
 	if (fun -> calledBy) abortFunction (fun -> calledBy);
 	delete fun;
@@ -1277,7 +1277,7 @@ bool runSludge () {
 		} else {
 			if (! loadGame (loadNow)) return false;
 		}
-		delete loadNow;
+		delete [] loadNow;
 		loadNow = NULL;
 	}
 
@@ -1432,7 +1432,7 @@ bool handleInput () {
 			if (! checkNew (tempStack)) return false;
 			initVarNew (tempStack -> thisVar);
 			makeTextVar (tempStack -> thisVar, tempString);
-			delete tempString;
+			delete [] tempString;
 			tempString = NULL;
 			tempStack -> next = NULL;
 			if (! startNewFunctionNum (currentEvents -> spaceFunction, 1, NULL, tempStack)) return false;

@@ -136,7 +136,7 @@ bool fileToStack (char * filename, stackHandler * sH) {
 			fclose (fp);
 			return fatal (LOAD_ERROR "The current file encoding setting does not match the encoding setting used when this file was created:", filename);
 		}
-		delete checker;
+		delete [] checker;
 		checker = NULL;
 	}
 
@@ -232,7 +232,7 @@ bool stackToFile (char * filename, const variable & from) {
 			char * makeSureItsText = getTextFromAnyVar (hereWeAre -> thisVar);
 			if (makeSureItsText == NULL) break;
 			fprintf (fp, "%s\n", makeSureItsText);
-			delete makeSureItsText;
+			delete [] makeSureItsText;
 		}
 
 		hereWeAre = hereWeAre -> next;

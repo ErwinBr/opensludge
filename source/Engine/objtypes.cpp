@@ -96,7 +96,7 @@ objectType * loadObjectType (int i) {
 
 objectType * loadObjectRef (FILE * fp) {
 	objectType * r = loadObjectType (get2bytes (fp));
-	delete r -> screenName;
+	delete [] r -> screenName;
 	r -> screenName = readString (fp);
 	return r;
 }
@@ -147,8 +147,8 @@ void removeObjectType (objectType * oT) {
 //			fclose (debuggy2);
 
 			* huntRegion = oT -> next;
-			delete oT -> allCombis;
-			delete oT -> screenName;
+			delete [] oT -> allCombis;
+			delete [] oT -> screenName;
 			delete oT;
 			return;
 		} else {

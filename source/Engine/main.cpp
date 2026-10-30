@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) try
 	} else {
 		sludgeFile = joinStrings (bundleFolder, "gamedata.slg");
 		if (! ( fileExists (sludgeFile) ) ) {
-			delete sludgeFile;
+			delete [] sludgeFile;
 			sludgeFile = joinStrings (bundleFolder, "gamedata");
 			if (! ( fileExists (sludgeFile) ) ) {
 				sludgeFile = grabFileName ();

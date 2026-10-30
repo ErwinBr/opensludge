@@ -185,7 +185,7 @@ void killLightMap () {
 	deleteTextures (1, &lightMap.name);
 	lightMap.name = 0;
 	if (lightMap.data) {
-		delete lightMap.data;
+		delete [] lightMap.data;
 		lightMap.data = NULL;
 	}
 	lightMapNumber = 0;
@@ -199,7 +199,7 @@ void killParallax () {
 
 		// Now kill the image
 		deleteTextures (1, &k -> textureName);
-		delete k -> texture;
+		delete [] k -> texture;
 		delete k;
 		k = NULL;
 	}
@@ -219,7 +219,7 @@ bool reserveBackdrop () {
 
 	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 
-	if (backdropTexture) delete backdropTexture;
+	if (backdropTexture) delete [] backdropTexture;
 	if (! NPOT_textures) {
 		picWidth = getNextPOT(sceneWidth);
 		picHeight = getNextPOT(sceneHeight);

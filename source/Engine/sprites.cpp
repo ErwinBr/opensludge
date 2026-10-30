@@ -55,7 +55,7 @@ void forgetSpriteBank (spriteBank & forgetme) {
 		forgetme.myPalette.b = NULL;
 	}
 
-	delete forgetme.sprites;
+	delete [] forgetme.sprites;
 	forgetme.sprites = NULL;
     
     

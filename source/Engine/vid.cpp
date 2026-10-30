@@ -67,7 +67,7 @@ bool getStream (DWORD type, timStream & intoHere) {
 }
 
 void killStream (timStream & intoHere) {
-	delete intoHere.chunk;
+	delete [] intoHere.chunk;
 	intoHere.chunk = NULL;
 }
 
@@ -103,7 +103,7 @@ void handleAudio () {
 		if (i != -1) startSound (i, false);
 	}
 
-	delete pBuffer;
+	delete [] pBuffer;
 }
 */
 

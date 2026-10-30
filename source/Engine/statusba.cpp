@@ -25,7 +25,7 @@ void killLastStatus () {
 	if (nowStatus -> firstStatusBar) {
 		statusBar * kill = nowStatus -> firstStatusBar;
 		nowStatus -> firstStatusBar = kill -> next;
-		delete kill -> text;
+		delete [] kill -> text;
 		delete kill;
 	}
 }
@@ -37,7 +37,7 @@ void clearStatusBar () {
 	while (stat) {
 		kill = stat;
 		stat = stat -> next;
-		delete kill -> text;
+		delete [] kill -> text;
 		delete kill;
 	}
 	nowStatus -> firstStatusBar = NULL;
@@ -54,7 +54,7 @@ void addStatusBar () {
 
 void setStatusBar (char * txt) {
 	if (nowStatus -> firstStatusBar) {
-		delete nowStatus -> firstStatusBar -> text;
+		delete [] nowStatus -> firstStatusBar -> text;
 		nowStatus -> firstStatusBar -> text = copyString (txt);
 	}
 }

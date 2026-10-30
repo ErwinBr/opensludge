@@ -44,7 +44,7 @@ void unlinkVar (variable & thisVar) {
 		case SVT_FASTARRAY:
 		thisVar.varData.fastArray -> timesUsed --;
 		if (thisVar.varData.theStack -> timesUsed <= 0) {
-			delete thisVar.varData.fastArray -> fastVariables;
+			delete [] thisVar.varData.fastArray -> fastVariables;
 			delete[] thisVar.varData.fastArray;
 			thisVar.varData.fastArray = NULL;
 		}
@@ -145,7 +145,7 @@ bool getSavedGamesStack (stackHandler * sH, char * ext) {
 	WIN32_FIND_DATA theData;
 	HANDLE handle = FindFirstFile (w_pattern, & theData);
 
-    delete w_pattern;
+    delete [] w_pattern;
 
 	if (handle != INVALID_HANDLE_VALUE) {
 		bool keepGoing;
@@ -154,8 +154,8 @@ bool getSavedGamesStack (stackHandler * sH, char * ext) {
 			char * fileName = ConvertFromUTF16(theData.cFileName);
 			char * decoded = decodeFilename (fileName);
 			makeTextVar (newName, decoded);
-			delete fileName;
-			delete decoded;
+			delete [] fileName;
+			delete [] decoded;
 			if (! addVarToStack (newName, sH -> first)) return false;
 			if (sH -> last == NULL) sH -> last = sH -> first;
 			keepGoing = FindNextFile (handle, & theData);
@@ -324,13 +324,13 @@ char * getTextFromAnyVar (const variable & from) {
 			for (int i = 0; i < from.varData.fastArray -> size; i ++) {
 				builder2 = joinStrings (builder, " ");
 				if (! builder2) return NULL;
-				delete builder;
+				delete [] builder;
 				grabText = getTextFromAnyVar (from.varData.fastArray -> fastVariables[i]);
 				builder = joinStrings (builder2, grabText);
 				if (! builder) return NULL;
-				delete grabText;
+				delete [] grabText;
 				grabText = NULL;
-				delete builder2;
+				delete [] builder2;
 				builder2 = NULL;
 			}
 			return builder;
@@ -347,13 +347,13 @@ char * getTextFromAnyVar (const variable & from) {
 			while (stacky) {
 				builder2 = joinStrings (builder, " ");
 				if (! builder2) return NULL;
-				delete builder;
+				delete [] builder;
 				grabText = getTextFromAnyVar (stacky -> thisVar);
 				builder = joinStrings (builder2, grabText);
 				if (! builder) return NULL;
-				delete grabText;
+				delete [] grabText;
 				grabText = NULL;
-				delete builder2;
+				delete [] builder2;
 				builder2 = NULL;
 				stacky = stacky -> next;
 			}

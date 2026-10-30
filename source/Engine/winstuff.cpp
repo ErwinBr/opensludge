@@ -118,7 +118,7 @@ INT_PTR CALLBACK setupDlgProc (HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
                 if (languageName[i]) {
                     WCHAR * w_lang = ConvertToUTF16(languageName[i]);
                     SendDlgItemMessage(hDlg, 1001, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>((LPCTSTR)w_lang));
-                    delete w_lang;
+                    delete [] w_lang;
                 } else {
                     swprintf(text, TEXT("Language %d"), i);
                     SendDlgItemMessage(hDlg, 1001, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>((LPCTSTR)text));
@@ -181,8 +181,8 @@ void msgBox (const char * head, const char * msg) {
     WCHAR * w_head = ConvertToUTF16(head);
     WCHAR * w_msg = ConvertToUTF16(msg);
 	MessageBox (NULL, w_msg, w_head, MB_OK | MB_ICONSTOP | MB_SYSTEMMODAL | MB_SETFOREGROUND);
-	delete w_head;
-	delete w_msg;
+	delete [] w_head;
+	delete [] w_msg;
 }
 
 int msgBoxQuestion (const char * head, const char * msg) {
@@ -190,8 +190,8 @@ int msgBoxQuestion (const char * head, const char * msg) {
     WCHAR * w_head = ConvertToUTF16(head);
     WCHAR * w_msg = ConvertToUTF16(msg);
     int val = MessageBox (NULL, w_msg, w_head, MB_YESNO | MB_SETFOREGROUND | MB_APPLMODAL | MB_ICONQUESTION) == IDNO;
-	delete w_head;
-	delete w_msg;
+	delete [] w_head;
+	delete [] w_msg;
 	if (val)
 		return false;
 	return true;
@@ -208,7 +208,7 @@ bool launch(char * f) {
     WCHAR * w_f = ConvertToUTF16(f);
     // ShellExecute returns a value greater than 32 on success.
     INT_PTR r = (INT_PTR) ShellExecute (hMainWindow, TEXT("open"), w_f, NULL, TEXT("C:\\"), SW_SHOWNORMAL);
-    delete w_f;
+    delete [] w_f;
 	return r > 32;
 }
 

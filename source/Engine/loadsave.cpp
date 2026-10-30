@@ -207,7 +207,7 @@ bool saveVariable (variable * from, FILE * fp)
 	{
 		char * str = getTextFromAnyVar(*from);
 		stackDebug((stackfp, "in saveVariable, type %d, %s\n", from->varType, str));
-		delete str;
+		delete [] str;
 	}
 #endif
 
@@ -269,7 +269,7 @@ bool loadVariable (variable * to, FILE * fp) {
 	{
 		char * str = getTextFromAnyVar(*to);
 		stackDebug((stackfp, "just loaded %s\n", str));
-		delete str;
+		delete [] str;
 	}
 #endif
 		return true;

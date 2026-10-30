@@ -253,7 +253,7 @@ bool blur_createSettings (int numParams, variableStack * & stack)
 		s_matrixEffectWidth = 0;
 		s_matrixEffectHeight = 0;
 		s_matrixEffectBase = 0;
-		delete s_matrixEffectData;
+		free (s_matrixEffectData);
 		s_matrixEffectData = NULL;
 	}
 
@@ -386,7 +386,7 @@ bool blurScreen () {
 
 		for (y = 0; y < s_matrixEffectHeight; y ++)
 		{
-			delete sourceLine[y];
+			delete [] sourceLine[y];
 		}
 		delete [] sourceLine;
 		sourceLine = NULL;

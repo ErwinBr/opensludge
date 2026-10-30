@@ -56,7 +56,7 @@ char * getPrefsFilename (char * filename) {
 
 	char * joined = joinStrings (f, ".ini");
 
-	delete filename;
+	delete [] filename;
 	filename = NULL;
 	return joined;
 }
@@ -74,7 +74,7 @@ void readIniFile (char * filename) {
 	gameSettings.noStartWindow = false;
 	gameSettings.debugMode = false;
 
-	delete langName;
+	delete [] langName;
 	langName = NULL;
 
 	if (fp) {
@@ -154,7 +154,7 @@ void readIniFile (char * filename) {
 void saveIniFile (char * filename) {
 	char * langName = getPrefsFilename (copyString (filename));
 	FILE * fp = fopen (langName, "wt");
-	delete langName;
+	delete [] langName;
 
 	fprintf (fp, "LANGUAGE=%d\n", gameSettings.languageID);
 	fprintf (fp, "WINDOW=%d\n", ! gameSettings.userFullScreen);

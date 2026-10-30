@@ -159,7 +159,7 @@ static builtReturn sayCore (int numParams, loadedFunction * fun, bool sayIt)
 			fun -> timeLeft = p;
 			//debugOut ("BUILTIN: sayCore: %s (%i)\n", newText, p);
 			fun -> isSpeech = true;
-			delete newText;
+			delete [] newText;
 			newText = NULL;
 			return BR_KEEP_AND_PAUSE;
 	}
@@ -267,7 +267,7 @@ builtIn(getMatchingFiles)
 	fun -> reg.varData.theStack -> last = NULL;
 	fun -> reg.varData.theStack -> timesUsed = 1;
 	if (! getSavedGamesStack (fun -> reg.varData.theStack, newText)) return BR_ERROR;
-	delete newText;
+	delete [] newText;
 	newText = NULL;
 	return BR_CONTINUE;
 }
@@ -301,7 +301,7 @@ builtIn(fileExists)
 	loadNow = getTextFromAnyVar (fun -> stack -> thisVar);
 	trimStack (fun -> stack);
 	char * aaaaa = encodeFilename (loadNow);
-	delete loadNow;
+	delete [] loadNow;
 	if (failSecurityCheck (aaaaa)) return BR_ERROR;
 	FILE * fp = fopen (aaaaa, "rb");
 	if (! fp) {
@@ -332,7 +332,7 @@ builtIn(loadGame)
 	char * aaaaa = getTextFromAnyVar (fun -> stack -> thisVar);
 	trimStack (fun -> stack);
 	loadNow = encodeFilename (aaaaa);
-	delete aaaaa;
+	delete [] aaaaa;
 
 	if (frozenStuff) {
 		fatal ("Can't load a saved game while the engine is frozen");
@@ -344,7 +344,7 @@ builtIn(loadGame)
 		fclose (fp);
 		return BR_KEEP_AND_PAUSE;
 	}
-	delete loadNow;
+	delete [] loadNow;
 	loadNow = NULL;
 	return BR_CONTINUE;
 }
@@ -871,7 +871,7 @@ builtIn(setFont)
 	trimStack (fun -> stack);
 	if (! loadFont (fileNumber, newText, newHeight)) return BR_ERROR;
 	//				newDebug ("  Done!");
-	delete newText;
+	delete [] newText;
 
 	return BR_CONTINUE;
 }
@@ -981,10 +981,10 @@ builtIn(launch)
 		gameDir = joinStrings(gamePath, "/");
 #endif
 		launchMe = joinStrings (gameDir, newText);
-		delete newText;
+		delete [] newText;
 		if (! launchMe) return BR_ERROR;
 	}
-	delete newTextA;
+	delete [] newTextA;
 	setGraphicsWindow(false);
 	setVariable (fun -> reg, SVT_INT, 1);
 	launchResult = &fun->reg;
@@ -1406,7 +1406,7 @@ builtIn(rename)
 	if (! getValueType (objT, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	objectType * o = findObjectType (objT);
-	delete o -> screenName;
+	delete [] o -> screenName;
 	o -> screenName = newText;
 	return BR_CONTINUE;
 }
@@ -1829,7 +1829,7 @@ builtIn(statusText)
 	if (! newText) return BR_ERROR;
 	trimStack (fun -> stack);
 	setStatusBar (newText);
-	delete newText;
+	delete [] newText;
 	return BR_CONTINUE;
 }
 
@@ -2006,7 +2006,7 @@ builtIn(stringWidth)
 
 	// Return value
 	setVariable (fun -> reg, SVT_INT, stringWidth (theText));
-	delete theText;
+	delete [] theText;
 	return BR_CONTINUE;
 }
 
@@ -2189,10 +2189,10 @@ builtIn(deleteFile)
 	char * namNormal = getTextFromAnyVar (fun -> stack -> thisVar);
 	trimStack (fun -> stack);
 	char * nam = encodeFilename (namNormal);
-	delete namNormal;
+	delete [] namNormal;
 	if (failSecurityCheck (nam)) return BR_ERROR;
 	setVariable (fun -> reg, SVT_INT, remove (nam));
-	delete nam;
+	delete [] nam;
 
 	return BR_CONTINUE;
 }
@@ -2206,17 +2206,17 @@ builtIn(renameFile)
 	char * newnam = encodeFilename (temp);
 	trimStack (fun -> stack);
 	if (failSecurityCheck (newnam)) return BR_ERROR;
-	delete temp;
+	delete [] temp;
 
 	temp = getTextFromAnyVar (fun -> stack -> thisVar);
 	char * nam = encodeFilename (temp);
 	trimStack (fun -> stack);
 	if (failSecurityCheck (nam)) return BR_ERROR;
-	delete temp;
+	delete [] temp;
 
 	setVariable (fun -> reg, SVT_INT, rename (nam, newnam));
-	delete nam;
-	delete newnam;
+	delete [] nam;
+	delete [] newnam;
 
 
 	return BR_CONTINUE;
@@ -2332,7 +2332,7 @@ builtIn(saveCustomData)
 	if (! checkNew (fileNameB)) return BR_ERROR;
 
 	char * fileName = encodeFilename (fileNameB);
-	delete fileNameB;
+	delete [] fileNameB;
 
 	if (failSecurityCheck (fileName)) return BR_ERROR;
 	trimStack (fun -> stack);
@@ -2343,7 +2343,7 @@ builtIn(saveCustomData)
 	}
 	if (! stackToFile (fileName, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	delete fileName;
+	delete [] fileName;
 	return BR_CONTINUE;
 }
 
@@ -2355,7 +2355,7 @@ builtIn(loadCustomData)
 	if (! checkNew (newTextA)) return BR_ERROR;
 
 	char * newText = encodeFilename (newTextA);
-	delete newTextA;
+	delete [] newTextA;
 
 	if (failSecurityCheck (newText)) return BR_ERROR;
 	trimStack (fun -> stack);
@@ -2368,7 +2368,7 @@ builtIn(loadCustomData)
 	fun -> reg.varData.theStack -> last = NULL;
 	fun -> reg.varData.theStack -> timesUsed = 1;
 	if (! fileToStack (newText, fun -> reg.varData.theStack)) return BR_ERROR;
-	delete newText;
+	delete [] newText;
 	return BR_CONTINUE;
 }
 

@@ -14,7 +14,7 @@ void killZBuffer () {
 	if (zBuffer.tex) {
 		deleteTextures (1, &zBuffer.texName);
 		zBuffer.texName = 0;
-		delete zBuffer.tex;
+		delete [] zBuffer.tex;
 		zBuffer.tex = NULL;
 	}
 	zBuffer.numPanels = 0;
