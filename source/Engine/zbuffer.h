@@ -18,5 +18,7 @@ struct zBufferData {
 bool setZBuffer (int y);
 void killZBuffer ();
 void drawZBuffer(int x, int y, bool upsidedown);
+// The panel of the z-buffer at a point of the scene, or 0 outside it.
+int zBufferPanelAt (int x, int y);
 
 #endif

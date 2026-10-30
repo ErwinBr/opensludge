@@ -10,7 +10,9 @@ struct sprite {
 	int width, height, xhot, yhot;
 	int tex_x;
 	int texNum;
-	//unsigned char * data;
+	// The alpha of each pixel, width by height, for finding out which
+	// character the mouse is over. NULL in fonts.
+	unsigned char * alpha;
 };
 
 class spritePalette {

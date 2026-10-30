@@ -2,13 +2,14 @@
 # tunnel into the room with a z-buffer, and the inventory. Positions are in
 # game pixels (640x480).
 #
-# Point at the duck (hit testing of the sprite) and open the verb coin,
-# which freezes the scene and mixes the coin into it.
-700 move 205 335
-720 click 205 335
-# Choose "look at".
-760 move 200 318
-800 click 200 318
+# Point at the middle of the duck (hit testing of the sprite) and open the
+# verb coin, which freezes the scene and mixes the coin into it.
+700 move 200 340
+720 click 200 340
+# Choose "look at", which is at 45, 35 in the coin, whose corner is 50, 52
+# above and left of the mouse.
+760 move 195 323
+800 click 195 323
 # Walk through the tunnel, behind the walls of the z-buffer.
 1200 click 75 320
 # Open the inventory.

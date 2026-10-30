@@ -534,20 +534,7 @@ bool initSludge (char * filename) {
 extern int cameraX, cameraY;
 extern float cameraZoom;
 
-bool checkColourChange (bool reset) {
-	static GLuint oldPixel;
-	static GLuint pixel;
-	// We draw the frame into the frame texture, from its bottom left.
-	gfx::renderer->readPixels((GLint)(input.mouseX*viewportWidth/((float)winWidth/cameraZoom)),
-        (GLint)((((float)winHeight/cameraZoom) - input.mouseY)*viewportHeight/((float)winHeight/cameraZoom)),
-        1, 1, (unsigned char *) &pixel);
 
-	if (reset || oldPixel != pixel) {
-		oldPixel = pixel;
-		return true;
-	}
-	return false;
-}
 void sludgeDisplay () {
 	beginFrame ();
 	gfx::renderer->clear (true, true);	// Clear The Screen

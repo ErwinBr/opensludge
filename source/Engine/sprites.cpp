@@ -1,6 +1,8 @@
 #include <png.h>
 
 #include <string.h>
+#include <math.h>
+#include <stdlib.h>
 
 #include "allfiles.h"
 
@@ -15,6 +17,7 @@
 #include "zbuffer.h"
 #include "debug.h"
 #include "graphics.h"
+#include "objtypes.h"
 
 #include "shaders.h"
 
@@ -28,6 +31,10 @@ unsigned char currentBurnR = 0, currentBurnG = 0, currentBurnB = 0;
 
 
 void forgetSpriteBank (spriteBank & forgetme) {
+
+	for (int i = 0; i < forgetme.total; i ++) {
+		delete [] forgetme.sprites[i].alpha;
+	}
 
 	for (int i = 0; i < forgetme.myPalette.numTextures; i ++) {
 		gfx::renderer->destroyTexture (forgetme.myPalette.tex_names[i]);
@@ -359,6 +366,24 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 	spriteData = NULL;
 
 
+	// We keep the alpha of the sprites, but not of fonts, to find out which
+	// character the mouse is over. Each sprite starts in the second row of
+	// its texture.
+	for (i = 0; i < total; i ++) {
+		sprite & sp = loadhere.sprites[i];
+		sp.alpha = NULL;
+		if (isFont) continue;
+		sp.alpha = new unsigned char [sp.width * sp.height];
+		if (! checkNew (sp.alpha)) return false;
+		const GLubyte * pixels = tmp[sp.texNum];
+		int stride = totalwidth[sp.texNum];
+		for (int y = 0; y < sp.height; y ++) {
+			for (int x = 0; x < sp.width; x ++) {
+				sp.alpha[y * sp.width + x] = pixels[4 * (stride * (y + 1) + sp.tex_x + x) + 3];
+			}
+		}
+	}
+
 	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
 
 	for (tex_num = 0; tex_num < numTextures; tex_num++) {
@@ -628,7 +653,26 @@ void setDrawMode (onScreenPerson * thisPerson) {
 	setPrimaryColor(curLight[0]*(255-thisPerson->colourmix)/65025.f, curLight[1]*(255-thisPerson->colourmix)/65025.f, curLight[2]*(255-thisPerson->colourmix)/65025.f, 1.0f - thisPerson->transparency/255.f);
 }
 
-bool checkColourChange (bool reset);
+
+// Is the mouse over an opaque pixel of a sprite that we draw from (x1, y1)
+// to (x2, y2), and not over a part of the z-buffer in front of it? We take
+// the pixel that the centre of the pixel under the mouse samples, as
+// nearest filtering does. Characters on z-buffer panel `panel` are behind
+// the parts of the z-buffer of higher panels.
+static bool mouseOverSprite (const sprite & single, float x1, float y1, float x2, float y2, bool mirror, bool behindZBuffer, int panel) {
+	if (! single.alpha || x2 <= x1 || y2 <= y1) return false;
+	int sx = (int) floorf ((input.mouseX + 0.5f - x1) / (x2 - x1) * single.width);
+	int sy = (int) floorf ((input.mouseY + 0.5f - y1) / (y2 - y1) * single.height);
+	if (sx < 0 || sy < 0 || sx >= single.width || sy >= single.height) return false;
+	if (mirror) sx = single.width - 1 - sx;
+	if (! single.alpha[sy * single.width + sx]) return false;
+	if (behindZBuffer) {
+		int p = zBufferPanelAt (input.mouseX + cameraX, input.mouseY + cameraY);
+		if (p > zBuffer.numPanels - 1) p = zBuffer.numPanels - 1;
+		if (p > panel) return false;
+	}
+	return true;
+}
 
 bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, bool mirror) {
 
@@ -673,8 +717,10 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 	}
 
 	GLfloat z;
+	bool behindZBuffer = (! (thisPerson->extra & EXTRA_NOZB)) && zBuffer.numPanels;
+	int panel = 0;
 
-	if ((! (thisPerson->extra & EXTRA_NOZB)) && zBuffer.numPanels) {
+	if (behindZBuffer) {
 		int i;
 		for (i = 1; i<zBuffer.numPanels; i++) {
 			if (zBuffer.panel[i] >= y + cameraY) {
@@ -682,6 +728,7 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 				break;
 			}
 		}
+		panel = i;
 		z = 0.999 - (double) i * (1.0 / 128.0);
 	} else {
 		z = -0.5;
@@ -732,10 +779,6 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 	} else {
 		curLight[0] = curLight[1] = curLight[2] = 255;
 	}
-#ifndef HAVE_GLES2
-	if (! (thisPerson->extra & EXTRA_RECTANGULAR))
-		checkColourChange (true);
-#endif
 	setDrawMode (thisPerson);
 
 	gfx::DrawUniforms uniforms;
@@ -772,11 +815,7 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 	// Are we pointing at the sprite?
 	if (input.mouseX >= x1 && input.mouseX <= x2 && input.mouseY >= y1 && input.mouseY <= y2) {
 		if (thisPerson->extra & EXTRA_RECTANGULAR) return true;
-#ifdef HAVE_GLES2
-		return true;
-#else
-		return checkColourChange (false);
-#endif
+		return mouseOverSprite (single, x1, y1, x2, y2, mirror, behindZBuffer, panel);
 	}
 	return false;
 }

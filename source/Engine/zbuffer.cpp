@@ -123,6 +123,12 @@ bool setZBuffer (int y) {
 	return true;
 }
 
+int zBufferPanelAt (int x, int y) {
+	if (! zBuffer.tex || x < 0 || y < 0 || x >= zBuffer.width || y >= zBuffer.height) return 0;
+	int stride = NPOT_textures ? sceneWidth : getNextPOT (sceneWidth);
+	return zBuffer.tex[y * stride + x] / 16;
+}
+
 void drawZBuffer(int x, int y, bool upsidedown) {
 	int i;
 	
