@@ -954,7 +954,7 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 
 			// The z-buffer
 			if (useZB) {
-				drawZBuffer((int) (x1+xoffset+camX), (int) (y1+yoffset+camY), false);
+				drawZBuffer((int) (x1+xoffset+camX), (int) (y1+yoffset+camY));
 			}
 
 			// Then the sprite

@@ -99,7 +99,7 @@ void freezeGraphics() {
 			gfx::renderer->clear (true, true);
 
 			drawBackDrop ();				// Draw the room
-			drawZBuffer(cameraX, cameraY, false);
+			drawZBuffer(cameraX, cameraY);
 			drawPeople ();					// Then add any moving characters...
 			
 			y += h;

@@ -134,7 +134,7 @@ bool snapshot () {
 	drawIntoTile (target, 0, 0, 0, 0, winWidth, winHeight);
 
 	drawBackDrop ();				// Draw the room
-	drawZBuffer(cameraX, cameraY, false);
+	drawZBuffer(cameraX, cameraY);
 
 	drawPeople ();					// Then add any moving characters...
 	viewSpeech ();					// ...and anything being said
@@ -165,7 +165,7 @@ bool restoreSnapshot (FILE * fp) {
 		snapTexW = ((double)winWidth) / picWidth;
 		snapTexH = ((double)winHeight) / picHeight;
 	}
-	GLubyte * snapshotTexture = new GLubyte [picHeight*picWidth*4];
+	GLubyte * snapshotTexture = new GLubyte [picHeight*picWidth*4] ();
 	if (! snapshotTexture) return fatal("Out of memory while restoring snapshot.");
 
 	for (t2 = 0; t2 < winHeight; t2 ++) {
@@ -254,7 +254,10 @@ bool reserveBackdrop () {
 		backdropTexW = ((double)sceneWidth) / picWidth;
 		backdropTexH = ((double)sceneHeight) / picHeight;
 	}
-	backdropTexture = new GLubyte [picWidth*picHeight*4];
+	// We start with a transparent backdrop. Without NPOT textures, the
+	// texture is larger than the scene, and its edges are drawn from the
+	// pixels beyond the scene, so these must not be left uninitialised.
+	backdropTexture = new GLubyte [picWidth*picHeight*4] ();
 	if (! checkNew (backdropTexture)) return false;
 
 	gfx::Texture * t = backdropTex;
@@ -626,7 +629,7 @@ bool loadLightMap (int v) {
 
 	if (lightMap.data) delete [] lightMap.data;
 
-	lightMap.data = new GLubyte [newPicWidth*newPicHeight*4];
+	lightMap.data = new GLubyte [newPicWidth*newPicHeight*4] ();
 	if (! lightMap.data) {
 		return fatal ("Out of memory loading light map.");
 	}
@@ -812,7 +815,7 @@ bool loadParallax (unsigned short v, unsigned short fracX, unsigned short fracY)
 		nP -> wrapT = true;
 	}
 
-	nP -> texture = new GLubyte [picHeight * picWidth * 4];
+	nP -> texture = new GLubyte [picHeight * picWidth * 4] ();
 	if (! checkNew (nP -> texture)) return false;
 
 	if (fileIsPNG) {

@@ -69,6 +69,10 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	# The same without anti-aliasing, which draws through other shader code.
 	sludge_add_capture_test(rendertest-noaa GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
 		FRAMES 0-1000/10 ENGINE_ARGS -a0)
+	# The same with textures of power-of-two sizes, as on OpenGL ES 2.0
+	# devices.
+	sludge_add_capture_test(rendertest-pot GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
+		FRAMES 0-1000/10 ENGINE_ARGS --pot-textures)
 endif()
 
 if(SLUDGE_OUT_OF_ORDER)

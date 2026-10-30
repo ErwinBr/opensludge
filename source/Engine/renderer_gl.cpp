@@ -89,7 +89,6 @@ public:
 	void setAntialiasScale (float scale);
 
 	void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad);
-	void drawLine (const PipelineState & state, const DrawUniforms & uniforms, int x1, int y1, int x2, int y2, float width);
 
 	void present ();
 
@@ -401,20 +400,7 @@ void GLRenderer::draw (const PipelineState & state, const DrawUniforms & uniform
 	glUseProgram (0);
 }
 
-void GLRenderer::drawLine (const PipelineState & state, const DrawUniforms & uniforms, int x1, int y1, int x2, int y2, float width) {
-	const ProgramInfo & info = programs[state.program];
-	applyState (state);
-	glUseProgram (info.program);
-	setUniforms (info, uniforms);
-	glLineWidth (width);
 
-	const GLint vertices[] = { x1, y1, 0, x2, y2, 0 };
-	glEnableVertexAttribArray (info.vertex);
-	glVertexAttribPointer (info.vertex, 3, GL_INT, GL_FALSE, 0, vertices);
-	glDrawArrays (GL_LINES, 0, 2);
-	glDisableVertexAttribArray (info.vertex);
-	glUseProgram (0);
-}
 
 void GLRenderer::present () {
 	glFlush ();

@@ -45,6 +45,9 @@ bool captureIsDeterministic ();
 // silent and use a fixed seed, so that recordings play back the same way.
 bool captureIsActive ();
 unsigned int captureSeed ();
+// With --pot-textures, we make every texture a power of two in size, as on
+// OpenGL ES 2.0 devices, to test that code on other computers.
+bool captureForcePOTTextures ();
 
 // The engine clock. In a deterministic run it only advances in
 // engineDelayMS, so it does not depend on how fast the computer is.

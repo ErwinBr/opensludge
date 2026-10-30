@@ -42,6 +42,7 @@ struct FrameRange {
 };
 
 bool deterministic = false;
+bool forcePOT = false;
 bool recording = false;
 unsigned int seed = 1;
 long maxFrames = -1;
@@ -395,7 +396,8 @@ void printCaptureUsage () {
 	fprintf (stdout, "--input=<file>			Play the mouse and keyboard events of an input script\n");
 	fprintf (stdout, "--record-input=<file>		Write the player's events as an input script\n");
 	fprintf (stdout, "--seed=<number>			Seed for random numbers (default 1)\n");
-	fprintf (stdout, "--user-dir=<folder>		Folder for settings and saved games\n\n");
+	fprintf (stdout, "--user-dir=<folder>		Folder for settings and saved games\n");
+	fprintf (stdout, "--pot-textures			Use power-of-two textures, as on OpenGL ES 2.0 devices\n\n");
 }
 
 bool parseCaptureOptions (int & argc, char ** argv) {
@@ -428,6 +430,8 @@ bool parseCaptureOptions (int & argc, char ** argv) {
 			seed = (unsigned int) strtoul (value, NULL, 10);
 		} else if (! strncmp (a, "--user-dir=", 11)) {
 			userDir = value;
+		} else if (! strcmp (a, "--pot-textures")) {
+			forcePOT = true;
 		} else {
 			argv[out ++] = argv[i];
 			continue;
@@ -479,6 +483,10 @@ bool captureIsActive () {
 
 unsigned int captureSeed () {
 	return seed;
+}
+
+bool captureForcePOTTextures () {
+	return forcePOT;
 }
 
 Uint64 engineTicksNS () {

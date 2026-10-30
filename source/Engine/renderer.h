@@ -129,8 +129,6 @@ public:
 
 	// textures[i] is the texture for unit i, or NULL.
 	virtual void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad) = 0;
-	// A line of the given width, with PROG_COLOR.
-	virtual void drawLine (const PipelineState & state, const DrawUniforms & uniforms, int x1, int y1, int x2, int y2, float width) = 0;
 
 	virtual void present () = 0;
 };

@@ -466,6 +466,9 @@ void setupOpenGLStuff() {
 #else
 	NPOT_textures = false;
 #endif
+	if (captureForcePOTTextures ()) NPOT_textures = false;
+	// The frame texture depends on this, and we made it with the window.
+	updateViewport ();
 
 	int n;
 	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, (GLint *) &n);

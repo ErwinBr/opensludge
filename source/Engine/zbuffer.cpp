@@ -91,7 +91,7 @@ bool setZBuffer (int y) {
 		picWidth = getNextPOT(picWidth);
 		picHeight = getNextPOT(picHeight);
 	}
-	zBuffer.tex = new GLubyte [picHeight*picWidth];
+	zBuffer.tex = new GLubyte [picHeight*picWidth] ();
 	if (! checkNew (zBuffer.tex)) return false;
 
 	for (y = 0; y < sceneHeight; y ++) {
@@ -129,7 +129,7 @@ int zBufferPanelAt (int x, int y) {
 	return zBuffer.tex[y * stride + x] / 16;
 }
 
-void drawZBuffer(int x, int y, bool upsidedown) {
+void drawZBuffer(int x, int y) {
 	int i;
 	
 	if (! zBuffer.tex) return;
@@ -142,10 +142,6 @@ void drawZBuffer(int x, int y, bool upsidedown) {
 		GLfloat z = 1.0 - (double) i * (1.0 / 128.0);
 
 		GLfloat vy1 = -y, vy2 = zBuffer.height-y;
-		if (upsidedown) {
-			vy1 += zBuffer.height;
-			vy2 -= zBuffer.height;
-		}
 
 		const GLfloat vertices[] = { 
 			(GLfloat)-x, vy1, z,

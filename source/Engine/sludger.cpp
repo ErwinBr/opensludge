@@ -540,7 +540,7 @@ void sludgeDisplay () {
 	gfx::renderer->clear (true, true);	// Clear The Screen
 
 	drawBackDrop ();				// Draw the room
-	drawZBuffer(cameraX, cameraY, false);
+	drawZBuffer(cameraX, cameraY);
 
 	drawPeople ();					// Then add any moving characters...
 	viewSpeech ();					// ...and anything being said

@@ -109,7 +109,7 @@ void showThumbnail (char * filename, int atX, int atY) {
 			
 		}
 
-		thumbnailTexture = new GLubyte [picHeight*picWidth*4];
+		thumbnailTexture = new GLubyte [picHeight*picWidth*4] ();
 		if (thumbnailTexture == NULL) return;
 
 		int t1, t2;

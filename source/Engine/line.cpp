@@ -87,7 +87,20 @@ void drawLine(int x1, int y1, int x2, int y2) {
 			gfx::DrawUniforms lineUniforms;
 			lineUniforms.color[0] = lineUniforms.color[1] = lineUniforms.color[2] = 0.0f;
 			lineUniforms.color[3] = 1.0f;
-			gfx::renderer->drawLine (gfx::PipelineState (gfx::PROG_COLOR), lineUniforms, xo1, -yoffset, xo2, -yoffset+diffY, 2.0f);
+
+			// A line two pixels wide, as OpenGL draws a wide line: widened
+			// by one pixel on each side along its shorter axis.
+			GLfloat lx1 = xo1, ly1 = -yoffset, lx2 = xo2, ly2 = -yoffset+diffY;
+			GLfloat ox = 0.0f, oy = 0.0f;
+			if (abs (xo2 - xo1) >= diffY) oy = 1.0f;
+			else ox = 1.0f;
+			const GLfloat lineVertices[] = {
+				lx1-ox, ly1-oy, 0.0f,
+				lx2-ox, ly2-oy, 0.0f,
+				lx1+ox, ly1+oy, 0.0f,
+				lx2+ox, ly2+oy, 0.0f
+			};
+			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR), lineUniforms, lineVertices);
 
 			yoffset += viewportHeight;
 		}		
