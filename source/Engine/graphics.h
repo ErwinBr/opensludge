@@ -73,6 +73,12 @@ extern SDL_Window * sludgeWindow;
 int getNextPOT(int n);
 
 void saveTexture (GLuint tex, GLubyte * data);
+// Read the area of the game in the frame we are drawing, top row first, as
+// RGBA. Free the pixels with delete [].
+unsigned char * readFramePixels (int * width, int * height);
+// Read the backdrop, top row first, as RGBA. Returns NULL without a
+// backdrop. Free the pixels with delete [].
+unsigned char * readBackdropPixels (int * width, int * height);
 
 void dcopyTexImage2D(GLenum target,  GLint level,  GLenum internalformat,  GLint x,  GLint y,  GLsizei width,  GLsizei height,  GLint border, GLuint name, const char *file, int line);
 void dcopyTexSubImage2D(GLenum target,  GLint level,  GLint xoffset,  GLint yoffset,  GLint x,  GLint y,  GLsizei width,  GLsizei height, GLuint name, const char *file, int line);

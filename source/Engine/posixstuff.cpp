@@ -16,6 +16,7 @@
 #include "helpers.h"
 #include "stringy.h"
 #include "graphics.h"
+#include "capture.h"
 
 extern settingsStruct gameSettings;
 cmdlineSettingsStruct cmdlineSettings;
@@ -37,6 +38,7 @@ void printCmdlineUsage() {
 	fprintf(stdout, "					or choose linear interpolation (-1)\n");
 	fprintf(stdout, "-d<number>,	--debug=<number>	Turn debug mode on (1) or off (0)\n");
 	fprintf(stdout, "-h,		--help			Print this help message\n\n");
+	printCaptureUsage();
 	fprintf(stdout, "Options are saved, so you don't need to specify them every time.\n");
 	fprintf(stdout, "If you entered a wrong language number, use -l0 to reset the language to the default setting.\n");
 	fprintf(stdout, "You can always toggle between fullscreen and windowed mode with \"Alt+Enter\"\n");
@@ -177,10 +179,13 @@ int showSetupWindow() {
 
 void msgBox (const char * head, const char * msg) {
 	fprintf(stderr, "%s\n%s\n", head, msg);
+	// A test run must not wait for someone to close a message box.
+	if (captureIsDeterministic ()) return;
 	SDL_ShowSimpleMessageBox (SDL_MESSAGEBOX_ERROR, head, msg, sludgeWindow);
 }
 
 int msgBoxQuestion (const char * head, const char * msg) {
+	if (captureIsDeterministic ()) return 1;
 	const SDL_MessageBoxButtonData buttons[] = {
 		{ SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Yes" },
 		{ SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "No" },
@@ -200,6 +205,7 @@ int msgBoxQuestion (const char * head, const char * msg) {
 }
 
 void changeToUserDir () {
+	if (captureChangeToUserDir ()) return;
 #if defined(__APPLE__)
 	// ~/Library/Application Support/SLUDGE
 	char * dir = SDL_GetPrefPath ("", "SLUDGE");

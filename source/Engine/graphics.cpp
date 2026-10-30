@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <SDL3/SDL.h>
 
 #include "debug.h"
@@ -15,6 +16,7 @@
 #include "shaders.h"
 #include "movie.h"
 #include "stringy.h"
+#include "capture.h"
 
 #include "language.h" // for settings
 
@@ -410,6 +412,49 @@ void saveTexture (GLuint tex, GLubyte * data) {
 }
 #endif
 
+unsigned char * readFramePixels (int * width, int * height) {
+	int w = viewportWidth, h = viewportHeight;
+	unsigned char * pixels = new unsigned char [(size_t) w * h * 4];
+	glReadPixels (viewportOffsetX, viewportOffsetY, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+	// OpenGL reads the bottom row first.
+	unsigned char * row = new unsigned char [(size_t) w * 4];
+	for (int y = 0; y < h / 2; y ++) {
+		unsigned char * a = pixels + (size_t) y * w * 4;
+		unsigned char * b = pixels + (size_t) (h - 1 - y) * w * 4;
+		memcpy (row, a, (size_t) w * 4);
+		memcpy (a, b, (size_t) w * 4);
+		memcpy (b, row, (size_t) w * 4);
+	}
+	delete [] row;
+
+	*width = w;
+	*height = h;
+	return pixels;
+}
+
+unsigned char * readBackdropPixels (int * width, int * height) {
+	if (! backdropTextureName) return NULL;
+
+	// Without NPOT textures, the texture can be bigger than the scene.
+	GLint tw, th;
+	getTextureDimensions (backdropTextureName, &tw, &th);
+	unsigned char * texture = new unsigned char [(size_t) tw * th * 4];
+	saveTexture (backdropTextureName, texture);
+
+	int w = sceneWidth < (unsigned int) tw ? sceneWidth : tw;
+	int h = sceneHeight < (unsigned int) th ? sceneHeight : th;
+	unsigned char * pixels = new unsigned char [(size_t) w * h * 4];
+	for (int y = 0; y < h; y ++) {
+		memcpy (pixels + (size_t) y * w * 4, texture + (size_t) y * tw * 4, (size_t) w * 4);
+	}
+	delete [] texture;
+
+	*width = w;
+	*height = h;
+	return pixels;
+}
+
 SDL_Window * sludgeWindow = NULL;
 static SDL_GLContext glContext = NULL;
 
@@ -676,6 +721,13 @@ static void createGraphicsWindow (bool fullscreen) {
 
 	// We show the window when it is ready.
 	SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+	if (captureIsDeterministic ()) {
+		// In a test run, the window has one pixel for each pixel of the
+		// game on every display, so that the frames are the same.
+		w = winWidth;
+		h = winHeight;
+		flags = SDL_WINDOW_HIDDEN;
+	}
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 	const char * title = gameName ? gameName : "SLUDGE";
 
@@ -706,7 +758,8 @@ static void createGraphicsWindow (bool fullscreen) {
 			exit (2);
 		}
 		SDL_GL_MakeCurrent (sludgeWindow, glContext);
-		SDL_GL_SetSwapInterval (1);
+		// In a test run, we don't wait for the display.
+		SDL_GL_SetSwapInterval (captureIsDeterministic () ? 0 : 1);
 	}
 	SDL_SetWindowMinimumSize (sludgeWindow, 160, 120);
 	SDL_ShowWindow (sludgeWindow);
@@ -740,6 +793,8 @@ void setGraphicsWindow(bool fullscreen, bool restoreGraphics) {
 #if defined(SLUDGE_ALWAYS_FULLSCREEN)
 	fullscreen = true;
 #endif
+	// A test run is always in a window of the size of the game.
+	if (captureIsDeterministic ()) fullscreen = false;
 	if (fullscreen) specialSettings &= ~SPECIAL_INVISIBLE;
 
 	if (! sludgeWindow) {

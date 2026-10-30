@@ -27,22 +27,39 @@ jobs:
             libxkbcommon-dev wayland-protocols libpulse-dev libasound2-dev \
             xvfb xauth libgl1-mesa-dri
 
+      - name: Get Out Of Order
+        run: packaging/get-out-of-order.sh ooo
+
       - name: Build
         run: |
           # With the engine, we build the headless compiler, and compile the
           # example projects into build/games.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
-            -DSLUDGE_COMPILER=ON
+            -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata
           cmake --build build
 
       - name: Test
         # The tests check the hashes of the compiled games against
-        # tests/games.sha256, besides the engine tests.
-        run: ctest --test-dir build --output-on-failure
+        # tests/games.sha256, besides the engine tests. The capture tests
+        # need a display, so we run them in the next step.
+        run: ctest --test-dir build --output-on-failure -LE capture
+
+      - name: Capture tests
+        # We play games deterministically twice and compare the frames (see
+        # source/Engine/capture.h), with Mesa's software OpenGL.
+        run: |
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
+            ctest --test-dir build --output-on-failure -L capture
+
+      - name: Keep the frames of the failed capture tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-linux
+          path: build/capture/*/difference
 
       - name: Play the opening of Out Of Order
         run: |
-          packaging/get-out-of-order.sh ooo
           export HOME=$PWD/home SDL_AUDIO_DRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
           mkdir -p "$HOME"
           # After 15 seconds, the engine must still be running, which means
@@ -148,7 +165,8 @@ jobs:
           cmake -S check/sludge-* -B check/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DSLUDGE_DOC=ON -DCMAKE_INSTALL_PREFIX="$PWD/check/install"
           cmake --build check/build
-          LIBGL_ALWAYS_SOFTWARE=1 ctest --test-dir check/build --output-on-failure
+          # The capture tests need a display, and the Linux job runs them.
+          LIBGL_ALWAYS_SOFTWARE=1 ctest --test-dir check/build --output-on-failure -LE capture
           cmake --install check/build
 
       - uses: actions/upload-artifact@v4
@@ -189,7 +207,9 @@ jobs:
           cmake --build build
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        # The runner has no OpenGL 2.0 driver, so we leave out the capture
+        # tests, which run the engine.
+        run: ctest --test-dir build --output-on-failure -LE capture
 
       - name: Check the executable
         run: packaging/windows/check-dlls.sh objdump build/sludge-engine.exe
@@ -260,6 +280,9 @@ jobs:
         # We assemble the x86 SIMD code of libvpx with nasm.
         run: brew install nasm ninja
 
+      - name: Get Out Of Order
+        run: packaging/get-out-of-order.sh ooo
+
       - name: Build
         run: |
           # With the engine, we build the headless compiler, and compile the
@@ -267,14 +290,24 @@ jobs:
           # the x86_64 compiler runs with Rosetta.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DSLUDGE_BUNDLED_DEPS=ON -DSLUDGE_COMPILER=ON \
+            -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.min_macos }}
           cmake --build build
 
       - name: Test
         # The tests check the hashes of the compiled games against
-        # tests/games.sha256, besides the engine tests.
+        # tests/games.sha256, besides the engine tests. The capture tests
+        # play games deterministically twice and compare the frames (see
+        # source/Engine/capture.h).
         run: ctest --test-dir build --output-on-failure
+
+      - name: Keep the frames of the failed capture tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-macos-${{ matrix.arch }}
+          path: build/capture/*/difference
 
       - name: Check the executable
         run: |

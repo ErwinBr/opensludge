@@ -22,6 +22,7 @@
 
 #include "newfatal.h"
 #include "timing.h"
+#include "capture.h"
 #include "graphics.h"
 #include "movie.h"
 #include "shaders.h"
@@ -136,7 +137,7 @@ inline static int audio_queue_get(audioQueue *q, char **buffer)
 	audioBuf = q->first;
 	if (audioBuf) {
 		// Synch video timer to audio
-		Uint32 tick = (Uint32) SDL_GetTicks()+100;
+		Uint32 tick = (Uint32) engineTicksMS()+100;
 		if (abs((long int)((tick - movieStartTick)-(audioBuf->time_ms))) > 300) {
 			movieStartTick = tick - audioBuf->time_ms;
 		}
@@ -597,7 +598,7 @@ int playMovie (int fileNumber)
 
 	int frameCounter = 0;
 
-	movieStartTick = (Uint32) SDL_GetTicks();
+	movieStartTick = (Uint32) engineTicksMS();
 	#ifdef HAVE_GLES2
 	GLuint old_fbo;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&old_fbo);
@@ -820,11 +821,11 @@ movieHasEnded:	movieIsEnding = 1;
 			videoBuffers *vB;
 			// Do we have decoded video waiting?
 			if (vB = videoQ.first) {
-				Uint32 tick = (Uint32) SDL_GetTicks() - movieStartTick;
+				Uint32 tick = (Uint32) engineTicksMS() - movieStartTick;
 				
 				// Is it time to display the frame yet?
 				if ((tick+1) < vB->time_ms) {
-					SDL_Delay(1);
+					engineDelayMS(1);
 				} else {
 					GLubyte * ytex=NULL;
 					GLubyte * utex=NULL;

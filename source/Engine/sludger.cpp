@@ -45,6 +45,7 @@
 #include "keys.h"
 #include "controllermap.h"
 #include "controllersettings.h"
+#include "capture.h"
 
 #include "debug.h"
 
@@ -669,6 +670,7 @@ void sludgeDisplay () {
 }
 
 void showFrame () {
+	captureFrameDrawn ();
 	glFlush();
 #if !defined(HAVE_GLES2)
 	swapGraphicsBuffers();
@@ -1354,7 +1356,7 @@ bool handleInput () {
 	static int l = 0;
 	static Uint32 theTime;
 
-	theTime = (Uint32) (SDL_GetTicks() / 1000);
+	theTime = (Uint32) (engineTicksMS() / 1000);
 	if (lastSeconds != theTime) {
 		lastSeconds = theTime;
 		lastFramesPerSecond = thisFramesPerSecond;

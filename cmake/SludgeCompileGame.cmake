@@ -7,9 +7,10 @@
 # a copy of the project folder in the build folder, and leave the source
 # folder as it is.
 
-set(SLUDGE_RUN_COMPILER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/RunSludgeCompiler.cmake)
-
 function(sludge_compile_game name project)
+	# We find the script next to this file, so that the function works in
+	# every folder of the project.
+	set(run_compiler ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/RunSludgeCompiler.cmake)
 	get_filename_component(project ${project} ABSOLUTE)
 	get_filename_component(project_dir ${project} DIRECTORY)
 	set(games_dir ${CMAKE_BINARY_DIR}/games)
@@ -25,8 +26,8 @@ function(sludge_compile_game name project)
 			-DPROJECT=${project}
 			-DWORK_DIR=${games_dir}/${name}.project
 			-DOUTPUT=${output}
-			-P ${SLUDGE_RUN_COMPILER_SCRIPT}
-		DEPENDS sludge-compiler ${project_files} ${SLUDGE_RUN_COMPILER_SCRIPT}
+			-P ${run_compiler}
+		DEPENDS sludge-compiler ${project_files} ${run_compiler}
 		COMMENT "Compiling the SLUDGE game ${name}"
 		VERBATIM)
 	add_custom_target(game-${name} ALL DEPENDS ${output})

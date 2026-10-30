@@ -54,6 +54,32 @@ Debian and Ubuntu).
 `build/sludge-engine gamedata.slg'. Run `build/sludge-engine --help' for
 the options.
 
+Capture tests
+=============
+
+   The capture tests play games deterministically and compare their
+frames, so that we notice when a change to the engine changes what it
+draws. With --capture=<folder>, the engine runs a game without sound, with
+a clock that advances by one frame per frame and with the mouse and
+keyboard events of an input script (--input). It writes a CRC of every
+frame to frames.tsv, and the frames chosen with --frames as PNG files.
+source/Engine/capture.h describes the options and the input scripts, and
+--record-input writes an input script while you play.
+
+   The tests play the example projects, tests/render/RenderTest.slp, which
+has a scene for each way the engine draws, and Out Of Order when you give
+its data file with -DSLUDGE_OUT_OF_ORDER=<file> (packaging/get-out-of-order.sh
+downloads it). Each test plays its game twice, and the frames must be the
+same. With -DSLUDGE_CAPTURE_REFERENCE_ENGINE=<engine>, each test also
+compares the frames with those of another build of the engine, for example
+of an earlier commit. The tests need a display and have the label capture:
+
+     ctest --test-dir build -L capture     Only the capture tests
+     ctest --test-dir build -LE capture    All the other tests
+
+   tests/framediff compares two capture folders or two PNG files, and
+writes the images that differ to build/capture/<test>/difference.
+
 Making the release packages
 ***************************
 

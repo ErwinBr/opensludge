@@ -1,0 +1,189 @@
+# RenderTest: one scene for each way the engine draws, to compare the
+# frames of two builds of the engine (see tests/capture/run.cmake). Each
+# scene lasts a fixed number of frames, so the frames of one scene have the
+# same numbers in every build. The images in this folder are made by
+# make-images.py, the others come from the VerbCoin example project.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+objectType box ("box") {
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 4),
+		anim ('ego/alien.duc', 11),
+		anim ('ego/alien.duc', wait (0, 2), wait (1, 2), wait (2, 2), wait (3, 2)),
+		anim ('ego/alien.duc', wait (7, 2), wait (8, 2), wait (9, 2), wait (10, 2)),
+		anim ('ego/alien.duc', wait (6, 2), wait (4, 2), 5, 6, 5, 4, 6, 4, 5),
+		anim ('ego/alien.duc', 11));
+}
+
+# Show the name of the scene and give it 30 frames.
+sub scene (name) {
+	statusText (name);
+	pause (30);
+}
+
+sub transitionScene (mode, name) {
+	statusText (name);
+	transitionMode (mode);
+	for (var a = 0; a < 256; a += 32) {
+		transitionLevel (a);
+		pause (2);
+	}
+	transitionLevel (256);
+	pause (2);
+}
+
+sub outsideRoom () {
+	setSceneDimensions (640, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+	setFloor ('outside/room.flo');
+	setZBuffer ('outside/room.zbu');
+	setScale (200, 150);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	setThumbnailSize (160, 120);
+
+	# The background image: blanking, scrolling, darkening and mixing.
+	setBlankColour (40, 80, 160);
+	blankScreen ();
+	setBlankColour (200, 30, 30);
+	blankArea (100, 100, 300, 200);
+	scene ("blankScreen and blankArea");
+
+	addOverlay ('outside/room.tga', 0, 0);
+	setBlankColour (0, 120, 0);
+	hardScroll (40);
+	pause (15);
+	hardScroll (-80);
+	scene ("hardScroll");
+
+	addOverlay ('outside/room.tga', 0, 0);
+	darkBackground ();
+	scene ("darkBackground");
+
+	addOverlay ('outside/room.tga', 0, 0);
+	mixOverlay ('inside/room.tga', 0, 0);
+	mixOverlay ('iface/verbcoin.tga', 300, 200);
+	scene ("mixOverlay");
+
+	# An image with transparency, and images and text pasted onto it.
+	setBlankColour (0, 0, 0);
+	blankScreen ();
+	addOverlay ('hole.png', 0, 0);
+	pasteImage (anim ('outside/duck.duc', 0), 100, 300);
+	pasteImage (anim ('iface/mouse.duc', 0), 500, 100);
+	setPasteColour (255, 255, 255);
+	pasteString (40, 60, "Pasted text");
+	setBurnColour (255, 255, 0);
+	burnString (40, 120, "Burnt text");
+	scene ("pasteImage, pasteString and burnString");
+
+	# Characters with a floor, a z-buffer and scaling. The ego walks behind
+	# the walls into the tunnel.
+	outsideRoom ();
+	addCharacter (duck, 200, 350, anim ('outside/duck.duc', 0, 1, 2, 2, 1, 0, 3, 3));
+	addCharacter (ego, 420, 400, egoCostume ());
+	moveCharacter (ego, 83, 344);
+	pause (40);
+	scene ("characters and z-buffer");
+	forceCharacter (ego, 34, 346);
+	scene ("behind the z-buffer");
+	jumpCharacter (ego, 300, 420);
+	say (ego, "Speech is drawn over everything.");
+
+	setCharacterTransparency (duck, 128);
+	setCharacterColourise (ego, 255, 0, 0, 128);
+	scene ("setCharacterTransparency and setCharacterColourise");
+	setCharacterDrawMode (duck, NORMAL);
+	setCharacterDrawMode (ego, NORMAL);
+
+	setLightMap ('light.png', PERPIXEL);
+	scene ("light map per pixel");
+	setLightMap ('light.png', HOTSPOT);
+	scene ("light map at the hotspot");
+	setLightMap (NULL);
+
+	# Pasting a character draws it into the background, behind the z-buffer.
+	jumpCharacter (duck, 150, 330);
+	pasteCharacter (duck);
+	jumpCharacter (duck, 250, 360);
+	scene ("pasteCharacter");
+
+	addScreenRegion (box, 100, 100, 200, 200, 150, 220, NORTH);
+	showBoxes ();
+	scene ("showBoxes");
+	removeAllScreenRegions ();
+
+	# Freezing keeps the scene as the background of a new one.
+	freeze ();
+	mixOverlay ('iface/invback.tga', 50, 50);
+	addCharacter (ego, 320, 400, egoCostume ());
+	scene ("freeze");
+	unfreeze ();
+	scene ("unfreeze");
+
+	setBackgroundEffect (0, 14, newStack (1, 2, 1), newStack (2, 2, 2), newStack (1, 2, 1));
+	doBackgroundEffect ();
+	scene ("setBackgroundEffect: soften");
+	setBackgroundEffect (128, 2, newStack (1, 0), newStack (0, -1));
+	doBackgroundEffect ();
+	scene ("setBackgroundEffect: emboss");
+
+	var colour = getPixelColour (320, 240);
+	var red = popFromStack (colour);
+	var green = popFromStack (colour);
+	var blue = popFromStack (colour);
+	scene ("getPixelColour: " + red + " " + green + " " + blue);
+
+	# A scene larger than the window, with a parallax layer behind it.
+	removeAllCharacters ();
+	setFloor (NULL);
+	setZBuffer (NULL);
+	setSceneDimensions (1280, 960);
+	parallaxAdd ('sky.png', 50, 50);
+	addOverlay ('hole.png', 320, 240);
+	aimCamera (640, 480);
+	scene ("parallax");
+	aimCamera (800, 600);
+	scene ("parallax, scrolled");
+	parallaxClear ();
+	addOverlay ('big.png', 0, 0);
+	zoomCamera (150);
+	scene ("zoomCamera 150");
+	zoomCamera (100);
+
+	# Transitions.
+	outsideRoom ();
+	addCharacter (duck, 200, 350, anim ('outside/duck.duc', 0, 1, 2, 2, 1, 0, 3, 3));
+	transitionScene (FADE, "FADE");
+	transitionScene (DISOLVE1, "DISOLVE1");
+	transitionScene (DISOLVE2, "DISOLVE2");
+	transitionScene (TVSTATIC, "TVSTATIC");
+	transitionScene (BLINDS, "BLINDS");
+	snapshotGrab ();
+	addOverlay ('inside/room.tga', 0, 0);
+	transitionScene (CROSSFADE, "CROSSFADE");
+	transitionScene (SNAPSHOTBOX, "SNAPSHOTBOX");
+	snapshotClear ();
+	transitionMode (FADE);
+
+	# Saving with a thumbnail, showing the thumbnail and loading again.
+	if (saveGame ("rendertest.sav")) {
+		addOverlay ('outside/room.tga', 0, 0);
+		showThumbnail ("rendertest.sav", 400, 20);
+		scene ("saveGame and showThumbnail");
+		loadGame ("rendertest.sav");
+	}
+	scene ("loadGame");
+	quitGame ();
+}

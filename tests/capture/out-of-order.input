@@ -1,0 +1,25 @@
+# Out Of Order: the opening in the bedroom, the game menu, saving a game and
+# loading it again. Positions are in game pixels (640x480).
+#
+# Skip the lines of the opening.
+10 click 320 240
+40 click 320 240
+70 click 320 240
+100 click 320 240
+130 click 320 240
+160 click 320 240
+# Point at the stereo, with the game's own mouse pointer, and click it.
+260 move 480 210
+320 click 480 210
+# Open the menu, choose Save and save the game as "test".
+500 key Escape
+560 click 318 175
+700 text test
+720 key Return
+# Open the menu again, choose Load, pick "test" and load it.
+800 key Escape
+860 click 318 110
+940 click 150 165
+980 click 500 250
+1060 dump backdrop
+1200 quit

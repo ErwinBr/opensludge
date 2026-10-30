@@ -47,6 +47,7 @@
 #include "pointer.h"
 #include "keys.h"
 #include "controllersettings.h"
+#include "capture.h"
 
 
 #if defined(_WIN32)
@@ -160,6 +161,7 @@ void checkInput() {
 
 	/* Check for events */
 	while ( SDL_PollEvent(&event) ) {
+		captureRecordEvent (event);
 		switch (event.type) {
 
 			case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
@@ -296,8 +298,14 @@ int main(int argc, char *argv[]) try
 
 	char * sludgeFile;
 
-	time_t t;
-	srand((unsigned) time(&t));
+	if (! parseCaptureOptions (argc, argv)) return 1;
+
+	if (captureIsActive ()) {
+		srand (captureSeed ());
+	} else {
+		time_t t;
+		srand((unsigned) time(&t));
+	}
 
 	// When no game file is given, we look for one in bundleFolder. This is
 	// the folder containing the executable, or the Resources folder of a
@@ -393,7 +401,9 @@ int main(int argc, char *argv[]) try
 		SDL_HideCursor();
 	}
 
-	if (! (specialSettings & SPECIAL_SILENT)) {
+	// Test runs are silent, because sound would change the timing of
+	// speech.
+	if (! (specialSettings & SPECIAL_SILENT) && ! captureIsActive ()) {
 		initSoundStuff ();
 	}
 
@@ -406,6 +416,7 @@ int main(int argc, char *argv[]) try
 	weAreDoneSoQuit = 0;
 	while ( !weAreDoneSoQuit ) {
 
+		captureStartFrame ();
 		checkInput();
 		if (controllerSettingsAreOpen ()) {
 			updateControllerSettings ();
@@ -415,9 +426,13 @@ int main(int argc, char *argv[]) try
 		walkAllPeople ();
 		handleInput ();
 		sludgeDisplay ();
-		Wait_Frame (movePointerBetweenFrames);
+		// In a test run, we don't move the mouse pointer between frames.
+		Wait_Frame (captureIsDeterministic () ? NULL : movePointerBetweenFrames);
+		if (captureEndFrame ()) weAreDoneSoQuit = 1;
 
 	}
+
+	captureFinish ();
 
 	debugOut( "Bye!\n\n");
 

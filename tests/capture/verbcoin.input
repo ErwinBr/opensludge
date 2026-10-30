@@ -1,0 +1,18 @@
+# VerbCoin example: the opening speech, the verb coin on the duck, the
+# tunnel into the room with a z-buffer, and the inventory. Positions are in
+# game pixels (640x480).
+#
+# Point at the duck (hit testing of the sprite) and open the verb coin,
+# which freezes the scene and mixes the coin into it.
+700 move 205 335
+720 click 205 335
+# Choose "look at".
+760 move 200 318
+800 click 200 318
+# Walk through the tunnel, behind the walls of the z-buffer.
+1200 click 75 320
+# Open the inventory.
+1900 move 90 435
+1920 click 90 435
+2000 capture
+2100 quit

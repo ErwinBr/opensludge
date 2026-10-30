@@ -1,0 +1,70 @@
+# Run a capture test: run a game with the engine deterministically and
+# compare the frames with framediff (see source/Engine/capture.h).
+#
+#   cmake -DENGINE=<sludge-engine> -DFRAMEDIFF=<framediff> -DGAME=<game.slg>
+#         -DOUT=<folder> [-DINPUT=<script>] [-DMAX_FRAMES=<n>] [-DFRAMES=<list>]
+#         [-DENGINE_ARGS=<options>] [-DREFERENCE_ENGINE=<sludge-engine>]
+#         [-DMAX_DIFF=<n>] [-DMAX_BAD=<fraction>] -P run.cmake
+#
+# Without REFERENCE_ENGINE, we run the engine twice and the runs must be the
+# same, which tests that the run is deterministic. With REFERENCE_ENGINE, we
+# compare with a run of that engine, for example a build of an earlier
+# commit. The frames are in OUT/expected and OUT/actual, and the images that
+# differ in OUT/difference.
+
+foreach(var ENGINE FRAMEDIFF GAME OUT)
+	if(NOT DEFINED ${var})
+		message(FATAL_ERROR "${var} is not set")
+	endif()
+endforeach()
+if(NOT EXISTS "${GAME}")
+	message(FATAL_ERROR "The game ${GAME} doesn't exist")
+endif()
+if(NOT DEFINED MAX_DIFF)
+	set(MAX_DIFF 0)
+endif()
+if(NOT DEFINED MAX_BAD)
+	set(MAX_BAD 0)
+endif()
+
+file(REMOVE_RECURSE "${OUT}")
+file(MAKE_DIRECTORY "${OUT}")
+
+function(run_engine engine folder)
+	set(args "--capture=${OUT}/${folder}")
+	if(DEFINED INPUT)
+		list(APPEND args "--input=${INPUT}")
+	endif()
+	if(DEFINED MAX_FRAMES)
+		list(APPEND args "--max-frames=${MAX_FRAMES}")
+	endif()
+	if(DEFINED FRAMES)
+		list(APPEND args "--frames=${FRAMES}")
+	endif()
+	separate_arguments(extra NATIVE_COMMAND "${ENGINE_ARGS}")
+	execute_process(
+		COMMAND "${engine}" ${args} ${extra} "${GAME}"
+		RESULT_VARIABLE result
+		OUTPUT_FILE "${OUT}/${folder}.log"
+		ERROR_FILE "${OUT}/${folder}.log"
+		TIMEOUT 600)
+	if(NOT result EQUAL 0)
+		file(READ "${OUT}/${folder}.log" log)
+		message(FATAL_ERROR "${engine} stopped with ${result}:\n${log}")
+	endif()
+endfunction()
+
+if(DEFINED REFERENCE_ENGINE AND NOT REFERENCE_ENGINE STREQUAL "")
+	run_engine("${REFERENCE_ENGINE}" expected)
+else()
+	run_engine("${ENGINE}" expected)
+endif()
+run_engine("${ENGINE}" actual)
+
+execute_process(
+	COMMAND "${FRAMEDIFF}" --max-diff=${MAX_DIFF} --max-bad=${MAX_BAD} "--out=${OUT}/difference"
+		"${OUT}/expected" "${OUT}/actual"
+	RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+	message(FATAL_ERROR "The frames differ. See ${OUT}/difference.")
+endif()

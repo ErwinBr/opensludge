@@ -24,6 +24,7 @@
 #include "colours.h"
 #include "moreio.h"
 #include "stringy.h"
+#include "capture.h"
 
 #include <shellapi.h>
 #include <shlobj.h> // For SHGetFolderPath
@@ -172,6 +173,11 @@ int showSetupWindow() {
 }
 
 void msgBox (const char * head, const char * msg) {
+	// A test run must not wait for someone to close a message box.
+	if (captureIsDeterministic ()) {
+		fprintf (stderr, "%s\n%s\n", head, msg);
+		return;
+	}
     WCHAR * w_head = ConvertToUTF16(head);
     WCHAR * w_msg = ConvertToUTF16(msg);
 	MessageBox (NULL, w_msg, w_head, MB_OK | MB_ICONSTOP | MB_SYSTEMMODAL | MB_SETFOREGROUND);
@@ -180,6 +186,7 @@ void msgBox (const char * head, const char * msg) {
 }
 
 int msgBoxQuestion (const char * head, const char * msg) {
+	if (captureIsDeterministic ()) return 1;
     WCHAR * w_head = ConvertToUTF16(head);
     WCHAR * w_msg = ConvertToUTF16(msg);
     int val = MessageBox (NULL, w_msg, w_head, MB_YESNO | MB_SETFOREGROUND | MB_APPLMODAL | MB_ICONQUESTION) == IDNO;
@@ -191,6 +198,7 @@ int msgBoxQuestion (const char * head, const char * msg) {
 }
 
 void changeToUserDir () {
+	if (captureChangeToUserDir ()) return;
 	TCHAR szAppData[MAX_PATH];
 	/*hr = */SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, szAppData);
 	_wchdir(szAppData);

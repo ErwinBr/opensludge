@@ -77,7 +77,7 @@ if(SLUDGE_ENGINE)
 	set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/CommonCode)
 
 	set(ENGINE_SOURCES
-		backdrop.cpp bg_effects.cpp builtin.cpp controllermap.cpp controllersettings.cpp cursors.cpp debug.cpp
+		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp controllersettings.cpp cursors.cpp debug.cpp
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		memwatch.cpp moreio.cpp newfatal.cpp objtypes.cpp people.cpp
@@ -172,5 +172,7 @@ if(SLUDGE_ENGINE)
 		target_include_directories(gamepad_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
 		target_link_libraries(gamepad_test PRIVATE sludge::sdl3)
 		add_test(NAME gamepad COMMAND gamepad_test)
+
+		include(cmake/CaptureTests.cmake)
 	endif()
 endif()
