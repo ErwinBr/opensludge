@@ -440,7 +440,9 @@ bool parseCaptureOptions (int & argc, char ** argv) {
 		} else if (! strncmp (a, "--renderer=", 11)) {
 			rendererName = value;
 		} else if (! strncmp (a, "--gpu-driver=", 13)) {
-			SDL_SetHint (SDL_HINT_GPU_DRIVER, value);
+			// With the normal priority, SDL_GPU_DRIVER in the environment
+			// would win over the option.
+			SDL_SetHintWithPriority (SDL_HINT_GPU_DRIVER, value, SDL_HINT_OVERRIDE);
 		} else {
 			argv[out ++] = argv[i];
 			continue;
