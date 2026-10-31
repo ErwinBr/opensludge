@@ -48,7 +48,8 @@ bool handleInput ();
 
 movieStates movieIsPlaying = nothing;
 
-int movieIsEnding = 0;
+// We have decoded the whole movie. The audio thread reads this too.
+SDL_AtomicInt movieIsEnding;
 
 float movieAspect = 1.6;
 
@@ -287,8 +288,6 @@ static uint64_t xiph_lace_value(unsigned char ** np)
 vorbis_dsp_state vorbisDspState;
 long long audioChannels;
 
-bool fakeAudio = false;
-
 // send audio to audio device...
 unsigned int feedAudio (void *userdata, unsigned char *data, unsigned int length) {
 	static char * buffer = NULL;
@@ -304,18 +303,13 @@ unsigned int feedAudio (void *userdata, unsigned char *data, unsigned int length
 		if (bufSize <= 0) {
 			bufSize = 0;
 			buffer = NULL;
-			if (! got) {
-				got = audioChannels*2;
-				memset(data, 0, got);
-				fprintf (stderr, "Faking audio...\n");
-				fakeAudio = true;
-			}
-//				SDL_SignalCondition(audioQ.cond);
-			return got;
+			// After the last sound of the movie, we end the soundtrack.
+			// Until then, we play silence while we wait for the decoder.
+			if (SDL_GetAtomicInt (&movieIsEnding)) return 0;
+			memset (data, 0, length);
+			return length;
 		}
 	}
-
-	fakeAudio = false;
 
 	if (length > bufSize-bufOffset)
 		bufLen = bufSize-bufOffset;
@@ -551,7 +545,7 @@ int playMovie (int fileNumber)
 	setMovieViewport();
 
 	movieIsPlaying = playing;
-	movieIsEnding = 0;
+	SDL_SetAtomicInt (&movieIsEnding, 0);
 
 	//const long long timeCode = pCluster->GetTimeCode();
 	long long time_ns = pCluster->GetTime();
@@ -630,7 +624,7 @@ int playMovie (int fileNumber)
 			break;
 		handleInput ();
 
-		if (movieIsPlaying && (! movieIsEnding) && (videoQ.size < 100 || audioQ.size < 100)) {
+		if (movieIsPlaying && (! SDL_GetAtomicInt (&movieIsEnding)) && (videoQ.size < 100 || audioQ.size < 100)) {
 			// Decode a frame!
 
 			if  ((pCluster != NULL) && !pCluster->EOS())
@@ -832,7 +826,7 @@ int playMovie (int fileNumber)
 				++frameCounter;
 
 			} else {
-movieHasEnded:	movieIsEnding = 1;
+movieHasEnded:	SDL_SetAtomicInt (&movieIsEnding, 1);
 			}
 		}
 
@@ -879,7 +873,7 @@ movieHasEnded:	movieIsEnding = 1;
 							
 					}
 				}
-			} else if (movieIsEnding) {
+			} else if (SDL_GetAtomicInt (&movieIsEnding)) {
 				// We have reached the end of the movie.
 				movieIsPlaying = nothing;
 			}

@@ -31,7 +31,7 @@ public:
 private:
     long long m_length;
 	unsigned int m_start;
-    int m_file;
+    int m_file;	// -1 when closed; 0 is the first file of the game
 };
 
 #endif //MKVREADER_HPP

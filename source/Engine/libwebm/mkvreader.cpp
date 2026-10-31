@@ -16,7 +16,7 @@
 #include <stdio.h>
 
 MkvReader::MkvReader() :
-    m_file(0)
+    m_file(-1)
 {
 }
 
@@ -27,10 +27,10 @@ MkvReader::~MkvReader()
 
 int MkvReader::Open(int fileNumber)
 {
-    if (! fileNumber)
+    if (fileNumber < 0)
         return -1;
 
-    if (m_file)
+    if (m_file >= 0)
         return -1;
 
 	m_file = fileNumber;
@@ -55,17 +55,17 @@ int MkvReader::Open(int fileNumber)
 
 void MkvReader::Close()
 {
-    if (m_file)
+    if (m_file >= 0)
     {
 		finishAccess();
 		setResourceForFatal (-1);
-        m_file = 0;
+        m_file = -1;
     }
 }
 
 int MkvReader::Length(long long* total, long long* available)
 {
-    if (! m_file)
+    if (m_file < 0)
         return -1;
 
     if (total)
@@ -79,7 +79,7 @@ int MkvReader::Length(long long* total, long long* available)
 
 int MkvReader::Read(long long offset, long len, unsigned char* buffer)
 {
-    if (! m_file)
+    if (m_file < 0)
         return -1;
 
     if (offset < 0)
