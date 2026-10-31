@@ -11,8 +11,9 @@
 # twice ("-gpu-determinism"), and compares its frames with those of OpenGL
 # ("-gpu-vs-gl"). There, a frame may differ in up to 5% of its pixels: where
 # nearest filtering samples exactly between texels, and in linearly filtered
-# or anti-aliased pixels, the two can round differently. The noise of the
-# TVSTATIC transition, stretched across the screen, comes closest.
+# or anti-aliased pixels, the two can round differently. On a Mac's own GPU,
+# the thumbnail of a saved game comes closest, at 2%; with the virtual GPU
+# of GitHub's macOS runners, OpenGL rounds more pixels differently.
 
 set(SLUDGE_OUT_OF_ORDER "" CACHE PATH
 	"The gamedata file of Out Of Order, for its capture test (see packaging/get-out-of-order.sh)")

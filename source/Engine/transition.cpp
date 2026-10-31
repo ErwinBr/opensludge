@@ -124,6 +124,32 @@ bool reserveTransitionTexture () {
 	return true;
 }
 
+// Stretch the transition texture over the window. With nearest filtering,
+// the centres of some pixels fall exactly on the edge between two texels,
+// for example every fifth column of 640 pixels, and GPUs round those
+// differently. A quarter of a texel moves every centre off the edges.
+void drawTransitionTexture () {
+	const GLfloat vertices[] = {
+		0.f, (GLfloat)winHeight, 0.f,
+		(GLfloat)winWidth, (GLfloat)winHeight, 0.f,
+		0.f, 0.f, 0.f,
+		(GLfloat)winWidth, 0.f, 0.f
+	};
+
+	const GLfloat q = 0.25f / 256.f;
+	const GLfloat texCoords[] = {
+		q, 1.0f + q,
+		1.0f + q, 1.0f + q,
+		q, q,
+		1.0f + q, q
+	};
+
+	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
+	gfx::DrawUniforms uniforms;
+	uniforms.modulateColor = true;
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
+}
+
 
 void transitionDisolve () {
 	
@@ -164,24 +190,7 @@ void transitionDisolve () {
 
 	gfx::renderer->updateTexture (transitionTex, 0, 0, 256, 256, transitionTexture);
 
-	const GLfloat vertices[] = { 
-		0.f, (GLfloat)winHeight, 0.f, 
-		(GLfloat)winWidth, (GLfloat)winHeight, 0.f, 
-		0.f, 0.f, 0.f,
-		(GLfloat)winWidth, 0.f, 0.f
-	};
-
-	const GLfloat texCoords[] = { 
-		0.0f, 1.0f,
-		1.0f, 1.0f,
-		0.0f, 0.0f,
-		1.0f, 0.0f
-	}; 
-
-	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
-	gfx::DrawUniforms uniforms;
-	uniforms.modulateColor = true;
-	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
+	drawTransitionTexture ();
 }
 
 void transitionTV () {
@@ -218,24 +227,7 @@ void transitionTV () {
 	
 	gfx::renderer->updateTexture (transitionTex, 0, 0, 256, 256, transitionTexture);
 	
-	const GLfloat vertices[] = { 
-		0.f, (GLfloat)winHeight, 0.f, 
-		(GLfloat)winWidth, (GLfloat)winHeight, 0.f, 
-		0.f, 0.f, 0.f,
-		(GLfloat)winWidth, 0.f, 0.f
-	};
-
-	const GLfloat texCoords[] = { 
-		0.0f, 1.0f,
-		1.0f, 1.0f,
-		0.0f, 0.0f,
-		1.0f, 0.0f
-	}; 
-
-	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
-	gfx::DrawUniforms uniforms;
-	uniforms.modulateColor = true;
-	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);	
+	drawTransitionTexture ();
 }
 
 void transitionBlinds () {
