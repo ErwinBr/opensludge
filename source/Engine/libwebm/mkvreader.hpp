@@ -11,7 +11,7 @@
 #ifndef MKVREADER_HPP
 #define MKVREADER_HPP
 
-#include "mkvparser.hpp"
+#include "mkvparser/mkvparser.h"
 #include <cstdio>
 
 class MkvReader : public mkvparser::IMkvReader

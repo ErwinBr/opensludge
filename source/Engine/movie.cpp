@@ -13,7 +13,7 @@
 #include "specialsettings.h"
 
 #include "libwebm/mkvreader.hpp"
-#include "libwebm/mkvparser.hpp"
+#include "mkvparser/mkvparser.h"
 
 #define VPX_CODEC_DISABLE_COMPAT 1
 #include "vpx/vpx_decoder.h"
@@ -337,6 +337,22 @@ unsigned int feedAudio (void *userdata, unsigned char *data, unsigned int length
 	return got;
 }
 
+// The first block of a cluster, or NULL.
+static const mkvparser::BlockEntry * firstBlockEntry (const mkvparser::Cluster * cluster)
+{
+	const mkvparser::BlockEntry * entry = NULL;
+	if (cluster->GetFirst (entry) < 0) return NULL;
+	return entry;
+}
+
+// The block after entry in a cluster, or NULL.
+static const mkvparser::BlockEntry * nextBlockEntry (const mkvparser::Cluster * cluster, const mkvparser::BlockEntry * entry)
+{
+	const mkvparser::BlockEntry * next = NULL;
+	if (cluster->GetNext (entry, next) < 0) return NULL;
+	return next;
+}
+
 int playMovie (int fileNumber)
 {
 	if (specialSettings & SPECIAL_SILENT)
@@ -540,7 +556,7 @@ int playMovie (int fileNumber)
 	//const long long timeCode = pCluster->GetTimeCode();
 	long long time_ns = pCluster->GetTime();
 
-	const BlockEntry* pBlockEntry = pCluster->GetFirst();
+	const BlockEntry* pBlockEntry = firstBlockEntry (pCluster);
 
 	if  ((pBlockEntry == NULL) || pBlockEntry->EOS())
 	{
@@ -548,7 +564,10 @@ int playMovie (int fileNumber)
 		if ((pCluster == NULL) || pCluster->EOS()) {
 			fatal("Error: No movie found in the movie file.");
 		}
-		pBlockEntry = pCluster->GetFirst();
+		pBlockEntry = firstBlockEntry (pCluster);
+		if ((pBlockEntry == NULL) || pBlockEntry->EOS()) {
+			fatal("Error: No movie found in the movie file.");
+		}
 	}
 	const Block* pBlock  = pBlockEntry->GetBlock();
 	long long trackNum = pBlock->GetTrackNumber();
@@ -619,14 +638,17 @@ int playMovie (int fileNumber)
 
 				if (frameCounter >= frameCount) {
 
-					pBlockEntry = pCluster->GetNext(pBlockEntry);
+					pBlockEntry = nextBlockEntry (pCluster, pBlockEntry);
 					if  ((pBlockEntry == NULL) || pBlockEntry->EOS())
 					{
 						pCluster = pSegment->GetNext(pCluster);
 						if ((pCluster == NULL) || pCluster->EOS()) {
 							goto movieHasEnded;
 						}
-						pBlockEntry = pCluster->GetFirst();
+						pBlockEntry = firstBlockEntry (pCluster);
+						if ((pBlockEntry == NULL) || pBlockEntry->EOS()) {
+							goto movieHasEnded;
+						}
 					}
 					pBlock  = pBlockEntry->GetBlock();
 					trackNum = pBlock->GetTrackNumber();

@@ -98,7 +98,7 @@ if(SLUDGE_ENGINE)
 		list(APPEND ENGINE_SOURCES renderer_gpu.cpp)
 	endif()
 	if(SLUDGE_MOVIES)
-		list(APPEND ENGINE_SOURCES movie.cpp libwebm/mkvparser.cpp libwebm/mkvreader.cpp)
+		list(APPEND ENGINE_SOURCES movie.cpp libwebm/mkvreader.cpp)
 	else()
 		list(APPEND ENGINE_SOURCES movie_none.cpp)
 	endif()
@@ -134,7 +134,7 @@ if(SLUDGE_ENGINE)
 
 	add_executable(sludge-engine ${ENGINE_SOURCES} ${GENERATED_DIR}/shaders_embedded.h)
 
-	target_include_directories(sludge-engine PRIVATE ${GENERATED_DIR} ${COMMON_DIR} ${ENGINE_DIR}/libwebm)
+	target_include_directories(sludge-engine PRIVATE ${GENERATED_DIR} ${COMMON_DIR})
 	target_link_libraries(sludge-engine PRIVATE
 		sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
 
@@ -150,7 +150,7 @@ if(SLUDGE_ENGINE)
 	endif()
 
 	if(SLUDGE_MOVIES)
-		target_link_libraries(sludge-engine PRIVATE sludge::vpx)
+		target_link_libraries(sludge-engine PRIVATE sludge::vpx sludge::webm)
 		if(TARGET libvpx)
 			add_dependencies(sludge-engine libvpx)
 		endif()

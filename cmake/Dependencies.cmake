@@ -6,6 +6,7 @@
 #   sludge::png    libpng (the only one that the compiler needs)
 #   sludge::dumb   DUMB (tracker music)
 #   sludge::vpx    libvpx (for movies, only when SLUDGE_MOVIES is on)
+#   sludge::webm   the WebM parser of libwebm (for movies, always from source)
 #
 # By default, we use the libraries installed on the system, and we build
 # from source those that we don't find. With SLUDGE_BUNDLED_DEPS, we build
@@ -25,6 +26,7 @@ set(SLUDGE_PNG_TAG v1.6.59)
 set(SLUDGE_ZLIB_TAG v1.3.2)
 set(SLUDGE_DUMB_TAG 2.0.3)
 set(SLUDGE_VPX_TAG v1.17.0)
+set(SLUDGE_WEBM_TAG libwebm-1.0.0.32)
 
 if(NOT SLUDGE_BUNDLED_DEPS)
 	find_package(PkgConfig QUIET)
@@ -272,4 +274,19 @@ if(SLUDGE_MOVIES)
 			INTERFACE_INCLUDE_DIRECTORIES ${vpx_prefix}/include)
 		sludge_target(vpx vpx_static)
 	endif()
+
+	# We need only the parser of libwebm, one source file, so we build it
+	# ourselves instead of with the CMake files of libwebm, which build its
+	# muxer and tools too. With SOURCE_SUBDIR set to a folder without
+	# CMakeLists.txt, FetchContent only downloads it.
+	message(STATUS "Building the WebM parser of libwebm from source")
+	FetchContent_Declare(libwebm
+		GIT_REPOSITORY https://github.com/webmproject/libwebm.git
+		GIT_TAG ${SLUDGE_WEBM_TAG}
+		GIT_SHALLOW TRUE
+		SOURCE_SUBDIR mkvparser)
+	FetchContent_MakeAvailable(libwebm)
+	add_library(sludge_mkvparser STATIC ${libwebm_SOURCE_DIR}/mkvparser/mkvparser.cc)
+	target_include_directories(sludge_mkvparser PUBLIC ${libwebm_SOURCE_DIR})
+	sludge_target(webm sludge_mkvparser)
 endif()
