@@ -482,7 +482,12 @@ jobs:
           for app in stage/OpenSLUDGE/OpenSLUDGE.app "stage/Out Of Order/Out Of Order.app"; do
             codesign --verify --strict --verbose=2 "$app"
             "$app/Contents/MacOS/sludge-engine" --help > /dev/null
-            vtool -show-build "$app/Contents/MacOS/sludge-engine" | grep -E "architecture|minos"
+            # The minimum macOS of each half: vtool shows it as minos, or for
+            # macOS 10.13 as the version of LC_VERSION_MIN_MACOSX.
+            vtool -show-build "$app/Contents/MacOS/sludge-engine" | awk '
+              /architecture|minos/ { print }
+              /LC_VERSION_MIN_MACOSX/ { min = 1 }
+              min && /version/ { print "    minos " $2; min = 0 }'
           done
           lipo -info "stage/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
           spctl --assess --type execute --verbose "stage/OpenSLUDGE/OpenSLUDGE.app" || \
