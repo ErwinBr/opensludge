@@ -151,15 +151,18 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
+	# Every tenth frame, and each frame of the movie at the end (961-980)
+	# and the one after it, so that a difference there leaves its images.
+	set(render_frames 0-1020/10,961-981)
 	sludge_add_capture_test(rendertest GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
-		FRAMES 0-1020/10)
+		FRAMES ${render_frames})
 	# The same without anti-aliasing, which draws through other shader code.
 	sludge_add_capture_test(rendertest-noaa GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
-		FRAMES 0-1020/10 ENGINE_ARGS -a0)
+		FRAMES ${render_frames} ENGINE_ARGS -a0)
 	# The same with textures of power-of-two sizes, as on OpenGL ES 2.0
 	# devices.
 	sludge_add_capture_test(rendertest-pot GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
-		FRAMES 0-1020/10 ENGINE_ARGS --pot-textures)
+		FRAMES ${render_frames} ENGINE_ARGS --pot-textures)
 endif()
 
 if(SLUDGE_OUT_OF_ORDER)
