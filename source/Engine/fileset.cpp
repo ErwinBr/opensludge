@@ -3,14 +3,7 @@
 #include <string.h>
 
 #include "stringy.h"
-
-// For unicode conversion
-#if defined(_WIN32)
-#include <windows.h>
-#elif defined(__unix__) || defined(__APPLE__)
-#include <iconv.h>
-#endif
-
+#include "cp1250.h"
 #include "debug.h"
 
 #include "allfiles.h"
@@ -83,67 +76,13 @@ unsigned int openFileFromNum (int num) {
 // Converts a string from the Windows-1250 code page to UTF-8. Old versions
 // of SLUDGE stored the text of games in that code page.
 char * convertString(char * s) {
-	static char *buf = NULL;
-	
-	if (! buf) {
-		buf = new char [65536];	
-		if (! checkNew (buf)) return NULL;
-	}
-
-	char * sOrig = s;
-	char * bufOrig = buf;
-
-#if defined(_WIN32)
-	static WCHAR * wideBuf = NULL;
-	if (! wideBuf) {
-		wideBuf = new WCHAR [65536];
-		if (! checkNew (wideBuf)) return NULL;
-	}
-	if (! MultiByteToWideChar (1250, 0, s, -1, wideBuf, 65536) ||
-		! WideCharToMultiByte (CP_UTF8, 0, wideBuf, -1, buf, 65536, NULL, NULL)) {
+	char * converted = convertCP1250ToUTF8 (s);
+	if (! converted) {
 		fatal("Conversion to Unicode failed. This can be fixed by recompiling the game in a current version of the SLUDGE Development Kit, but this error should never happen. Congratulations, you've found a bug in the SLUDGE engine! Please let us know about it.");
+		return s;
 	}
-#elif defined(__unix__) || defined(__APPLE__)
-	char **tmp1 = (char **) &s;
-	char **tmp2 = (char **) &buf;
-	iconv_t convert = iconv_open ("UTF-8", "CP1250");
-
-	if (convert == (iconv_t)-1) {
-			switch (errno) {
-			case EINVAL:
-				fprintf (stderr, "Error: Encoding not supported by iconv.\n");
-				break;
-			default:
-				fprintf (stderr, "Error: Could not open iconv conversion descriptor.\n");
-		}	
-	}
-
-	size_t len1 = strlen(s)+1;
-	size_t len2 = 65535;
-	size_t iconv_value = iconv (convert,(char **) tmp1, &len1, tmp2, &len2);
-
-    if (iconv_value == (size_t) -1) {
-		switch (errno) {
-				/* See "man 3 iconv" for an explanation. */
-			case EILSEQ:
-				fprintf (stderr, "Invalid multibyte sequence.\n");
-				break;
-			case EINVAL:
-				fprintf (stderr, "Incomplete multibyte sequence.\n");
-				break;
-			case E2BIG:
-				fprintf (stderr, "No more room.\n");
-				break;
-			default:
-				fprintf (stderr, "Error: %s.\n", strerror (errno));
-		}
-		fatal("Conversion to Unicode failed. This can be fixed by recompiling the game in a current version of the SLUDGE Development Kit, but this error should never happen. Congratulations, you've found a bug in the SLUDGE engine! Please let us know about it.");
-    }
-	iconv_close (convert);
-#endif
-
-	delete [] sOrig;
-	return copyString(buf = bufOrig);
+	delete [] s;
+	return converted;
 }
 
 char * getNumberedString (int value) {

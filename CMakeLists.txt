@@ -85,7 +85,7 @@ if(SLUDGE_ENGINE)
 	set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/CommonCode)
 
 	set(ENGINE_SOURCES
-		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp controllersettings.cpp cursors.cpp debug.cpp
+		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp cp1250.cpp controllersettings.cpp cursors.cpp debug.cpp
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
@@ -176,6 +176,7 @@ if(SLUDGE_ENGINE)
 	if(NOT WIN32 AND NOT HAVE_ICONV_IN_LIBC)
 		find_package(Iconv REQUIRED)
 		target_link_libraries(sludge-engine PRIVATE Iconv::Iconv)
+		set(ICONV_LIBRARIES Iconv::Iconv)
 	endif()
 
 	install(TARGETS sludge-engine RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -186,6 +187,11 @@ if(SLUDGE_ENGINE)
 		target_include_directories(gamepad_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
 		target_link_libraries(gamepad_test PRIVATE sludge::sdl3)
 		add_test(NAME gamepad COMMAND gamepad_test)
+
+		add_executable(cp1250_test tests/cp1250_test.cpp ${ENGINE_DIR}/cp1250.cpp)
+		target_include_directories(cp1250_test PRIVATE ${ENGINE_DIR})
+		target_link_libraries(cp1250_test PRIVATE ${ICONV_LIBRARIES})
+		add_test(NAME cp1250 COMMAND cp1250_test)
 
 		include(cmake/CaptureTests.cmake)
 	endif()
