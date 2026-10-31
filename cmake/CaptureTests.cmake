@@ -6,12 +6,26 @@
 # Each test runs the engine twice and checks that the frames are the same.
 # With SLUDGE_CAPTURE_REFERENCE_ENGINE set to the engine of another build,
 # for example of an earlier commit, each test also has a "-reference"
-# variant that compares the frames with those of that engine.
+# variant that compares the frames with those of that engine. With
+# SLUDGE_GPU_CAPTURE_TESTS, each test also runs with the SDL_GPU renderer
+# twice ("-gpu-determinism"), and compares its frames with those of OpenGL
+# ("-gpu-vs-gl"). There, a frame may differ in up to 5% of its pixels: where
+# nearest filtering samples exactly between texels, and in linearly filtered
+# or anti-aliased pixels, the two can round differently. The noise of the
+# TVSTATIC transition, stretched across the screen, comes closest.
 
 set(SLUDGE_OUT_OF_ORDER "" CACHE PATH
 	"The gamedata file of Out Of Order, for its capture test (see packaging/get-out-of-order.sh)")
 set(SLUDGE_CAPTURE_REFERENCE_ENGINE "" CACHE FILEPATH
 	"An engine to compare the frames of the capture tests with")
+# The SDL_GPU renderer needs Metal, Vulkan or Direct3D 12, which the runners
+# of our CI have on macOS only.
+if(APPLE)
+	set(gpu_tests_default ON)
+else()
+	set(gpu_tests_default OFF)
+endif()
+option(SLUDGE_GPU_CAPTURE_TESTS "Also run the capture tests with the SDL_GPU renderer" ${gpu_tests_default})
 
 add_executable(framediff ${CMAKE_CURRENT_SOURCE_DIR}/tests/framediff.cpp)
 target_link_libraries(framediff PRIVATE sludge::png)
@@ -34,11 +48,21 @@ function(sludge_add_capture_test name)
 	if(SLUDGE_CAPTURE_REFERENCE_ENGINE)
 		list(APPEND variants reference)
 	endif()
+	if(SLUDGE_GPU_CAPTURE_TESTS)
+		list(APPEND variants gpu-determinism gpu-vs-gl)
+	endif()
 	foreach(variant ${variants})
 		set(test capture-${name}-${variant})
 		set(variant_defines ${defines} -DOUT=${CMAKE_BINARY_DIR}/capture/${name}-${variant})
 		if(variant STREQUAL "reference")
 			list(APPEND variant_defines -DREFERENCE_ENGINE=${SLUDGE_CAPTURE_REFERENCE_ENGINE})
+		elseif(variant MATCHES "^gpu")
+			# These replace the ENGINE_ARGS that we added above.
+			list(FILTER variant_defines EXCLUDE REGEX "^-DENGINE_ARGS=")
+			list(APPEND variant_defines "-DENGINE_ARGS=${arg_ENGINE_ARGS} --renderer=gpu" "-DREQUIRE=Renderer: SDL_GPU")
+			if(variant STREQUAL "gpu-vs-gl")
+				list(APPEND variant_defines "-DEXPECTED_ARGS=${arg_ENGINE_ARGS} --renderer=gl" -DMAX_BAD=0.05)
+			endif()
 		endif()
 		add_test(NAME ${test}
 			COMMAND ${CMAKE_COMMAND} ${variant_defines} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)

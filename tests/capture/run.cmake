@@ -3,14 +3,17 @@
 #
 #   cmake -DENGINE=<sludge-engine> -DFRAMEDIFF=<framediff> -DGAME=<game.slg>
 #         -DOUT=<folder> [-DINPUT=<script>] [-DMAX_FRAMES=<n>] [-DFRAMES=<list>]
-#         [-DENGINE_ARGS=<options>] [-DREFERENCE_ENGINE=<sludge-engine>]
+#         [-DENGINE_ARGS=<options>] [-DEXPECTED_ARGS=<options>]
+#         [-DREFERENCE_ENGINE=<sludge-engine>] [-DREQUIRE=<regex>]
 #         [-DMAX_DIFF=<n>] [-DMAX_BAD=<fraction>] -P run.cmake
 #
 # Without REFERENCE_ENGINE, we run the engine twice and the runs must be the
 # same, which tests that the run is deterministic. With REFERENCE_ENGINE, we
 # compare with a run of that engine, for example a build of an earlier
-# commit. The frames are in OUT/expected and OUT/actual, and the images that
-# differ in OUT/difference.
+# commit. With EXPECTED_ARGS, the first run has those options instead of
+# ENGINE_ARGS, for example to compare two renderers. The output of the
+# second run must match REQUIRE. The frames are in OUT/expected and
+# OUT/actual, and the images that differ in OUT/difference.
 
 foreach(var ENGINE FRAMEDIFF GAME OUT)
 	if(NOT DEFINED ${var})
@@ -30,7 +33,7 @@ endif()
 file(REMOVE_RECURSE "${OUT}")
 file(MAKE_DIRECTORY "${OUT}")
 
-function(run_engine engine folder)
+function(run_engine engine folder engine_args)
 	set(args "--capture=${OUT}/${folder}")
 	if(DEFINED INPUT)
 		list(APPEND args "--input=${INPUT}")
@@ -41,7 +44,7 @@ function(run_engine engine folder)
 	if(DEFINED FRAMES)
 		list(APPEND args "--frames=${FRAMES}")
 	endif()
-	separate_arguments(extra NATIVE_COMMAND "${ENGINE_ARGS}")
+	separate_arguments(extra NATIVE_COMMAND "${engine_args}")
 	execute_process(
 		COMMAND "${engine}" ${args} ${extra} "${GAME}"
 		RESULT_VARIABLE result
@@ -54,12 +57,21 @@ function(run_engine engine folder)
 	endif()
 endfunction()
 
-if(DEFINED REFERENCE_ENGINE AND NOT REFERENCE_ENGINE STREQUAL "")
-	run_engine("${REFERENCE_ENGINE}" expected)
-else()
-	run_engine("${ENGINE}" expected)
+if(NOT DEFINED EXPECTED_ARGS)
+	set(EXPECTED_ARGS "${ENGINE_ARGS}")
 endif()
-run_engine("${ENGINE}" actual)
+if(DEFINED REFERENCE_ENGINE AND NOT REFERENCE_ENGINE STREQUAL "")
+	run_engine("${REFERENCE_ENGINE}" expected "${EXPECTED_ARGS}")
+else()
+	run_engine("${ENGINE}" expected "${EXPECTED_ARGS}")
+endif()
+run_engine("${ENGINE}" actual "${ENGINE_ARGS}")
+if(DEFINED REQUIRE)
+	file(READ "${OUT}/actual.log" log)
+	if(NOT log MATCHES "${REQUIRE}")
+		message(FATAL_ERROR "The engine didn't print \"${REQUIRE}\":\n${log}")
+	endif()
+endif()
 
 execute_process(
 	COMMAND "${FRAMEDIFF}" --max-diff=${MAX_DIFF} --max-bad=${MAX_BAD} "--out=${OUT}/difference"

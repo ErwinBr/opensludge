@@ -317,6 +317,44 @@ void gameToWindowCoords (float gameX, float gameY, float * x, float * y) {
 	*y = py / density;
 }
 
+// We draw with SDL_GPU instead of OpenGL.
+static bool usingGPU = false;
+static SDL_GPUDevice * gpuDevice = NULL;
+
+// Make the window and the SDL_GPU renderer. Returns false, and leaves
+// nothing behind, when SDL_GPU can't draw in this window.
+static bool createGPUWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
+	gpuDevice = SDL_CreateGPUDevice (SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, gameSettings.debugMode, NULL);
+	if (! gpuDevice) {
+		debugOut ("SDL_GPU is not available: %s\n", SDL_GetError ());
+		return false;
+	}
+	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
+	const char * error = NULL;
+	if (sludgeWindow && SDL_ClaimWindowForGPUDevice (gpuDevice, sludgeWindow)) {
+		// In a test run, we don't wait for the display.
+		if (captureIsDeterministic () && SDL_WindowSupportsGPUPresentMode (gpuDevice, sludgeWindow, SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+			SDL_SetGPUSwapchainParameters (gpuDevice, sludgeWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
+		}
+		gfx::renderer = gfx::createGPURenderer (gpuDevice, sludgeWindow, &error);
+		if (gfx::renderer) {
+			usingGPU = true;
+			// We always say which renderer draws, for tests and bug reports.
+			fprintf (stderr, "Renderer: SDL_GPU (%s)\n", SDL_GetGPUDeviceDriver (gpuDevice));
+			return true;
+		}
+		debugOut ("Can't make the SDL_GPU renderer: %s\n", error);
+		SDL_ReleaseWindowFromGPUDevice (gpuDevice, sludgeWindow);
+	} else {
+		debugOut ("Can't draw with SDL_GPU in the window: %s\n", SDL_GetError ());
+	}
+	if (sludgeWindow) SDL_DestroyWindow (sludgeWindow);
+	sludgeWindow = NULL;
+	SDL_DestroyGPUDevice (gpuDevice);
+	gpuDevice = NULL;
+	return false;
+}
+
 static void createGraphicsWindow (bool fullscreen) {
 	SDL_Rect usable;
 	if (! SDL_GetDisplayUsableBounds (SDL_GetPrimaryDisplay (), &usable)) {
@@ -350,6 +388,12 @@ static void createGraphicsWindow (bool fullscreen) {
 	}
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 	const char * title = gameName ? gameName : "SLUDGE";
+
+	if (! strcmp (requestedRenderer (), "gpu") && createGPUWindow (title, w, h, flags)) {
+		SDL_SetWindowMinimumSize (sludgeWindow, 160, 120);
+		SDL_ShowWindow (sludgeWindow);
+		return;
+	}
 
 #if defined(_WIN32) && ! defined(HAVE_GLES2)
 	// On Windows, we show the frames through DXGI where we can, in a
@@ -391,6 +435,7 @@ static void createGraphicsWindow (bool fullscreen) {
 		exit (1);
 	}
 
+	fprintf (stderr, "Renderer: OpenGL\n");
 	debugOut ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
 	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
 	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
@@ -453,6 +498,9 @@ void setupOpenGLStuff() {
 
 	setGraphicsWindow(gameSettings.userFullScreen, false);
 
+	if (usingGPU) {
+		NPOT_textures = true;
+	} else {
 #if !defined(HAVE_GLES2)
 	/* Check for graphics capabilities... */
 	if (getGLVersion () >= 20) {
@@ -466,13 +514,13 @@ void setupOpenGLStuff() {
 #else
 	NPOT_textures = false;
 #endif
+		int n;
+		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, (GLint *) &n);
+		debugOut("Max texture image units: %d\n", n);
+	}
 	if (captureForcePOTTextures ()) NPOT_textures = false;
 	// The frame texture depends on this, and we made it with the window.
 	updateViewport ();
-
-	int n;
-	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, (GLint *) &n);
-	debugOut("Max texture image units: %d\n", n);
 }
 
 #if defined(SLUDGE_FRAMEBUFFER_VSYNC)

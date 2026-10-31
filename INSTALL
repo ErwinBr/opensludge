@@ -54,6 +54,27 @@ Debian and Ubuntu).
 `build/sludge-engine gamedata.slg'. Run `build/sludge-engine --help' for
 the options.
 
+Renderers
+=========
+
+   The engine draws through the interface in source/Engine/renderer.h,
+with OpenGL (renderer_gl.cpp) or with SDL_GPU (renderer_gpu.cpp), which
+draws with Metal on macOS and with Vulkan or Direct3D 12 elsewhere. So
+far, OpenGL is the default; --renderer=gpu, or the environment variable
+SLUDGE_RENDERER=gpu, chooses SDL_GPU. When SDL_GPU can't draw, the engine
+uses OpenGL. It prints which renderer it uses, for example
+`Renderer: SDL_GPU (metal)'.
+
+   The shaders of SDL_GPU are in source/Engine/shaders/gpu, in GLSL 4.50.
+We compile them to SPIR-V for Vulkan and translate that to MSL for Metal,
+and keep the result in gpu_shaders.h, so that building the engine needs
+no shader tools. After changing a shader, run
+
+     cmake -P cmake/GenerateGPUShaders.cmake
+
+which needs glslangValidator (glslang) and spirv-cross (both in Homebrew
+and in most Linux distributions).
+
 Capture tests
 =============
 
@@ -72,7 +93,11 @@ its data file with -DSLUDGE_OUT_OF_ORDER=<file> (packaging/get-out-of-order.sh
 downloads it). Each test plays its game twice, and the frames must be the
 same. With -DSLUDGE_CAPTURE_REFERENCE_ENGINE=<engine>, each test also
 compares the frames with those of another build of the engine, for example
-of an earlier commit. The tests need a display and have the label capture:
+of an earlier commit. With -DSLUDGE_GPU_CAPTURE_TESTS=ON, the default on
+macOS, each test also plays its game twice with SDL_GPU, and compares the
+frames of SDL_GPU with those of OpenGL; there, up to 5% of the pixels of a
+frame may differ, where the two round differently. The tests need a
+display and have the label capture:
 
      ctest --test-dir build -L capture     Only the capture tests
      ctest --test-dir build -LE capture    All the other tests

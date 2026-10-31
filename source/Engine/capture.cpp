@@ -43,6 +43,7 @@ struct FrameRange {
 
 bool deterministic = false;
 bool forcePOT = false;
+const char * rendererName = NULL;
 bool recording = false;
 unsigned int seed = 1;
 long maxFrames = -1;
@@ -397,7 +398,8 @@ void printCaptureUsage () {
 	fprintf (stdout, "--record-input=<file>		Write the player's events as an input script\n");
 	fprintf (stdout, "--seed=<number>			Seed for random numbers (default 1)\n");
 	fprintf (stdout, "--user-dir=<folder>		Folder for settings and saved games\n");
-	fprintf (stdout, "--pot-textures			Use power-of-two textures, as on OpenGL ES 2.0 devices\n\n");
+	fprintf (stdout, "--pot-textures			Use power-of-two textures, as on OpenGL ES 2.0 devices\n");
+	fprintf (stdout, "--renderer=<gl|gpu>		Draw with OpenGL (default) or SDL_GPU (Metal, Vulkan, Direct3D 12)\n\n");
 }
 
 bool parseCaptureOptions (int & argc, char ** argv) {
@@ -432,6 +434,8 @@ bool parseCaptureOptions (int & argc, char ** argv) {
 			userDir = value;
 		} else if (! strcmp (a, "--pot-textures")) {
 			forcePOT = true;
+		} else if (! strncmp (a, "--renderer=", 11)) {
+			rendererName = value;
 		} else {
 			argv[out ++] = argv[i];
 			continue;
@@ -487,6 +491,12 @@ unsigned int captureSeed () {
 
 bool captureForcePOTTextures () {
 	return forcePOT;
+}
+
+const char * requestedRenderer () {
+	if (rendererName) return rendererName;
+	const char * env = SDL_getenv ("SLUDGE_RENDERER");
+	return env ? env : "gl";
 }
 
 Uint64 engineTicksNS () {

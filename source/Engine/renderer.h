@@ -18,6 +18,9 @@
  * renderer chooses a sampler from them when it draws.
  */
 
+struct SDL_GPUDevice;
+struct SDL_Window;
+
 namespace gfx {
 
 enum TexFormat {
@@ -138,6 +141,8 @@ extern Renderer * renderer;
 // Make the OpenGL renderer for the current OpenGL context. Returns NULL and
 // sets *error when the driver lacks something we need.
 Renderer * createGLRenderer (const char ** error);
+// Make the SDL_GPU renderer for a device that has claimed the window.
+Renderer * createGPURenderer (SDL_GPUDevice * device, SDL_Window * window, const char ** error);
 
 // Shortcuts for drawing with one texture or none.
 void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, const float * vertices, const float * texCoords);
