@@ -83,14 +83,19 @@ SDL_GPU_DRIVER, chooses the driver of SDL_GPU: metal, vulkan or
 direct3d12.
 
    The shaders of SDL_GPU are in source/Engine/shaders/gpu, in GLSL 4.50.
-We compile them to SPIR-V for Vulkan and translate that to MSL for Metal,
-and keep the result in gpu_shaders.h, so that building the engine needs
-no shader tools. After changing a shader, run
+We compile them to SPIR-V for Vulkan, translate that to MSL for Metal and
+to HLSL, which we compile to DXIL for Direct3D 12, and keep the result in
+gpu_shaders.h, so that building the engine needs no shader tools. After
+changing a shader, run
 
      cmake -P cmake/GenerateGPUShaders.cmake
 
 which needs glslangValidator (glslang) and spirv-cross (both in Homebrew
-and in most Linux distributions).
+and in most Linux distributions), and dxc, the DirectX Shader Compiler,
+1.8 or later, so that it signs the DXIL, which Direct3D 12 wants. dxc
+comes with the Vulkan SDK (https://vulkan.lunarg.com), and for Linux and
+Windows also from
+https://github.com/microsoft/DirectXShaderCompiler/releases.
 
 Capture tests
 =============

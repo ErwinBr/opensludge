@@ -141,7 +141,7 @@ private:
 
 	SDL_GPUDevice * device;
 	SDL_Window * window;
-	bool useMSL;
+	SDL_GPUShaderFormat shaderFormat;	// MSL, DXIL or SPIR-V, as the driver takes
 	SDL_GPUShader * vertexShader;
 	SDL_GPUShader * fragmentShaders[PROG_COUNT];
 	std::map<Uint32, SDL_GPUGraphicsPipeline *> pipelines;
@@ -161,7 +161,7 @@ private:
 };
 
 GPURenderer::GPURenderer (SDL_GPUDevice * d, SDL_Window * w)
-	: device (d), window (w), useMSL (false), vertexShader (NULL), blank (NULL),
+	: device (d), window (w), shaderFormat (SDL_GPU_SHADERFORMAT_INVALID), vertexShader (NULL), blank (NULL),
 	  cmd (NULL), pass (NULL), current (NULL), windowTexture (NULL), windowTarget (NULL),
 	  scissorOn (false), antialiasScale (1.0f) {
 	memset (fragmentShaders, 0, sizeof (fragmentShaders));
@@ -196,17 +196,20 @@ SDL_GPUShader * GPURenderer::makeShader (const char * name, SDL_GPUShaderStage s
 
 	SDL_GPUShaderCreateInfo info;
 	SDL_zero (info);
-	if (useMSL) {
+	if (shaderFormat == SDL_GPU_SHADERFORMAT_MSL) {
 		info.code = (const Uint8 *) code->msl;
 		info.code_size = strlen (code->msl);
 		info.entrypoint = "main0";
-		info.format = SDL_GPU_SHADERFORMAT_MSL;
+	} else if (shaderFormat == SDL_GPU_SHADERFORMAT_DXIL) {
+		info.code = code->dxil;
+		info.code_size = code->dxilSize;
+		info.entrypoint = "main";
 	} else {
 		info.code = code->spirv;
 		info.code_size = code->spirvSize;
 		info.entrypoint = "main";
-		info.format = SDL_GPU_SHADERFORMAT_SPIRV;
 	}
+	info.format = shaderFormat;
 	info.stage = stage;
 	info.num_samplers = numSamplers;
 	info.num_uniform_buffers = numUniformBuffers;
@@ -216,7 +219,10 @@ SDL_GPUShader * GPURenderer::makeShader (const char * name, SDL_GPUShaderStage s
 }
 
 bool GPURenderer::init (const char ** error) {
-	useMSL = (SDL_GetGPUShaderFormats (device) & SDL_GPU_SHADERFORMAT_MSL) != 0;
+	SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats (device);
+	if (formats & SDL_GPU_SHADERFORMAT_MSL) shaderFormat = SDL_GPU_SHADERFORMAT_MSL;
+	else if (formats & SDL_GPU_SHADERFORMAT_DXIL) shaderFormat = SDL_GPU_SHADERFORMAT_DXIL;
+	else shaderFormat = SDL_GPU_SHADERFORMAT_SPIRV;
 	vertexShader = makeShader ("quad.vert", SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
 	if (! vertexShader) {
 		*error = "quad.vert";

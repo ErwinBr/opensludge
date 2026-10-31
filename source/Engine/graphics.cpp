@@ -327,7 +327,7 @@ static SDL_GPUDevice * gpuDevice = NULL;
 // Make the window and the SDL_GPU renderer. Returns false, and leaves
 // nothing behind, when SDL_GPU can't draw in this window.
 static bool createGPUWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
-	gpuDevice = SDL_CreateGPUDevice (SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, gameSettings.debugMode, NULL);
+	gpuDevice = SDL_CreateGPUDevice (SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_DXIL, gameSettings.debugMode, NULL);
 	if (! gpuDevice) {
 		fprintf (stderr, "SDL_GPU is not available: %s\n", SDL_GetError ());
 		return false;
