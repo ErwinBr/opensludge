@@ -296,7 +296,7 @@ void loadBackDrop (int fileNum, int x, int y) {
 
 	if (! loadHSI (bigDataFile, x, y, false)) {
 		char mess[200];
-		sprintf (mess, "Can't paste overlay image outside scene dimensions\n\nX = %i\nY = %i\nWidth = %i\nHeight = %i", x, y, sceneWidth, sceneHeight);
+		snprintf (mess, sizeof (mess), "Can't paste overlay image outside scene dimensions\n\nX = %i\nY = %i\nWidth = %i\nHeight = %i", x, y, sceneWidth, sceneHeight);
 		fatal (mess);
 	}
 

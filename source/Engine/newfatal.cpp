@@ -84,8 +84,9 @@ int checkNew (const void * mem) {
 
 void setFatalInfo (const char * userFunc, const char * BIF) {
 	delete [] fatalInfo;
-	fatalInfo = new char [strlen (userFunc) + strlen (BIF) + 38];
-	if (fatalInfo) sprintf (fatalInfo, "Currently in this sub: %s\nCalling: %s", userFunc, BIF);
+	size_t size = strlen (userFunc) + strlen (BIF) + 38;
+	fatalInfo = new char [size];
+	if (fatalInfo) snprintf (fatalInfo, size, "Currently in this sub: %s\nCalling: %s", userFunc, BIF);
 }
 
 void setResourceForFatal (int n) {
@@ -95,15 +96,17 @@ void setResourceForFatal (int n) {
 int fatal (const char * str1) {
 	if (numResourceNames && resourceForFatal != -1) {
 		const char * r = resourceNameFromNum(resourceForFatal);
-		char * newStr = new char[strlen (str1) + strlen(r) + strlen (fatalInfo) + 14];
+		size_t size = strlen (str1) + strlen(r) + strlen (fatalInfo) + 14;
+		char * newStr = new char[size];
 		if (checkNew (newStr)) {
-			sprintf (newStr, "%s\nResource: %s\n\n%s", fatalInfo, r, str1);
+			snprintf (newStr, size, "%s\nResource: %s\n\n%s", fatalInfo, r, str1);
 			inFatal (newStr);
 		} else fatal (emergencyMemoryMessage);
 	} else {
-		char * newStr = new char[strlen (str1) + strlen (fatalInfo) + 3];
+		size_t size = strlen (str1) + strlen (fatalInfo) + 3;
+		char * newStr = new char[size];
 		if (checkNew (newStr)) {
-			sprintf (newStr, "%s\n\n%s", fatalInfo, str1);
+			snprintf (newStr, size, "%s\n\n%s", fatalInfo, str1);
 			inFatal (newStr);
 		} else fatal (emergencyMemoryMessage);
 	}
@@ -111,9 +114,10 @@ int fatal (const char * str1) {
 }
 
 int fatal (const char * str1, const char * str2) {
-	char * newStr = new char[strlen (str1) + strlen (str2) + 2];
+	size_t size = strlen (str1) + strlen (str2) + 2;
+	char * newStr = new char[size];
 	if (checkNew (newStr)) {
-		sprintf (newStr, "%s %s", str1, str2);
+		snprintf (newStr, size, "%s %s", str1, str2);
 		fatal (newStr);
 	} else fatal (emergencyMemoryMessage);
 	return 0;

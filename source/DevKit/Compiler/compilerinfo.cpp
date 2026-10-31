@@ -62,13 +62,13 @@ void setCompilerText (const compilerStatusText where, const char * theText)
 
 	switch (where) {
 		case COMPILER_TXT_ACTION:
-			sprintf(info->task, "%s", theText);
+			snprintf (info->task, sizeof (info->task), "%s", theText);
 			break;
 		case COMPILER_TXT_FILENAME:
-			sprintf(info->file, "%s", theText);
+			snprintf (info->file, sizeof (info->file), "%s", theText);
 			break;
 		case COMPILER_TXT_ITEM:
-			sprintf(info->item, "%s", theText);
+			snprintf (info->item, sizeof (info->item), "%s", theText);
 			break;
 	}
 	(*setInfo)(info);

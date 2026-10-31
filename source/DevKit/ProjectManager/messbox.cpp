@@ -118,8 +118,10 @@ void addCommentWithLine (int errorType, const char * comment, const char * filen
 	char * filenameWline;
 	if (filename) {
 		if (lineNumber) {
-			filenameWline = new char[strlen(filename)+15];
-			sprintf(filenameWline, "%s: line %d", filename, lineNumber);
+			// ": line " and up to 11 characters of the number
+			size_t size = strlen(filename)+19;
+			filenameWline = new char[size];
+			snprintf(filenameWline, size, "%s: line %d", filename, lineNumber);
 		} else {
 			filenameWline = copyString(filename);
 		}

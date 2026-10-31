@@ -60,7 +60,7 @@ bool realWork (int fileNumber, stringArray * & globalVars, compilationSpace & gl
 	stringArray * theBits;
 	stringArray * removeTokenString;
 
-	sprintf (inputName, "_T%05i.TMP", fileNumber);
+	snprintf (inputName, sizeof (inputName), "_T%05i.TMP", fileNumber);
 	theSource = grabWholeFile (inputName);
 	unlink (inputName);
 	origName = splitString (theSource, '*', ONCE);

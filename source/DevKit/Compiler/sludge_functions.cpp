@@ -93,8 +93,8 @@ bool startFunction (int num,
 	char file1[30], file2[30];
 
 	setCompilerText (COMPILER_TXT_ITEM, theName);
-	sprintf (file1, "_F%05i.dat", num);
-	sprintf (file2, "_F%05iM.dat", num);
+	snprintf (file1, sizeof (file1), "_F%05i.dat", num);
+	snprintf (file2, sizeof (file2), "_F%05iM.dat", num);
 
 	if (! gotoTempDirectory ()) return false;
 
@@ -140,7 +140,7 @@ bool finishFunctionNew (compilationSpace & theSpace, stringArray * localVars) {
 	fclose (theSpace.writeToFile);
 	fclose (theSpace.markerFile);
 
-	sprintf (filename, "_F%05iN.dat", theSpace.myNum);
+	snprintf (filename, sizeof (filename), "_F%05iN.dat", theSpace.myNum);
 
 	theFileHandle = fopen (filename, "wb");
 	if (! theFileHandle) return false;
@@ -913,13 +913,13 @@ void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles)
 					if (trimStart (bits->next->string, '"')) {
 						if (! trimEnd (bits->next->string, '"')) addComment (ERRORTYPE_PROJECTERROR, "Definition starts with \", but doesn't end with it! Sorry, currently support for complex constants is very limited", bits->next->string, fn, 0);
 						char * newTarget = new char[30];
-						sprintf (newTarget, "_string%i", findOrAdd (strings, bits->next->string, false));
+						snprintf (newTarget, 30, "_string%i", findOrAdd (strings, bits->next->string, false));
 						delete bits->next->string;
 						bits->next->string = newTarget;
 					} else if (trimStart (bits->next->string, '"')) {
 						if (! trimEnd (bits->next->string, '\'')) addComment (ERRORTYPE_PROJECTERROR, "Definition starts with ', but doesn't end with it! Sorry, currently support for complex constants is very limited", bits->next->string, fn, 0);
 						char * newTarget = new char[30];
-						sprintf (newTarget, "_file%i", findOrAdd (fileHandles, bits->next->string, false));
+						snprintf (newTarget, 30, "_file%i", findOrAdd (fileHandles, bits->next->string, false));
 						delete bits->next->string;
 						bits->next->string = newTarget;
 					}

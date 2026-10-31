@@ -43,7 +43,7 @@ bool runLinker (FILE * mainFile, FILE * indexFile, int functionNum, stringArray 
 
 	if (! gotoTempDirectory ()) return false;
 
-	sprintf (filename, "_F%05i.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05i.dat", functionNum);
 	readObj = fopen (filename, "rb");
 	if (readObj == NULL) return addComment (ERRORTYPE_SYSTEMERROR, "Can't open", filename, NULL, 0);
 
@@ -56,7 +56,7 @@ bool runLinker (FILE * mainFile, FILE * indexFile, int functionNum, stringArray 
 
 	char * classNameDot = readString (readObj);
 
-	sprintf (filename, "_F%05iN.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05iN.dat", functionNum);
 	totalsFile = fopen (filename, "rb");
 	if (totalsFile == NULL) return addComment (ERRORTYPE_SYSTEMERROR, "Can't open", filename, NULL, 0);
 
@@ -82,7 +82,7 @@ bool runLinker (FILE * mainFile, FILE * indexFile, int functionNum, stringArray 
 //	checkNew (markers);
 
 	if (! gotoTempDirectory ()) return false;
-	sprintf (filename, "_F%05iM.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05iM.dat", functionNum);
 	totalsFile = fopen (filename, "rb");
 	if (totalsFile == NULL) return addComment (ERRORTYPE_SYSTEMERROR, "Can't open", filename, NULL, 0);
 
@@ -99,9 +99,10 @@ bool runLinker (FILE * mainFile, FILE * indexFile, int functionNum, stringArray 
 	FILE * debugFile = NULL;
 
 	if (debugMe) {
-		sprintf (filename, "Debug function %s.txt", originalName);
+		char * debugName = joinStrings ("Debug function ", originalName, ".txt");
 		if (! gotoSourceDirectory ()) return false;
-		debugFile = fopen (filename, "wt");
+		debugFile = fopen (debugName, "wt");
+		delete [] debugName;
 		if (! gotoTempDirectory ()) return false;
 		fprintf (debugFile, "%i parameters...\n%i locals...\n\n", numArg, numLocals);
 	}
@@ -250,11 +251,11 @@ bool runLinker (FILE * mainFile, FILE * indexFile, int functionNum, stringArray 
 	if (debugMe) fclose (debugFile);
 	fclose (readObj);
 
-	sprintf (filename, "_F%05i.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05i.dat", functionNum);
 	unlink (filename);
-	sprintf (filename, "_F%05iN.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05iN.dat", functionNum);
 	unlink (filename);
-	sprintf (filename, "_F%05iM.dat", functionNum);
+	snprintf (filename, sizeof (filename), "_F%05iM.dat", functionNum);
 	unlink (filename);
 
 	return true;

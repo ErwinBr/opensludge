@@ -71,7 +71,7 @@ bool setZBuffer (int y) {
 	}
 	if (zBuffer.width != sceneWidth || zBuffer.height != sceneHeight) {
 		char tmp[256];
-		sprintf (tmp, "Z-w: %d Z-h:%d w: %d, h:%d", zBuffer.width, zBuffer.height, sceneWidth, sceneHeight);
+		snprintf (tmp, sizeof (tmp), "Z-w: %d Z-h:%d w: %d, h:%d", zBuffer.width, zBuffer.height, sceneWidth, sceneHeight);
 		return fatal ("Z-buffer width and height don't match scene width and height", tmp);
 	}
 		

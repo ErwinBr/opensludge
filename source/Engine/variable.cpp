@@ -362,9 +362,10 @@ char * getTextFromAnyVar (const variable & from) {
 
 		case SVT_INT:
 		{
-			char * buff = new char[10];
+			// -2147483648 and the zero at the end take 12 bytes.
+			char * buff = new char[12];
 			if (! checkNew (buff)) return NULL;
-			sprintf (buff, "%i", from.varData.intValue);
+			snprintf (buff, 12, "%i", from.varData.intValue);
 			return buff;
 		}
 
@@ -380,7 +381,7 @@ char * getTextFromAnyVar (const variable & from) {
 		{
 			char * buff = new char[20];
 			if (! checkNew (buff)) return NULL;
-			sprintf (buff, "%p", from.varData.animHandler);
+			snprintf (buff, 20, "%p", from.varData.animHandler);
 			return buff;
 		}*/
 

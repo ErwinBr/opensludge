@@ -48,7 +48,7 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 
 	if (! gotoTempDirectory ()) return false;
 
-	sprintf (outputName, "_T%05i.TMP", fileNumber);
+	snprintf (outputName, sizeof (outputName), "_T%05i.TMP", fileNumber);
 	outputFile = fopen (outputName, "wt");
 	if (! outputFile) {
 		addComment (ERRORTYPE_SYSTEMERROR, "Can't create temporary file!\n\nYou're probably out of disk space or you don't have access to the temporary folder.", NULL);
@@ -76,7 +76,7 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 				stringPosition = 0;
 				if (showStringWhenFinished) {
 					char buff[1030];
-					sprintf (buff, "String in question: \"%s\"", grabString);
+					snprintf (buff, sizeof (buff), "String in question: \"%s\"", grabString);
 					addCommentWithLine  (ERRORTYPE_PROJECTWARNING, buff, codeFileName, currentLine);
 				}
 
@@ -109,7 +109,7 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 				if (escapeCharNext) {
 					if (wholeFile[index] != '\"' && wholeFile[index] != '\\') {
 						char buff[255];
-						sprintf (buff, "Unrecognised excape character found in a string... I don't know what \"\\%c\" is meant to mean. Tell you what - I'll interpret it as just \"%c\", OK?", wholeFile[index], wholeFile[index]);
+						snprintf (buff, sizeof (buff), "Unrecognised excape character found in a string... I don't know what \"\\%c\" is meant to mean. Tell you what - I'll interpret it as just \"%c\", OK?", wholeFile[index], wholeFile[index]);
 						showStringWhenFinished = true;
 						addCommentWithLine(ERRORTYPE_PROJECTWARNING, buff, codeFileName, currentLine);
 					}

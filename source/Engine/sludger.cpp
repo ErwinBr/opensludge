@@ -157,11 +157,11 @@ FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er
 	char txtVer[120];
 
 	if (fileVersion > WHOLE_VERSION) {
-		sprintf (txtVer, ERROR_VERSION_TOO_LOW_2, majVersion, minVersion);
+		snprintf (txtVer, sizeof (txtVer), ERROR_VERSION_TOO_LOW_2, majVersion, minVersion);
 		fatal (ERROR_VERSION_TOO_LOW_1, txtVer);
 		return NULL;
 	} else if (fileVersion < MINIM_VERSION) {
-		sprintf (txtVer, ERROR_VERSION_TOO_HIGH_2, majVersion, minVersion);
+		snprintf (txtVer, sizeof (txtVer), ERROR_VERSION_TOO_HIGH_2, majVersion, minVersion);
 		fatal (ERROR_VERSION_TOO_HIGH_1, txtVer);
 		return NULL;
 	}
@@ -1277,8 +1277,10 @@ bool handleInput () {
 		if (keyName) {
 			tempString = copyString (keyName);
 		} else if (input.keyPressed >= 256) {
-			tempString = copyString ("ABCDEF");
-			sprintf (tempString, "%i", input.keyPressed);
+			// SDL key codes have up to 10 digits.
+			char number[12];
+			snprintf (number, sizeof (number), "%i", input.keyPressed);
+			tempString = copyString (number);
 		} else {
 			tempString = copyString (" ");
 			tempString[0] = input.keyPressed;

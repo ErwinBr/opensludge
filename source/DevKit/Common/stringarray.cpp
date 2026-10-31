@@ -114,9 +114,10 @@ bool destroyFirst (stringArray * & theArray) {
 }
 
 char * joinStrings (char * a, char * b) {
-	char * nS = new char[strlen (a) + strlen (b) + 1];
+	size_t size = strlen (a) + strlen (b) + 1;
+	char * nS = new char[size];
 //	checkNew (nS);
-	sprintf (nS, "%s%s", a, b);
+	snprintf (nS, size, "%s%s", a, b);
 	return nS;
 }
 

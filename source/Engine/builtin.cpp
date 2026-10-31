@@ -2546,7 +2546,7 @@ builtIn(setThumbnailSize)
 	trimStack (fun -> stack);
 	if (thumbWidth < 0 || thumbHeight < 0 || thumbWidth > winWidth || thumbHeight > winHeight) {
 		char buff[50];
-		sprintf (buff, "%d x %d", thumbWidth, thumbHeight);
+		snprintf (buff, sizeof (buff), "%d x %d", thumbWidth, thumbHeight);
 		fatal ("Invalid thumbnail size", buff);
 		return BR_ERROR;
 	}
@@ -2689,7 +2689,7 @@ builtReturn callBuiltIn (int whichFunc, int numParams, loadedFunction * fun) {
 		if (paramNum[whichFunc] != -1) {
 			if (paramNum[whichFunc] != numParams) {
 				char buff[100];
-				sprintf (buff, "Built in function must have %i parameter%s",
+				snprintf (buff, sizeof (buff), "Built in function must have %i parameter%s",
 						 paramNum[whichFunc],
 						 (paramNum[whichFunc] == 1) ? "" : "s");
 

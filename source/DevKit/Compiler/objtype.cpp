@@ -70,7 +70,7 @@ bool createObjectType (char * code, const char * fName, stringArray * & globalVa
 	keepName = joinStrings ("", getBits -> string);
 	addToStringArray (objectTypeNames, getBits -> string);
 	i = findElement (objectTypeNames, getBits -> string);
-	sprintf (fbuff, "obj%05i.ob~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.ob~", i);
 
 	if (! destroyFirst (getBits)) return addComment (ERRORTYPE_PROJECTERROR, "Bad object type definition (no on-screen text in brackets)", code, fName, 0);
 	if (! trimEnd (getBits -> string, ')')) return addComment (ERRORTYPE_PROJECTERROR, "Bad object type definition (no on-screen text in brackets)", code, fName, 0);
@@ -235,7 +235,7 @@ bool createObjectType (char * code, const char * fName, stringArray * & globalVa
 	inThisClass = emptyString;
 
 	fclose (objFile);
-	sprintf (fbuff, "obj%05i.nu~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.nu~", i);
 	objFile = fopen (fbuff, "wb");
 	if (! objFile) return addComment (ERRORTYPE_SYSTEMERROR, "Can't write object num file", fbuff, NULL, 0);
 
@@ -269,10 +269,10 @@ bool linkObjectFile (FILE * mainFile, FILE * indexFile, int i, unsigned long cal
 	put4bytes (ftell (mainFile) + calcIndexSize, indexFile);
 
 	if (! gotoTempDirectory ()) return false;
-	sprintf (fbuff, "obj%05i.nu~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.nu~", i);
 	theNumFile = fopen (fbuff, "rb");
 	if (! theNumFile) return addComment (ERRORTYPE_SYSTEMERROR, "Can't read object num file", fbuff, NULL,0);
-	sprintf (fbuff, "obj%05i.ob~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.ob~", i);
 	fileIn = fopen (fbuff, "rb");
 	if (! fileIn) return addComment (ERRORTYPE_SYSTEMERROR, "Can't read object type file", fbuff, NULL,0);
 
@@ -305,7 +305,7 @@ bool linkObjectFile (FILE * mainFile, FILE * indexFile, int i, unsigned long cal
 #if 0
 	{
 		char buff[100];
-		sprintf (buff, "%s has %i combination(s)", objNam, numCom);
+		snprintf (buff, sizeof (buff), "%s has %i combination(s)", objNam, numCom);
 		addComment (3, buff, NULL);
 	}
 #endif
@@ -333,9 +333,9 @@ bool linkObjectFile (FILE * mainFile, FILE * indexFile, int i, unsigned long cal
 		delete funcToCall;
 	}
 	fclose (fileIn);
-	sprintf (fbuff, "obj%05i.nu~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.nu~", i);
 	unlink (fbuff);
-	sprintf (fbuff, "obj%05i.ob~", i);
+	snprintf (fbuff, sizeof (fbuff), "obj%05i.ob~", i);
 	unlink (fbuff);
 	return true;
 }
