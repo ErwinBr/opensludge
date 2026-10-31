@@ -185,5 +185,10 @@ sub init () {
 		loadGame ("rendertest.sav");
 	}
 	scene ("loadGame");
+
+	# A movie, which the engine draws straight into the window, with a
+	# viewport of its own.
+	playMovie ('movie.webm');
+	scene ("playMovie");
 	quitGame ();
 }

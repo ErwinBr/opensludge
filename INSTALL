@@ -100,10 +100,10 @@ source/Engine/capture.h describes the options and the input scripts, and
 --record-input writes an input script while you play.
 
    The tests play the example projects, tests/render/RenderTest.slp, which
-has a scene for each way the engine draws, and Out Of Order when you give
-its data file with -DSLUDGE_OUT_OF_ORDER=<file> (packaging/get-out-of-order.sh
-downloads it). Each test plays its game twice, and the frames must be the
-same. With -DSLUDGE_CAPTURE_REFERENCE_ENGINE=<engine>, each test also
+has a scene for each way the engine draws and ends with a movie, and Out Of
+Order when you give its data file with -DSLUDGE_OUT_OF_ORDER=<file>
+(packaging/get-out-of-order.sh downloads it). Each test plays its game
+twice, and the frames must be the same. With -DSLUDGE_CAPTURE_REFERENCE_ENGINE=<engine>, each test also
 compares the frames with those of another build of the engine, for example
 of an earlier commit. With -DSLUDGE_GPU_CAPTURE_TESTS=ON, the default on
 macOS, each test also plays its game twice with SDL_GPU, and compares the

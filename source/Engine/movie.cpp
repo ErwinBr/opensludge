@@ -889,7 +889,12 @@ movieHasEnded:	movieIsEnding = 1;
 
 				Wait_Frame();
 			}
+			captureFrameDrawn ();
 			gfx::renderer->present ();
+			// In a test run, each frame of the movie that we show is a
+			// frame of the run.
+			if (captureEndFrame ()) weAreDoneSoQuit = 1;
+			captureStartFrame ();
 
 		}
 		videoUpdated = false;
