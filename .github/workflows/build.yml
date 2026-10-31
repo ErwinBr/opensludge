@@ -251,6 +251,7 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-mesa
             make
             diffutils
             perl
@@ -260,17 +261,37 @@ jobs:
       - name: Build
         run: |
           # With the engine, we build the headless compiler, and compile the
-          # example projects into build/games.
+          # example projects into build/games. We also test the SDL_GPU
+          # renderer, with Direct3D 12 through WARP, Windows' software
+          # driver.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON \
-            -DSLUDGE_COMPILER=ON
+            -DSLUDGE_COMPILER=ON -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
 
       - name: Test
         # The tests check the hashes of the compiled games against
-        # tests/games.sha256, which must be the same as on Linux and macOS.
-        # The runner has no OpenGL 2.0 driver, so we leave out the capture
-        # tests, which run the engine.
+        # tests/games.sha256, which must be the same as on Linux and macOS,
+        # besides the engine tests.
         run: ctest --test-dir build --output-on-failure -LE capture
+
+      - name: Capture tests
+        # The runner has no OpenGL 2.0 driver, so the engine draws with
+        # Mesa's software OpenGL, llvmpipe: its opengl32.dll works next to
+        # the engine. We leave out the "-gpu-vs-gl" tests: llvmpipe rounds
+        # many pixels of the RenderTest movie and of its noisy scene
+        # differently from Direct3D 12 (on Linux, lavapipe rounds as
+        # llvmpipe does).
+        run: |
+          cp /ucrt64/bin/opengl32.dll build/
+          GALLIUM_DRIVER=llvmpipe SDL_GPU_DRIVER=direct3d12 \
+            ctest --test-dir build --output-on-failure -L capture -E gpu-vs-gl
+
+      - name: Keep the frames of the failed capture tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: capture-windows
+          path: build/capture/*/difference
 
       - name: Check the executables
         run: |
