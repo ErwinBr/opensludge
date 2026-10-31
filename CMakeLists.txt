@@ -88,7 +88,7 @@ if(SLUDGE_ENGINE)
 		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp controllersettings.cpp cursors.cpp debug.cpp
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
-		memwatch.cpp moreio.cpp newfatal.cpp objtypes.cpp people.cpp
+		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp renderer_gl.cpp savedata.cpp shaders.cpp sludge_gl.cpp sludger.cpp sprbanks.cpp
 		sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
