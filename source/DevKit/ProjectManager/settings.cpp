@@ -263,7 +263,7 @@ bool gotoTempDirectory () {
 	if (! tempDirectory) {
 		tempDirectory = joinStrings(getTempDir(), "/SLUDGE_Tmp_XXXXXX");
 		fixPath (tempDirectory, true);
-#ifdef WIN32
+#ifdef _WIN32
 		mkdir (getTempDir());
 		if (mktemp (tempDirectory)) {
 			if (mkdir (tempDirectory))

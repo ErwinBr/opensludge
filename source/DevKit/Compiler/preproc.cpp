@@ -49,7 +49,9 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 	if (! gotoTempDirectory ()) return false;
 
 	snprintf (outputName, sizeof (outputName), "_T%05i.TMP", fileNumber);
-	outputFile = fopen (outputName, "wt");
+	// In binary mode, so that the compiler makes the same game files on
+	// Windows as elsewhere.
+	outputFile = fopen (outputName, "wb");
 	if (! outputFile) {
 		addComment (ERRORTYPE_SYSTEMERROR, "Can't create temporary file!\n\nYou're probably out of disk space or you don't have access to the temporary folder.", NULL);
 		return false;

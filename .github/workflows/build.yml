@@ -233,6 +233,13 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - name: Keep the line endings of the repository
+        # Git on the runner checks out text files with CRLF, which would
+        # change the games that the compiler makes from the example
+        # projects, and their hashes.
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v7
 
       - uses: msys2/setup-msys2@v2
@@ -252,18 +259,23 @@ jobs:
 
       - name: Build
         run: |
-          # We don't build the compiler on Windows yet.
+          # With the engine, we build the headless compiler, and compile the
+          # example projects into build/games.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON \
-            -DSLUDGE_COMPILER=OFF
+            -DSLUDGE_COMPILER=ON
           cmake --build build
 
       - name: Test
+        # The tests check the hashes of the compiled games against
+        # tests/games.sha256, which must be the same as on Linux and macOS.
         # The runner has no OpenGL 2.0 driver, so we leave out the capture
         # tests, which run the engine.
         run: ctest --test-dir build --output-on-failure -LE capture
 
-      - name: Check the executable
-        run: packaging/windows/check-dlls.sh objdump build/sludge-engine.exe
+      - name: Check the executables
+        run: |
+          packaging/windows/check-dlls.sh objdump build/sludge-engine.exe
+          packaging/windows/check-dlls.sh objdump build/source/DevKit/sludge-compiler.exe
 
       - name: Make the zips
         run: |

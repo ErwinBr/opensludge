@@ -47,6 +47,10 @@ target_link_libraries(devkit-compiler PUBLIC devkit-common sludge::png)
 
 add_executable(sludge-compiler ${DEVKIT_DIR}/Compiler/CompilerMain.cpp)
 target_link_libraries(sludge-compiler PRIVATE devkit-compiler)
+if(MINGW)
+	# As the engine, the compiler runs without the MinGW DLLs.
+	target_link_options(sludge-compiler PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
 
 install(TARGETS sludge-compiler RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
