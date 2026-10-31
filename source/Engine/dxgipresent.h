@@ -14,6 +14,9 @@ SDL_GLContext startDXGIPresentation (SDL_Window * window);
 
 bool presentingWithDXGI ();
 
+// Stop the presentation and destroy the context, but not the window.
+void stopDXGIPresentation ();
+
 // Make the frame buffer and the swap chain as large as the window, in
 // pixels.
 void resizeDXGIPresentation (int width, int height);

@@ -20,6 +20,9 @@ libsdl3-dev where it exists.
                                 its own.
      -DSLUDGE_MOVIES=OFF        Leave out movie support and libvpx.
      -DSLUDGE_GLES2=ON          Draw with OpenGL ES 2.0 instead of OpenGL.
+     -DSLUDGE_RENDERER_GPU=OFF  Leave out the SDL_GPU renderer (see
+                                Renderers below), which is already left
+                                out with OpenGL ES 2.0.
      -DSLUDGE_DEVICE=<device>   Build for the OpenPandora, the Raspberry Pi
                                 or an ODROID, with OpenPandora, RaspberryPi
                                 or ODROID. We then draw with OpenGL ES 2.0,
@@ -59,11 +62,20 @@ Renderers
 
    The engine draws through the interface in source/Engine/renderer.h,
 with OpenGL (renderer_gl.cpp) or with SDL_GPU (renderer_gpu.cpp), which
-draws with Metal on macOS and with Vulkan or Direct3D 12 elsewhere. So
-far, OpenGL is the default; --renderer=gpu, or the environment variable
-SLUDGE_RENDERER=gpu, chooses SDL_GPU. When SDL_GPU can't draw, the engine
-uses OpenGL. It prints which renderer it uses, for example
-`Renderer: SDL_GPU (metal)'.
+draws with Metal on macOS and with Vulkan or Direct3D 12 elsewhere. By
+default (auto), the engine draws with SDL_GPU on macOS, and with OpenGL
+elsewhere until we have tested SDL_GPU with Vulkan and Direct3D 12. When
+one renderer can't draw, the engine uses the other. It prints which
+renderer it uses, for example `Renderer: SDL_GPU (metal)'.
+
+   To choose the renderer, set RENDERER to auto, gpu or gl in the
+settings file of the game: on macOS,
+~/Library/Application Support/SLUDGE/<game>/<data file>.ini, and on Linux,
+~/.sludge-engine/<game>/<data file>.ini. The option --renderer and the
+environment variable SLUDGE_RENDERER choose for one run, in that order
+before the settings file. --gpu-driver, or SDL's environment variable
+SDL_GPU_DRIVER, chooses the driver of SDL_GPU: metal, vulkan or
+direct3d12.
 
    The shaders of SDL_GPU are in source/Engine/shaders/gpu, in GLSL 4.50.
 We compile them to SPIR-V for Vulkan and translate that to MSL for Metal,

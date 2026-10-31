@@ -5,15 +5,18 @@
 #         -DOUT=<folder> [-DINPUT=<script>] [-DMAX_FRAMES=<n>] [-DFRAMES=<list>]
 #         [-DENGINE_ARGS=<options>] [-DEXPECTED_ARGS=<options>]
 #         [-DREFERENCE_ENGINE=<sludge-engine>] [-DREQUIRE=<regex>]
-#         [-DMAX_DIFF=<n>] [-DMAX_BAD=<fraction>] -P run.cmake
+#         [-DENGINE_ENV=<variable>=<value>] [-DMAX_DIFF=<n>]
+#         [-DMAX_BAD=<fraction>] -P run.cmake
 #
 # Without REFERENCE_ENGINE, we run the engine twice and the runs must be the
 # same, which tests that the run is deterministic. With REFERENCE_ENGINE, we
 # compare with a run of that engine, for example a build of an earlier
 # commit. With EXPECTED_ARGS, the first run has those options instead of
-# ENGINE_ARGS, for example to compare two renderers. The output of the
-# second run must match REQUIRE. The frames are in OUT/expected and
-# OUT/actual, and the images that differ in OUT/difference.
+# ENGINE_ARGS, for example to compare two renderers. The second run has
+# the environment variables of ENGINE_ENV, and its output must match
+# REQUIRE. We unset SLUDGE_RENDERER for both runs. The frames are in
+# OUT/expected and OUT/actual, and the images that differ in
+# OUT/difference.
 
 foreach(var ENGINE FRAMEDIFF GAME OUT)
 	if(NOT DEFINED ${var})
@@ -33,7 +36,7 @@ endif()
 file(REMOVE_RECURSE "${OUT}")
 file(MAKE_DIRECTORY "${OUT}")
 
-function(run_engine engine folder engine_args)
+function(run_engine engine folder engine_args engine_env)
 	set(args "--capture=${OUT}/${folder}")
 	if(DEFINED INPUT)
 		list(APPEND args "--input=${INPUT}")
@@ -46,7 +49,8 @@ function(run_engine engine folder engine_args)
 	endif()
 	separate_arguments(extra NATIVE_COMMAND "${engine_args}")
 	execute_process(
-		COMMAND "${engine}" ${args} ${extra} "${GAME}"
+		COMMAND ${CMAKE_COMMAND} -E env --unset=SLUDGE_RENDERER ${engine_env}
+			"${engine}" ${args} ${extra} "${GAME}"
 		RESULT_VARIABLE result
 		OUTPUT_FILE "${OUT}/${folder}.log"
 		ERROR_FILE "${OUT}/${folder}.log"
@@ -61,11 +65,11 @@ if(NOT DEFINED EXPECTED_ARGS)
 	set(EXPECTED_ARGS "${ENGINE_ARGS}")
 endif()
 if(DEFINED REFERENCE_ENGINE AND NOT REFERENCE_ENGINE STREQUAL "")
-	run_engine("${REFERENCE_ENGINE}" expected "${EXPECTED_ARGS}")
+	run_engine("${REFERENCE_ENGINE}" expected "${EXPECTED_ARGS}" "")
 else()
-	run_engine("${ENGINE}" expected "${EXPECTED_ARGS}")
+	run_engine("${ENGINE}" expected "${EXPECTED_ARGS}" "")
 endif()
-run_engine("${ENGINE}" actual "${ENGINE_ARGS}")
+run_engine("${ENGINE}" actual "${ENGINE_ARGS}" "${ENGINE_ENV}")
 if(DEFINED REQUIRE)
 	file(READ "${OUT}/actual.log" log)
 	if(NOT log MATCHES "${REQUIRE}")

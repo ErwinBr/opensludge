@@ -74,6 +74,10 @@ jobs:
             echo "The engine exited early with status $status"
             exit 1
           fi
+          if ! grep -q "Renderer: OpenGL" engine.log; then
+            echo "The engine did not start the game with OpenGL"
+            exit 1
+          fi
 
   devkit:
     name: DevKit (GTK 3)
@@ -456,10 +460,10 @@ jobs:
           mkdir -p "$HOME"
           # We start the engine in the app without a game file, as Finder
           # does, to test that we find the game inside the app. We run the
-          # x86_64 app with Rosetta. We print "OpenGL version" after loading the
-          # game and opening the window, so we look for it in the log. After
-          # 15 seconds, the engine must still be running, which means that
-          # there was no fatal error.
+          # x86_64 app with Rosetta. We print the renderer after loading the
+          # game and opening the window, so we look for it in the log; on
+          # macOS, that is SDL_GPU with Metal. After 15 seconds, the engine
+          # must still be running, which means that there was no fatal error.
           for variant in universal x86_64; do
             engine="stage/$variant/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
             "$engine" -w -d1 > engine-$variant.log 2>&1 &
@@ -472,7 +476,7 @@ jobs:
               echo "The $variant engine stopped before 15 seconds"
               exit 1
             fi
-            if ! grep -q "OpenGL version" engine-$variant.log; then
+            if ! grep -q "Renderer: SDL_GPU (metal)" engine-$variant.log; then
               echo "The $variant engine did not start the game"
               exit 1
             fi

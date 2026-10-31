@@ -9,6 +9,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(SLUDGE_GLES2 "Render with OpenGL ES 2.0 instead of desktop OpenGL" OFF)
 set(SLUDGE_DEVICE "" CACHE STRING "Build for a device: OpenPandora, RaspberryPi or ODROID")
 set_property(CACHE SLUDGE_DEVICE PROPERTY STRINGS "" OpenPandora RaspberryPi ODROID)
+# Besides OpenGL, the engine can draw with SDL_GPU, through Metal, Vulkan or
+# Direct3D 12. On the devices, we draw with OpenGL ES 2.0 only.
+if(SLUDGE_GLES2 OR SLUDGE_DEVICE)
+	set(RENDERER_GPU_DEFAULT OFF)
+else()
+	set(RENDERER_GPU_DEFAULT ON)
+endif()
+option(SLUDGE_RENDERER_GPU "Draw with SDL_GPU (Metal, Vulkan, Direct3D 12) where it works" ${RENDERER_GPU_DEFAULT})
 option(SLUDGE_MOVIES "Support playing WebM movies (needs libvpx)" ON)
 option(SLUDGE_BUNDLED_DEPS "Build all dependencies from source and link them statically" OFF)
 option(SLUDGE_TESTS "Build the tests" ON)
@@ -81,11 +89,14 @@ if(SLUDGE_ENGINE)
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		memwatch.cpp moreio.cpp newfatal.cpp objtypes.cpp people.cpp
-		region.cpp renderer_gl.cpp renderer_gpu.cpp savedata.cpp shaders.cpp sludge_gl.cpp sludger.cpp sprbanks.cpp
+		region.cpp renderer_gl.cpp savedata.cpp shaders.cpp sludge_gl.cpp sludger.cpp sprbanks.cpp
 		sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
+	if(SLUDGE_RENDERER_GPU)
+		list(APPEND ENGINE_SOURCES renderer_gpu.cpp)
+	endif()
 	if(SLUDGE_MOVIES)
 		list(APPEND ENGINE_SOURCES movie.cpp libwebm/mkvparser.cpp libwebm/mkvreader.cpp)
 	else()
@@ -127,6 +138,9 @@ if(SLUDGE_ENGINE)
 	target_link_libraries(sludge-engine PRIVATE
 		sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
 
+	if(SLUDGE_RENDERER_GPU)
+		target_compile_definitions(sludge-engine PRIVATE SLUDGE_RENDERER_GPU)
+	endif()
 	if(SLUDGE_GLES2)
 		target_compile_definitions(sludge-engine PRIVATE HAVE_GLES2 ${DEVICE_DEFINITIONS})
 		target_link_libraries(sludge-engine PRIVATE GLESv2 ${DEVICE_LIBRARIES})

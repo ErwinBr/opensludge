@@ -48,8 +48,9 @@ unsigned int captureSeed ();
 // With --pot-textures, we make every texture a power of two in size, as on
 // OpenGL ES 2.0 devices, to test that code on other computers.
 bool captureForcePOTTextures ();
-// The renderer from --renderer=gl or gpu, or else from the environment
-// variable SLUDGE_RENDERER. "gl" when neither says.
+// The renderer to draw with: "auto", "gpu" or "gl", from --renderer, or
+// else from the environment variable SLUDGE_RENDERER, or else from RENDERER
+// in the settings file of the game. "auto" when none of them says.
 const char * requestedRenderer ();
 
 // The engine clock. In a deterministic run it only advances in

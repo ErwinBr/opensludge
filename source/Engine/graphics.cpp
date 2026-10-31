@@ -320,6 +320,8 @@ void gameToWindowCoords (float gameX, float gameY, float * x, float * y) {
 
 // We draw with SDL_GPU instead of OpenGL.
 static bool usingGPU = false;
+
+#if defined(SLUDGE_RENDERER_GPU)
 static SDL_GPUDevice * gpuDevice = NULL;
 
 // Make the window and the SDL_GPU renderer. Returns false, and leaves
@@ -327,9 +329,12 @@ static SDL_GPUDevice * gpuDevice = NULL;
 static bool createGPUWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
 	gpuDevice = SDL_CreateGPUDevice (SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, gameSettings.debugMode, NULL);
 	if (! gpuDevice) {
-		debugOut ("SDL_GPU is not available: %s\n", SDL_GetError ());
+		fprintf (stderr, "SDL_GPU is not available: %s\n", SDL_GetError ());
 		return false;
 	}
+	// On macOS, SDL makes an OpenGL window unless we ask for another kind,
+	// and that fails without OpenGL.
+	if (! strcmp (SDL_GetGPUDeviceDriver (gpuDevice), "metal")) flags |= SDL_WINDOW_METAL;
 	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
 	const char * error = NULL;
 	if (sludgeWindow && SDL_ClaimWindowForGPUDevice (gpuDevice, sludgeWindow)) {
@@ -344,16 +349,81 @@ static bool createGPUWindow (const char * title, int w, int h, SDL_WindowFlags f
 			fprintf (stderr, "Renderer: SDL_GPU (%s)\n", SDL_GetGPUDeviceDriver (gpuDevice));
 			return true;
 		}
-		debugOut ("Can't make the SDL_GPU renderer: %s\n", error);
+		fprintf (stderr, "Can't make the SDL_GPU renderer: %s\n", error);
 		SDL_ReleaseWindowFromGPUDevice (gpuDevice, sludgeWindow);
 	} else {
-		debugOut ("Can't draw with SDL_GPU in the window: %s\n", SDL_GetError ());
+		fprintf (stderr, "Can't draw with SDL_GPU in the window: %s\n", SDL_GetError ());
 	}
 	if (sludgeWindow) SDL_DestroyWindow (sludgeWindow);
 	sludgeWindow = NULL;
 	SDL_DestroyGPUDevice (gpuDevice);
 	gpuDevice = NULL;
 	return false;
+}
+#endif
+
+// Why OpenGL couldn't draw, for the message to the player when no renderer
+// can.
+static const char * glProblem = NULL;
+static char glProblemDetail[256] = "";
+static int glProblemExitCode = 0;
+
+static bool glFailed (const char * problem, const char * detail, int exitCode) {
+	glProblem = problem;
+	SDL_strlcpy (glProblemDetail, detail ? detail : "", sizeof (glProblemDetail));
+	glProblemExitCode = exitCode;
+	fprintf (stderr, "%s %s\n", problem, glProblemDetail);
+#if defined(_WIN32) && ! defined(HAVE_GLES2)
+	if (presentingWithDXGI ()) {
+		stopDXGIPresentation ();
+		glContext = NULL;
+	}
+#endif
+	if (glContext) SDL_GL_DestroyContext (glContext);
+	glContext = NULL;
+	if (sludgeWindow) SDL_DestroyWindow (sludgeWindow);
+	sludgeWindow = NULL;
+	return false;
+}
+
+// Make the window and the OpenGL renderer. Returns false, and leaves
+// nothing behind, when OpenGL can't draw in this window.
+static bool createGLWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
+#if defined(_WIN32) && ! defined(HAVE_GLES2)
+	// On Windows, we show the frames through DXGI where we can, in a
+	// window without OpenGL (see dxgipresent.cpp).
+	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
+	if (sludgeWindow) {
+		glContext = startDXGIPresentation (sludgeWindow);
+		if (! glContext) {
+			SDL_DestroyWindow (sludgeWindow);
+			sludgeWindow = NULL;
+		}
+	}
+#endif
+
+	if (! sludgeWindow) {
+		sludgeWindow = SDL_CreateWindow (title, w, h, flags | SDL_WINDOW_OPENGL);
+		if (! sludgeWindow) return glFailed ("Startup Error: Couldn't create the game window.", SDL_GetError (), 2);
+		glContext = SDL_GL_CreateContext (sludgeWindow);
+		if (! glContext) return glFailed ("Startup Error: Couldn't create an OpenGL context.", SDL_GetError (), 2);
+		SDL_GL_MakeCurrent (sludgeWindow, glContext);
+		// In a test run, we don't wait for the display.
+		SDL_GL_SetSwapInterval (captureIsDeterministic () ? 0 : 1);
+	}
+
+	const char * missing = loadGLFunctions ();
+	if (missing) return glFailed ("Startup Error: Your graphics driver doesn't support OpenGL 2.0.", missing, 1);
+
+	const char * error = NULL;
+	gfx::renderer = gfx::createGLRenderer (&error);
+	if (! gfx::renderer) return glFailed ("Startup Error: Couldn't build the shader programs.", error, 1);
+
+	fprintf (stderr, "Renderer: OpenGL\n");
+	debugOut ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
+	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
+	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
+	return true;
 }
 
 static void createGraphicsWindow (bool fullscreen) {
@@ -390,64 +460,36 @@ static void createGraphicsWindow (bool fullscreen) {
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 	const char * title = gameName ? gameName : "SLUDGE";
 
-	if (! strcmp (requestedRenderer (), "gpu") && createGPUWindow (title, w, h, flags)) {
-		SDL_SetWindowMinimumSize (sludgeWindow, 160, 120);
-		SDL_ShowWindow (sludgeWindow);
-		return;
-	}
-
-#if defined(_WIN32) && ! defined(HAVE_GLES2)
-	// On Windows, we show the frames through DXGI where we can, in a
-	// window without OpenGL (see dxgipresent.cpp).
-	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
-	if (sludgeWindow) {
-		glContext = startDXGIPresentation (sludgeWindow);
-		if (! glContext) {
-			SDL_DestroyWindow (sludgeWindow);
-			sludgeWindow = NULL;
-		}
-	}
+	// With auto, we draw with SDL_GPU on macOS, where Metal is the graphics
+	// API of the system, and with OpenGL elsewhere, until we have tested
+	// SDL_GPU with Vulkan and Direct3D 12. When one renderer can't draw, we
+	// try the other.
+	const char * choice = requestedRenderer ();
+	bool gpuFirst = false;
+	if (! strcmp (choice, "gpu")) {
+		gpuFirst = true;
+	} else if (strcmp (choice, "gl")) {
+		if (strcmp (choice, "auto")) fprintf (stderr, "Unknown renderer \"%s\", so we choose one\n", choice);
+#if defined(__APPLE__)
+		gpuFirst = true;
 #endif
+	}
 
-	if (! sludgeWindow) {
-		sludgeWindow = SDL_CreateWindow (title, w, h, flags | SDL_WINDOW_OPENGL);
-		if (! sludgeWindow) {
-			msgBox ("Startup Error: Couldn't create the game window.", SDL_GetError ());
-			SDL_Quit ();
-			exit (2);
-		}
-		glContext = SDL_GL_CreateContext (sludgeWindow);
-		if (! glContext) {
-			msgBox ("Startup Error: Couldn't create an OpenGL context.", SDL_GetError ());
-			SDL_Quit ();
-			exit (2);
-		}
-		SDL_GL_MakeCurrent (sludgeWindow, glContext);
-		// In a test run, we don't wait for the display.
-		SDL_GL_SetSwapInterval (captureIsDeterministic () ? 0 : 1);
+#if defined(SLUDGE_RENDERER_GPU)
+	bool ok = gpuFirst && createGPUWindow (title, w, h, flags);
+	if (! ok) ok = createGLWindow (title, w, h, flags);
+	if (! ok && ! gpuFirst) ok = createGPUWindow (title, w, h, flags);
+#else
+	if (! strcmp (choice, "gpu")) fprintf (stderr, "This engine was built without SDL_GPU\n");
+	bool ok = createGLWindow (title, w, h, flags);
+#endif
+	if (! ok) {
+		msgBox (glProblem, glProblemDetail);
+		SDL_Quit ();
+		exit (glProblemExitCode);
 	}
 	SDL_SetWindowMinimumSize (sludgeWindow, 160, 120);
 	SDL_ShowWindow (sludgeWindow);
-
-	const char * missing = loadGLFunctions ();
-	if (missing) {
-		msgBox ("Startup Error: Your graphics driver doesn't support OpenGL 2.0.", missing);
-		SDL_Quit ();
-		exit (1);
-	}
-
-	fprintf (stderr, "Renderer: OpenGL\n");
-	debugOut ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
-	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
-	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
-
-	const char * error = NULL;
-	gfx::renderer = gfx::createGLRenderer (&error);
-	if (! gfx::renderer) {
-		msgBox ("Startup Error: Couldn't build the shader programs.", error);
-		SDL_Quit ();
-		exit (1);
-	}
 }
 
 // Switch between windowed and fullscreen, and create the window the first

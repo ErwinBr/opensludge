@@ -21,6 +21,7 @@
 
 #include "capture.h"
 #include "graphics.h"
+#include "language.h"
 
 namespace {
 
@@ -399,7 +400,9 @@ void printCaptureUsage () {
 	fprintf (stdout, "--seed=<number>			Seed for random numbers (default 1)\n");
 	fprintf (stdout, "--user-dir=<folder>		Folder for settings and saved games\n");
 	fprintf (stdout, "--pot-textures			Use power-of-two textures, as on OpenGL ES 2.0 devices\n");
-	fprintf (stdout, "--renderer=<gl|gpu>		Draw with OpenGL (default) or SDL_GPU (Metal, Vulkan, Direct3D 12)\n\n");
+	fprintf (stdout, "--renderer=<auto|gpu|gl>	Draw with SDL_GPU (Metal, Vulkan, Direct3D 12) or OpenGL;\n");
+	fprintf (stdout, "				auto (default) chooses SDL_GPU on macOS and OpenGL elsewhere\n");
+	fprintf (stdout, "--gpu-driver=<name>		The driver of SDL_GPU: metal, vulkan or direct3d12\n\n");
 }
 
 bool parseCaptureOptions (int & argc, char ** argv) {
@@ -436,6 +439,8 @@ bool parseCaptureOptions (int & argc, char ** argv) {
 			forcePOT = true;
 		} else if (! strncmp (a, "--renderer=", 11)) {
 			rendererName = value;
+		} else if (! strncmp (a, "--gpu-driver=", 13)) {
+			SDL_SetHint (SDL_HINT_GPU_DRIVER, value);
 		} else {
 			argv[out ++] = argv[i];
 			continue;
@@ -496,7 +501,8 @@ bool captureForcePOTTextures () {
 const char * requestedRenderer () {
 	if (rendererName) return rendererName;
 	const char * env = SDL_getenv ("SLUDGE_RENDERER");
-	return env ? env : "gl";
+	if (env && *env) return env;
+	return gameSettings.renderer[0] ? gameSettings.renderer : "auto";
 }
 
 Uint64 engineTicksNS () {

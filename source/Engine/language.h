@@ -11,6 +11,7 @@ struct settingsStruct
 	bool fixedPixels;
 	bool noStartWindow;
 	bool debugMode;
+	char renderer[8];	// auto, gpu or gl (see requestedRenderer)
 };
 
 extern settingsStruct gameSettings;

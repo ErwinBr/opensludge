@@ -351,6 +351,10 @@ bool presentingWithDXGI () {
 	return presenting;
 }
 
+void stopDXGIPresentation () {
+	stop ();
+}
+
 void resizeDXGIPresentation (int newWidth, int newHeight) {
 	if (! presenting || (newWidth == width && newHeight == height)) return;
 	if (newWidth < 1 || newHeight < 1) return;
