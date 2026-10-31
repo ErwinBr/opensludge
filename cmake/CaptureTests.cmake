@@ -4,7 +4,10 @@
 # `ctest -L capture` runs only them and `ctest -LE capture` all the others.
 #
 # Each test runs the engine twice with OpenGL and checks that the frames
-# are the same.
+# are the same, up to a difference of 1 in a colour channel: the OpenGL of
+# the virtual GPU of GitHub's macOS runners sometimes rounds a few pixels
+# differently the first time that it uses a shader, such as in the first
+# frame of a movie. Real nondeterminism in the engine differs by more.
 # With SLUDGE_CAPTURE_REFERENCE_ENGINE set to the engine of another build,
 # for example of an earlier commit, each test also has a "-reference"
 # variant that compares the frames with those of that engine. With
@@ -69,6 +72,8 @@ function(sludge_add_capture_test name)
 			list(APPEND variant_defines "-DENGINE_ARGS=${gl_args}" "-DREQUIRE=Renderer: OpenGL")
 			if(variant STREQUAL "reference")
 				list(APPEND variant_defines -DREFERENCE_ENGINE=${SLUDGE_CAPTURE_REFERENCE_ENGINE})
+			else()
+				list(APPEND variant_defines -DMAX_DIFF=1)
 			endif()
 		endif()
 		add_test(NAME ${test}

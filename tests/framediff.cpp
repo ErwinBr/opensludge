@@ -5,8 +5,10 @@
 //
 // <expected> and <actual> are two PNG files or two capture folders. For
 // folders, we compare every PNG file of the expected folder with the file of
-// the same name in the actual folder, and with --max-diff=0 also the CRCs
-// of all the frames in frames.tsv.
+// the same name in the actual folder, and without --max-bad also the CRCs
+// of all the frames in frames.tsv. With --max-diff, a frame whose CRC
+// differs is still right when we have its images and they match within
+// the tolerance.
 //
 // Options:
 //   --max-diff=<n>    Largest difference allowed in a colour channel (default 0)
@@ -147,6 +149,16 @@ bool readLines (const std::string & filename, std::vector<std::string> & lines) 
 	return true;
 }
 
+// Whether both folders have an image of the frame of a line of frames.tsv,
+// which compareImages compares.
+bool haveImages (const std::string & expectedFolder, const std::string & actualFolder, const std::string & line) {
+	char name[32];
+	snprintf (name, sizeof (name), "frame_%06lu.png", strtoul (line.c_str (), NULL, 10));
+	struct stat st;
+	return stat ((expectedFolder + "/" + name).c_str (), &st) == 0 &&
+		stat ((actualFolder + "/" + name).c_str (), &st) == 0;
+}
+
 int compareFrameCRCs (const std::string & expectedFolder, const std::string & actualFolder) {
 	std::vector<std::string> expected, actual;
 	if (! readLines (expectedFolder + "/frames.tsv", expected)) return 0;
@@ -155,7 +167,7 @@ int compareFrameCRCs (const std::string & expectedFolder, const std::string & ac
 		return 1;
 	}
 	for (size_t i = 0; i < expected.size () && i < actual.size (); i ++) {
-		if (expected[i] != actual[i]) {
+		if (expected[i] != actual[i] && ! (maxDiff > 0 && haveImages (expectedFolder, actualFolder, expected[i]))) {
 			printf ("Frame CRCs differ first at line %zu:\n  expected %s  actual   %s", i + 1,
 				expected[i].c_str (), actual[i].c_str ());
 			return 1;
@@ -193,7 +205,7 @@ int compareFolders (const std::string & expectedFolder, const std::string & actu
 		}
 		result = std::max (result, compareImages (expectedFolder + "/" + names[i], actualFile));
 	}
-	if (maxDiff == 0 && maxBad == 0.0) result = std::max (result, compareFrameCRCs (expectedFolder, actualFolder));
+	if (maxBad == 0.0) result = std::max (result, compareFrameCRCs (expectedFolder, actualFolder));
 	printf ("Compared %zu images: %s\n", names.size (), result == 0 ? "they match" : "they differ");
 	return result;
 }
