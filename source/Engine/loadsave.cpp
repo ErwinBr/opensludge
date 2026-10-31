@@ -344,6 +344,7 @@ loadedFunction * loadFunction (FILE * fp) {
 	buildFunc -> cancelMe = fgetc (fp);
 	buildFunc -> returnSomething = fgetc (fp);
 	buildFunc -> isSpeech = fgetc (fp);
+	buildFunc -> waitsForMovie = false;
 	loadVariable (& (buildFunc -> reg), fp);
 	loadFunctionCode (buildFunc);
 

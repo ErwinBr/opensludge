@@ -25,6 +25,7 @@
 #include "capture.h"
 #include "graphics.h"
 #include "movie.h"
+#include "sludger.h"
 #include "shaders.h"
 
 #include "sound.h"
@@ -36,13 +37,6 @@
 
 
 extern int specialSettings;
-
-// in main.c
-void checkInput();
-extern int weAreDoneSoQuit;
-
-// Sludger.cpp
-bool handleInput ();
 
 
 movieStates movieIsPlaying = nothing;
@@ -346,6 +340,200 @@ static const mkvparser::BlockEntry * nextBlockEntry (const mkvparser::Cluster * 
 	return next;
 }
 
+// What we play. While a movie plays, the main loop calls showMovieFrame in
+// each frame instead of drawing the game.
+struct movieState {
+	int fileNumber;
+	MkvReader reader;
+	mkvparser::Segment * segment;
+	const mkvparser::Tracks * tracks;
+	int videoTrack, audioTrack;
+	vpx_codec_ctx_t codec;
+	ogg_packet oggPacket;
+	vorbis_info vorbisInfo;
+	vorbis_comment vorbisComment;
+	vorbis_block vorbisBlock;
+	// The frame of a block that we decode next
+	const mkvparser::Cluster * cluster;
+	const mkvparser::BlockEntry * blockEntry;
+	const mkvparser::Block * block;
+	long long trackNum, time_ns;
+	int frameCount, frameCounter;
+	unsigned char * frame;
+	long frameSize;
+	// Whether we run the engine at the frame rate of the movie yet
+	bool knowsFrameRate;
+	// Pausing
+	float pauseFade;
+	Uint32 pausedAt;
+};
+static movieState * movie = NULL;
+
+static const GLfloat movieTexCoords[] = {
+	0.0, 0.0,
+	1.0, 0.0,
+	0.0, 1.0,
+	1.0, 1.0
+};
+
+static const GLfloat movieVertices[] = {
+	0.0, 0.0, 0.1,
+	640.0, 0.0, 0.1,
+	0.0, 400.0, 0.1,
+	640.0, 400.0, 0.1
+};
+
+// The pause sign: two black bars with two white bars on them.
+static const GLfloat pauseVertices[4][12] = {
+	{ 7.0, 7.0, 0.1,	17.0, 7.0, 0.1,		7.0, 29.0, 0.1,		17.0, 29.0, 0.1 },
+	{ 27.0, 7.0, 0.1,	37.0, 7.0, 0.1,		27.0, 29.0, 0.1,	37.0, 29.0, 0.1 },
+	{ 5.0, 5.0, 0.1,	15.0, 5.0, 0.1,		5.0, 27.0, 0.1,		15.0, 27.0, 0.1 },
+	{ 25.0, 5.0, 0.1,	35.0, 5.0, 0.1,		25.0, 27.0, 0.1,	35.0, 27.0, 0.1 },
+};
+
+// Start on the frames of the block in movie->blockEntry.
+static void readBlock ()
+{
+	movie->block = movie->blockEntry->GetBlock();
+	movie->trackNum = movie->block->GetTrackNumber();
+	movie->frameCount = movie->block->GetFrameCount();
+	movie->time_ns = movie->block->GetTime(movie->cluster);
+	movie->frameCounter = 0;
+}
+
+// Move to the next block. Returns false at the end of the movie.
+static bool nextBlock ()
+{
+	movie->blockEntry = nextBlockEntry (movie->cluster, movie->blockEntry);
+	if ((movie->blockEntry == NULL) || movie->blockEntry->EOS())
+	{
+		movie->cluster = movie->segment->GetNext(movie->cluster);
+		if ((movie->cluster == NULL) || movie->cluster->EOS()) return false;
+		movie->blockEntry = firstBlockEntry (movie->cluster);
+		if ((movie->blockEntry == NULL) || movie->blockEntry->EOS()) return false;
+	}
+	readBlock ();
+	return true;
+}
+
+// Decode the next frame of a block, video or sound, into its queue.
+static void decodeFrame ()
+{
+	if (movie->frameCounter >= movie->frameCount && ! nextBlock ()) {
+		SDL_SetAtomicInt (&movieIsEnding, 1);
+		return;
+	}
+
+	const mkvparser::Block::Frame& theFrame = movie->block->GetFrame(movie->frameCounter);
+	const long size = theFrame.len;
+	++ movie->frameCounter;
+
+	if( size > movie->frameSize ) {
+		delete [] movie->frame;
+		movie->frame = new unsigned char[size];
+		if (! checkNew(movie->frame)) return;
+		movie->frameSize = size;
+	}
+
+	if (movie->trackNum == movie->videoTrack) {
+
+		theFrame.Read(&movie->reader, movie->frame);
+
+		/* Decode the frame */
+		if(vpx_codec_decode(&movie->codec, movie->frame, size, NULL, 0))
+			die_codec(&movie->codec, "Failed to decode frame");
+
+		// Let's decode an image frame!
+		vpx_codec_iter_t  iter = NULL;
+		vpx_image_t      *img;
+		/* Get frame data */
+		while((img = vpx_codec_get_frame(&movie->codec, &iter))) {
+			if (img->fmt != VPX_IMG_FMT_I420)
+				fatal("Movie error. The movie is not in I420 colour format, which is the only one I can hanlde at the moment.");
+
+			unsigned int y;
+
+			GLubyte * ytex = new GLubyte [img->d_w * img->d_h];
+			GLubyte * utex = new GLubyte [(img->d_w >> 1) * (img->d_h >> 1)];
+			GLubyte * vtex = new GLubyte [(img->d_w >> 1) * (img->d_h >> 1)];
+			if (!ytex || !utex || !vtex)
+				fatal (ERROR_OUT_OF_MEMORY);
+
+			unsigned char *buf =img->planes[0];
+			for(y=0; y<img->d_h; y++) {
+				memcpy(ytex+y*img->d_w, buf, img->d_w);
+				buf += img->stride[0];
+			}
+			buf =img->planes[1];
+			for(y=0; y<img->d_h >> 1; y++) {
+				memcpy(utex+y*(img->d_w>>1), buf, img->d_w>>1);
+				buf += img->stride[1];
+			}
+			buf =img->planes[2];
+			for(y=0; y<img->d_h >> 1; y++) {
+				memcpy(vtex+y*(img->d_w>>1), buf, img->d_w>>1);
+				buf += img->stride[2];
+			}
+
+			video_queue_put(&videoQ, ytex, utex, vtex,
+							img->d_w, img->d_h, movie->time_ns/1000000);
+		}
+	} else if (movie->trackNum == movie->audioTrack) {
+		// Use this Audio Track
+		if( size > 0 ) {
+			theFrame.Read(&movie->reader, movie->frame);
+			ogg_packet & oggPacket = movie->oggPacket;
+			oggPacket.packet = movie->frame;
+			oggPacket.bytes = size;
+			oggPacket.b_o_s = false;
+			oggPacket.packetno++;
+			oggPacket.granulepos = -1;
+			if( ! vorbis_synthesis(&movie->vorbisBlock, &oggPacket) ) {
+				if (vorbis_synthesis_blockin(&vorbisDspState, &movie->vorbisBlock))
+					fprintf (stderr, "Vorbis Synthesis block in error.\n");
+
+			} else {
+				fprintf (stderr, "Vorbis Synthesis error.\n");
+			}
+
+			float **pcm;
+
+			int numSamples = vorbis_synthesis_pcmout(&vorbisDspState, &pcm);
+
+			if (numSamples > 0) {
+				long bytespersample=audioChannels*2;
+
+				char * buffer = new char[bytespersample*numSamples];
+				if (! checkNew (buffer)) return;
+
+				// We interleave the channels as signed 16-bit
+				// samples, rounded to the nearest value.
+				for (int i = 0; i < audioChannels; i ++) {
+					const float * src = pcm[i];
+					short * dest = ((short *) buffer) + i;
+					for (int j = 0; j < numSamples; j ++) {
+						long val = lrintf (src[j] * 32768.f);
+						if (val > 32767) val = 32767;
+						else if (val < -32768) val = -32768;
+						*dest = (short) val;
+						dest += audioChannels;
+					}
+				}
+
+				vorbis_synthesis_read(&vorbisDspState,numSamples);
+				audioBufferLen = bytespersample*numSamples;
+				audio_queue_put(&audioQ, buffer, audioBufferLen, movie->time_ns/1000000);
+
+				if (! movieSoundPlaying && size > 1) {
+					fprintf (stderr, "** starting sound ** \n");
+					playMovieStream (movieAudioIndex);
+					movieSoundPlaying = true;
+				}
+			}
+		}
+	}
+}
+
 int playMovie (int fileNumber)
 {
 	if (specialSettings & SPECIAL_SILENT)
@@ -354,16 +542,23 @@ int playMovie (int fileNumber)
 	if (movieIsPlaying) return 0;
 
 	movieSoundPlaying = false;
-    vpx_codec_ctx_t  codec;
-	float pausefade = 1.0;
 
     using namespace mkvparser;
 
-    MkvReader reader;
+	movie = new movieState;
+	memset (&movie->codec, 0, sizeof (movie->codec));
+	movie->fileNumber = fileNumber;
+	movie->segment = NULL;
+	movie->frame = NULL;
+	movie->pauseFade = 1.0;
+	movie->pausedAt = 0;
+	movie->knowsFrameRate = false;
 
-    if (reader.Open(fileNumber))
+    if (movie->reader.Open(fileNumber))
     {
         warning(ERROR_MOVIE_ODDNESS);
+        delete movie;
+        movie = NULL;
         return 0;
     }
 
@@ -371,30 +566,21 @@ int playMovie (int fileNumber)
 
     EBMLHeader ebmlHeader;
 
-    ebmlHeader.Parse(&reader, pos);
+    ebmlHeader.Parse(&movie->reader, pos);
 
-    mkvparser::Segment* pSegment;
-
-    long long ret = mkvparser::Segment::CreateInstance(&reader, pos, pSegment);
+    long long ret = mkvparser::Segment::CreateInstance(&movie->reader, pos, movie->segment);
     if (ret)
     {
         fatal ("Movie error: Segment::CreateInstance() failed.\n");
     }
 
-    ret  = pSegment->Load();
+    ret  = movie->segment->Load();
     if (ret < 0)
     {
         fatal ("Movie error: Segment::Load() failed.\n");
     }
 
-    //const SegmentInfo* const pSegmentInfo = pSegment->GetInfo();
-    //const long long timeCodeScale = pSegmentInfo->GetTimeCodeScale();
-    //const long long duration_ns = pSegmentInfo->GetDuration();
-    //const char* const pTitle = pSegmentInfo->GetTitleAsUTF8();
-    //const char* const pMuxingApp = pSegmentInfo->GetMuxingAppAsUTF8();
-    //const char* const pWritingApp = pSegmentInfo->GetWritingAppAsUTF8();
-
-    const mkvparser::Tracks* pTracks = pSegment->GetTracks();
+    const mkvparser::Tracks* pTracks = movie->tracks = movie->segment->GetTracks();
 
     unsigned long i = 0;
     const unsigned long j = pTracks->GetTracksCount();
@@ -402,12 +588,8 @@ int playMovie (int fileNumber)
     enum { VIDEO_TRACK = 1, AUDIO_TRACK = 2 };
 	int videoTrack = -1;
 	int audioTrack = -1;
-	long long audioBitDepth;
 	double audioSampleRate;
-	ogg_packet oggPacket;
-	vorbis_info vorbisInfo;
-	vorbis_comment vorbisComment;
-	vorbis_block vorbisBlock;
+	ogg_packet & oggPacket = movie->oggPacket;
 
     while (i != j)
     {
@@ -417,8 +599,6 @@ int playMovie (int fileNumber)
             continue;
 
         const long long trackType = pTrack->GetType();
-        //const unsigned long long trackUid = pTrack->GetUid();
-        //const char* pTrackName = pTrack->GetNameAsUTF8();
 
         if (trackType == VIDEO_TRACK && videoTrack < 0)
         {
@@ -431,8 +611,12 @@ int playMovie (int fileNumber)
 
             const double rate = pVideoTrack->GetFrameRate();
 
-			if (rate > 0)
+			// While the movie plays, a frame of the engine is a frame of
+			// the movie.
+			if (rate > 0) {
 				Init_Special_Timer(rate);
+				movie->knowsFrameRate = true;
+			}
 
 			movieAspect = (float)width/height;
         }
@@ -444,7 +628,6 @@ int playMovie (int fileNumber)
 			static_cast<const AudioTrack*>(pTrack);
 
             audioChannels =  pAudioTrack->GetChannels();
-            audioBitDepth = pAudioTrack->GetBitDepth();
             audioSampleRate = pAudioTrack->GetSamplingRate();
 
 			size_t audioHeaderSize;
@@ -477,10 +660,10 @@ int playMovie (int fileNumber)
 			sizes[i] = audioHeaderSize - total- (p - audioHeader);
 
 			// initialize vorbis
-			vorbis_info_init(&vorbisInfo);
-			vorbis_comment_init(&vorbisComment);
+			vorbis_info_init(&movie->vorbisInfo);
+			vorbis_comment_init(&movie->vorbisComment);
 			memset(&vorbisDspState,0,sizeof(vorbisDspState));
-			memset(&vorbisBlock,0,sizeof(vorbisBlock));
+			memset(&movie->vorbisBlock,0,sizeof(movie->vorbisBlock));
 
 			oggPacket.e_o_s = false;
 			oggPacket.granulepos = 0;
@@ -491,17 +674,17 @@ int playMovie (int fileNumber)
 				oggPacket.packet = p;
 				oggPacket.bytes = sizes[i];
 				oggPacket.b_o_s = oggPacket.packetno==0;
-				r = vorbis_synthesis_headerin(&vorbisInfo, &vorbisComment, &oggPacket);
+				r = vorbis_synthesis_headerin(&movie->vorbisInfo, &movie->vorbisComment, &oggPacket);
 				if( r )
 					fprintf(stderr,"vorbis_synthesis_headerin failed, error: %d", r);
 				oggPacket.packetno++;
 				p += sizes[i];
 			}
 
-			r = vorbis_synthesis_init(&vorbisDspState, &vorbisInfo);
+			r = vorbis_synthesis_init(&vorbisDspState, &movie->vorbisInfo);
 			if( r )
 				fprintf(stderr,"vorbis_synthesis_init failed, error: %d", r);
-			r = vorbis_block_init(&vorbisDspState, &vorbisBlock);
+			r = vorbis_block_init(&vorbisDspState, &movie->vorbisBlock);
 			if( r )
 				fprintf(stderr,"vorbis_block_init failed, error: %d", r);
 
@@ -520,9 +703,12 @@ int playMovie (int fileNumber)
 	if (audioTrack < 0 )
 		fatal ("Movie error: No sound found.");
 
+	movie->videoTrack = videoTrack;
+	movie->audioTrack = audioTrack;
+
 	video_queue_init(&videoQ);
 
-    const unsigned long clusterCount = pSegment->GetCount();
+    const unsigned long clusterCount = movie->segment->GetCount();
 
     if (clusterCount == 0)
     {
@@ -530,370 +716,58 @@ int playMovie (int fileNumber)
     }
 
 	/* Initialize video codec */
-    if(vpx_codec_dec_init(&codec, interface, NULL, 0))
-        die_codec(&codec, "Failed to initialize decoder for movie.");
+    if(vpx_codec_dec_init(&movie->codec, interface, NULL, 0))
+        die_codec(&movie->codec, "Failed to initialize decoder for movie.");
 
-    long frameSize = 256*1024;
-    unsigned char *frame = new unsigned char[frameSize];
-	if (! checkNew (frame)) return false;
+    movie->frameSize = 256*1024;
+    movie->frame = new unsigned char[movie->frameSize];
+	if (! checkNew (movie->frame)) return false;
 
-    const mkvparser::Cluster* pCluster = pSegment->GetFirst();
+    movie->cluster = movie->segment->GetFirst();
+	movie->blockEntry = firstBlockEntry (movie->cluster);
 
-	// We draw the movie straight into the window.
-	drawIntoWindow ();
-	setMovieViewport();
+	if  ((movie->blockEntry == NULL) || movie->blockEntry->EOS())
+	{
+		movie->cluster = movie->segment->GetNext(movie->cluster);
+		if ((movie->cluster == NULL) || movie->cluster->EOS()) {
+			fatal("Error: No movie found in the movie file.");
+		}
+		movie->blockEntry = firstBlockEntry (movie->cluster);
+		if ((movie->blockEntry == NULL) || movie->blockEntry->EOS()) {
+			fatal("Error: No movie found in the movie file.");
+		}
+	}
+	readBlock ();
 
 	movieIsPlaying = playing;
 	SDL_SetAtomicInt (&movieIsEnding, 0);
-
-	//const long long timeCode = pCluster->GetTimeCode();
-	long long time_ns = pCluster->GetTime();
-
-	const BlockEntry* pBlockEntry = firstBlockEntry (pCluster);
-
-	if  ((pBlockEntry == NULL) || pBlockEntry->EOS())
-	{
-		pCluster = pSegment->GetNext(pCluster);
-		if ((pCluster == NULL) || pCluster->EOS()) {
-			fatal("Error: No movie found in the movie file.");
-		}
-		pBlockEntry = firstBlockEntry (pCluster);
-		if ((pBlockEntry == NULL) || pBlockEntry->EOS()) {
-			fatal("Error: No movie found in the movie file.");
-		}
-	}
-	const Block* pBlock  = pBlockEntry->GetBlock();
-	long long trackNum = pBlock->GetTrackNumber();
-	unsigned long tn = static_cast<unsigned long>(trackNum);
-	const Track* pTrack = pTracks->GetTrackByNumber(tn);
-	long long trackType = pTrack->GetType();
-	int frameCount = pBlock->GetFrameCount();
-	time_ns = pBlock->GetTime(pCluster);
-
-	const GLfloat texCoords[] = { 
-		0.0, 0.0,
-		1.0, 0.0,
-		0.0, 1.0,
-		1.0, 1.0
-	};
-
-	const GLfloat vertices[] = { 
-		0.0, 0.0, 0.1,
-		640.0, 0.0, 0.1,
-		0.0, 400.0, 0.1,
-		640.0, 400.0, 0.1
-	};
-
-	const GLfloat vertices1[] = { 
-		7.0, 7.0, 0.1,
-		17.0, 7.0, 0.1,
-		7.0, 29.0, 0.1,
-		17.0, 29.0, 0.1
-	};
-
-	const GLfloat vertices2[] = { 
-		27.0, 7.0, 0.1,
-		37.0, 7.0, 0.1,
-		27.0, 29.0, 0.1,
-		37.0, 29.0, 0.1
-	};
-
-	const GLfloat vertices3[] = { 
-		5.0, 5.0, 0.1,
-		15.0, 5.0, 0.1,
-		5.0, 27.0, 0.1,
-		15.0, 27.0, 0.1
-	};
-
-	const GLfloat vertices4[] = { 
-		25.0, 5.0, 0.1,
-		35.0, 5.0, 0.1,
-		25.0, 27.0, 0.1,
-		35.0, 27.0, 0.1
-	};
-
-	int frameCounter = 0;
-
 	SDL_SetAtomicU32(&movieStartTick, (Uint32) engineTicksMS());
-	
-	while ( movieIsPlaying ) {
+	return 1;
+}
 
-		checkInput();
-		if (weAreDoneSoQuit)
-			break;
-		handleInput ();
-
-		if (movieIsPlaying && (! SDL_GetAtomicInt (&movieIsEnding)) && (videoQ.size < 100 || audioQ.size < 100)) {
-			// Decode a frame!
-
-			if  ((pCluster != NULL) && !pCluster->EOS())
-			{
-
-				if (frameCounter >= frameCount) {
-
-					pBlockEntry = nextBlockEntry (pCluster, pBlockEntry);
-					if  ((pBlockEntry == NULL) || pBlockEntry->EOS())
-					{
-						pCluster = pSegment->GetNext(pCluster);
-						if ((pCluster == NULL) || pCluster->EOS()) {
-							goto movieHasEnded;
-						}
-						pBlockEntry = firstBlockEntry (pCluster);
-						if ((pBlockEntry == NULL) || pBlockEntry->EOS()) {
-							goto movieHasEnded;
-						}
-					}
-					pBlock  = pBlockEntry->GetBlock();
-					trackNum = pBlock->GetTrackNumber();
-					tn = static_cast<unsigned long>(trackNum);
-					pTrack = pTracks->GetTrackByNumber(tn);
-					trackType = pTrack->GetType();
-					frameCount = pBlock->GetFrameCount();
-					time_ns = pBlock->GetTime(pCluster);
-
-					frameCounter = 0;
-				}
-
-				const Block::Frame& theFrame = pBlock->GetFrame(frameCounter);
-				const long size = theFrame.len;
-				//                const long long offset = theFrame.pos;
-
-				if( size > frameSize ) {
-					if( frame ) delete [] frame;
-					frame = new unsigned char[size];
-					if (! checkNew(frame)) return 0;
-					frameSize = size;
-				}
-/*
-				fprintf (stderr, "Block :%s,%s,%15lld\n",
-				 (trackType == VIDEO_TRACK) ? "V" : "A",
-				 pBlock->IsKey() ? "I" : "P",
-				 time_ns);
- */
-
-				if (trackNum == videoTrack) {
-
-					theFrame.Read(&reader, frame);
-
-					/* Decode the frame */
-					if(vpx_codec_decode(&codec, frame, size, NULL, 0))
-						die_codec(&codec, "Failed to decode frame");
-
-					// Let's decode an image frame!
-					vpx_codec_iter_t  iter = NULL;
-					vpx_image_t      *img;
-					/* Get frame data */
-					while((img = vpx_codec_get_frame(&codec, &iter))) {
-						if (img->fmt != VPX_IMG_FMT_I420)
-							fatal("Movie error. The movie is not in I420 colour format, which is the only one I can hanlde at the moment.");
-
-						unsigned int y;
-
-						GLubyte * ytex=NULL;
-						GLubyte * utex=NULL;
-						GLubyte * vtex=NULL;
-						
-						if (! ytex) {
-							ytex = new GLubyte [img->d_w * img->d_h];
-							utex = new GLubyte [(img->d_w >> 1) * (img->d_h >> 1)];
-							vtex = new GLubyte [(img->d_w >> 1) * (img->d_h >> 1)];
-							if (!ytex || !utex || !vtex)
-								fatal (ERROR_OUT_OF_MEMORY);
-
-						}
-
-						unsigned char *buf =img->planes[0];
-						for(y=0; y<img->d_h; y++) {
-							memcpy(ytex+y*img->d_w, buf, img->d_w);
-							buf += img->stride[0];
-						}
-						buf =img->planes[1];
-						for(y=0; y<img->d_h >> 1; y++) {
-							memcpy(utex+y*(img->d_w>>1), buf, img->d_w>>1);
-							buf += img->stride[1];
-						}
-						buf =img->planes[2];
-						for(y=0; y<img->d_h >> 1; y++) {
-							memcpy(vtex+y*(img->d_w>>1), buf, img->d_w>>1);
-							buf += img->stride[2];
-						}
-						
-						video_queue_put(&videoQ, ytex, utex, vtex,
-										img->d_w, img->d_h, time_ns/1000000);
-						
-
-					}
-				} else if (trackNum == audioTrack) {
-					// Use this Audio Track
-					if( size > 0 ) {
-						theFrame.Read(&reader, frame);
-						oggPacket.packet = frame;
-						oggPacket.bytes = size;
-						oggPacket.b_o_s = false;
-						oggPacket.packetno++;
-						oggPacket.granulepos = -1;
-						if( ! vorbis_synthesis(&vorbisBlock, &oggPacket) ) {
-							if (vorbis_synthesis_blockin(&vorbisDspState, &vorbisBlock))
-								fprintf (stderr, "Vorbis Synthesis block in error.\n");
-
-						} else {
-							fprintf (stderr, "Vorbis Synthesis error.\n");
-						}
-
-						float **pcm;
-
-						int numSamples = vorbis_synthesis_pcmout(&vorbisDspState, &pcm);
-
-						if (numSamples > 0) {
-							long bytespersample=audioChannels*2;
-
-							char * buffer = new char[bytespersample*numSamples];
-							if (! checkNew (buffer)) return false;
-
-							// We interleave the channels as signed 16-bit
-							// samples, rounded to the nearest value.
-							for (int i = 0; i < audioChannels; i ++) {
-								const float * src = pcm[i];
-								short * dest = ((short *) buffer) + i;
-								for (int j = 0; j < numSamples; j ++) {
-									long val = lrintf (src[j] * 32768.f);
-									if (val > 32767) val = 32767;
-									else if (val < -32768) val = -32768;
-									*dest = (short) val;
-									dest += audioChannels;
-								}
-							}
-
-							vorbis_synthesis_read(&vorbisDspState,numSamples);
-							audioBufferLen = bytespersample*numSamples;
-							audio_queue_put(&audioQ, buffer, audioBufferLen, time_ns/1000000);
-
-							//fprintf (stderr, "Audio buffered: %lld byte %lld ns\n",audioBufferLen, audioNsPerByte*audioBufferLen);
-
-							if (! movieSoundPlaying && size > 1) {
-								fprintf (stderr, "** starting sound ** \n");
-								playMovieStream (movieAudioIndex);
-								movieSoundPlaying = true;
-							}
-						}
-					}
-				}
-				++frameCounter;
-
-			} else {
-movieHasEnded:	SDL_SetAtomicInt (&movieIsEnding, 1);
-			}
-		}
-
-		bool videoUpdated = false;
-		// Get a video frame.
-		if (movieIsPlaying == playing) {
-			
-			videoBuffers *vB;
-			// Do we have decoded video waiting?
-			if ((vB = videoQ.first)) {
-				Uint32 tick = (Uint32) engineTicksMS() - SDL_GetAtomicU32(&movieStartTick);
-				
-				// Is it time to display the frame yet?
-				if ((tick+1) < vB->time_ms) {
-					engineDelayMS(1);
-				} else {
-					GLubyte * ytex=NULL;
-					GLubyte * utex=NULL;
-					GLubyte * vtex=NULL;
-					GLsizei w, h;
-						
-					if (video_queue_get(&videoQ, &ytex, &utex, &vtex, &w, &h)) {
-						
-						// One channel for each of Y, U and V; U and V
-						// have half the width and height.
-						gfx::Texture * * planes[3] = { &yTex, &uTex, &vTex };
-						GLubyte * data[3] = { ytex, utex, vtex };
-						for (int i = 0; i < 3; i ++) {
-							int pw = i ? w>>1 : w;
-							int ph = i ? h>>1 : h;
-							if (* planes[i]) {
-								gfx::renderer->setTextureImage (* planes[i], pw, ph, data[i]);
-							} else {
-								* planes[i] = gfx::renderer->createTexture (pw, ph, gfx::TEX_R8, data[i]);
-							}
-							gfx::renderer->setTextureFilter (* planes[i], gfx::FILTER_LINEAR, gfx::FILTER_LINEAR);
-						}
-														
-						delete [] ytex;
-						delete [] utex;
-						delete [] vtex;
-						ytex = utex = vtex = NULL;
-						videoUpdated = true;
-							
-					}
-				}
-			} else if (SDL_GetAtomicInt (&movieIsEnding)) {
-				// We have reached the end of the movie.
-				movieIsPlaying = nothing;
-			}
-		}
-			
-		// Update the screen if there's new video, or if we're paused
-		if (videoUpdated || movieIsPlaying == paused) {
-
-			// Clear The Screen
-			gfx::renderer->clear (true, false);
-
-			// Display the current frame here
-			gfx::Texture * const planes[3] = { yTex, uTex, vTex };
-			gfx::Quad quad = { vertices, { texCoords, NULL, NULL } };
-			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_YUV, gfx::BLEND_ALPHA), gfx::DrawUniforms (), planes, quad);
-
-			if (movieIsPlaying == paused) {
-				pausefade -= 1.0 / 24;
-				if (pausefade<-1.0) pausefade = 1.0;
-
-				// Paused.
-				gfx::PipelineState state (gfx::PROG_COLOR, gfx::BLEND_ALPHA);
-				setPrimaryColor(0.0f, 0.0f, 0.0f, fabs(pausefade));
-				gfx::draw (state, gfx::DrawUniforms (), vertices1);
-				gfx::draw (state, gfx::DrawUniforms (), vertices2);
-				setPrimaryColor(1.0f, 1.0f, 1.0f, fabs(pausefade));
-				gfx::draw (state, gfx::DrawUniforms (), vertices3);
-				gfx::draw (state, gfx::DrawUniforms (), vertices4);
-
-				Wait_Frame();
-			}
-			captureFrameDrawn ();
-			gfx::renderer->present ();
-			// In a test run, each frame of the movie that we show is a
-			// frame of the run.
-			if (captureEndFrame ()) weAreDoneSoQuit = 1;
-			captureStartFrame ();
-
-		}
-		videoUpdated = false;
-	}
-
-	// Cleanup
+static void finishMovie ()
+{
 	movieIsPlaying = nothing;
-	for (int i =0; i<10; i++) Wait_Frame();
-	huntKillFreeSound(fileNumber);
-    if(vpx_codec_destroy(&codec))
-        die_codec(&codec, "Failed to destroy codec");
+	huntKillFreeSound(movie->fileNumber);
+    if(vpx_codec_destroy(&movie->codec))
+        die_codec(&movie->codec, "Failed to destroy codec");
 	vorbis_dsp_clear(&vorbisDspState);
-	vorbis_block_clear(&vorbisBlock);
-	vorbis_comment_clear(&vorbisComment);
-	vorbis_info_clear(&vorbisInfo);
-    delete pSegment;
+	vorbis_block_clear(&movie->vorbisBlock);
+	vorbis_comment_clear(&movie->vorbisComment);
+	vorbis_info_clear(&movie->vorbisInfo);
+    delete movie->segment;
 	gfx::renderer->destroyTexture (yTex);
 	gfx::renderer->destroyTexture (uTex);
 	gfx::renderer->destroyTexture (vTex);
 	yTex = uTex = vTex = NULL;
-	
+
 	// Delete any remaining buffers
 	videoBuffers *vB = videoQ.first;
 	while ((vB = videoQ.first)) {
 		videoQ.first = vB->next;
 		delete [] vB->ytex;
 		delete [] vB->utex;
-		delete [] vB->vtex;		
+		delete [] vB->vtex;
 		delete vB;
 	}
 	videoQ.size = 0;
@@ -906,18 +780,111 @@ movieHasEnded:	SDL_SetAtomicInt (&movieIsEnding, 1);
 	}
 	audioQ.size = 0;
 
-	delete [] frame;
+	delete [] movie->frame;
 	SDL_DestroyCondition(videoQ.cond);
 	SDL_DestroyMutex(videoQ.mutex);
 	SDL_DestroyCondition(audioQ.cond);
 	SDL_DestroyMutex(audioQ.mutex);
 	videoQ.cond = audioQ.cond = NULL;
 	videoQ.mutex = audioQ.mutex = NULL;
+	videoQ.last = NULL;
+	audioQ.last = NULL;
+
+	delete movie;
+	movie = NULL;
 
 	Init_Timer();
 	drawIntoWindow ();
 	setPixelCoords (false);
-	return 1;
+}
+
+// We decode this far ahead of the time of the movie, so that the sound
+// never runs out between two frames of the engine.
+#define MOVIE_DECODE_AHEAD_MS 500
+
+bool showMovieFrame ()
+{
+	if (! movie) return false;
+	if (movieIsPlaying == nothing) {
+		// stopMovie stopped it.
+		finishMovie ();
+		return false;
+	}
+
+	if (movieIsPlaying == playing) {
+		Uint32 now = (Uint32) engineTicksMS() - SDL_GetAtomicU32(&movieStartTick);
+
+		while (! SDL_GetAtomicInt (&movieIsEnding) && (videoQ.size < 100 || audioQ.size < 100) &&
+				(! videoQ.last || videoQ.last->time_ms <= now + MOVIE_DECODE_AHEAD_MS)) {
+			decodeFrame ();
+		}
+
+		// Many WebM files don't say their frame rate, so we take it from
+		// the times of the first two frames.
+		if (! movie->knowsFrameRate && videoQ.first && videoQ.first->next) {
+			Uint32 duration = videoQ.first->next->time_ms - videoQ.first->time_ms;
+			if (duration > 0) Init_Special_Timer (1000.0 / duration);
+			movie->knowsFrameRate = true;
+		}
+
+		// We show the last frame that is due, and skip those that we are
+		// too late for.
+		GLubyte * ytex = NULL, * utex = NULL, * vtex = NULL;
+		GLsizei w = 0, h = 0;
+		while (videoQ.first && videoQ.first->time_ms <= now + 1) {
+			delete [] ytex;
+			delete [] utex;
+			delete [] vtex;
+			video_queue_get(&videoQ, &ytex, &utex, &vtex, &w, &h);
+		}
+		if (ytex) {
+			// One channel for each of Y, U and V; U and V have half the
+			// width and height.
+			gfx::Texture * * planes[3] = { &yTex, &uTex, &vTex };
+			GLubyte * data[3] = { ytex, utex, vtex };
+			for (int i = 0; i < 3; i ++) {
+				int pw = i ? w>>1 : w;
+				int ph = i ? h>>1 : h;
+				if (* planes[i]) {
+					gfx::renderer->setTextureImage (* planes[i], pw, ph, data[i]);
+				} else {
+					* planes[i] = gfx::renderer->createTexture (pw, ph, gfx::TEX_R8, data[i]);
+				}
+				gfx::renderer->setTextureFilter (* planes[i], gfx::FILTER_LINEAR, gfx::FILTER_LINEAR);
+			}
+			delete [] ytex;
+			delete [] utex;
+			delete [] vtex;
+		} else if (! videoQ.first && SDL_GetAtomicInt (&movieIsEnding) && ! stillPlayingSound (movieAudioIndex)) {
+			// We have shown the last frame, and played the sound.
+			finishMovie ();
+			return false;
+		}
+	}
+
+	// The movie draws straight into the window, with a viewport of its own.
+	drawIntoWindow ();
+	setMovieViewport ();
+	gfx::renderer->clear (true, false);
+	if (yTex) {
+		gfx::Texture * const planes[3] = { yTex, uTex, vTex };
+		gfx::Quad quad = { movieVertices, { movieTexCoords, NULL, NULL } };
+		gfx::renderer->draw (gfx::PipelineState (gfx::PROG_YUV, gfx::BLEND_ALPHA), gfx::DrawUniforms (), planes, quad);
+	}
+
+	if (movieIsPlaying == paused) {
+		movie->pauseFade -= 1.0 / 24;
+		if (movie->pauseFade < -1.0) movie->pauseFade = 1.0;
+
+		gfx::PipelineState state (gfx::PROG_COLOR, gfx::BLEND_ALPHA);
+		for (int i = 0; i < 4; i ++) {
+			float c = i < 2 ? 0.0f : 1.0f;
+			setPrimaryColor (c, c, c, fabs (movie->pauseFade));
+			gfx::draw (state, gfx::DrawUniforms (), pauseVertices[i]);
+		}
+	}
+	showFrame ();
+	return true;
 }
 
 int stopMovie ()
@@ -928,13 +895,16 @@ int stopMovie ()
 }
 
 int pauseMovie()
-{	
+{
 	if (movieIsPlaying == playing) {
 		pauseMovieSound(movieAudioIndex, true);
+		movie->pausedAt = (Uint32) engineTicksMS();
 		movieIsPlaying = paused;
 		fprintf (stderr, "** Pausing **\n");
 	} else if (movieIsPlaying == paused) {
 		pauseMovieSound(movieAudioIndex, false);
+		// The movie goes on where we paused it.
+		SDL_SetAtomicU32 (&movieStartTick, SDL_GetAtomicU32 (&movieStartTick) + (Uint32) engineTicksMS() - movie->pausedAt);
 		fprintf (stderr, "** Restarted movie ** sound: %d\n", movieSoundPlaying);
 		movieIsPlaying = playing;
 	}

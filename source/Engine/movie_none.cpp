@@ -13,6 +13,10 @@ int playMovie (int fileNumber) {
 	return 0;
 }
 
+bool showMovieFrame () {
+	return false;
+}
+
 int stopMovie () {
 	return 0;
 }

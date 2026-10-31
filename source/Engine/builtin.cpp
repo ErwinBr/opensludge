@@ -1077,19 +1077,19 @@ builtIn (playMovie)
 {
 	UNUSEDALL
 	int fileNumber, r;
-		
-	if (movieIsPlaying) return BR_PAUSE;
-	
+
 	if (! getValueType (fileNumber, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	
+
 	r = playMovie(fileNumber);
-	
+
 	setVariable (fun -> reg, SVT_INT, r);
-	
-	if (r && (! fun->next)) {
-		restartFunction (fun);
-		return BR_ALREADY_GONE;
+
+	// The main loop plays the movie, and this function waits until it has
+	// ended (see runSludge).
+	if (r) {
+		fun -> waitsForMovie = true;
+		return BR_KEEP_AND_PAUSE;
 	}
 	return BR_CONTINUE;
 }

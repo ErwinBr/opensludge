@@ -41,6 +41,7 @@ struct loadedFunction {
 	loadedFunction *			calledBy;
 	loadedFunction *			next;
 	bool						returnSomething, isSpeech, unfreezable, cancelMe;
+	bool						waitsForMovie;	// for the movie that it plays
 	unsigned char				freezerLevel;
 };
 

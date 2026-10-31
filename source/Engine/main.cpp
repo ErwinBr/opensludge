@@ -48,6 +48,7 @@
 #include "keys.h"
 #include "controllersettings.h"
 #include "capture.h"
+#include "movie.h"
 
 
 #if defined(_WIN32)
@@ -423,9 +424,11 @@ int main(int argc, char *argv[]) try
 			continue;
 		}
 		updateGamepadPointer();
-		walkAllPeople ();
+		// While a movie plays, the characters don't move, and we show the
+		// movie instead of the game, at the frame rate of the movie.
+		if (! movieIsPlaying) walkAllPeople ();
 		handleInput ();
-		sludgeDisplay ();
+		if (! movieIsPlaying || ! showMovieFrame ()) sludgeDisplay ();
 		// In a test run, we don't move the mouse pointer between frames.
 		Wait_Frame (captureIsDeterministic () ? NULL : movePointerBetweenFrames);
 		if (captureEndFrame ()) weAreDoneSoQuit = 1;

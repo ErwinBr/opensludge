@@ -36,6 +36,7 @@
 #include "floor.h"
 #include "zbuffer.h"
 #include "sound.h"
+#include "movie.h"
 #include "loadsave.h"
 #include "fileset.h"
 #include "transition.h"
@@ -1107,7 +1108,9 @@ bool runSludge () {
 		nextFunction = thisFunction -> next;
 
 		if (! thisFunction -> freezerLevel) {
-			if (thisFunction -> timeLeft) {
+			if (thisFunction -> waitsForMovie && movieIsPlaying) {
+				// It waits until the movie that it plays has ended.
+			} else if (thisFunction -> timeLeft) {
 				if (thisFunction -> timeLeft < 0) {
 					if (! stillPlayingSound (findInSoundCache (speech -> lastFile))) {
 						thisFunction -> timeLeft = 0;
@@ -1115,6 +1118,7 @@ bool runSludge () {
 				} else if (! -- (thisFunction -> timeLeft)) {
 				}
 			} else {
+				thisFunction -> waitsForMovie = false;
 				if (thisFunction -> isSpeech) {
 					thisFunction -> isSpeech = false;
 					killAllSpeech ();
@@ -1199,6 +1203,7 @@ int startNewFunctionNum (unsigned int funcNum, unsigned int numParamsExpected, l
 	newFunc -> freezerLevel = 0;
 	newFunc -> runThisLine = 0;
 	newFunc -> isSpeech = 0;
+	newFunc -> waitsForMovie = false;
 	initVarNew (newFunc -> reg);
 
 	restartFunction (newFunc);
