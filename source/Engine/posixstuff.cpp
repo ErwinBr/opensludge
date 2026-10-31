@@ -131,14 +131,25 @@ static void SDLCALL fileChosen (void * userdata, const char * const * files, int
 char * grabFileName () {
 	if (! SDL_InitSubSystem (SDL_INIT_VIDEO)) return NULL;
 
+	// When the player opens a game with the engine, for example by
+	// double-clicking it in the Finder, SDL sends us the file as a drop
+	// event while it starts the video subsystem.
+	char * result = NULL;
+	SDL_Event event;
+	while (! result && SDL_WaitEventTimeout (&event, 100)) {
+		if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) result = copyString (event.drop.data);
+	}
+	if (result) {
+		SDL_QuitSubSystem (SDL_INIT_VIDEO);
+		return result;
+	}
+
 	static const SDL_DialogFileFilter filters[] = {
 		{ "SLUDGE games", "slg;dat" },
 		{ "All files", "*" },
 	};
-	char * result = NULL;
 	SDL_ShowOpenFileDialog (fileChosen, &result, NULL, filters, 2, NULL, false);
 	while (! result) {
-		SDL_Event event;
 		SDL_WaitEventTimeout (&event, 100);
 	}
 	SDL_QuitSubSystem (SDL_INIT_VIDEO);

@@ -7,7 +7,8 @@
 # With a game data file, we start that game when the player opens the app.
 # We copy the data file and any extra files, such as the readme and licence
 # of the game, into the Resources folder of the app. Without a game data
-# file, we show a file chooser, in which the player picks a game.
+# file, the app opens SLUDGE games (.slg files) from the Finder, and shows a
+# file chooser when the player opens the app itself.
 
 set -euo pipefail
 
@@ -42,6 +43,22 @@ if [ $# -gt 0 ]; then
 	for extra in "$@"; do
 		cp -R "$extra" "$app/Contents/Resources/"
 	done
+else
+	# We declare the type of SLUDGE games, and that the app opens them.
+	plist() { /usr/libexec/PlistBuddy -c "$1" "$app/Contents/Info.plist" > /dev/null; }
+	plist "Add :UTExportedTypeDeclarations array"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeIdentifier string org.opensludge.game"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeDescription string SLUDGE Game"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeConformsTo array"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeConformsTo:0 string public.data"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension array"
+	plist "Add :UTExportedTypeDeclarations:0:UTTypeTagSpecification:public.filename-extension:0 string slg"
+	plist "Add :CFBundleDocumentTypes array"
+	plist "Add :CFBundleDocumentTypes:0:CFBundleTypeName string SLUDGE Game"
+	plist "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string Viewer"
+	plist "Add :CFBundleDocumentTypes:0:LSHandlerRank string Owner"
+	plist "Add :CFBundleDocumentTypes:0:LSItemContentTypes array"
+	plist "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string org.opensludge.game"
 fi
 
 echo "Created $app"
