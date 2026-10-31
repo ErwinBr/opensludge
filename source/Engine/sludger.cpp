@@ -504,7 +504,8 @@ bool initSludge (char * filename) {
 		if (! showSetupWindow()) return 0;
 		saveIniFile (filename);
 #elif defined(_WIN32)
-	if (! gameSettings.noStartWindow) {
+	// A deterministic run must not wait for the player in the dialog.
+	if (! gameSettings.noStartWindow && ! captureIsDeterministic ()) {
 		if (! showSetupWindow()) return 0;
 		saveIniFile (filename);
 	}
