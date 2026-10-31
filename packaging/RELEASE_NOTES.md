@@ -2,15 +2,11 @@ For macOS and Windows, there are two kinds of downloads. **OpenSLUDGE** contains
 
 | Download | Platform |
 |---|---|
-| `OutOfOrder-…-macOS-universal.zip` | Any Mac with Apple Silicon or Intel, from macOS 10.13 on |
-| `OutOfOrder-…-macOS-apple-silicon.zip` | Macs with Apple Silicon, from macOS 11 on |
-| `OutOfOrder-…-macOS-intel.zip` | Macs with Intel, from macOS 10.13 on |
+| `OutOfOrder-…-macOS.zip` | Any Mac with Apple Silicon or Intel, from macOS 10.13 on |
 | `OutOfOrder-…-windows-x64.zip` | 64-bit Windows |
 | `OutOfOrder-…-windows-x86.zip` | 32-bit and 64-bit Windows, from Windows XP on, with OpenGL 2.0 graphics |
 | `OpenSLUDGE-…-*.zip` | The same platforms, with the engine alone |
 | `sludge-….tar.gz` | The source code of the engine, the Dev Kit and the documentation, to build on Linux (see INSTALL) |
-
-If you are not sure which Mac download to take, take the universal one.
 
 Unzip the download and open the app. If macOS does not open it, Control-click the app and choose Open, or click "Open Anyway" in System Settings, under Privacy & Security. If Windows SmartScreen says that it protected your PC, click "More info" and then "Run anyway".
 

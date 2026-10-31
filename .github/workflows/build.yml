@@ -7,12 +7,19 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # The macOS version that the apps need. The Intel half of the engine runs
+  # from macOS 10.13 on, with OpenGL until 10.14, where SDL_GPU can draw
+  # with Metal; the Apple Silicon half from macOS 11.0, the first for those
+  # Macs.
+  MACOS_MINIMUM: '10.13'
+
 jobs:
   linux:
     name: Linux
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -25,7 +32,7 @@ jobs:
             libgl-dev libegl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev \
             libxkbcommon-dev wayland-protocols libpulse-dev libasound2-dev \
-            xvfb xauth libgl1-mesa-dri
+            xvfb xauth libgl1-mesa-dri mesa-vulkan-drivers libvulkan1
 
       - name: Get Out Of Order
         run: packaging/get-out-of-order.sh ooo
@@ -33,9 +40,11 @@ jobs:
       - name: Build
         run: |
           # With the engine, we build the headless compiler, and compile the
-          # example projects into build/games.
+          # example projects into build/games. We also test the SDL_GPU
+          # renderer, with Vulkan through Mesa's software driver, lavapipe.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
-            -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata
+            -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
+            -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
 
       - name: Test
@@ -46,14 +55,14 @@ jobs:
 
       - name: Capture tests
         # We play games deterministically twice and compare the frames (see
-        # source/Engine/capture.h), with Mesa's software OpenGL.
+        # source/Engine/capture.h), with Mesa's software OpenGL and Vulkan.
         run: |
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
             ctest --test-dir build --output-on-failure -L capture
 
       - name: Keep the frames of the failed capture tests
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: capture-linux
           path: build/capture/*/difference
@@ -79,11 +88,49 @@ jobs:
             exit 1
           fi
 
+  linux-gles2:
+    name: Linux (OpenGL ES 2.0)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config \
+            libvorbis-dev libogg-dev libpng-dev libdumb1-dev libvpx-dev \
+            libgles-dev libegl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev \
+            libxkbcommon-dev wayland-protocols libpulse-dev libasound2-dev \
+            xvfb xauth libgl1-mesa-dri libegl-mesa0
+
+      - name: Build
+        # The devices (SLUDGE_DEVICE) draw with OpenGL ES 2.0. We test that
+        # code here, with Mesa's software OpenGL ES.
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
+            -DSLUDGE_COMPILER=ON -DSLUDGE_GLES2=ON
+          cmake --build build
+
+      - name: Test
+        run: |
+          ctest --test-dir build --output-on-failure -LE capture
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
+            ctest --test-dir build --output-on-failure -L capture
+
+      - name: Keep the frames of the failed capture tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: capture-linux-gles2
+          path: build/capture/*/difference
+
   devkit:
     name: DevKit (GTK 3)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -105,7 +152,7 @@ jobs:
 
       - name: Keep the pictures of the failed view tests
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: devkit-view-test
           path: |
@@ -143,7 +190,7 @@ jobs:
     name: Source tarball
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -173,7 +220,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE=1 ctest --test-dir check/build --output-on-failure -LE capture
           cmake --install check/build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: source-tarball
           path: dist/*.tar.gz
@@ -186,7 +233,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: msys2/setup-msys2@v2
         with:
@@ -223,7 +270,7 @@ jobs:
           packaging/get-out-of-order.sh ooo
           packaging/windows/make-zips.sh build/sludge-engine.exe ooo "$(packaging/version.sh)" x64 dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-zips
           path: dist/*.zip
@@ -233,7 +280,7 @@ jobs:
     name: Windows (32-bit, from Windows XP)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the cross-compiler
         run: |
@@ -260,7 +307,7 @@ jobs:
           STRIP=i686-w64-mingw32-strip packaging/windows/make-zips.sh \
             build/sludge-engine.exe ooo "$(packaging/version.sh)" x86 dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-x86-zips
           path: dist/*.zip
@@ -278,7 +325,7 @@ jobs:
           - arch: x86_64
             min_macos: '10.13'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install build tools
         # We assemble the x86 SIMD code of libvpx with nasm.
@@ -308,7 +355,7 @@ jobs:
 
       - name: Keep the frames of the failed capture tests
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: capture-macos-${{ matrix.arch }}
           path: build/capture/*/difference
@@ -329,7 +376,7 @@ jobs:
           # On the Apple Silicon runner, we run the Intel build with Rosetta.
           arch -${{ matrix.arch }} build/sludge-engine --help
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sludge-engine-macos-${{ matrix.arch }}
           path: build/sludge-engine
@@ -346,21 +393,20 @@ jobs:
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: sludge-engine-macos-*
           path: engines
 
       - name: Make the universal executable
         run: |
-          mkdir -p bin/arm64 bin/x86_64 bin/universal
-          cp engines/sludge-engine-macos-arm64/sludge-engine bin/arm64/
-          cp engines/sludge-engine-macos-x86_64/sludge-engine bin/x86_64/
-          lipo -create -output bin/universal/sludge-engine bin/arm64/sludge-engine bin/x86_64/sludge-engine
-          chmod +x bin/*/sludge-engine
-          lipo -info bin/universal/sludge-engine
+          mkdir -p bin
+          lipo -create -output bin/sludge-engine \
+            engines/sludge-engine-macos-arm64/sludge-engine engines/sludge-engine-macos-x86_64/sludge-engine
+          chmod +x bin/sludge-engine
+          lipo -info bin/sludge-engine
 
       - name: Get Out Of Order
         run: |
@@ -390,36 +436,30 @@ jobs:
           echo "MACOS_SIGNING_IDENTITY=$identity" >> $GITHUB_ENV
 
       - name: Make the apps
+        # Both apps are universal: one download for Apple Silicon and Intel.
         run: |
           version=$(packaging/version.sh)
           echo "VERSION=$version" >> $GITHUB_ENV
           mkdir -p dist
-          for variant in universal arm64 x86_64; do
-            case $variant in
-              universal) label=macOS-universal; min=10.13 ;;
-              arm64) label=macOS-apple-silicon; min=11.0 ;;
-              x86_64) label=macOS-intel; min=10.13 ;;
-            esac
 
-            out=stage/$variant/OpenSLUDGE
-            mkdir -p "$out"
-            packaging/macos/make-app.sh bin/$variant/sludge-engine "$out/OpenSLUDGE.app" \
-              OpenSLUDGE org.opensludge.engine images/Sludge.icns $min
-            packaging/macos/sign-app.sh "$out/OpenSLUDGE.app"
-            cp packaging/macos/README-macOS.txt "$out/"
+          out=stage/OpenSLUDGE
+          mkdir -p "$out"
+          packaging/macos/make-app.sh bin/sludge-engine "$out/OpenSLUDGE.app" \
+            OpenSLUDGE org.opensludge.engine images/Sludge.icns $MACOS_MINIMUM
+          packaging/macos/sign-app.sh "$out/OpenSLUDGE.app"
+          cp packaging/macos/README-macOS.txt "$out/"
 
-            out=stage/$variant/"Out Of Order"
-            mkdir -p "$out"
-            packaging/macos/make-app.sh bin/$variant/sludge-engine "$out/Out Of Order.app" \
-              "Out Of Order" org.opensludge.outoforder outoforder.icns $min \
-              ooo/usr/share/out-of-order/gamedata ooodoc packaging/out-of-order/controller.ini
-            packaging/macos/sign-app.sh "$out/Out Of Order.app"
-            cp -R ooodoc "$out/Documentation"
-            cp packaging/macos/README-macOS.txt "$out/"
+          out=stage/"Out Of Order"
+          mkdir -p "$out"
+          packaging/macos/make-app.sh bin/sludge-engine "$out/Out Of Order.app" \
+            "Out Of Order" org.opensludge.outoforder outoforder.icns $MACOS_MINIMUM \
+            ooo/usr/share/out-of-order/gamedata ooodoc packaging/out-of-order/controller.ini
+          packaging/macos/sign-app.sh "$out/Out Of Order.app"
+          cp -R ooodoc "$out/Documentation"
+          cp packaging/macos/README-macOS.txt "$out/"
 
-            (cd stage/$variant && ditto -c -k --keepParent OpenSLUDGE ../../dist/OpenSLUDGE-$version-$label.zip)
-            (cd stage/$variant && ditto -c -k --keepParent "Out Of Order" ../../dist/OutOfOrder-$version-$label.zip)
-          done
+          (cd stage && ditto -c -k --keepParent OpenSLUDGE ../dist/OpenSLUDGE-$version-macOS.zip)
+          (cd stage && ditto -c -k --keepParent "Out Of Order" ../dist/OutOfOrder-$version-macOS.zip)
           ls -la dist
 
       - name: Notarise
@@ -432,26 +472,20 @@ jobs:
           done
           # Staple the notarisation tickets to the apps, and zip them again.
           rm dist/*.zip
-          for variant in universal arm64 x86_64; do
-            case $variant in
-              universal) label=macOS-universal ;;
-              arm64) label=macOS-apple-silicon ;;
-              x86_64) label=macOS-intel ;;
-            esac
-            xcrun stapler staple stage/$variant/OpenSLUDGE/OpenSLUDGE.app
-            xcrun stapler staple "stage/$variant/Out Of Order/Out Of Order.app"
-            (cd stage/$variant && ditto -c -k --keepParent OpenSLUDGE ../../dist/OpenSLUDGE-$VERSION-$label.zip)
-            (cd stage/$variant && ditto -c -k --keepParent "Out Of Order" ../../dist/OutOfOrder-$VERSION-$label.zip)
-          done
+          xcrun stapler staple stage/OpenSLUDGE/OpenSLUDGE.app
+          xcrun stapler staple "stage/Out Of Order/Out Of Order.app"
+          (cd stage && ditto -c -k --keepParent OpenSLUDGE ../dist/OpenSLUDGE-$VERSION-macOS.zip)
+          (cd stage && ditto -c -k --keepParent "Out Of Order" ../dist/OutOfOrder-$VERSION-macOS.zip)
 
       - name: Check the apps
         run: |
-          for app in stage/*/OpenSLUDGE/OpenSLUDGE.app "stage/universal/Out Of Order/Out Of Order.app"; do
+          for app in stage/OpenSLUDGE/OpenSLUDGE.app "stage/Out Of Order/Out Of Order.app"; do
             codesign --verify --strict --verbose=2 "$app"
             "$app/Contents/MacOS/sludge-engine" --help > /dev/null
+            vtool -show-build "$app/Contents/MacOS/sludge-engine" | grep -E "architecture|minos"
           done
-          lipo -info "stage/universal/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
-          spctl --assess --type execute --verbose "stage/universal/OpenSLUDGE/OpenSLUDGE.app" || \
+          lipo -info "stage/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
+          spctl --assess --type execute --verbose "stage/OpenSLUDGE/OpenSLUDGE.app" || \
             echo "(Gatekeeper only accepts notarised apps)"
 
       - name: Play the opening of Out Of Order
@@ -459,14 +493,15 @@ jobs:
           export HOME=$PWD/home
           mkdir -p "$HOME"
           # We start the engine in the app without a game file, as Finder
-          # does, to test that we find the game inside the app. We run the
-          # x86_64 app with Rosetta. We print the renderer after loading the
-          # game and opening the window, so we look for it in the log; on
-          # macOS, that is SDL_GPU with Metal. After 15 seconds, the engine
-          # must still be running, which means that there was no fatal error.
-          for variant in universal x86_64; do
-            engine="stage/$variant/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
-            "$engine" -w -d1 > engine-$variant.log 2>&1 &
+          # does, to test that we find the game inside the app. We run both
+          # halves of the universal app, the x86_64 one with Rosetta. We print
+          # the renderer after loading the game and opening the window, so we
+          # look for it in the log; on macOS, that is SDL_GPU with Metal.
+          # After 15 seconds, the engine must still be running, which means
+          # that there was no fatal error.
+          engine="stage/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
+          for variant in arm64 x86_64; do
+            arch -$variant "$engine" -w -d1 > engine-$variant.log 2>&1 &
             pid=$!
             sleep 15
             running=no
@@ -482,7 +517,7 @@ jobs:
             fi
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-apps
           path: dist/*.zip
@@ -491,29 +526,29 @@ jobs:
   release:
     name: Publish the release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [linux, devkit, source, windows, windows-x86, macos-package]
+    needs: [linux, linux-gles2, devkit, source, windows, windows-x86, macos-package]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: macos-apps
           path: dist
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: windows-zips
           path: dist
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: windows-x86-zips
           path: dist
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: source-tarball
           path: dist

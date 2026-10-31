@@ -25,8 +25,9 @@ set(SLUDGE_OUT_OF_ORDER "" CACHE PATH
 	"The gamedata file of Out Of Order, for its capture test (see packaging/get-out-of-order.sh)")
 set(SLUDGE_CAPTURE_REFERENCE_ENGINE "" CACHE FILEPATH
 	"An engine to compare the frames of the capture tests with")
-# The SDL_GPU renderer needs Metal, Vulkan or Direct3D 12, which the runners
-# of our CI have on macOS only.
+# The SDL_GPU renderer needs Metal, Vulkan or Direct3D 12. Every Mac has
+# Metal; elsewhere, turn the tests on where Vulkan works, as our Linux CI
+# does with Mesa's software Vulkan, lavapipe (mesa-vulkan-drivers).
 if(APPLE AND SLUDGE_RENDERER_GPU)
 	set(gpu_tests_default ON)
 else()
