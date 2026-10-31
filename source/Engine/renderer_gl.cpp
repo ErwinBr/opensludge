@@ -64,7 +64,7 @@ GLint glWrap (Wrap wrap) {
 
 class GLRenderer : public Renderer {
 public:
-	GLRenderer () : currentTarget (NULL), antialiasScale (1.0f), readFramebuffer (0) {}
+	GLRenderer () : currentTarget (NULL), antialiasScale (1.0f), readFramebuffer (0), blank (NULL) {}
 
 	bool init (const char ** error);
 
@@ -102,6 +102,10 @@ private:
 	RenderTarget * currentTarget;
 	float antialiasScale;
 	GLuint readFramebuffer;
+	// We bind this texture for the units that a draw doesn't use. With
+	// texture 0, which has no image, macOS warns about the samplers that
+	// the shaders declare for those units.
+	Texture * blank;
 };
 
 bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * fragmentFile) {
@@ -188,6 +192,9 @@ bool GLRenderer::init (const char ** error) {
 	glDisable (GL_CULL_FACE);
 	glBlendFuncSeparate (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
+
+	static const unsigned char white[4] = { 255, 255, 255, 255 };
+	blank = createTexture (1, 1, TEX_RGBA8, white);
 	return true;
 }
 
@@ -379,7 +386,7 @@ void GLRenderer::draw (const PipelineState & state, const DrawUniforms & uniform
 
 	for (int unit = 2; unit >= 0; unit --) {
 		glActiveTexture (GL_TEXTURE0 + unit);
-		glBindTexture (GL_TEXTURE_2D, textures[unit] ? textures[unit]->name : 0);
+		glBindTexture (GL_TEXTURE_2D, (textures[unit] ? textures[unit] : blank)->name);
 	}
 
 	glEnableVertexAttribArray (info.vertex);
