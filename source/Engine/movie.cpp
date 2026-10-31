@@ -32,7 +32,6 @@
 #define OV_EXCLUDE_STATIC_CALLBACKS
 #include "vorbis/vorbisfile.h"
 #include "ogg/ogg.h"
-#include "libvorbis/vorbis_os.h"
 
 
 
@@ -746,66 +745,22 @@ int playMovie (int fileNumber)
 						int numSamples = vorbis_synthesis_pcmout(&vorbisDspState, &pcm);
 
 						if (numSamples > 0) {
-							int word = 2;
-							int sgned = 1;
-							int i, j;
-							long bytespersample=audioChannels*word;
-							vorbis_fpu_control fpu;
+							long bytespersample=audioChannels*2;
 
 							char * buffer = new char[bytespersample*numSamples];
 							if (! checkNew (buffer)) return false;
 
-							/* a tight loop to pack each size */
-							{
-								int val;
-								if(word==1){
-									int off=(sgned?0:128);
-									vorbis_fpu_setround(&fpu);
-									for(j=0;j<numSamples;j++)
-										for(i=0;i<audioChannels;i++){
-											val=vorbis_ftoi(pcm[i][j]*128.f);
-											if(val>127)val=127;
-											else if(val<-128)val=-128;
-											*buffer++=val+off;
-										}
-									vorbis_fpu_restore(fpu);
-								}else{
-									int off=(sgned?0:32768);
-
-									if(sgned){
-
-										vorbis_fpu_setround(&fpu);
-										for(i=0;i<audioChannels;i++) { /* It's faster in this order */
-											float *src=pcm[i];
-											short *dest=((short *)buffer)+i;
-											for(j=0;j<numSamples;j++) {
-												val=vorbis_ftoi(src[j]*32768.f);
-												if(val>32767)val=32767;
-												else if(val<-32768)val=-32768;
-												*dest=val;
-												dest+=audioChannels;
-											}
-										}
-										vorbis_fpu_restore(fpu);
-
-									}else{
-
-										vorbis_fpu_setround(&fpu);
-										for(i=0;i<audioChannels;i++) {
-											float *src=pcm[i];
-											short *dest=((short *)buffer)+i;
-											for(j=0;j<numSamples;j++) {
-												val=vorbis_ftoi(src[j]*32768.f);
-												if(val>32767)val=32767;
-												else if(val<-32768)val=-32768;
-												*dest=val+off;
-												dest+=audioChannels;
-											}
-										}
-										vorbis_fpu_restore(fpu);
-
-									}
-
+							// We interleave the channels as signed 16-bit
+							// samples, rounded to the nearest value.
+							for (int i = 0; i < audioChannels; i ++) {
+								const float * src = pcm[i];
+								short * dest = ((short *) buffer) + i;
+								for (int j = 0; j < numSamples; j ++) {
+									long val = lrintf (src[j] * 32768.f);
+									if (val > 32767) val = 32767;
+									else if (val < -32768) val = -32768;
+									*dest = (short) val;
+									dest += audioChannels;
 								}
 							}
 
