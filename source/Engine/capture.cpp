@@ -521,6 +521,16 @@ void engineDelayMS (Uint32 ms) {
 	}
 }
 
+void engineDelayNS (Uint64 ns, bool precise) {
+	if (deterministic) {
+		virtualNS += ns;
+	} else if (precise) {
+		SDL_DelayPrecise (ns);
+	} else {
+		SDL_DelayNS (ns);
+	}
+}
+
 bool captureChangeToUserDir () {
 	if (userFolder.empty ()) return false;
 	if (chdir (userFolder.c_str ())) {

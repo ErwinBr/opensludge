@@ -3,7 +3,7 @@
 
 
 void Init_Timer(void);
-void Init_Special_Timer(int t);
+void Init_Special_Timer(double framesPerSecond);
 void Get_Start_Time(void);
 void Get_End_Time(void);
 // Wait until it is time for the next frame. While waiting, call whileWaiting

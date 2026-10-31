@@ -1,3 +1,4 @@
+#include <vector>
 #include <png.h>
 
 #include "allfiles.h"
@@ -309,11 +310,11 @@ bool initSludge (char * filename) {
         Uint8 *p = (Uint8 *) gameIcon;
 
         if (fileIsPNG) {
-            unsigned char * row_pointers[iconH];
+            std::vector<unsigned char *> row_pointers (iconH);
             for (int i = 0; i<iconH; i++)
                 row_pointers[i] = p + 4*i*iconW;
 
-            png_read_image(png_ptr, (png_byte **) row_pointers);
+            png_read_image(png_ptr, (png_byte **) row_pointers.data ());
             png_read_end(png_ptr, NULL);
             png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
         } else {
@@ -424,11 +425,11 @@ bool initSludge (char * filename) {
         Uint8 *p = (Uint8 *) gameLogo;
 
         if (fileIsPNG) {
-            unsigned char * row_pointers[logoH];
+            std::vector<unsigned char *> row_pointers (logoH);
             for (int i = 0; i<logoH; i++)
                 row_pointers[i] = p + 4*i*logoW;
 
-            png_read_image(png_ptr, (png_byte **) row_pointers);
+            png_read_image(png_ptr, (png_byte **) row_pointers.data ());
             png_read_end(png_ptr, NULL);
             png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
         } else {

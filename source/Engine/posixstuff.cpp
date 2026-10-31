@@ -226,6 +226,28 @@ void changeToUserDir () {
 #endif
 }
 
+// Make a file URL of an absolute path. We percent-encode every byte except
+// letters, digits, - . _ ~ and /, so that paths with spaces, such as the
+// path of "Out Of Order.app", and with UTF-8 make valid URLs.
+static char * fileURL (const char * path) {
+	static const char hex[] = "0123456789ABCDEF";
+	char * url = new char[7 + 3 * strlen (path) + 1];
+	memcpy (url, "file://", 7);
+	char * out = url + 7;
+	for (const unsigned char * in = (const unsigned char *) path; *in; in ++) {
+		unsigned char c = *in;
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strchr ("-._~/", c)) {
+			*out ++ = c;
+		} else {
+			*out ++ = '%';
+			*out ++ = hex[c >> 4];
+			*out ++ = hex[c & 15];
+		}
+	}
+	*out = 0;
+	return url;
+}
+
 // Open a web page, or open a file with the program the user has chosen for
 // files of its type.
 bool launch(char * filename) {
@@ -238,7 +260,7 @@ bool launch(char * filename) {
 	} else {
 		char * path = realpath (filename, NULL);
 		if (! path) return false;
-		url = joinStrings ("file://", path);
+		url = fileURL (path);
 		free (path);
 	}
 

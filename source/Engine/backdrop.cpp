@@ -1,3 +1,4 @@
+#include <vector>
 #include <png.h>
 
 #include <stdlib.h>
@@ -639,11 +640,11 @@ bool loadLightMap (int v) {
 	GLubyte * target;
 
 	if (fileIsPNG) {
-		unsigned char * row_pointers[lightMap.h];
+		std::vector<unsigned char *> row_pointers (lightMap.h);
 		for (int i = 0; i<lightMap.h; i++)
 			row_pointers[i] = lightMap.data + 4*i*newPicWidth;
 
-		png_read_image(png_ptr, (png_byte **) row_pointers);
+		png_read_image(png_ptr, (png_byte **) row_pointers.data ());
 		png_read_end(png_ptr, NULL);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	} else {
@@ -819,11 +820,11 @@ bool loadParallax (unsigned short v, unsigned short fracX, unsigned short fracY)
 	if (! checkNew (nP -> texture)) return false;
 
 	if (fileIsPNG) {
-		unsigned char * row_pointers[nP -> height];
+		std::vector<unsigned char *> row_pointers (nP -> height);
 		for (int i = 0; i < nP -> height; i++)
 			row_pointers[i] = nP -> texture + 4*i*picWidth;
 
-		png_read_image(png_ptr, (png_byte **) row_pointers);
+		png_read_image(png_ptr, (png_byte **) row_pointers.data ());
 		png_read_end(png_ptr, NULL);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	} else {
@@ -967,11 +968,11 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 	if (x < 0 || x + realPicWidth > sceneWidth || y < 0 || y + realPicHeight > sceneHeight) return false;
 
 	if (fileIsPNG) {
-		unsigned char * row_pointers[realPicHeight];
+		std::vector<unsigned char *> row_pointers (realPicHeight);
 		for (int i = 0; i<realPicHeight; i++)
 			row_pointers[i] = backdropTexture + 4*i*picWidth;
 
-		png_read_image(png_ptr, (png_byte **) row_pointers);
+		png_read_image(png_ptr, (png_byte **) row_pointers.data ());
 		png_read_end(png_ptr, NULL);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	} else {
@@ -1213,11 +1214,11 @@ bool mixHSI (FILE * fp, int x, int y) {
 
 
 	if (fileIsPNG) {
-		unsigned char * row_pointers[realPicHeight];
+		std::vector<unsigned char *> row_pointers (realPicHeight);
 		for (int i = 0; i<realPicHeight; i++)
 			row_pointers[i] = backdropTexture + 4*i*picWidth;
 
-		png_read_image(png_ptr, (png_byte **) row_pointers);
+		png_read_image(png_ptr, (png_byte **) row_pointers.data ());
 		png_read_end(png_ptr, NULL);
 		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	} else {
@@ -1325,13 +1326,13 @@ void saveCorePNG  (FILE * writer, gfx::Texture * texture, int w, int h) {
 	png_set_IHDR(png_ptr, info_ptr, w, h,
 				 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
-	unsigned char * row_pointers[h];
+	std::vector<unsigned char *> row_pointers (h);
 
 	for (int i = 0; i < h; i++) {
 		row_pointers[i] = image + 4*i*tw;
 	}
 
-	png_set_rows(png_ptr, info_ptr, row_pointers);
+	png_set_rows(png_ptr, info_ptr, row_pointers.data ());
     png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
 
 	delete [] image;

@@ -200,9 +200,9 @@ if(SLUDGE_MOVIES)
 				set(vpx_arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
 			endif()
 			if(vpx_arch STREQUAL "arm64")
-				list(APPEND vpx_options --target=arm64-darwin20-gcc)
+				list(APPEND vpx_options --target=arm64-darwin22-gcc)
 			else()
-				list(APPEND vpx_options --target=x86_64-darwin20-gcc)
+				list(APPEND vpx_options --target=x86_64-darwin22-gcc)
 			endif()
 			set(vpx_flags "-arch ${vpx_arch}")
 			if(CMAKE_OSX_DEPLOYMENT_TARGET)
@@ -233,6 +233,16 @@ if(SLUDGE_MOVIES)
 		find_program(NASM_EXECUTABLE nasm)
 		if(NASM_EXECUTABLE)
 			list(APPEND vpx_options --as=nasm)
+			# On macOS, the linker warns about objects without the macOS
+			# version that they are for, which nasm adds with a pragma. The
+			# Makefiles of libvpx split ASFLAGS at spaces, so we put the
+			# pragma in a file that nasm includes first.
+			if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
+				string(REPLACE "." "," vpx_min_os ${CMAKE_OSX_DEPLOYMENT_TARGET})
+				set(vpx_preinclude ${CMAKE_CURRENT_BINARY_DIR}/libvpx-macos-version.asm)
+				file(WRITE ${vpx_preinclude} "%pragma macho build_version macos,${vpx_min_os}\n")
+				list(APPEND vpx_env "ASFLAGS=-P${vpx_preinclude}")
+			endif()
 		endif()
 
 		# The configure script is a shell script. On Windows, we run it with

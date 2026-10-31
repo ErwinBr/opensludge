@@ -1,3 +1,4 @@
+#include <vector>
 #include <png.h>
 
 #include <string.h>
@@ -183,14 +184,14 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 
 				int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
 
-				unsigned char * row_pointers[height];
+				std::vector<unsigned char *> row_pointers (height);
 				spriteData[i] = new unsigned char [rowbytes*height];
 				if (! checkNew (spriteData[i])) return false;
 
 				for (unsigned int row = 0; row<height; row++)
 					row_pointers[row] = spriteData[i] + row*rowbytes;
 
-				png_read_image(png_ptr, (png_byte **) row_pointers);
+				png_read_image(png_ptr, (png_byte **) row_pointers.data ());
 				png_read_end(png_ptr, NULL);
 				png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 
@@ -287,8 +288,8 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 	loadhere.myPalette.originalRed = loadhere.myPalette.originalGreen = loadhere.myPalette.originalBlue = 255;
 
 	loadhere.myPalette.numTextures = numTextures;
-	GLubyte * tmp[numTextures];
-	GLubyte * tmp2[numTextures];
+	std::vector<GLubyte *> tmp (numTextures);
+	std::vector<GLubyte *> tmp2 (numTextures);
 	for (tex_num = 0; tex_num < numTextures; tex_num++) {
 		if (! NPOT_textures) {
 			totalwidth[tex_num] = getNextPOT(totalwidth[tex_num]);

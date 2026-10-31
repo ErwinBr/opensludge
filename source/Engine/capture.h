@@ -54,10 +54,14 @@ bool captureForcePOTTextures ();
 const char * requestedRenderer ();
 
 // The engine clock. In a deterministic run it only advances in
-// engineDelayMS, so it does not depend on how fast the computer is.
+// engineDelayMS and engineDelayNS, so it does not depend on how fast the
+// computer is.
 Uint64 engineTicksNS ();
 Uint64 engineTicksMS ();
 void engineDelayMS (Uint32 ms);
+// Wait, precisely with SDL_DelayPrecise, which spins for the last
+// millisecond, or else with SDL_DelayNS.
+void engineDelayNS (Uint64 ns, bool precise);
 
 // If the run has its own folder for settings and saved games, change to it
 // and return true.

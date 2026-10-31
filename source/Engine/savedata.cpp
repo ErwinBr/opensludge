@@ -132,7 +132,7 @@ bool fileToStack (char * filename, stackHandler * sH) {
 
 	if (saveEncoding) {
 		char * checker = readStringEncoded (fp);
-		if (strcmp (checker, "UN£LOÂCKED")) {
+		if (strcmp (checker, "UN\xA3" "LO\xE5" "CKED")) {
 			fclose (fp);
 			return fatal (LOAD_ERROR "The current file encoding setting does not match the encoding setting used when this file was created:", filename);
 		}
@@ -199,7 +199,7 @@ bool stackToFile (char * filename, const variable & from) {
 
 	if (saveEncoding) {
 		fprintf (fp, "[Custom data (encoded)]\r\n");
-		writeStringEncoded ("UN£LOÂCKED", fp);
+		writeStringEncoded ("UN\xA3" "LO\xE5" "CKED", fp);
 	} else {
 		fprintf (fp, "[Custom data (ASCII)]\n");
 	}
