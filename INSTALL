@@ -176,7 +176,9 @@ and Windows without GTK. To build only the compiler, run
 and compile a project with `build/source/DevKit/sludge-compiler
 <project.slp>'. It writes the game file next to the project file, and
 `sludge-compiler --help' lists its options. On Windows, it builds with
-MinGW, as the engine does.
+MinGW, as the engine does. The 32-bit Windows build in the workflow,
+which we cross-compile on Linux, builds only the engine
+(-DSLUDGE_COMPILER=OFF).
 
    With the function sludge_compile_game in cmake/SludgeCompileGame.cmake,
 we compile projects when we build: the example projects in
