@@ -4,11 +4,15 @@
  * preferences. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
- * Usage: core_test <folder for files> <folder of the example projects>
+ * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 
 #include <chrono>
 #include <thread>
@@ -20,6 +24,7 @@
 #include "CommandStack.h"
 #include "CompileJob.h"
 #include "Launch.h"
+#include "ProjectCheck.h"
 #include "ProjectDocument.h"
 #include "Document.h"
 #include "DocumentManager.h"
@@ -37,12 +42,28 @@ static int failures = 0;
 	} \
 } while (0)
 
-static std::string folder, examples;
+static std::string folder, examples, fixtures;
 
 static void writeFile (const std::string & path, const std::string & text) {
 	FILE * fp = fopen (path.c_str (), "wb");
 	fwrite (text.data (), 1, text.size (), fp);
 	fclose (fp);
+}
+
+static void mkdirs (const std::string & path) {
+	std::string at;
+	for (size_t i = 0; i <= path.size (); i ++) {
+		if (i == path.size () || path[i] == '/') {
+			if (! at.empty ()) {
+#if defined(_WIN32)
+				_mkdir (at.c_str ());
+#else
+				mkdir (at.c_str (), 0777);
+#endif
+			}
+		}
+		if (i < path.size ()) at += path[i];
+	}
 }
 
 static std::string readFile (const std::string & path) {
@@ -469,13 +490,65 @@ static void testCompileJob () {
 	CHECK (good.succeeded && good.gameFile == "/p/Game.slg" && good.messages.empty ());
 }
 
+static void testCodePages () {
+	// "Café" and "Łódź" in their code pages.
+	CHECK (toUTF8 ("Caf\xE9", CODEPAGE_WINDOWS_1252) == "Caf\xC3\xA9");
+	CHECK (toUTF8 ("\xA3\xF3" "d\x9F", CODEPAGE_WINDOWS_1250) == "\xC5\x81\xC3\xB3" "d\xC5\xBA");
+	CHECK (toUTF8 ("\x80", CODEPAGE_WINDOWS_1252) == "\xE2\x82\xAC");
+	// UTF-8 stays as it is.
+	CHECK (toUTF8 ("Caf\xC3\xA9", CODEPAGE_WINDOWS_1252) == "Caf\xC3\xA9");
+	CHECK (invalidUTF8Offset ("abc") == -1);
+	CHECK (invalidUTF8Offset ("ab\xC3\xA9\xE9") == 4);
+	CHECK (invalidUTF8Offset ("\xC3") == 0);
+	CHECK (invalidUTF8Offset ("\xC0\x80") == 0);
+}
+
+// The project of the old Windows versions of SLUDGE: what we find, and
+// that we can fix it.
+static void testProjectCheck () {
+	std::string copy = folder + "OldProject/";
+	mkdirs (copy + "Pics");
+	writeFile (copy + "Old.SLP", readFile (fixtures + "OldProject/Old.SLP"));
+	writeFile (copy + "init.slu", readFile (fixtures + "OldProject/init.slu"));
+	writeFile (copy + "Pics/IMAGE.TGA", readFile (fixtures + "OldProject/Pics/IMAGE.TGA"));
+
+	bool found, caseDiffers;
+	CHECK (nameOnDisk (copy, "pics\\image.tga", &found, &caseDiffers) == "Pics/IMAGE.TGA" && found && caseDiffers);
+	CHECK (nameOnDisk (copy, "Pics/IMAGE.TGA", &found, &caseDiffers) == "Pics/IMAGE.TGA" && found && ! caseDiffers);
+	nameOnDisk (copy, "Pics/missing.tga", &found, &caseDiffers);
+	CHECK (! found);
+
+	ProjectDocument project;
+	std::string error;
+	CHECK (project.load (copy + "Old.SLP", &error));
+	std::vector<FileProblem> problems = checkProject (project);
+	CHECK (problems.size () == 3);
+	if (problems.size () == 3) {
+		CHECK (problems[0].kind == FileProblem::WRONG_CASE && problems[0].inProject && problems[0].name == "INIT.SLU" && problems[0].onDisk == "init.slu");
+		CHECK (problems[1].kind == FileProblem::NOT_UTF8 && problems[1].file == "init.slu" && problems[1].line == 3);
+		CHECK (problems[2].kind == FileProblem::WRONG_CASE && problems[2].file == "init.slu" && problems[2].line == 2
+			&& problems[2].name == "pics\\image.tga" && problems[2].onDisk == "Pics/IMAGE.TGA");
+	}
+
+	// The fixes: the case in the project and in the script, and the text.
+	project.renameFile (0, "init.slu");
+	CHECK (convertFileToUTF8 (copy + "init.slu", CODEPAGE_WINDOWS_1252, &error));
+	CHECK (readFile (copy + "init.slu.orig") == readFile (fixtures + "OldProject/init.slu"));
+	CHECK (fixNamesInScript (copy + "init.slu", problems, &error));
+	std::string fixed = readFile (copy + "init.slu");
+	CHECK (fixed.find ("'Pics\\IMAGE.TGA'") != std::string::npos);
+	CHECK (fixed.find ("\"Caf\xC3\xA9\"") != std::string::npos);
+	CHECK (checkProject (project).empty ());
+}
+
 int main (int argc, char ** argv) {
-	if (argc != 3) {
-		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects>\n");
+	if (argc != 4) {
+		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
 		return 2;
 	}
 	folder = std::string (argv[1]) + "/";
 	examples = std::string (argv[2]) + "/";
+	fixtures = std::string (argv[3]) + "/";
 
 	testCommandStack ();
 	testPaths ();
@@ -484,6 +557,8 @@ int main (int argc, char ** argv) {
 	testProjects ();
 	testLaunch ();
 	testCompileJob ();
+	testCodePages ();
+	testProjectCheck ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);

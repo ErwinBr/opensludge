@@ -9,3 +9,8 @@ Mac[[:space:]]Dev[[:space:]]Kit export-ignore
 sludge.nsi export-ignore
 packaging/macos export-ignore
 packaging/windows export-ignore
+
+# The project from the old Windows versions of SLUDGE, with its line endings
+# and its Windows-1252 text, as it is.
+tests/devkit/fixtures/OldProject/** -text
+tests/devkit/fixtures/init-utf8.slu -text

@@ -1,0 +1,6 @@
+sub init () {
+	addOverlay ('pics\image.tga', 0, 0);
+	var s = "Café";
+	pause (1);
+	quitGame ();
+}

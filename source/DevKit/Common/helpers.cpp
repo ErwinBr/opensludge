@@ -3,9 +3,13 @@
  *  Helper functions that don't depend on other source files.
  */
 
+#include <ctype.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <string>
 
 #include "helpers.h"
 
@@ -95,3 +99,61 @@ void fixPath (char *filename, bool makeGood) {
 	}
 }
 
+static bool sameIgnoringCase (const char * a, const char * b) {
+	for (; *a && *b; a ++, b ++) {
+		if (tolower ((unsigned char) *a) != tolower ((unsigned char) *b)) return false;
+	}
+	return *a == *b;
+}
+
+char * fileNameOnDisk (const char * name, bool * found, bool * caseDiffers) {
+	*found = true;
+	*caseDiffers = false;
+	std::string result, folder;
+	if (name[0] == '/' || name[0] == '\\') {
+		result = "/";
+		folder = "/";
+	}
+	const char * part = name;
+	while (*part) {
+		const char * end = part;
+		while (*end && *end != '/' && *end != '\\') end ++;
+		std::string wanted (part, end - part);
+		std::string onDisk = wanted;
+		if (! wanted.empty () && wanted != "." && wanted != ".." && *found) {
+			// The part as it is in the folder: the same, or else the same
+			// but for case.
+			DIR * dir = opendir (folder.empty () ? "." : folder.c_str ());
+			bool exact = false, other = false;
+			std::string otherName;
+			if (dir) {
+				while (struct dirent * entry = readdir (dir)) {
+					if (wanted == entry->d_name) {
+						exact = true;
+						break;
+					}
+					if (! other && sameIgnoringCase (wanted.c_str (), entry->d_name)) {
+						other = true;
+						otherName = entry->d_name;
+					}
+				}
+				closedir (dir);
+			}
+			if (! exact && other) {
+				onDisk = otherName;
+				*caseDiffers = true;
+			} else if (! exact) {
+				*found = false;
+			}
+		}
+		if (! wanted.empty ()) {
+			if (! result.empty () && result[result.size () - 1] != '/') result += "/";
+			result += onDisk;
+			folder = result + "/";
+		}
+		part = *end ? end + 1 : end;
+	}
+	char * reply = new char [result.size () + 1];
+	strcpy (reply, result.c_str ());
+	return reply;
+}

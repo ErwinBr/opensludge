@@ -72,6 +72,19 @@ void BuildPanel::draw (CompileJob * job, ProjectDocument * project) {
 	ImGui::TextDisabled ("%d functions, %d object types, %d globals, %d strings, %d resources",
 		job->functions, job->objectTypes, job->globals, job->strings, job->resources);
 
+	// Text that isn't UTF-8 and names in another case, the Dev Kit fixes.
+	bool fixable = false;
+	for (size_t i = 0; i < job->messages.size (); i ++) {
+		const std::string & text = job->messages[i].text;
+		if (text.find ("not UTF-8") != std::string::npos || text.find ("another case") != std::string::npos) fixable = true;
+	}
+	if (fixable && ! job->running ()) {
+		if (ImGui::Button ("Check Files...")) actions.checkFiles ();
+		ImGui::SameLine ();
+		ImGui::TextWrapped ("Some files are not UTF-8, or name files in another case than they have on disk. "
+			"The Dev Kit can fix that.");
+	}
+
 	ImGui::Checkbox ("Errors", &showErrors);
 	ImGui::SameLine ();
 	ImGui::Checkbox ("Warnings", &showWarnings);

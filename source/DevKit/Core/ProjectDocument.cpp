@@ -249,6 +249,13 @@ void ProjectDocument::moveFile (int from, int to) {
 	setFiles (files, "Move File");
 }
 
+void ProjectDocument::renameFile (int index, const std::string & name) {
+	if (index < 0 || index >= (int) fileList.size () || fileList[index] == name) return;
+	std::vector<std::string> files = fileList;
+	files[index] = name;
+	setFiles (files, "Rename File");
+}
+
 // As populateResourceList in project.cpp: the text between single quotes,
 // outside comments (from #) and strings (in double quotes).
 std::vector<std::string> ProjectDocument::resourcesOf (const std::string & file) const {

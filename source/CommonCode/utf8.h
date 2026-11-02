@@ -73,3 +73,5 @@ int u8_printf(char *fmt, ...);
 
 
 int u8_isvalid(const char *input);
+/* the offset of the first byte that isn't valid UTF-8, or -1 */
+int u8_invalidoffset(const char *input);

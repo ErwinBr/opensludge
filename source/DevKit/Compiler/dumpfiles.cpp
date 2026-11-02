@@ -113,6 +113,12 @@ bool dumpFiles (FILE * mainFile, stringArray * & theSA) {
 			// Save the distance from here to the data in the index...
 			remainingIndexSize[i] = currentRemainingIndex;
 		} else {
+			// The file as it is on disk: with / between folders, and in the
+			// case that it has there. The preprocessor warned about the case.
+			bool found, caseDiffers;
+			char * onDisk = fileNameOnDisk (theSA -> string, &found, &caseDiffers);
+			delete [] theSA -> string;
+			theSA -> string = onDisk;
 			switch (getFileType (theSA->string)) {
 				case FILETYPE_TGA:
 				convertTGA (theSA -> string);

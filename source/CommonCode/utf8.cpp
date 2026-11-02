@@ -480,12 +480,12 @@ int u8_printf(char *fmt, ...)
 }
 
 
-// This function checks a string to see if it's valid UTF-8
-// It returns true if the string is valid.
+// This function checks a string to see if it's valid UTF-8. It returns the
+// offset of the first byte that isn't, or -1 if the whole string is.
 //
 // based on the valid_utf8 routine from the PCRE library by Philip Hazel
 
-int u8_isvalid(const char *str)
+int u8_invalidoffset(const char *str)
 {
     const unsigned char *p;
     unsigned char c;
@@ -493,53 +493,59 @@ int u8_isvalid(const char *str)
 	
     for (p = (unsigned char*)str; *p; p++) {
         c = *p;
+        const unsigned char *start = p;
         if (c < 128)
             continue;
         if ((c & 0xc0) != 0xc0)
-            return 0;
+            return (int) (start - (const unsigned char *) str);
         ab = trailingBytesForUTF8[c];
 		
         p++;
         /* Check top bits in the second byte */
         if ((*p & 0xc0) != 0x80)
-            return 0;
+            return (int) (start - (const unsigned char *) str);
 		
         /* Check for overlong sequences for each different length */
         switch (ab) {
 				/* Check for xx00 000x */
 			case 1:
-				if ((c & 0x3e) == 0) return 0;
+				if ((c & 0x3e) == 0) return (int) (start - (const unsigned char *) str);
 				continue;   /* We know there aren't any more bytes to check */
 				
 				/* Check for 1110 0000, xx0x xxxx */
 			case 2:
-				if (c == 0xe0 && (*p & 0x20) == 0) return 0;
+				if (c == 0xe0 && (*p & 0x20) == 0) return (int) (start - (const unsigned char *) str);
 				break;
 				
 				/* Check for 1111 0000, xx00 xxxx */
 			case 3:
-				if (c == 0xf0 && (*p & 0x30) == 0) return 0;
+				if (c == 0xf0 && (*p & 0x30) == 0) return (int) (start - (const unsigned char *) str);
 				break;
 				
 				/* Check for 1111 1000, xx00 0xxx */
 			case 4:
-				if (c == 0xf8 && (*p & 0x38) == 0) return 0;
+				if (c == 0xf8 && (*p & 0x38) == 0) return (int) (start - (const unsigned char *) str);
 				break;
 				
 				/* Check for leading 0xfe or 0xff,
 				 and then for 1111 1100, xx00 00xx */
 			case 5:
 				if (c == 0xfe || c == 0xff ||
-					(c == 0xfc && (*p & 0x3c) == 0)) return 0;
+					(c == 0xfc && (*p & 0x3c) == 0)) return (int) (start - (const unsigned char *) str);
 				break;
         }
 		
         /* Check for valid bytes after the 2nd, if any; all must start 10 */
         while (--ab > 0) {
-            if ((*(++p) & 0xc0) != 0x80) return 0;
+            if ((*(++p) & 0xc0) != 0x80) return (int) (start - (const unsigned char *) str);
         }
     }
 	
-    return 1;
+    return -1;
+}
+
+int u8_isvalid(const char *str)
+{
+    return u8_invalidoffset(str) < 0;
 }
 

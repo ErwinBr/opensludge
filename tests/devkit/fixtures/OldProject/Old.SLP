@@ -1,0 +1,16 @@
+[SETTINGS]
+windowname=Old project
+finalfile=Old
+language=English
+datafolder=
+quitmessage=Quit?
+customicon=
+customlogo=
+mouse=2
+fullscreen=N
+width=370
+height=170
+speed=40
+
+[FILES]
+INIT.SLU

@@ -25,6 +25,8 @@ public:
 	virtual void runGame () = 0;
 	// Bring the Inspector to the front.
 	virtual void revealInspector () = 0;
+	// Check the files of the project, in the Check Files window.
+	virtual void checkFiles () = 0;
 };
 
 } // namespace devkit

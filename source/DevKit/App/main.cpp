@@ -4,12 +4,13 @@
  *
  * Usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>]
  *                      [--smoke=<picture.png>] [--smoke-compile=<project>]
+ *                      [--smoke-check=<project>]
  *                      [file ...]
  *
  * With --smoke, we draw a few frames in a window of a fixed size, save the
  * last one as a PNG, and quit, for the tests. With --smoke-compile, we
  * open a project and compile it first, and the exit code says whether it
- * compiled. With SLUDGE_DEVKIT_DEBUG set
+ * compiled. With --smoke-check, we open a project and check its files. With SLUDGE_DEVKIT_DEBUG set
  * in the environment, we write the log to stderr, with the details of the
  * renderer.
  */
@@ -54,7 +55,7 @@ static bool startsWith (const char * s, const char * prefix) {
 
 static void usage () {
 	fprintf (stderr, "usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>] [--smoke=<picture.png>]\n"
-		"                     [--smoke-compile=<project>] [file ...]\n");
+		"                     [--smoke-compile=<project>] [--smoke-check=<project>] [file ...]\n");
 }
 
 // Save the frame in the window, which we read bottom row first.
@@ -91,6 +92,7 @@ int main (int argc, char ** argv) {
 	const char * rendererChoice = SDL_getenv ("SLUDGE_RENDERER");
 	const char * smokeFile = NULL;
 	const char * smokeProject = NULL;
+	const char * smokeCheck = NULL;
 	std::vector<std::string> files;
 	for (int i = 1; i < argc; i ++) {
 		const char * arg = argv[i];
@@ -102,6 +104,8 @@ int main (int argc, char ** argv) {
 			smokeFile = arg + strlen ("--smoke=");
 		} else if (startsWith (arg, "--smoke-compile=")) {
 			smokeProject = arg + strlen ("--smoke-compile=");
+		} else if (startsWith (arg, "--smoke-check=")) {
+			smokeCheck = arg + strlen ("--smoke-check=");
 		} else if (! strcmp (arg, "-h") || ! strcmp (arg, "--help")) {
 			usage ();
 			return 0;
@@ -201,6 +205,10 @@ int main (int argc, char ** argv) {
 	if (smokeProject) {
 		workspace.openFiles (std::vector<std::string> (1, smokeProject));
 		workspace.compile ();
+	}
+	if (smokeCheck) {
+		workspace.openFiles (std::vector<std::string> (1, smokeCheck));
+		workspace.checkFiles ();
 	}
 	std::string title = workspace.title ();
 	SDL_SetWindowTitle (window, title.c_str ());

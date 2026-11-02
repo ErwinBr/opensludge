@@ -16,6 +16,7 @@
 #include "BuildPanel.h"
 #include "CompileJob.h"
 #include "DocumentManager.h"
+#include "FileCheckWindow.h"
 #include "Preferences.h"
 #include "ProjectDocument.h"
 #include "RecentFiles.h"
@@ -61,6 +62,7 @@ public:
 	bool compiling () const { return job && job->running (); }
 	void runGame ();
 	void revealInspector () { focusInspector = true; }
+	void checkFiles () { fileCheck.open (project ()); }
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -98,6 +100,7 @@ private:
 	std::map<Document *, std::unique_ptr<DocumentView> > views;
 	std::unique_ptr<CompileJob> job;
 	BuildPanel buildPanel;
+	FileCheckWindow fileCheck;
 
 	bool quitting;
 	bool projectPanelHovered;	// In the last frame, for files that the user drops

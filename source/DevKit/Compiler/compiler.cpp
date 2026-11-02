@@ -131,16 +131,25 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
 			if (data1 >= *numFiles) {
 				setCompileStep (CSTEP_COMPILEINIT, 1);
 			} else {
-				char * tx = fileList[data1];
-				fixPath(tx, true);
+				fixPath(fileList[data1], true);
+				// The file as it is on disk, so that a project that names
+				// it in another case compiles on every system.
+				gotoSourceDirectory ();
+				bool found, caseDiffers;
+				char * tx = fileNameOnDisk (fileList[data1], &found, &caseDiffers);
+				if (caseDiffers) {
+					addComment (ERRORTYPE_PROJECTWARNING, "The project names this file in another case", fileList[data1], tx, 0);
+				}
+				delete [] fileList[data1];
+				fileList[data1] = tx;
 				setCompilerText (COMPILER_TXT_FILENAME, tx);
 				percRect (data1, P_BOTTOM);
 
-				char * compareMe = tx + (strlen (tx) - 4);
-				char * lowExt = compareMe;
-				while (*lowExt) {
-					*lowExt = tolower (*lowExt);
-					lowExt ++;
+				char compareMe[5] = "";
+				size_t length = strlen (tx);
+				if (length >= 4) {
+					for (int c = 0; c < 4; c ++) compareMe[c] = tolower (tx[length - 4 + c]);
+					compareMe[4] = 0;
 				}
 				if (strcmp (compareMe, ".sld") == 0) {
 					doDefines (tx, allSourceStrings, allFileHandles);
@@ -229,7 +238,10 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
                 setCompilerText (COMPILER_TXT_ACTION, "Adding custom icon");
                 setCompilerText (COMPILER_TXT_FILENAME, settings.customIcon);
                 setCompilerText (COMPILER_TXT_ITEM, "");
-                char * iconFile = joinStrings (settings.customIcon, "");
+                gotoSourceDirectory ();
+                bool found, caseDiffers;
+                char * iconFile = fileNameOnDisk (settings.customIcon, &found, &caseDiffers);
+                if (caseDiffers) addComment (ERRORTYPE_PROJECTWARNING, "The custom icon has another case on disk", iconFile, NULL, 0);
                 if (getFileType (iconFile) == FILETYPE_TGA) {
                     convertTGA (iconFile);
                     if (! dumpFileInto (projectFile, iconFile)) {
@@ -249,7 +261,10 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
                 setCompilerText (COMPILER_TXT_ACTION, "Adding custom logo");
                 setCompilerText (COMPILER_TXT_FILENAME, settings.customLogo);
                 setCompilerText (COMPILER_TXT_ITEM, "");
-                char * logoFile = joinStrings (settings.customLogo, "");
+                gotoSourceDirectory ();
+                bool found, caseDiffers;
+                char * logoFile = fileNameOnDisk (settings.customLogo, &found, &caseDiffers);
+                if (caseDiffers) addComment (ERRORTYPE_PROJECTWARNING, "The custom logo has another case on disk", logoFile, NULL, 0);
                 if (getFileType (logoFile) == FILETYPE_TGA) {
                     convertTGA (logoFile);
                     if (! dumpFileInto (projectFile, logoFile)) {

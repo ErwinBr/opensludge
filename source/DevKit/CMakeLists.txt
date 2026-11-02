@@ -87,6 +87,14 @@ if(NOT CMAKE_CROSSCOMPILING)
 					-P ${PROJECT_SOURCE_DIR}/tests/check_game_hash.cmake)
 		endforeach()
 
+		# A project from the old Windows versions of SLUDGE, with text that
+		# isn't UTF-8 and names in another case than on disk.
+		add_test(NAME compiler_old_project
+			COMMAND ${CMAKE_COMMAND} -DCOMPILER=$<TARGET_FILE:sludge-compiler>
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/old_project
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/old_project_test.cmake)
+
 		# The same with --machine, which the Dev Kit reads.
 		foreach(game Welcome VerbCoin)
 			add_test(NAME compiler_machine_${game}
@@ -111,6 +119,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/Launch.cpp
 		${DEVKIT_DIR}/Core/Log.cpp
 		${DEVKIT_DIR}/Core/Preferences.cpp
+		${DEVKIT_DIR}/Core/ProjectCheck.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 	)
@@ -126,6 +135,7 @@ if(SLUDGE_DEVKIT)
 	add_executable(sludge-devkit
 		${DEVKIT_DIR}/App/main.cpp
 		${DEVKIT_DIR}/App/BuildPanel.cpp
+		${DEVKIT_DIR}/App/FileCheckWindow.cpp
 		${DEVKIT_DIR}/App/ProjectView.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/InterfacePlatform.cpp
@@ -163,7 +173,7 @@ if(SLUDGE_DEVKIT)
 		target_link_libraries(devkit_core_test PRIVATE devkit-core)
 		file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/core_test)
 		add_test(NAME devkit_core COMMAND devkit_core_test ${CMAKE_CURRENT_BINARY_DIR}/core_test
-			${PROJECT_SOURCE_DIR}/doc/ExampleProjects)
+			${PROJECT_SOURCE_DIR}/doc/ExampleProjects ${PROJECT_SOURCE_DIR}/tests/devkit/fixtures)
 
 		# The views of the editors, with both renderers, against the same
 		# reference images as the GTK tools (tests/devkit/view_test.cpp).

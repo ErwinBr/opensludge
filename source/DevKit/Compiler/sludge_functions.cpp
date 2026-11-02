@@ -893,11 +893,14 @@ void initBuiltInFunc ()
 void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {
 	FILE * fp = fopen (fn, "rb");
 	if (fp) {
+		int line = 0;
 		for (;;) {
 			char * t = readText (fp);
 			if (!t) break;
+			line ++;
 			if (! u8_isvalid(t)) {
-				addComment (ERRORTYPE_PROJECTERROR, "Invalid string found. (It is not UTF-8 encoded.)", NULL, fn, 0);
+				addComment (ERRORTYPE_PROJECTERROR, "The file is not UTF-8 encoded. (Text from old Windows versions of SLUDGE often isn't; the Dev Kit can convert it.)", NULL, fn, line);
+				fclose (fp);
 				return;
 			}
 			

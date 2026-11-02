@@ -62,6 +62,8 @@ public:
 	int addFiles (const std::vector<std::string> & fullPaths);
 	void removeFiles (const std::vector<int> & indices);
 	void moveFile (int from, int to);
+	// Give a file of the project another name, such as its case on disk.
+	void renameFile (int index, const std::string & name);
 
 	// The resources that a script names, in quotes such as 'image.tga', in
 	// the order in which it names them. Scripts are .slu files.

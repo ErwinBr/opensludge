@@ -63,8 +63,13 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 		addComment (ERRORTYPE_PROJECTERROR, "Either this file contains nothing, or it doesn't exist...", codeFileName);
 		return false;
 	}
-	if (! u8_isvalid(wholeFile)) {
-		return addComment (ERRORTYPE_PROJECTERROR, "Invalid string found. (It is not UTF-8 encoded.)", NULL, codeFileName, 0);
+	int invalid = u8_invalidoffset (wholeFile);
+	if (invalid >= 0) {
+		int line = 1;
+		for (int i = 0; i < invalid; i ++) {
+			if (wholeFile[i] == '\n') line ++;
+		}
+		return addComment (ERRORTYPE_PROJECTERROR, "The file is not UTF-8 encoded. (Text from old Windows versions of SLUDGE often isn't; the Dev Kit can convert it.)", NULL, codeFileName, line);
 	}
 	
 
@@ -92,6 +97,16 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 				}
 				else
 				{
+					if (grabString[0]) {
+						bool found, caseDiffers;
+						char * onDisk = fileNameOnDisk (grabString, &found, &caseDiffers);
+						if (caseDiffers) {
+							char buff[2200];
+							snprintf (buff, sizeof (buff), "'%s' has another case on disk: '%s'", grabString, onDisk);
+							addCommentWithLine (ERRORTYPE_PROJECTWARNING, buff, codeFileName, currentLine);
+						}
+						delete [] onDisk;
+					}
 					doLine();
 					fprintf (outputFile, "_%s%i ", "file", findOrAdd (fileHandles, grabString, false));
 				}

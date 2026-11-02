@@ -1,0 +1,4 @@
+A project as the old Windows versions of SLUDGE left them, for the tests:
+init.slu is in Windows-1252 ("Café" on line 3), the project names it
+INIT.SLU, and the script names Pics/IMAGE.TGA as 'pics\image.tga'.
+../init-utf8.slu is the same script in UTF-8.

@@ -35,7 +35,7 @@ static std::string shortcut (const char * key) {
 
 Workspace::Workspace (Platform & p, const std::string & renderer)
 	: thePlatform (p), rendererName (renderer), recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
-	  manager (p, recent), buildPanel (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
+	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -254,6 +254,7 @@ void Workspace::draw () {
 	// The frame after we placed the panels, when the tabs exist, we show
 	// the Build in front of the Log.
 	if (layoutFrames > 0 && -- layoutFrames == 0) ImGui::SetWindowFocus (BUILD_PANEL);
+	fileCheck.draw (project ());
 	if (showPreferences) drawPreferencesWindow ();
 	if (showAbout) drawAboutWindow ();
 	if (showDemo) ImGui::ShowDemoWindow (&showDemo);
@@ -338,6 +339,8 @@ void Workspace::drawMenuBar () {
 			manager.setActive (p);
 			revealInspector ();
 		}
+		if (ImGui::MenuItem ("Check Files...", NULL, false, p != NULL)) checkFiles ();
+		ImGui::SetItemTooltip ("Find what keeps the project from building on every system");
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("Compile", shortcut ("B").c_str (), false, p && ! compiling ())) compile ();
 		if (job && job->running ()) {

@@ -21,6 +21,14 @@ bool gotoSourceDirectory ();
 
 void fixPath (char *filename, bool makeGood);
 
+// The name of a file of the project as it is on disk, relative to the
+// current folder: with / between folders, and each part with the case that
+// it has on disk. We read the folders instead of trusting the file system to
+// ignore case, so that the name is the same on every system. Sets *found to
+// whether the file exists, and *caseDiffers to whether the case on disk is
+// another than in name. Free the name with delete [].
+char * fileNameOnDisk (const char * name, bool * found, bool * caseDiffers);
+
 #ifdef __cplusplus
 }
 #endif
