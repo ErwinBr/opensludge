@@ -75,3 +75,34 @@ if(NOT CMAKE_CROSSCOMPILING)
 		endforeach()
 	endif()
 endif()
+
+# The Dev Kit, with SDL 3 and Dear ImGui. Core is the state and the work of
+# the editor, which knows nothing of SDL or ImGui; App is the program.
+if(SLUDGE_DEVKIT)
+	add_library(devkit-core STATIC
+		${DEVKIT_DIR}/Core/Log.cpp
+	)
+	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
+
+	add_executable(sludge-devkit
+		${DEVKIT_DIR}/App/main.cpp
+		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
+		${DEVKIT_DIR}/App/PlatformSDL.cpp
+		${DEVKIT_DIR}/App/Workspace.cpp
+	)
+	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
+	target_link_libraries(sludge-devkit PRIVATE devkit-core sludge-renderer sludge::imgui sludge::png)
+	if(WIN32)
+		set_target_properties(sludge-devkit PROPERTIES WIN32_EXECUTABLE TRUE)
+		if(MINGW)
+			target_link_options(sludge-devkit PRIVATE -static -static-libgcc -static-libstdc++)
+		endif()
+	endif()
+	install(TARGETS sludge-devkit RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+	if(SLUDGE_TESTS)
+		# It needs a display, as the capture tests.
+		add_test(NAME capture-devkit-smoke COMMAND sludge-devkit --smoke=${CMAKE_BINARY_DIR}/devkit-smoke.png)
+		set_tests_properties(capture-devkit-smoke PROPERTIES LABELS capture)
+	endif()
+endif()

@@ -150,6 +150,23 @@ int main (int argc, char ** argv) {
 		r->present ();
 	}
 
+	// The same into the window, as the Dev Kit draws, in two frames.
+	for (int frame = 0; frame < 2; frame ++) {
+		r->setTarget (NULL);
+		r->setViewport (0, 0, W, H);
+		r->clear (true, true);
+		gfx::Mesh * mesh = r->createFrameMesh (vertices, 8, indices, 12);
+		r->drawMesh (opaque, u, NULL, mesh, 0, 6, 0);
+		r->drawMesh (opaque, u, texture, mesh, 6, 6, 4);
+		r->readPixels (0, 0, W, H, pixels);
+		char what[32];
+		snprintf (what, sizeof (what), "window frame %d", frame);
+		expect (pixels, 24, 12, 255, 0, 0, 255, what);
+		expect (pixels, 40, 4, 0, 255, 0, 255, what);
+		expect (pixels, 56, 28, 0, 255, 0, 255, what);
+		r->present ();
+	}
+
 	delete [] pixels;
 	r->destroyTarget (target);
 	r->destroyTexture (color);

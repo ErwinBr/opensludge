@@ -222,6 +222,17 @@ bool windowRendererUsesGPU () {
 	return usingGPU;
 }
 
+const char * windowRendererName () {
+	static char name[64];
+#if defined(SLUDGE_RENDERER_GPU)
+	if (usingGPU) {
+		SDL_snprintf (name, sizeof (name), "SDL_GPU (%s)", SDL_GetGPUDeviceDriver (gpuDevice));
+		return name;
+	}
+#endif
+	return renderer ? "OpenGL" : "none";
+}
+
 void windowResized (int width, int height) {
 #if defined(_WIN32) && ! defined(HAVE_GLES2)
 	resizeDXGIPresentation (width, height);

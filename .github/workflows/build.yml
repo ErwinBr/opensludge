@@ -43,6 +43,7 @@ jobs:
           # example projects into build/games. We also test the SDL_GPU
           # renderer, with Vulkan through Mesa's software driver, lavapipe.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT_GTK=OFF \
+            -DSLUDGE_DEVKIT=ON \
             -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
             -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
@@ -267,7 +268,7 @@ jobs:
           # renderer, with Direct3D 12 through WARP, Windows' software
           # driver.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_BUNDLED_DEPS=ON \
-            -DSLUDGE_COMPILER=ON -DSLUDGE_GPU_CAPTURE_TESTS=ON
+            -DSLUDGE_COMPILER=ON -DSLUDGE_DEVKIT=ON -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
 
       - name: Test
@@ -375,7 +376,7 @@ jobs:
           # example projects into build/games. On the Apple Silicon runner,
           # the x86_64 compiler runs with Rosetta.
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DSLUDGE_BUNDLED_DEPS=ON -DSLUDGE_COMPILER=ON \
+            -DSLUDGE_BUNDLED_DEPS=ON -DSLUDGE_COMPILER=ON -DSLUDGE_DEVKIT=ON \
             -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.min_macos }}
@@ -400,9 +401,9 @@ jobs:
           file build/sludge-engine
           otool -L build/sludge-engine
           vtool -show-build build/sludge-engine
-          # We link dynamically to system libraries only, in the engine and
-          # in the compiler.
-          for exe in build/sludge-engine build/source/DevKit/sludge-compiler; do
+          # We link dynamically to system libraries only, in the engine, the
+          # compiler and the Dev Kit.
+          for exe in build/sludge-engine build/source/DevKit/sludge-compiler build/source/DevKit/sludge-devkit; do
             if otool -L $exe | tail -n +2 | grep -v -E '^\s+(/usr/lib/|/System/Library/)'; then
               echo "Unexpected non-system library in $exe"
               exit 1

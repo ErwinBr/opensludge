@@ -43,6 +43,8 @@ void destroyWindowRenderer ();
 
 // Whether the renderer of the window draws with SDL_GPU.
 bool windowRendererUsesGPU ();
+// Which renderer draws, such as "SDL_GPU (metal)" or "OpenGL".
+const char * windowRendererName ();
 
 // Tell the renderer that the window changed size, in pixels.
 void windowResized (int width, int height);
