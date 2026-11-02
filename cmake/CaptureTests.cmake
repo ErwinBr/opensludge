@@ -26,9 +26,10 @@ set(SLUDGE_OUT_OF_ORDER "" CACHE PATH
 set(SLUDGE_CAPTURE_REFERENCE_ENGINE "" CACHE FILEPATH
 	"An engine to compare the frames of the capture tests with")
 # The SDL_GPU renderer needs Metal, Vulkan or Direct3D 12. Every Mac has
-# Metal; elsewhere, turn the tests on where Vulkan works, as our Linux CI
+# Metal, and Windows has Direct3D 12, at least through WARP, its software
+# driver; on Linux, turn the tests on where Vulkan works, as our Linux CI
 # does with Mesa's software Vulkan, lavapipe (mesa-vulkan-drivers).
-if(APPLE AND SLUDGE_RENDERER_GPU)
+if((APPLE OR WIN32) AND SLUDGE_RENDERER_GPU)
 	set(gpu_tests_default ON)
 else()
 	set(gpu_tests_default OFF)
@@ -115,9 +116,9 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	sludge_add_capture_test(welcome GAME ${CMAKE_BINARY_DIR}/games/Welcome.slg
 		FRAMES 0-60/10)
 
-	# By default, we draw with SDL_GPU on macOS and with OpenGL elsewhere
-	# (see createGraphicsWindow in source/Engine/graphics.cpp).
-	if(APPLE AND SLUDGE_RENDERER_GPU)
+	# By default, we draw with SDL_GPU on macOS and Windows, and with OpenGL
+	# on Linux (see createGraphicsWindow in source/Engine/graphics.cpp).
+	if((APPLE OR WIN32) AND SLUDGE_RENDERER_GPU)
 		set(default_renderer gpu)
 		set(other_renderer gl)
 	else()
