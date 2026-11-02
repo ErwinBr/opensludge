@@ -45,6 +45,19 @@ target_include_directories(devkit-compiler PUBLIC
 )
 target_link_libraries(devkit-compiler PUBLIC devkit-common sludge::png)
 
+# The models of the floor maker, the z-buffer maker and the sprite bank
+# editor, and the drawing of their views through draw2d.h, which knows
+# nothing of how we draw.
+if(SLUDGE_DEVKIT OR SLUDGE_DEVKIT_GTK)
+	add_library(devkit-graphics STATIC
+		${DEVKIT_DIR}/GraphicalTools/sprites.cpp
+		${DEVKIT_DIR}/GraphicalTools/floormaker.cpp
+		${DEVKIT_DIR}/GraphicalTools/zbuffer.cpp
+	)
+	target_include_directories(devkit-graphics PUBLIC ${DEVKIT_DIR}/GraphicalTools)
+	target_link_libraries(devkit-graphics PUBLIC devkit-common sludge::png)
+endif()
+
 add_executable(sludge-compiler ${DEVKIT_DIR}/Compiler/CompilerMain.cpp)
 target_link_libraries(sludge-compiler PRIVATE devkit-compiler)
 if(MINGW)
@@ -80,18 +93,28 @@ endif()
 # the editor, which knows nothing of SDL or ImGui; App is the program.
 if(SLUDGE_DEVKIT)
 	add_library(devkit-core STATIC
+		${DEVKIT_DIR}/Core/CommandStack.cpp
+		${DEVKIT_DIR}/Core/Document.cpp
+		${DEVKIT_DIR}/Core/DocumentManager.cpp
 		${DEVKIT_DIR}/Core/Log.cpp
+		${DEVKIT_DIR}/Core/Preferences.cpp
+		${DEVKIT_DIR}/Core/RecentFiles.cpp
 	)
 	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
+
+	# The drawing of the views with the renderers of the engine.
+	add_library(devkit-view STATIC ${DEVKIT_DIR}/GraphicalTools/draw2d_gfx.cpp)
+	target_link_libraries(devkit-view PUBLIC devkit-graphics sludge-renderer)
 
 	add_executable(sludge-devkit
 		${DEVKIT_DIR}/App/main.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
+		${DEVKIT_DIR}/App/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
 	)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
-	target_link_libraries(sludge-devkit PRIVATE devkit-core sludge-renderer sludge::imgui sludge::png)
+	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::png)
 	if(WIN32)
 		set_target_properties(sludge-devkit PROPERTIES WIN32_EXECUTABLE TRUE)
 		if(MINGW)
@@ -104,5 +127,25 @@ if(SLUDGE_DEVKIT)
 		# It needs a display, as the capture tests.
 		add_test(NAME capture-devkit-smoke COMMAND sludge-devkit --smoke=${CMAKE_BINARY_DIR}/devkit-smoke.png)
 		set_tests_properties(capture-devkit-smoke PROPERTIES LABELS capture)
+
+		# The core of the Dev Kit, without a display.
+		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp)
+		target_link_libraries(devkit_core_test PRIVATE devkit-core)
+		file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/core_test)
+		add_test(NAME devkit_core COMMAND devkit_core_test ${CMAKE_CURRENT_BINARY_DIR}/core_test)
+
+		# The views of the editors, with both renderers, against the same
+		# reference images as the GTK tools (tests/devkit/view_test.cpp).
+		add_executable(view_test ${PROJECT_SOURCE_DIR}/tests/devkit/view_test.cpp)
+		target_compile_definitions(view_test PRIVATE VIEW_TEST_FOLDER="${PROJECT_SOURCE_DIR}/tests/devkit")
+		target_link_libraries(view_test PRIVATE devkit-view)
+		set(view_renderers gl)
+		if(SLUDGE_GPU_CAPTURE_TESTS)
+			list(APPEND view_renderers gpu)
+		endif()
+		foreach(renderer ${view_renderers})
+			add_test(NAME capture-devkit-views-${renderer} COMMAND view_test ${renderer})
+			set_tests_properties(capture-devkit-views-${renderer} PROPERTIES LABELS capture)
+		endforeach()
 	endif()
 endif()

@@ -147,7 +147,7 @@ bool loadTranslationFile (char * fileIn, transLine ** firstTransLine, char **lan
 		}
 		delete line;
 	}
-	fclose (fp);
+	if (fp) fclose (fp);
 	if (error) {
 		errorBox (error, file);
 	}

@@ -57,7 +57,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 						if (n) cutoff[n] = t2;
 						
 					} else {
-						delete data;
+						delete [] data;
 						errorBox ("Error reading TGA file", "Too many colours. Max 16 are allowed for making z-buffers. Each separate colour will become a z-buffer. If you need more, use sprites instead.");						
 						return false;
 					}
@@ -72,7 +72,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 	fclose (fp);
 	
 	if (numPanels<2) {
-		delete data;
+		delete [] data;
 		errorBox ("Error reading TGA file", "Can't find any z-buffers in the file.");						
 		return false;
 	}
@@ -86,11 +86,6 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 		loadhere->sprites[n].xhot = 0;
 		loadhere->sprites[n].yhot = 0;
 		loadhere->sprites[n].special = cutoff[n];
-		loadhere->sprites[n].tex_x = 0;
-		loadhere->sprites[n].texNum = n;
-		loadhere->myPalette.tex_names[n] = 0;
-		loadhere->myPalette.tex_h[n] = imageHeader.height;
-		loadhere->myPalette.tex_w[n] = imageHeader.width;
 		
 		if (n)
 			loadhere->sprites[n].data = new unsigned char [imageHeader.width * imageHeader.height];
@@ -107,6 +102,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 		}
 	}	
 	
+	spriteBankChanged (loadhere);
 	return true;
 }
 
@@ -144,12 +140,7 @@ bool loadZBufferFile (const char * name, spriteBank *loadhere) {
 		loadhere->sprites[n].height = -zbHeight;
 		loadhere->sprites[n].xhot = 0;
 		loadhere->sprites[n].yhot = 0;
-		loadhere->sprites[n].tex_x = 0;
 		loadhere->sprites[n].special = get2bytes (fp);
-		loadhere->sprites[n].texNum = n;
-		loadhere->myPalette.tex_names[n] = 0;
-		loadhere->myPalette.tex_h[n] = zbHeight;
-		loadhere->myPalette.tex_w[n] = zbWidth;
 		
 		loadhere->sprites[n].data = new unsigned char [zbWidth * zbHeight];
 	}
@@ -171,32 +162,20 @@ bool loadZBufferFile (const char * name, spriteBank *loadhere) {
 		}
 	}
 	fclose (fp);
+	spriteBankChanged (loadhere);
 	return true;
 }
 
-void loadZTextures (spriteBank *loadhere){
-	glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-	glGenTextures (loadhere->total, loadhere->myPalette.tex_names);	
-
-	for (int i = 1; i < loadhere->total; i ++) {
-		loadhere->sprites[i].texNum = i;
-		glBindTexture (GL_TEXTURE_2D, loadhere->myPalette.tex_names[loadhere->sprites[i].texNum]);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		// A white texture, which is transparent outside the z-buffer, so that
-		// we draw the z-buffer in the colour that we set.
-		int size = loadhere->sprites[i].width * -loadhere->sprites[i].height;
-		unsigned char * rgba = new unsigned char [size * 4];
-		for (int p = 0; p < size; p ++) {
-			rgba[p * 4] = rgba[p * 4 + 1] = rgba[p * 4 + 2] = 255;
-			rgba[p * 4 + 3] = loadhere->sprites[i].data[p];
-		}
-		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, loadhere->sprites[i].width, -loadhere->sprites[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-		delete [] rgba;
-	}	
-}	
+unsigned char * zBufferLayerPixels (const spriteBank * buffers, int layer) {
+	const sprite & single = buffers->sprites[layer];
+	int size = single.width * -single.height;
+	unsigned char * rgba = new unsigned char [size * 4];
+	for (int p = 0; p < size; p ++) {
+		rgba[p * 4] = rgba[p * 4 + 1] = rgba[p * 4 + 2] = 255;
+		rgba[p * 4 + 3] = single.data[p];
+	}
+	return rgba;
+}
 
 bool saveZBufferFile (const char * name, spriteBank *buffers) {
 	FILE * fp = fopen (name, "wb");
@@ -242,39 +221,38 @@ bool saveZBufferFile (const char * name, spriteBank *buffers) {
 	return true;
 }
 
-void drawZBufferView (struct spriteBank * backdrop, int selectedBuffer) {
-    glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-	
+void drawZBufferView (Draw2D & draw, const struct spriteBank * backdrop, int selectedBuffer) {
+	draw.clear ();
+
 	int i;
 	int b = selectedBuffer;
-	
-	
+
 	if (backdrop->total>1)
 		for (i=1; i< backdrop->total; i++) {
 			if (i == b) {
-				setDrawingColour(1.0f, 1.0f, 1.0f, 1.0f);
-			} else 
-				setDrawingColour(0.2f, 0.0f, 0.5f, 1.0f);
-			
-			pasteSprite(&backdrop->sprites[i], &backdrop->myPalette, false);
+				draw.setDrawingColour(1.0f, 1.0f, 1.0f, 1.0f);
+			} else
+				draw.setDrawingColour(0.2f, 0.0f, 0.5f, 1.0f);
+
+			pasteSprite(draw, backdrop, i, true, false);
 		}
-	
-    setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
+
+	draw.setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
 	const float outline[] = {
 		0.0, 0.0,
 		(float) backdrop->sprites[0].width, 0.0,
 		(float) backdrop->sprites[0].width, (float) -backdrop->sprites[0].height,
 		0.0, (float) -backdrop->sprites[0].height
 	};
-	drawLineLoop(outline, 4);
+	draw.drawLineLoop(outline, 4);
 
 	if (b>0) {
-		setDrawingColour(0.0f, 1.0f, 0.0f, 0.7f);
+		draw.setDrawingColour(0.0f, 1.0f, 0.0f, 0.7f);
 		const float cutoff[] = {
 			0.0, (float) backdrop->sprites[b].special,
 			(float) backdrop->sprites[0].width, (float) backdrop->sprites[b].special
 		};
-		drawLines(cutoff, 2);
+		draw.drawLines(cutoff, 2);
 	}
+	draw.finish ();
 }

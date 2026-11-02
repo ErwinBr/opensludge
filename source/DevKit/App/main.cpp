@@ -27,6 +27,7 @@
 #include "renderer.h"
 #include "renderer_window.h"
 
+#include "InterfacePlatform.h"
 #include "Log.h"
 #include "PlatformSDL.h"
 #include "Workspace.h"
@@ -149,6 +150,7 @@ int main (int argc, char ** argv) {
 	SDL_SetWindowMinimumSize (window, 640, 400);
 
 	PlatformSDL platform (window);
+	setInterfacePlatform (&platform);
 
 	IMGUI_CHECKVERSION ();
 	ImGui::CreateContext ();
@@ -177,7 +179,8 @@ int main (int argc, char ** argv) {
 
 	Workspace workspace (platform, rendererName);
 	workspace.openFiles (files);
-	SDL_SetWindowTitle (window, workspace.title ().c_str ());
+	std::string title = workspace.title ();
+	SDL_SetWindowTitle (window, title.c_str ());
 	SDL_ShowWindow (window);
 	SDL_RaiseWindow (window);
 
@@ -222,6 +225,11 @@ int main (int argc, char ** argv) {
 		}
 		renderer->present ();
 
+		if (workspace.title () != title) {
+			title = workspace.title ();
+			SDL_SetWindowTitle (window, title.c_str ());
+		}
+		if (workspace.animating ()) framesToDraw = FRAMES_AFTER_EVENT;
 		if (workspace.wantsToQuit ()) done = true;
 	}
 

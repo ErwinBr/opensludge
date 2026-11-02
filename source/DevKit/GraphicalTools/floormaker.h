@@ -7,10 +7,7 @@
  *
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif	
-	
+class Draw2D;
 
 struct vertexList {
 	int x, y;
@@ -35,7 +32,7 @@ struct polyList * addPoly (struct polyList *firstPoly);
 void splitPoly (int x1, int y1, int x2, int y2, struct polyList **firstPoly);
 void splitLine (int x1, int y1, int x2, int y2, struct polyList *firstPoly);
 
-void drawFloor (struct polyList * pL, float r, float g, float b);
+void drawFloor (Draw2D & draw, struct polyList * pL, float r, float g, float b);
 
 struct spriteBank;
 
@@ -52,11 +49,6 @@ struct floorMakerView {
 	int selx1, sely1, selx2, sely2;
 };
 
-void drawFloorMakerView (const struct floorMakerView * view);
+void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view);
 
 bool snapToClosest (int *x, int *y, struct polyList * firstPoly);
-
-#ifdef __cplusplus
-}
-#endif	
-	

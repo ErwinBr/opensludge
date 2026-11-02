@@ -20,6 +20,8 @@
 
 #include "SludgeApplication.h"
 
+class Draw2D;
+
 class SludgeGLApplication : public SludgeApplication {
 
 private:
@@ -33,6 +35,8 @@ private:
 
 protected:
 	gboolean glInitialized;
+	// What the view draws with, once its OpenGL context exists.
+	Draw2D * draw2d;
 	int x, y, w, h;
 	float z, zmul;
 	int picWidth, picHeight;

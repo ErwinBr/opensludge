@@ -125,14 +125,7 @@ void SludgeZBufferMaker::postOpen()
 	on_zoom_fit_clicked();
 
 	reshape();
-	// We load only the textures, and not the whole OpenGL state with
-	// refreshGL, because prepareOpenGL would also set the zoom back to 100 %
-	// after we fitted it. Before the first drawing, the view is not set up
-	// yet, and prepareOpenGL loads the textures then.
-	if (glInitialized && makeViewCurrent())
-	{
-		loadZTextures(&backdrop);
-	}
+	// The view makes the textures of the new z-buffer when it draws it.
 	render_timer_event(theDrawingarea);
 
 	setupButtons();
@@ -212,8 +205,7 @@ void SludgeZBufferMaker::prepareOpenGL()
 		addSprite(0, &backdrop);
 		backdrop.sprites[0].width = 640;
 		backdrop.sprites[0].height = 480;
-	} else
-		loadZTextures(&backdrop);
+	}
 
 	z = 0.0;
 	zmul = (1.0+z/20);
@@ -222,7 +214,7 @@ void SludgeZBufferMaker::prepareOpenGL()
 
 void SludgeZBufferMaker::drawRect()
 {
-	drawZBufferView (&backdrop, buffer());
+	drawZBufferView (*draw2d, &backdrop, buffer());
 }
 
 

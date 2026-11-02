@@ -34,11 +34,11 @@
 #endif
 
 #include "SludgeGLApplication.h"
-#include "draw2d.h"
+#include "draw2d_gl.h"
 
 
 SludgeGLApplication::SludgeGLApplication(const char * gladeFileName, const char * iconName, const char * configFile)
- : SludgeApplication(gladeFileName, iconName, configFile)
+ : SludgeApplication(gladeFileName, iconName, configFile), draw2d (NULL)
 {
 	if (!initSuccess) return;
 
@@ -180,7 +180,8 @@ void SludgeGLApplication::initGL()
 	if (glInitialized) return;
 	if (!makeViewCurrent ()) return;
 
-	if (!startDrawing2D ())
+	if (!draw2d) draw2d = createGLDraw2D ();
+	if (!draw2d)
 	{
 		g_critical ("Couldn't set up the OpenGL drawing.\n");
 		return;
@@ -218,7 +219,7 @@ gboolean SludgeGLApplication::makeViewCurrent()
 
 void SludgeGLApplication::setCoords()
 {
-	setViewArea (x, y, w, h, zmul);
+	draw2d->setViewArea (x, y, w, h, zmul);
 }
 
 // Callbacks:

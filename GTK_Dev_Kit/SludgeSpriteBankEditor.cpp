@@ -188,20 +188,17 @@ void SludgeSpriteBankEditor::drawingareaLeft() {}
 void SludgeSpriteBankEditor::prepareOpenGL()
 {
 	showBox = false;
-	if (sprites.total) {
-		loadSpriteTextures(&sprites);
-	}
 	setSpriteIndex(0);
 }
 
 void SludgeSpriteBankEditor::drawRect()
 {
-	drawSpriteBankView (&sprites, spriteIndex(), showBox);
+	drawSpriteBankView (*draw2d, &sprites, spriteIndex(), showBox);
 }
 
 
 void SludgeSpriteBankEditor::setCoords() {
-	setSpriteViewArea (x, y, w, h, zmul);
+	draw2d->setSpriteViewArea (x, y, w, h, zmul);
 }
 
 

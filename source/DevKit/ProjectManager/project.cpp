@@ -99,7 +99,10 @@ int isResource (const char * scriptName, char *resource) {
 						if (t == '\'' && lastOne != '\\') {
 							buffer[numBuff] = 0;
 							pM = PM_NORMAL;
-							if (strcmp(buffer, resource)) return true;
+							if (strcmp(buffer, resource) == 0) {
+								fclose (fp);
+								return true;
+							}
 						} else {
 							buffer[numBuff++] = t;
 							if (numBuff == 250) {

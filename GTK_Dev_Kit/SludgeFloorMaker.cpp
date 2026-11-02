@@ -268,7 +268,7 @@ void SludgeFloorMaker::drawRect()
 		lit != 0, litX, litY,
 		selection == 1, selx1, sely1, selx2, sely2
 	};
-	drawFloorMakerView (&view);
+	drawFloorMakerView (*draw2d, &view);
 }
 
 struct polyList * SludgeFloorMaker::getFloor() {

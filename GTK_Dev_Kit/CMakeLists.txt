@@ -28,13 +28,10 @@ endif()
 
 # The drawing of the views of the floor maker, the z-buffer maker and the
 # sprite bank editor.
-add_library(devkit-graphics STATIC
-	${DEVKIT_DIR}/GraphicalTools/draw2d.cpp
-	${DEVKIT_DIR}/GraphicalTools/sprites.cpp
-	${DEVKIT_DIR}/GraphicalTools/floormaker.cpp
-	${DEVKIT_DIR}/GraphicalTools/zbuffer.cpp
-)
-target_link_libraries(devkit-graphics PUBLIC devkit-common PkgConfig::EPOXY sludge::png)
+# devkit-graphics (source/DevKit) is the models; here, we draw them with
+# OpenGL 3.2.
+add_library(devkit-graphics-gl STATIC ${DEVKIT_DIR}/GraphicalTools/draw2d_gl.cpp)
+target_link_libraries(devkit-graphics-gl PUBLIC devkit-graphics PkgConfig::EPOXY)
 
 add_library(devkit-gtk STATIC SludgeApplication.cpp Common.cpp)
 target_link_libraries(devkit-gtk PUBLIC devkit-common PkgConfig::GTK)
@@ -61,9 +58,9 @@ add_devkit_tool(sludge-translationeditor TranslationEditorMain.cpp SludgeTransla
 	${DEVKIT_DIR}/TranslationEditor/translator.cpp)
 add_devkit_tool(sludge-projectmanager ProjectManagerMain.cpp SludgeProjectManager.cpp ProjectManager.rc)
 
-target_link_libraries(sludge-floormaker PRIVATE devkit-graphics)
-target_link_libraries(sludge-zbuffermaker PRIVATE devkit-graphics)
-target_link_libraries(sludge-spritebankeditor PRIVATE devkit-graphics)
+target_link_libraries(sludge-floormaker PRIVATE devkit-graphics-gl)
+target_link_libraries(sludge-zbuffermaker PRIVATE devkit-graphics-gl)
+target_link_libraries(sludge-spritebankeditor PRIVATE devkit-graphics-gl)
 target_link_libraries(sludge-projectmanager PRIVATE devkit-compiler)
 
 install(FILES
@@ -94,8 +91,8 @@ install(DIRECTORY support/16x16 support/32x32 support/48x48 support/128x128
 # We draw the views offscreen and compare them with the reference images in
 # tests/devkit/references. For that, Mesa's EGL is required.
 if(SLUDGE_TESTS)
-	add_executable(view_test ${PROJECT_SOURCE_DIR}/tests/devkit/view_test.cpp)
-	target_compile_definitions(view_test PRIVATE VIEW_TEST_FOLDER="${PROJECT_SOURCE_DIR}/tests/devkit")
-	target_link_libraries(view_test PRIVATE devkit-graphics PkgConfig::GTK)
-	add_test(NAME devkit_views COMMAND view_test)
+	add_executable(view_test_gl3 ${PROJECT_SOURCE_DIR}/tests/devkit/view_test.cpp)
+	target_compile_definitions(view_test_gl3 PRIVATE VIEW_TEST_GL VIEW_TEST_FOLDER="${PROJECT_SOURCE_DIR}/tests/devkit")
+	target_link_libraries(view_test_gl3 PRIVATE devkit-graphics-gl)
+	add_test(NAME devkit_views COMMAND view_test_gl3)
 endif()

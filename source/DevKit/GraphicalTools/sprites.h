@@ -1,12 +1,7 @@
 #ifndef __SPRITES_H__
 #define __SPRITES_H__
 
-//#include <OpenGL/gl.h>
-#include <epoxy/gl.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+class Draw2D;
 
 #ifndef WIN32
 #define HWND int
@@ -19,9 +14,7 @@ extern "C" {
 
 struct sprite {
 	int width, height, xhot, yhot;
-	int tex_x;
 	int special;
-	int texNum;
 	unsigned char * data;
 };
 
@@ -30,10 +23,6 @@ struct spritePalette {
 	unsigned char * r;
 	unsigned char * g;
 	unsigned char * b;
-	GLuint tex_names[65535];
-	GLuint burnTex_names[65535];
-	int tex_w[65535], tex_h[65535];
-	int numTextures;
 	unsigned char originalRed, originalGreen, originalBlue, total;
 };
 
@@ -43,12 +32,21 @@ struct spriteBank {
 	struct sprite * sprites;
 	struct spritePalette myPalette;
 	bool isFont;
+	// A number that changes whenever the pictures change, so that the views
+	// know when to make their textures again (draw2d.h).
+	unsigned int changes;
 };
+
+// Call after changing the pictures of a bank, or its palette.
+void spriteBankChanged (struct spriteBank * bank);
+
+// The picture of a sprite as width x height RGBA pixels, the top row first,
+// transparent where a palette sprite has colour 0. Free it with delete [].
+unsigned char * spritePixels (const struct spriteBank * bank, int index);
 
 bool reserveSpritePal (struct spritePalette * sP, int n);
 void forgetSpriteBank (struct spriteBank * forgetme);
 bool loadSpriteBank (const char * filename, struct spriteBank * loadhere);
-bool loadSpriteTextures (struct spriteBank *loadhere);
 bool saveSpriteBank (const char * filename, struct spriteBank *sprites);
 
 void addSprite (int i, struct spriteBank *sprites);
@@ -68,14 +66,12 @@ void optimizePalette ();
 bool saveSpriteToTGA (char * file, int);
 bool trimSprite (int);
 
-void pasteSprite (struct sprite * single, const struct spritePalette * fontPal, bool showBox);
+// Draw a sprite of a bank, or a layer of a z-buffer, at its hotspot, with
+// its box when showBox is set.
+void pasteSprite (Draw2D & draw, const struct spriteBank * bank, int index, bool zBufferLayer, bool showBox);
 
 // Draw the sprite with the given index, with its box when showBox is set,
 // and the axes through its hotspot.
-void drawSpriteBankView (struct spriteBank * sprites, int index, bool showBox);
-
-#ifdef __cplusplus
-}
-#endif
+void drawSpriteBankView (Draw2D & draw, const struct spriteBank * sprites, int index, bool showBox);
 
 #endif

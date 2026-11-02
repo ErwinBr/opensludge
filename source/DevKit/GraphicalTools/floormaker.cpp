@@ -356,8 +356,8 @@ void splitLine (int x1, int y1, int x2, int y2, struct polyList *firstPoly) {
 				}
 				vL = vL -> next;
 			}
-			pL = pL -> next;
 		}
+		pL = pL -> next;
 	}
 }
 
@@ -504,7 +504,7 @@ bool loadFloorFromFile (char * name, struct polyList **firstPoly) {
 	return true;
 }
 
-void drawFloor (struct polyList * floor, float r, float g, float b) {
+void drawFloor (Draw2D & draw, struct polyList * floor, float r, float g, float b) {
 	struct polyList * pL = floor;
 	
 	struct vertexList * vL;
@@ -519,20 +519,20 @@ void drawFloor (struct polyList * floor, float r, float g, float b) {
 			points.push_back (vL -> y);
 		}
 		if (polyIsConvex(pL)) {
-			setDrawingColour(r, g, b, 0.25);
+			draw.setDrawingColour(r, g, b, 0.25);
 		} else {
-			setDrawingColour(1.0, 0.0, 0.0, 0.25);
+			draw.setDrawingColour(1.0, 0.0, 0.0, 0.25);
 		}
-		drawPolygon(points.data(), points.size() / 2);
+		draw.drawPolygon(points.data(), points.size() / 2);
 			
-		setDrawingColour(r, g, b, 1.0);
+		draw.setDrawingColour(r, g, b, 1.0);
 		vL = pL -> firstVertex;
 		while (vL) {
 			
 			// Draw the line from here to the next point
 			if (vL -> next) {
 				const float line[] = { (float) vL -> x, (float) vL -> y, (float) vL -> next -> x, (float) vL -> next -> y };
-				drawLines(line, 2);
+				draw.drawLines(line, 2);
 			}
 			// Do we want to draw crosses at the corners?
 			 
@@ -561,7 +561,7 @@ void drawFloor (struct polyList * floor, float r, float g, float b) {
 						(float) vL -> x - 5, (float) vL -> y - 5, (float) vL -> x + 5, (float) vL -> y + 5,
 						(float) vL -> x + 5, (float) vL -> y - 5, (float) vL -> x - 5, (float) vL -> y + 5
 					};
-					drawLines(cross, 4);
+					draw.drawLines(cross, 4);
 				}
 			}
 			vL = vL -> next;
@@ -573,13 +573,13 @@ void drawFloor (struct polyList * floor, float r, float g, float b) {
 		float xx = vL -> x;
 		float yy = vL -> y;
 		const float square[] = { xx-5, yy-5, xx+5, yy-5, xx+5, yy+5, xx-5, yy+5 };
-		drawPolygon(square, 4);
+		draw.drawPolygon(square, 4);
 		
 		while (vL -> next) vL = vL -> next;
 		xx = vL -> x;
 		yy = vL -> y;
 		const float diamond[] = { xx-7, yy, xx, yy-7, xx+7, yy, xx, yy+7 };
-		drawPolygon(diamond, 4);
+		draw.drawPolygon(diamond, 4);
 	}
 	while (drawnVertices) {
 		struct vertexList * k = drawnVertices;
@@ -665,31 +665,31 @@ bool saveFloorToFile (char * filename, struct polyList **firstPoly) {
 	return true;
 }
 
-void drawFloorMakerView (const struct floorMakerView * view) {
-    glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-	
-	setDrawingColour(1.0f, 1.00f, 1.00f, 1.0f);
-	pasteSprite(&view->backdrop->sprites[0], &view->backdrop->myPalette, false);
+void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view) {
+	draw.clear ();
 
-    setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
+	draw.setDrawingColour(1.0f, 1.00f, 1.00f, 1.0f);
+	pasteSprite(draw, view->backdrop, 0, false, false);
+
+	draw.setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
 	const float axes[] = { 0.0, 0.0, 1000.0, 0.0, 0.0, 0.0, 0.0, 1000.0 };
-	drawLines(axes, 4);
+	draw.drawLines(axes, 4);
 
 	if (view->lit) {
-		setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
+		draw.setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
 		const float square[] = {
 			(float) view->litX-8, (float) view->litY-8, (float) view->litX+8, (float) view->litY-8,
 			(float) view->litX+8, (float) view->litY+8, (float) view->litX-8, (float) view->litY+8
 		};
-		drawPolygon(square, 4);
+		draw.drawPolygon(square, 4);
 	}
-	
-	drawFloor(view->floor, view->r, view->g, view->b);
-	
+
+	drawFloor(draw, view->floor, view->r, view->g, view->b);
+
 	if (view->selecting) {
-		setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
+		draw.setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
 		const float line[] = { (float) view->selx1, (float) view->sely1, (float) view->selx2, (float) view->sely2 };
-		drawLines(line, 2);
+		draw.drawLines(line, 2);
 	}
+	draw.finish ();
 }
