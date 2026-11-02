@@ -8,27 +8,18 @@
 #include "platform-dependent.h"
 #include "specialsettings.h"
 #include "graphics.h"
-#include "dxgipresent.h"
 #include "language.h"
 #include "newfatal.h"
 #include "sprbanks.h"
 #include "zbuffer.h"
 #include "backdrop.h"
 #include "renderer.h"
+#include "renderer_window.h"
 #include "movie.h"
 #include "stringy.h"
 #include "capture.h"
 
 #include "language.h" // for settings
-
-#if defined(SLUDGE_FRAMEBUFFER_VSYNC)
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/fb.h>
-#ifndef FBIO_WAITFORVSYNC
-#define FBIO_WAITFORVSYNC _IOW('F', 0x20, __u32)
-#endif
-#endif
 
 unsigned int winWidth, winHeight;
 int viewportHeight, viewportWidth;
@@ -56,11 +47,26 @@ GLfloat secondaryColor[4];
 static gfx::Texture * frameTexture = NULL;
 static gfx::RenderTarget * frameTarget = NULL;
 
-gfx::DrawUniforms::DrawUniforms ()
-	: useLightTexture (false), antialias (false), zBuffer (false), zBufferLayer (0.0f), modulateColor (false) {
-	memcpy (matrix, aPMVMatrix, sizeof (matrix));
-	memcpy (color, primaryColor, sizeof (color));
-	memcpy (secondaryColor, ::secondaryColor, sizeof (secondaryColor));
+gfx::Renderer * gfx::renderer = NULL;
+
+gfx::DrawUniforms engineUniforms () {
+	gfx::DrawUniforms u;
+	memcpy (u.matrix, aPMVMatrix, sizeof (u.matrix));
+	memcpy (u.color, primaryColor, sizeof (u.color));
+	memcpy (u.secondaryColor, secondaryColor, sizeof (u.secondaryColor));
+	return u;
+}
+
+void gfx::draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, const float * vertices, const float * texCoords) {
+	Texture * const textures[3] = { texture, NULL, NULL };
+	Quad quad = { vertices, { texCoords, NULL, NULL } };
+	renderer->draw (state, uniforms, textures, quad);
+}
+
+void gfx::draw (const PipelineState & state, const DrawUniforms & uniforms, const float * vertices) {
+	Texture * const textures[3] = { NULL, NULL, NULL };
+	Quad quad = { vertices, { NULL, NULL, NULL } };
+	renderer->draw (state, uniforms, textures, quad);
 }
 
 void setPrimaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -172,7 +178,7 @@ void drawFrameIntoWindow () {
 		0, v,
 		u, v
 	};
-	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), frameTexture, vertices, texCoords);
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), frameTexture, vertices, texCoords);
 
 	setPixelCoords (false);
 	memcpy (aPMVMatrix, gameMatrix, sizeof (gameMatrix));
@@ -239,7 +245,6 @@ unsigned char * readBackdropPixels (int * width, int * height) {
 }
 
 SDL_Window * sludgeWindow = NULL;
-static SDL_GLContext glContext = NULL;
 
 // Set the area of the window in which we draw the game. We keep the aspect
 // ratio of the game and leave black bars in the rest of the window. With
@@ -252,9 +257,7 @@ void updateViewport () {
 	SDL_GetWindowSizeInPixels (sludgeWindow, &realWinWidth, &realWinHeight);
 	if (realWinWidth < 1) realWinWidth = 1;
 	if (realWinHeight < 1) realWinHeight = 1;
-#if defined(_WIN32) && ! defined(HAVE_GLES2)
-	resizeDXGIPresentation (realWinWidth, realWinHeight);
-#endif
+	gfx::windowResized (realWinWidth, realWinHeight);
 
 	if (gameSettings.fixedPixels) {
 		int scale = realWinWidth / (int) winWidth;
@@ -318,114 +321,6 @@ void gameToWindowCoords (float gameX, float gameY, float * x, float * y) {
 	*y = py / density;
 }
 
-// We draw with SDL_GPU instead of OpenGL.
-static bool usingGPU = false;
-
-#if defined(SLUDGE_RENDERER_GPU)
-static SDL_GPUDevice * gpuDevice = NULL;
-
-// Make the window and the SDL_GPU renderer. Returns false, and leaves
-// nothing behind, when SDL_GPU can't draw in this window.
-static bool createGPUWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
-	gpuDevice = SDL_CreateGPUDevice (SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_DXIL, gameSettings.debugMode, NULL);
-	if (! gpuDevice) {
-		fprintf (stderr, "SDL_GPU is not available: %s\n", SDL_GetError ());
-		return false;
-	}
-	// On macOS, SDL makes an OpenGL window unless we ask for another kind,
-	// and that fails without OpenGL.
-	if (! strcmp (SDL_GetGPUDeviceDriver (gpuDevice), "metal")) flags |= SDL_WINDOW_METAL;
-	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
-	const char * error = NULL;
-	if (sludgeWindow && SDL_ClaimWindowForGPUDevice (gpuDevice, sludgeWindow)) {
-		// In a test run, we don't wait for the display.
-		if (captureIsDeterministic () && SDL_WindowSupportsGPUPresentMode (gpuDevice, sludgeWindow, SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-			SDL_SetGPUSwapchainParameters (gpuDevice, sludgeWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
-		}
-		gfx::renderer = gfx::createGPURenderer (gpuDevice, sludgeWindow, &error);
-		if (gfx::renderer) {
-			usingGPU = true;
-			// We always say which renderer draws, for tests and bug reports.
-			fprintf (stderr, "Renderer: SDL_GPU (%s)\n", SDL_GetGPUDeviceDriver (gpuDevice));
-			return true;
-		}
-		fprintf (stderr, "Can't make the SDL_GPU renderer: %s\n", error);
-		SDL_ReleaseWindowFromGPUDevice (gpuDevice, sludgeWindow);
-	} else {
-		fprintf (stderr, "Can't draw with SDL_GPU in the window: %s\n", SDL_GetError ());
-	}
-	if (sludgeWindow) SDL_DestroyWindow (sludgeWindow);
-	sludgeWindow = NULL;
-	SDL_DestroyGPUDevice (gpuDevice);
-	gpuDevice = NULL;
-	return false;
-}
-#endif
-
-// Why OpenGL couldn't draw, for the message to the player when no renderer
-// can.
-static const char * glProblem = NULL;
-static char glProblemDetail[256] = "";
-static int glProblemExitCode = 0;
-
-static bool glFailed (const char * problem, const char * detail, int exitCode) {
-	glProblem = problem;
-	SDL_strlcpy (glProblemDetail, detail ? detail : "", sizeof (glProblemDetail));
-	glProblemExitCode = exitCode;
-	fprintf (stderr, "%s %s\n", problem, glProblemDetail);
-#if defined(_WIN32) && ! defined(HAVE_GLES2)
-	if (presentingWithDXGI ()) {
-		stopDXGIPresentation ();
-		glContext = NULL;
-	}
-#endif
-	if (glContext) SDL_GL_DestroyContext (glContext);
-	glContext = NULL;
-	if (sludgeWindow) SDL_DestroyWindow (sludgeWindow);
-	sludgeWindow = NULL;
-	return false;
-}
-
-// Make the window and the OpenGL renderer. Returns false, and leaves
-// nothing behind, when OpenGL can't draw in this window.
-static bool createGLWindow (const char * title, int w, int h, SDL_WindowFlags flags) {
-#if defined(_WIN32) && ! defined(HAVE_GLES2)
-	// On Windows, we show the frames through DXGI where we can, in a
-	// window without OpenGL (see dxgipresent.cpp).
-	sludgeWindow = SDL_CreateWindow (title, w, h, flags);
-	if (sludgeWindow) {
-		glContext = startDXGIPresentation (sludgeWindow);
-		if (! glContext) {
-			SDL_DestroyWindow (sludgeWindow);
-			sludgeWindow = NULL;
-		}
-	}
-#endif
-
-	if (! sludgeWindow) {
-		sludgeWindow = SDL_CreateWindow (title, w, h, flags | SDL_WINDOW_OPENGL);
-		if (! sludgeWindow) return glFailed ("Startup Error: Couldn't create the game window.", SDL_GetError (), 2);
-		glContext = SDL_GL_CreateContext (sludgeWindow);
-		if (! glContext) return glFailed ("Startup Error: Couldn't create an OpenGL context.", SDL_GetError (), 2);
-		SDL_GL_MakeCurrent (sludgeWindow, glContext);
-		// In a test run, we don't wait for the display.
-		SDL_GL_SetSwapInterval (captureIsDeterministic () ? 0 : 1);
-	}
-
-	const char * missing = loadGLFunctions ();
-	if (missing) return glFailed ("Startup Error: Your graphics driver doesn't support OpenGL 2.0.", missing, 1);
-
-	const char * error = NULL;
-	gfx::renderer = gfx::createGLRenderer (&error);
-	if (! gfx::renderer) return glFailed ("Startup Error: Couldn't build the shader programs.", error, 1);
-
-	fprintf (stderr, "Renderer: OpenGL\n");
-	debugOut ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
-	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
-	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
-	return true;
-}
-
 static void createGraphicsWindow (bool fullscreen) {
 	SDL_Rect usable;
 	if (! SDL_GetDisplayUsableBounds (SDL_GetPrimaryDisplay (), &usable)) {
@@ -458,30 +353,22 @@ static void createGraphicsWindow (bool fullscreen) {
 		flags = SDL_WINDOW_HIDDEN;
 	}
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
-	const char * title = gameName ? gameName : "SLUDGE";
 
-	// With auto, we draw with SDL_GPU: with Metal, Direct3D 12 or Vulkan.
-	// When one renderer can't draw, we try the other.
-	const char * choice = requestedRenderer ();
-	bool gpuFirst = true;
-	if (! strcmp (choice, "gl")) {
-		gpuFirst = false;
-	} else if (strcmp (choice, "gpu") && strcmp (choice, "auto")) {
-		fprintf (stderr, "Unknown renderer \"%s\", so we choose one\n", choice);
-	}
-
-#if defined(SLUDGE_RENDERER_GPU)
-	bool ok = gpuFirst && createGPUWindow (title, w, h, flags);
-	if (! ok) ok = createGLWindow (title, w, h, flags);
-	if (! ok && ! gpuFirst) ok = createGPUWindow (title, w, h, flags);
-#else
-	if (! strcmp (choice, "gpu")) fprintf (stderr, "This engine was built without SDL_GPU\n");
-	bool ok = createGLWindow (title, w, h, flags);
-#endif
-	if (! ok) {
-		msgBox (glProblem, glProblemDetail);
+	gfx::WindowOptions options;
+	options.title = gameName ? gameName : "SLUDGE";
+	options.width = w;
+	options.height = h;
+	options.flags = flags;
+	options.renderer = requestedRenderer ();
+	options.debug = gameSettings.debugMode;
+	// In a test run, we don't wait for the display.
+	options.immediate = captureIsDeterministic ();
+	gfx::WindowProblem problem;
+	gfx::renderer = gfx::createWindowRenderer (options, &sludgeWindow, &problem);
+	if (! gfx::renderer) {
+		msgBox (problem.message, problem.detail);
 		SDL_Quit ();
-		exit (glProblemExitCode);
+		exit (problem.exitCode);
 	}
 	SDL_SetWindowMinimumSize (sludgeWindow, 160, 120);
 	SDL_ShowWindow (sludgeWindow);
@@ -513,30 +400,9 @@ void setGraphicsWindow(bool fullscreen, bool restoreGraphics) {
 }
 
 void setupOpenGLStuff() {
-
-	/*
-	 * We want *at least* 8 bits of red, green, blue and alpha, a 16-bit
-	 * depth buffer and a double buffered window.
-	 */
-	SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8);
-	SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8);
-	SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8);
-	SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 8);
-	SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 16 );
-	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-#if defined(HAVE_GLES2)
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
-	// The shaders are in GLSL 1.10, which is only available in a
-	// compatibility context. On macOS, that is an OpenGL 2.1 context.
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-#endif
-
 	setGraphicsWindow(gameSettings.userFullScreen, false);
 
-	if (usingGPU) {
+	if (gfx::windowRendererUsesGPU ()) {
 		NPOT_textures = true;
 	} else {
 #if !defined(HAVE_GLES2)
@@ -561,31 +427,6 @@ void setupOpenGLStuff() {
 	updateViewport ();
 }
 
-#if defined(SLUDGE_FRAMEBUFFER_VSYNC)
-// Wait for the next vertical sync of the framebuffer. Without /dev/fb0, we
-// do not wait.
-static void waitForFramebufferVSync () {
-	static int framebuffer = open ("/dev/fb0", O_RDONLY);
-	if (framebuffer < 0) return;
-	int arg = 0;
-	ioctl (framebuffer, FBIO_WAITFORVSYNC, &arg);
-}
-#endif
-
-void swapGraphicsBuffers () {
-#if defined(SLUDGE_FRAMEBUFFER_VSYNC)
-	waitForFramebufferVSync ();
-#endif
-#if defined(_WIN32) && ! defined(HAVE_GLES2)
-	if (presentingWithDXGI ()) {
-		presentWithDXGI ();
-		return;
-	}
-#endif
-	SDL_GL_SwapWindow (sludgeWindow);
-}
-
-
 // I found this function on a coding forum on the 'net.
 // Looks a bit weird, but it should work.
 int getNextPOT(int n) {
@@ -597,20 +438,4 @@ int getNextPOT(int n) {
 	n |= n >> 1;
 	++n;
 	return n;
-}
-
-int printOglError (const char *file, int         line)
-{
-	/* Returns 1 if an OpenGL error occurred, 0 otherwise. */
-	GLenum glErr;
-	int    retCode = 0;
-
-	glErr = glGetError ();
-	while (glErr != GL_NO_ERROR)
-    {
-		debugOut("glError in file %s @ line %d: error code 0x%x\n", file, line, glErr);
-		retCode = 1;
-		glErr = glGetError ();
-    }
-	return retCode;
 }

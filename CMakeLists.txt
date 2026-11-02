@@ -11,7 +11,10 @@ set(SLUDGE_DEVICE "" CACHE STRING "Build for a device: OpenPandora, RaspberryPi 
 set_property(CACHE SLUDGE_DEVICE PROPERTY STRINGS "" OpenPandora RaspberryPi ODROID)
 # Besides OpenGL, the engine can draw with SDL_GPU, through Metal, Vulkan or
 # Direct3D 12. On the devices, we draw with OpenGL ES 2.0 only.
-if(SLUDGE_GLES2 OR SLUDGE_DEVICE)
+if(SLUDGE_DEVICE)
+	set(SLUDGE_GLES2 ON)
+endif()
+if(SLUDGE_GLES2)
 	set(RENDERER_GPU_DEFAULT OFF)
 else()
 	set(RENDERER_GPU_DEFAULT ON)
@@ -24,14 +27,17 @@ option(SLUDGE_TESTS "Build the tests" ON)
 option(SLUDGE_ENGINE "Build the SLUDGE engine" ON)
 # The compiler is headless and builds everywhere. The Dev Kit needs it.
 option(SLUDGE_COMPILER "Build the headless sludge-compiler" ON)
-# The Dev Kit uses GTK 3, and so far we build it only on Linux and other
-# Unix systems.
+# The new Dev Kit uses SDL 3 and Dear ImGui, and draws with the renderers
+# of the engine. Until it does all that the old one does, we keep the old
+# one too, which uses GTK 3, and which we build only on Linux and other Unix
+# systems.
+option(SLUDGE_DEVKIT "Build the SLUDGE Dev Kit (SDL 3 and Dear ImGui; in progress)" OFF)
 if(UNIX AND NOT APPLE)
-	set(DEVKIT_DEFAULT ON)
+	set(DEVKIT_GTK_DEFAULT ON)
 else()
-	set(DEVKIT_DEFAULT OFF)
+	set(DEVKIT_GTK_DEFAULT OFF)
 endif()
-option(SLUDGE_DEVKIT "Build the SLUDGE Dev Kit" ${DEVKIT_DEFAULT})
+option(SLUDGE_DEVKIT_GTK "Build the old SLUDGE Dev Kit, which uses GTK 3" ${DEVKIT_GTK_DEFAULT})
 option(SLUDGE_DOC "Install the SLUDGE documentation" OFF)
 
 include(GNUInstallDirs)
@@ -43,23 +49,77 @@ endif()
 
 install(FILES AUTHORS README INSTALL DESTINATION ${SLUDGE_DOCDIR})
 
-if(SLUDGE_DEVKIT AND NOT SLUDGE_COMPILER)
+if((SLUDGE_DEVKIT OR SLUDGE_DEVKIT_GTK) AND NOT SLUDGE_COMPILER)
 	message(STATUS "The Dev Kit needs the compiler, so we build it too")
 	set(SLUDGE_COMPILER ON)
 endif()
 
-if(SLUDGE_ENGINE OR SLUDGE_COMPILER)
+if(SLUDGE_ENGINE OR SLUDGE_COMPILER OR SLUDGE_DEVKIT)
 	include(cmake/Dependencies.cmake)
 endif()
 
 if(SLUDGE_COMPILER)
 	add_subdirectory(source/DevKit)
 endif()
-if(SLUDGE_DEVKIT)
+if(SLUDGE_DEVKIT_GTK)
 	add_subdirectory(GTK_Dev_Kit)
 endif()
 if(SLUDGE_DOC)
 	add_subdirectory(doc)
+endif()
+
+# The renderers, which the engine and the Dev Kit draw with: OpenGL (or
+# OpenGL ES 2.0), and SDL_GPU. They know nothing of the engine. A program
+# that links them defines debugOut (source/Engine/debug.h).
+if(SLUDGE_ENGINE OR SLUDGE_DEVKIT)
+	set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/Engine)
+	set(RENDERER_SOURCES renderer.cpp renderer_gl.cpp renderer_window.cpp shaders.cpp sludge_gl.cpp)
+	if(SLUDGE_RENDERER_GPU)
+		list(APPEND RENDERER_SOURCES renderer_gpu.cpp)
+	endif()
+	if(WIN32 AND NOT SLUDGE_GLES2)
+		list(APPEND RENDERER_SOURCES dxgipresent.cpp)
+	endif()
+	list(TRANSFORM RENDERER_SOURCES PREPEND ${ENGINE_DIR}/)
+
+	set(SHADERS
+		fixScaleSprite.frag fixScaleSprite.vert
+		scale.frag scale_noaa.frag scale.vert
+		texture.frag texture.vert
+		color.frag color.vert
+		yuv.frag yuv.vert
+		vertexcolor.frag vertexcolor.vert
+	)
+	list(TRANSFORM SHADERS PREPEND ${ENGINE_DIR}/)
+
+	# We build the shaders of OpenGL into the library.
+	set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+	add_custom_command(
+		OUTPUT ${GENERATED_DIR}/shaders_embedded.h
+		COMMAND ${CMAKE_COMMAND} -DOUTPUT=${GENERATED_DIR}/shaders_embedded.h "-DSHADERS=${SHADERS}"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake
+		DEPENDS ${SHADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake
+		COMMENT "Embedding shaders"
+		VERBATIM)
+
+	add_library(sludge-renderer STATIC ${RENDERER_SOURCES} ${GENERATED_DIR}/shaders_embedded.h)
+	target_include_directories(sludge-renderer PUBLIC ${ENGINE_DIR} PRIVATE ${GENERATED_DIR})
+	target_link_libraries(sludge-renderer PUBLIC sludge::sdl3)
+	if(SLUDGE_RENDERER_GPU)
+		target_compile_definitions(sludge-renderer PUBLIC SLUDGE_RENDERER_GPU)
+	endif()
+	# The graphics driver of the OpenPandora ignores the swap interval, so
+	# we wait for the vertical sync of the framebuffer ourselves.
+	if(SLUDGE_DEVICE STREQUAL "OpenPandora")
+		target_compile_definitions(sludge-renderer PRIVATE SLUDGE_FRAMEBUFFER_VSYNC)
+	endif()
+	if(SLUDGE_GLES2)
+		target_compile_definitions(sludge-renderer PUBLIC HAVE_GLES2)
+		target_link_libraries(sludge-renderer PUBLIC GLESv2)
+	else()
+		find_package(OpenGL REQUIRED)
+		target_link_libraries(sludge-renderer PUBLIC OpenGL::GL)
+	endif()
 endif()
 
 if(SLUDGE_ENGINE)
@@ -77,9 +137,6 @@ if(SLUDGE_ENGINE)
 	elseif(NOT SLUDGE_DEVICE STREQUAL "")
 		message(FATAL_ERROR "SLUDGE_DEVICE must be OpenPandora, RaspberryPi or ODROID")
 	endif()
-	if(SLUDGE_DEVICE)
-		set(SLUDGE_GLES2 ON)
-	endif()
 
 	set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/Engine)
 	set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/CommonCode)
@@ -89,14 +146,11 @@ if(SLUDGE_ENGINE)
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
-		region.cpp renderer_gl.cpp savedata.cpp shaders.cpp sludge_gl.cpp sludger.cpp sprbanks.cpp
+		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
 		sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
-	if(SLUDGE_RENDERER_GPU)
-		list(APPEND ENGINE_SOURCES renderer_gpu.cpp)
-	endif()
 	if(SLUDGE_MOVIES)
 		list(APPEND ENGINE_SOURCES movie.cpp libwebm/mkvreader.cpp)
 	else()
@@ -108,45 +162,20 @@ if(SLUDGE_ENGINE)
 	if(WIN32)
 		# The resource script contains the setup dialog, the cursors and the icons.
 		enable_language(RC)
-		list(APPEND ENGINE_SOURCES ${ENGINE_DIR}/winstuff.cpp ${ENGINE_DIR}/dxgipresent.cpp ${CMAKE_CURRENT_SOURCE_DIR}/images/SLUDGE.RC)
+		list(APPEND ENGINE_SOURCES ${ENGINE_DIR}/winstuff.cpp ${CMAKE_CURRENT_SOURCE_DIR}/images/SLUDGE.RC)
 	else()
 		list(APPEND ENGINE_SOURCES ${ENGINE_DIR}/posixstuff.cpp)
 	endif()
 
-	set(SHADERS
-		fixScaleSprite.frag fixScaleSprite.vert
-		scale.frag scale_noaa.frag scale.vert
-		texture.frag texture.vert
-		color.frag color.vert
-		yuv.frag yuv.vert
-	)
-	list(TRANSFORM SHADERS PREPEND ${ENGINE_DIR}/)
+	add_executable(sludge-engine ${ENGINE_SOURCES})
 
-	# We build the shaders into the executable.
-	set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-	add_custom_command(
-		OUTPUT ${GENERATED_DIR}/shaders_embedded.h
-		COMMAND ${CMAKE_COMMAND} -DOUTPUT=${GENERATED_DIR}/shaders_embedded.h "-DSHADERS=${SHADERS}"
-			-P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake
-		DEPENDS ${SHADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake
-		COMMENT "Embedding shaders"
-		VERBATIM)
-
-	add_executable(sludge-engine ${ENGINE_SOURCES} ${GENERATED_DIR}/shaders_embedded.h)
-
-	target_include_directories(sludge-engine PRIVATE ${GENERATED_DIR} ${COMMON_DIR})
+	target_include_directories(sludge-engine PRIVATE ${COMMON_DIR})
 	target_link_libraries(sludge-engine PRIVATE
-		sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
+		sludge-renderer sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
 
-	if(SLUDGE_RENDERER_GPU)
-		target_compile_definitions(sludge-engine PRIVATE SLUDGE_RENDERER_GPU)
-	endif()
 	if(SLUDGE_GLES2)
-		target_compile_definitions(sludge-engine PRIVATE HAVE_GLES2 ${DEVICE_DEFINITIONS})
-		target_link_libraries(sludge-engine PRIVATE GLESv2 ${DEVICE_LIBRARIES})
-	else()
-		find_package(OpenGL REQUIRED)
-		target_link_libraries(sludge-engine PRIVATE OpenGL::GL)
+		target_compile_definitions(sludge-engine PRIVATE ${DEVICE_DEFINITIONS})
+		target_link_libraries(sludge-engine PRIVATE ${DEVICE_LIBRARIES})
 	endif()
 
 	if(SLUDGE_MOVIES)

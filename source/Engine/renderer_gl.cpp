@@ -6,20 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <vector>
+
 #include <SDL3/SDL.h>
 
 #include "sludge_gl.h"
 #include "renderer.h"
 #include "debug.h"
 #include "dxgipresent.h"
-#include "graphics.h"
-#include "newfatal.h"
 #include "shaders.h"
-#include "stringy.h"
 
 namespace gfx {
-
-Renderer * renderer = NULL;
 
 struct Texture {
 	GLuint name;
@@ -35,6 +32,12 @@ struct RenderTarget {
 	Texture * color;
 };
 
+// We draw meshes from client memory, as the quads.
+struct Mesh {
+	std::vector<Vertex2D> vertices;
+	std::vector<unsigned short> indices;
+};
+
 namespace {
 
 // The uniforms and attributes of a program.
@@ -43,7 +46,7 @@ struct ProgramInfo {
 	GLint matrix, color, secondaryColor;
 	GLint useLightTexture, antialias, scale;
 	GLint zBuffer, zBufferLayer, modulateColor;
-	GLint vertex, texCoords[3];
+	GLint vertex, texCoords[3], vertexColor;
 };
 
 GLenum glFormat (TexFormat format) {
@@ -64,7 +67,7 @@ GLint glWrap (Wrap wrap) {
 
 class GLRenderer : public Renderer {
 public:
-	GLRenderer () : currentTarget (NULL), antialiasScale (1.0f), readFramebuffer (0), blank (NULL) {}
+	GLRenderer (void (* swap) ()) : swapBuffers (swap), currentTarget (NULL), antialiasScale (1.0f), readFramebuffer (0), blank (NULL) {}
 
 	bool init (const char ** error);
 
@@ -90,7 +93,12 @@ public:
 
 	void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad);
 
+	Mesh * createFrameMesh (const Vertex2D * vertices, int vertexCount, const unsigned short * indices, int indexCount);
+	void drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex);
+
 	void present ();
+
+	~GLRenderer ();
 
 private:
 	bool buildProgram (Program p, const char * vertexFile, const char * fragmentFile);
@@ -98,6 +106,7 @@ private:
 	void applyState (const PipelineState & state);
 	void setUniforms (const ProgramInfo & info, const DrawUniforms & uniforms);
 
+	void (* swapBuffers) ();
 	ProgramInfo programs[PROG_COUNT];
 	RenderTarget * currentTarget;
 	float antialiasScale;
@@ -106,6 +115,8 @@ private:
 	// texture 0, which has no image, macOS warns about the samplers that
 	// the shaders declare for those units.
 	Texture * blank;
+	// The meshes of this frame, which we free when we present it.
+	std::vector<Mesh *> frameMeshes;
 };
 
 bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * fragmentFile) {
@@ -117,11 +128,12 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 		return false;
 	}
 #if defined(HAVE_GLES2)
-	char * withPrecision = joinStrings ("precision mediump float;\n", fragment);
+	static const char precision[] = "precision mediump float;\n";
+	char * withPrecision = (char *) malloc (sizeof (precision) + strlen (fragment));
+	strcpy (withPrecision, precision);
+	strcat (withPrecision, fragment);
 	free (fragment);
-	fragment = (char *) malloc (strlen (withPrecision) + 1);
-	strcpy (fragment, withPrecision);
-	delete [] withPrecision;
+	fragment = withPrecision;
 #endif
 	GLuint program = buildShaders (vertex, fragment);
 	free (vertex);
@@ -144,6 +156,7 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 	info.texCoords[0] = glGetAttribLocation (program, "myUV0");
 	info.texCoords[1] = glGetAttribLocation (program, "myUV1");
 	info.texCoords[2] = glGetAttribLocation (program, "myUV2");
+	info.vertexColor = glGetAttribLocation (program, "myVertexColor");
 
 	// The samplers read texture units 0, 1 and 2, in the order in which
 	// the shaders declare them.
@@ -153,6 +166,7 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 		{ "sampler2d", NULL, NULL },
 		{ NULL, NULL, NULL },
 		{ "Ytex", "Utex", "Vtex" },
+		{ "sampler2d", NULL, NULL },
 	};
 	glUseProgram (program);
 	for (int unit = 0; unit < 3; unit ++) {
@@ -177,6 +191,7 @@ bool GLRenderer::init (const char ** error) {
 		{ "texture.vert", "texture.frag" },
 		{ "color.vert", "color.frag" },
 		{ "yuv.vert", "yuv.frag" },
+		{ "vertexcolor.vert", "vertexcolor.frag" },
 	};
 	for (int p = 0; p < PROG_COUNT; p ++) {
 		if (! buildProgram ((Program) p, files[p][0], files[p][1])) {
@@ -409,32 +424,63 @@ void GLRenderer::draw (const PipelineState & state, const DrawUniforms & uniform
 
 
 
+Mesh * GLRenderer::createFrameMesh (const Vertex2D * vertices, int vertexCount, const unsigned short * indices, int indexCount) {
+	Mesh * mesh = new Mesh;
+	mesh->vertices.assign (vertices, vertices + vertexCount);
+	mesh->indices.assign (indices, indices + indexCount);
+	frameMeshes.push_back (mesh);
+	return mesh;
+}
+
+void GLRenderer::drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) {
+	if (indexCount <= 0) return;
+	const ProgramInfo & info = programs[PROG_VERTEX_COLOR];
+	applyState (state);
+	glUseProgram (info.program);
+	setUniforms (info, uniforms);
+
+	for (int unit = 2; unit >= 0; unit --) {
+		glActiveTexture (GL_TEXTURE0 + unit);
+		glBindTexture (GL_TEXTURE_2D, (unit == 0 && texture ? texture : blank)->name);
+	}
+
+	const Vertex2D * v = &mesh->vertices[baseVertex];
+	GLsizei stride = sizeof (Vertex2D);
+	glEnableVertexAttribArray (info.vertex);
+	glVertexAttribPointer (info.vertex, 2, GL_FLOAT, GL_FALSE, stride, &v->x);
+	glEnableVertexAttribArray (info.texCoords[0]);
+	glVertexAttribPointer (info.texCoords[0], 2, GL_FLOAT, GL_FALSE, stride, &v->u);
+	glEnableVertexAttribArray (info.vertexColor);
+	glVertexAttribPointer (info.vertexColor, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, v->color);
+
+	glDrawElements (GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, &mesh->indices[firstIndex]);
+
+	glDisableVertexAttribArray (info.vertexColor);
+	glDisableVertexAttribArray (info.texCoords[0]);
+	glDisableVertexAttribArray (info.vertex);
+	glUseProgram (0);
+}
+
 void GLRenderer::present () {
 	glFlush ();
-	swapGraphicsBuffers ();
+	swapBuffers ();
+	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
+	frameMeshes.clear ();
+}
+
+GLRenderer::~GLRenderer () {
+	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
 }
 
 } // namespace
 
-Renderer * createGLRenderer (const char ** error) {
-	GLRenderer * r = new GLRenderer;
+Renderer * createGLRenderer (void (* swapBuffers) (), const char ** error) {
+	GLRenderer * r = new GLRenderer (swapBuffers);
 	if (! r->init (error)) {
 		delete r;
 		return NULL;
 	}
 	return r;
-}
-
-void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, const float * vertices, const float * texCoords) {
-	Texture * const textures[3] = { texture, NULL, NULL };
-	Quad quad = { vertices, { texCoords, NULL, NULL } };
-	renderer->draw (state, uniforms, textures, quad);
-}
-
-void draw (const PipelineState & state, const DrawUniforms & uniforms, const float * vertices) {
-	Texture * const textures[3] = { NULL, NULL, NULL };
-	Quad quad = { vertices, { NULL, NULL, NULL } };
-	renderer->draw (state, uniforms, textures, quad);
 }
 
 } // namespace gfx

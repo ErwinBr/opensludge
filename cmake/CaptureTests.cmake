@@ -178,3 +178,13 @@ if(SLUDGE_OUT_OF_ORDER)
 	sludge_add_capture_test(out-of-order GAME ${SLUDGE_OUT_OF_ORDER}
 		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/out-of-order.input FRAMES 0-1200/40)
 endif()
+
+# The meshes of the renderers, which the Dev Kit draws with.
+add_executable(renderer_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/renderer_test.cpp)
+target_link_libraries(renderer_test PRIVATE sludge-renderer)
+add_test(NAME capture-renderer-meshes-gl COMMAND renderer_test gl)
+set_tests_properties(capture-renderer-meshes-gl PROPERTIES LABELS capture)
+if(SLUDGE_GPU_CAPTURE_TESTS)
+	add_test(NAME capture-renderer-meshes-gpu COMMAND renderer_test gpu)
+	set_tests_properties(capture-renderer-meshes-gpu PROPERTIES LABELS capture)
+endif()

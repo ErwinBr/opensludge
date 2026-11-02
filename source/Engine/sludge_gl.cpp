@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include "sludge_gl.h"
+#include "debug.h"
 
 #if !defined(HAVE_GLES2)
 
@@ -42,4 +43,19 @@ int getGLVersion () {
 	while (*version && (*version < '0' || *version > '9')) version ++;
 	if (sscanf (version, "%d.%d", &major, &minor) != 2) return 0;
 	return major * 10 + minor;
+}
+
+int printOglError (const char *file, int line)
+{
+	GLenum glErr;
+	int    retCode = 0;
+
+	glErr = glGetError ();
+	while (glErr != GL_NO_ERROR)
+    {
+		debugOut("glError in file %s @ line %d: error code 0x%x\n", file, line, glErr);
+		retCode = 1;
+		glErr = glGetError ();
+    }
+	return retCode;
 }

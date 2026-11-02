@@ -33,6 +33,19 @@ extern int realWinWidth, realWinHeight;
 extern bool NPOT_textures;
 extern GLfloat aPMVMatrix[];
 
+namespace gfx {
+// The renderer that the engine draws with.
+extern Renderer * renderer;
+
+// Shortcuts for drawing with one texture or none.
+void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, const float * vertices, const float * texCoords);
+void draw (const PipelineState & state, const DrawUniforms & uniforms, const float * vertices);
+}
+
+// The uniforms with the matrix and colours from setPMVMatrix and
+// setPrimaryColor, and false and 0 for the rest.
+gfx::DrawUniforms engineUniforms ();
+
 void setPrimaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
 void setSecondaryColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
 
@@ -63,7 +76,6 @@ void setupOpenGLStuff();
 void updateViewport ();
 void windowToGameCoords (float x, float y, int * gameX, int * gameY);
 void gameToWindowCoords (float gameX, float gameY, float * x, float * y);
-void swapGraphicsBuffers ();
 
 struct SDL_Window;
 extern SDL_Window * sludgeWindow;
@@ -76,8 +88,5 @@ unsigned char * readFramePixels (int * width, int * height);
 // Read the backdrop, top row first, as RGBA. Returns NULL without a
 // backdrop. Free the pixels with delete [].
 unsigned char * readBackdropPixels (int * width, int * height);
-
-int printOglError (const char *file, int         line);
-#define printOpenGLError() printOglError(__FILE__, __LINE__)
 
 #endif

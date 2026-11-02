@@ -869,7 +869,7 @@ bool showMovieFrame ()
 	if (yTex) {
 		gfx::Texture * const planes[3] = { yTex, uTex, vTex };
 		gfx::Quad quad = { movieVertices, { movieTexCoords, NULL, NULL } };
-		gfx::renderer->draw (gfx::PipelineState (gfx::PROG_YUV, gfx::BLEND_ALPHA), gfx::DrawUniforms (), planes, quad);
+		gfx::renderer->draw (gfx::PipelineState (gfx::PROG_YUV, gfx::BLEND_ALPHA), engineUniforms (), planes, quad);
 	}
 
 	if (movieIsPlaying == paused) {
@@ -880,7 +880,7 @@ bool showMovieFrame ()
 		for (int i = 0; i < 4; i ++) {
 			float c = i < 2 ? 0.0f : 1.0f;
 			setPrimaryColor (c, c, c, fabs (movie->pauseFade));
-			gfx::draw (state, gfx::DrawUniforms (), pauseVertices[i]);
+			gfx::draw (state, engineUniforms (), pauseVertices[i]);
 		}
 	}
 	showFrame ();

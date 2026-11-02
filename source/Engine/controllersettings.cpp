@@ -316,7 +316,7 @@ static void drawRectangle (int x1, int y1, int x2, int y2, float r, float g, flo
 		x2 / cameraZoom, y2 / cameraZoom, 0
 	};
 	setPrimaryColor (r, g, b, a);
-	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), gfx::DrawUniforms (), vertices);
+	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), engineUniforms (), vertices);
 }
 
 // Layout

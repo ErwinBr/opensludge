@@ -19,12 +19,19 @@
  *
  * We record all drawing into one command buffer for each frame, and submit
  * it when we present the frame, or earlier when we read pixels back.
+ *
+ * Meshes go into a vertex buffer and an index buffer, one after another in
+ * each frame. We start at the beginning again in the next frame, and let
+ * SDL cycle the buffers, so that we don't write over a frame that the GPU
+ * may still be drawing.
  */
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <map>
+#include <vector>
 
 #include <SDL3/SDL.h>
 
@@ -48,15 +55,25 @@ struct RenderTarget {
 	int depthWidth, depthHeight;
 };
 
+struct Mesh {
+	SDL_GPUBuffer * vertices;
+	SDL_GPUBuffer * indices;
+	Uint32 vertexOffset, indexOffset;	// In bytes
+};
+
 namespace {
 
-// The uniform blocks of the shaders (shaders/gpu/quad.vert and
+// The uniform blocks of the shaders (shaders/gpu/quad.vert, mesh.vert and
 // uniforms.glsl), in the layout of std140.
 struct VertexUniforms {
 	float matrix[16];
 	float positions[4][4];
 	float texCoords01[4][4];
 	float texCoords2[4][4];
+};
+
+struct MeshUniforms {
+	float matrix[16];
 };
 
 struct FragmentUniforms {
@@ -85,6 +102,14 @@ const ProgramInfo programs[PROG_COUNT] = {
 	{ "texture.frag", 1, 1 },
 	{ "color.frag", 0, 1 },
 	{ "yuv.frag", 3, 0 },
+	{ "vertexcolor.frag", 1, 1 },
+};
+
+// A vertex buffer or index buffer for meshes, which we fill from the start
+// in each frame.
+struct MeshBuffer {
+	SDL_GPUBuffer * buffer;
+	Uint32 capacity, used;
 };
 
 SDL_GPUTextureFormat gpuFormat (TexFormat format) {
@@ -124,6 +149,9 @@ public:
 
 	void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad);
 
+	Mesh * createFrameMesh (const Vertex2D * vertices, int vertexCount, const unsigned short * indices, int indexCount);
+	void drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex);
+
 	void present ();
 
 private:
@@ -138,11 +166,16 @@ private:
 	void endPass ();
 	bool scissorRect (bool withViewport, SDL_Rect * rect);
 	void download (SDL_GPUTexture * texture, int x, int y, int width, int height, int bpp, unsigned char * out);
+	bool startDraw (Program program, const PipelineState & state);
+	void drawMatrix (const float * matrix, float * out);
+	void pushFragmentUniforms (Program program, const DrawUniforms & u);
+	Uint32 reserve (MeshBuffer & b, SDL_GPUBufferUsageFlags usage, Uint32 size, bool * cycle);
 
 	SDL_GPUDevice * device;
 	SDL_Window * window;
 	SDL_GPUShaderFormat shaderFormat;	// MSL, DXIL or SPIR-V, as the driver takes
 	SDL_GPUShader * vertexShader;
+	SDL_GPUShader * meshVertexShader;
 	SDL_GPUShader * fragmentShaders[PROG_COUNT];
 	std::map<Uint32, SDL_GPUGraphicsPipeline *> pipelines;
 	SDL_GPUSampler * samplers[16];
@@ -154,6 +187,10 @@ private:
 	Texture * windowTexture;
 	RenderTarget * windowTarget;
 
+	MeshBuffer meshVertices, meshIndices;
+	std::vector<Mesh *> frameMeshes;
+	std::vector<SDL_GPUBuffer *> retiredBuffers;	// Too small, freed when we present
+
 	int viewport[4];
 	int scissor[4];
 	bool scissorOn;
@@ -161,13 +198,15 @@ private:
 };
 
 GPURenderer::GPURenderer (SDL_GPUDevice * d, SDL_Window * w)
-	: device (d), window (w), shaderFormat (SDL_GPU_SHADERFORMAT_INVALID), vertexShader (NULL), blank (NULL),
+	: device (d), window (w), shaderFormat (SDL_GPU_SHADERFORMAT_INVALID), vertexShader (NULL), meshVertexShader (NULL), blank (NULL),
 	  cmd (NULL), pass (NULL), current (NULL), windowTexture (NULL), windowTarget (NULL),
 	  scissorOn (false), antialiasScale (1.0f) {
 	memset (fragmentShaders, 0, sizeof (fragmentShaders));
 	memset (samplers, 0, sizeof (samplers));
 	memset (viewport, 0, sizeof (viewport));
 	memset (scissor, 0, sizeof (scissor));
+	memset (&meshVertices, 0, sizeof (meshVertices));
+	memset (&meshIndices, 0, sizeof (meshIndices));
 }
 
 GPURenderer::~GPURenderer () {
@@ -184,6 +223,11 @@ GPURenderer::~GPURenderer () {
 		if (fragmentShaders[p]) SDL_ReleaseGPUShader (device, fragmentShaders[p]);
 	}
 	if (vertexShader) SDL_ReleaseGPUShader (device, vertexShader);
+	if (meshVertexShader) SDL_ReleaseGPUShader (device, meshVertexShader);
+	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
+	for (size_t i = 0; i < retiredBuffers.size (); i ++) SDL_ReleaseGPUBuffer (device, retiredBuffers[i]);
+	if (meshVertices.buffer) SDL_ReleaseGPUBuffer (device, meshVertices.buffer);
+	if (meshIndices.buffer) SDL_ReleaseGPUBuffer (device, meshIndices.buffer);
 	destroyTarget (windowTarget);
 	destroyTexture (windowTexture);
 	destroyTexture (blank);
@@ -226,6 +270,11 @@ bool GPURenderer::init (const char ** error) {
 	vertexShader = makeShader ("quad.vert", SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
 	if (! vertexShader) {
 		*error = "quad.vert";
+		return false;
+	}
+	meshVertexShader = makeShader ("mesh.vert", SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+	if (! meshVertexShader) {
+		*error = "mesh.vert";
 		return false;
 	}
 	for (int p = 0; p < PROG_COUNT; p ++) {
@@ -626,6 +675,32 @@ SDL_GPUGraphicsPipeline * GPURenderer::pipeline (Program program, Blend blend, C
 	info.vertex_shader = vertexShader;
 	info.fragment_shader = fragmentShaders[program];
 	info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP;
+
+	// Meshes have their vertices in a vertex buffer, as gfx::Vertex2D.
+	SDL_GPUVertexBufferDescription vertexBuffer;
+	SDL_zero (vertexBuffer);
+	SDL_GPUVertexAttribute attributes[3];
+	SDL_zero (attributes);
+	if (program == PROG_VERTEX_COLOR) {
+		info.vertex_shader = meshVertexShader;
+		info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+		vertexBuffer.slot = 0;
+		vertexBuffer.pitch = sizeof (Vertex2D);
+		vertexBuffer.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+		attributes[0].location = 0;
+		attributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+		attributes[0].offset = offsetof (Vertex2D, x);
+		attributes[1].location = 1;
+		attributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
+		attributes[1].offset = offsetof (Vertex2D, u);
+		attributes[2].location = 2;
+		attributes[2].format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM;
+		attributes[2].offset = offsetof (Vertex2D, color);
+		info.vertex_input_state.vertex_buffer_descriptions = &vertexBuffer;
+		info.vertex_input_state.num_vertex_buffers = 1;
+		info.vertex_input_state.vertex_attributes = attributes;
+		info.vertex_input_state.num_vertex_attributes = 3;
+	}
 	info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
 	info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
 	info.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
@@ -646,34 +721,61 @@ SDL_GPUGraphicsPipeline * GPURenderer::pipeline (Program program, Blend blend, C
 	return p;
 }
 
-void GPURenderer::draw (const PipelineState & state, const DrawUniforms & u, Texture * const textures[3], const Quad & quad) {
+// Start drawing with a program, in the viewport and scissor rectangle.
+// Returns false when there is nothing to draw in.
+bool GPURenderer::startDraw (Program program, const PipelineState & state) {
 	RenderTarget * t = target ();
 	SDL_Rect rect;
-	if (! scissorRect (true, &rect)) return;
-	SDL_GPUGraphicsPipeline * p = pipeline (state.program, state.blend, state.colorMask, state.depth, t->depth != NULL, false);
-	if (! p) return;
+	if (! scissorRect (true, &rect)) return false;
+	SDL_GPUGraphicsPipeline * p = pipeline (program, state.blend, state.colorMask, state.depth, t->depth != NULL, false);
+	if (! p) return false;
 
 	if (! pass) beginPass (false, false);
-	float tw = (float) t->color->width, th = (float) t->color->height;
-	SDL_GPUViewport vp = { 0, 0, tw, th, 0, 1 };
+	SDL_GPUViewport vp = { 0, 0, (float) t->color->width, (float) t->color->height, 0, 1 };
 	SDL_SetGPUViewport (pass, &vp);
 	SDL_SetGPUScissor (pass, &rect);
 	SDL_BindGPUGraphicsPipeline (pass, p);
+	return true;
+}
 
-	// The matrix of OpenGL, then the viewport within the whole target, then
-	// y flipped and z from 0 to 1, applied to each column.
-	VertexUniforms v;
-	memset (&v, 0, sizeof (v));
+// The matrix of OpenGL, then the viewport within the whole target, then y
+// flipped and z from 0 to 1, applied to each column.
+void GPURenderer::drawMatrix (const float * matrix, float * out) {
+	RenderTarget * t = target ();
+	float tw = (float) t->color->width, th = (float) t->color->height;
 	float sx = viewport[2] / tw, ox = (2.0f * viewport[0] + viewport[2]) / tw - 1.0f;
 	float sy = viewport[3] / th, oy = (2.0f * viewport[1] + viewport[3]) / th - 1.0f;
 	for (int c = 0; c < 4; c ++) {
-		const float * m = u.matrix + c * 4;
-		float * out = v.matrix + c * 4;
-		out[0] = m[0] * sx + m[3] * ox;
-		out[1] = - (m[1] * sy + m[3] * oy);
-		out[2] = 0.5f * m[2] + 0.5f * m[3];
-		out[3] = m[3];
+		const float * m = matrix + c * 4;
+		float * o = out + c * 4;
+		o[0] = m[0] * sx + m[3] * ox;
+		o[1] = - (m[1] * sy + m[3] * oy);
+		o[2] = 0.5f * m[2] + 0.5f * m[3];
+		o[3] = m[3];
 	}
+}
+
+void GPURenderer::pushFragmentUniforms (Program program, const DrawUniforms & u) {
+	if (! programs[program].numUniformBuffers) return;
+	FragmentUniforms f;
+	memset (&f, 0, sizeof (f));
+	memcpy (f.color, u.color, sizeof (f.color));
+	memcpy (f.secondaryColor, u.secondaryColor, sizeof (f.secondaryColor));
+	f.scale = antialiasScale;
+	f.zBufferLayer = u.zBufferLayer;
+	f.antialias = u.antialias;
+	f.useLightTexture = u.useLightTexture;
+	f.zBuffer = u.zBuffer;
+	f.modulateColor = u.modulateColor;
+	SDL_PushGPUFragmentUniformData (cmd, 0, &f, sizeof (f));
+}
+
+void GPURenderer::draw (const PipelineState & state, const DrawUniforms & u, Texture * const textures[3], const Quad & quad) {
+	if (! startDraw (state.program, state)) return;
+
+	VertexUniforms v;
+	memset (&v, 0, sizeof (v));
+	drawMatrix (u.matrix, v.matrix);
 	for (int i = 0; i < 4; i ++) {
 		v.positions[i][0] = quad.vertices[i * 3];
 		v.positions[i][1] = quad.vertices[i * 3 + 1];
@@ -692,20 +794,7 @@ void GPURenderer::draw (const PipelineState & state, const DrawUniforms & u, Tex
 		}
 	}
 	SDL_PushGPUVertexUniformData (cmd, 0, &v, sizeof (v));
-
-	if (programs[state.program].numUniformBuffers) {
-		FragmentUniforms f;
-		memset (&f, 0, sizeof (f));
-		memcpy (f.color, u.color, sizeof (f.color));
-		memcpy (f.secondaryColor, u.secondaryColor, sizeof (f.secondaryColor));
-		f.scale = antialiasScale;
-		f.zBufferLayer = u.zBufferLayer;
-		f.antialias = u.antialias;
-		f.useLightTexture = u.useLightTexture;
-		f.zBuffer = u.zBuffer;
-		f.modulateColor = u.modulateColor;
-		SDL_PushGPUFragmentUniformData (cmd, 0, &f, sizeof (f));
-	}
+	pushFragmentUniforms (state.program, u);
 
 	Uint32 numSamplers = programs[state.program].numSamplers;
 	if (numSamplers) {
@@ -719,6 +808,98 @@ void GPURenderer::draw (const PipelineState & state, const DrawUniforms & u, Tex
 	}
 
 	SDL_DrawGPUPrimitives (pass, 4, 1, 0, 0);
+}
+
+// Make room for size bytes in a mesh buffer, in a larger buffer if need
+// be. Returns the offset, and whether SDL may cycle the buffer, which it
+// may for the first write of a frame into it.
+Uint32 GPURenderer::reserve (MeshBuffer & b, SDL_GPUBufferUsageFlags usage, Uint32 size, bool * cycle) {
+	if (! b.buffer || b.used + size > b.capacity) {
+		if (b.buffer) retiredBuffers.push_back (b.buffer);
+		Uint32 capacity = b.capacity ? b.capacity * 2 : 256 * 1024;
+		while (capacity < size) capacity *= 2;
+		SDL_GPUBufferCreateInfo info;
+		SDL_zero (info);
+		info.usage = usage;
+		info.size = capacity;
+		b.buffer = SDL_CreateGPUBuffer (device, &info);
+		b.capacity = capacity;
+		b.used = 0;
+	}
+	*cycle = b.used == 0;
+	Uint32 offset = b.used;
+	// Offsets of vertex and index buffers are multiples of 4.
+	b.used += (size + 3) & ~3u;
+	return offset;
+}
+
+Mesh * GPURenderer::createFrameMesh (const Vertex2D * vertices, int vertexCount, const unsigned short * indices, int indexCount) {
+	Uint32 vertexSize = (Uint32) vertexCount * sizeof (Vertex2D);
+	Uint32 indexSize = (Uint32) indexCount * sizeof (unsigned short);
+	Mesh * mesh = new Mesh;
+	frameMeshes.push_back (mesh);
+	bool cycleVertices, cycleIndices;
+	mesh->vertexOffset = reserve (meshVertices, SDL_GPU_BUFFERUSAGE_VERTEX, vertexSize, &cycleVertices);
+	mesh->indexOffset = reserve (meshIndices, SDL_GPU_BUFFERUSAGE_INDEX, indexSize, &cycleIndices);
+	mesh->vertices = meshVertices.buffer;
+	mesh->indices = meshIndices.buffer;
+	if (! vertexSize || ! indexSize) return mesh;
+
+	SDL_GPUTransferBufferCreateInfo info;
+	SDL_zero (info);
+	info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+	info.size = vertexSize + indexSize;
+	SDL_GPUTransferBuffer * transfer = SDL_CreateGPUTransferBuffer (device, &info);
+	unsigned char * mapped = (unsigned char *) SDL_MapGPUTransferBuffer (device, transfer, false);
+	memcpy (mapped, vertices, vertexSize);
+	memcpy (mapped + vertexSize, indices, indexSize);
+	SDL_UnmapGPUTransferBuffer (device, transfer);
+
+	endPass ();
+	SDL_GPUCopyPass * copy = SDL_BeginGPUCopyPass (commandBuffer ());
+	SDL_GPUTransferBufferLocation source;
+	SDL_zero (source);
+	source.transfer_buffer = transfer;
+	SDL_GPUBufferRegion destination;
+	SDL_zero (destination);
+	destination.buffer = mesh->vertices;
+	destination.offset = mesh->vertexOffset;
+	destination.size = vertexSize;
+	SDL_UploadToGPUBuffer (copy, &source, &destination, cycleVertices);
+	source.offset = vertexSize;
+	destination.buffer = mesh->indices;
+	destination.offset = mesh->indexOffset;
+	destination.size = indexSize;
+	SDL_UploadToGPUBuffer (copy, &source, &destination, cycleIndices);
+	SDL_EndGPUCopyPass (copy);
+	SDL_ReleaseGPUTransferBuffer (device, transfer);
+	return mesh;
+}
+
+void GPURenderer::drawMesh (const PipelineState & state, const DrawUniforms & u, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) {
+	if (indexCount <= 0) return;
+	if (! startDraw (PROG_VERTEX_COLOR, state)) return;
+
+	MeshUniforms v;
+	drawMatrix (u.matrix, v.matrix);
+	SDL_PushGPUVertexUniformData (cmd, 0, &v, sizeof (v));
+	pushFragmentUniforms (PROG_VERTEX_COLOR, u);
+
+	Texture * tex = texture ? texture : blank;
+	SDL_GPUTextureSamplerBinding binding;
+	binding.texture = tex->texture;
+	binding.sampler = sampler (tex);
+	SDL_BindGPUFragmentSamplers (pass, 0, &binding, 1);
+
+	SDL_GPUBufferBinding vertexBinding;
+	vertexBinding.buffer = mesh->vertices;
+	vertexBinding.offset = mesh->vertexOffset + (Uint32) baseVertex * sizeof (Vertex2D);
+	SDL_BindGPUVertexBuffers (pass, 0, &vertexBinding, 1);
+	SDL_GPUBufferBinding indexBinding;
+	indexBinding.buffer = mesh->indices;
+	indexBinding.offset = mesh->indexOffset;
+	SDL_BindGPUIndexBuffer (pass, &indexBinding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+	SDL_DrawGPUIndexedPrimitives (pass, indexCount, 1, firstIndex, 0, 0);
 }
 
 void GPURenderer::present () {
@@ -744,6 +925,12 @@ void GPURenderer::present () {
 	}
 	SDL_SubmitGPUCommandBuffer (c);
 	cmd = NULL;
+
+	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
+	frameMeshes.clear ();
+	for (size_t i = 0; i < retiredBuffers.size (); i ++) SDL_ReleaseGPUBuffer (device, retiredBuffers[i]);
+	retiredBuffers.clear ();
+	meshVertices.used = meshIndices.used = 0;
 }
 
 } // namespace

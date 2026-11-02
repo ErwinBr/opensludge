@@ -2,8 +2,12 @@
 #define SLUDGE_RENDERER_H
 
 /*
- * The engine draws through this interface, so that it can draw with OpenGL
- * (renderer_gl.cpp) or, later, with SDL_GPU (Metal, Vulkan, Direct3D 12).
+ * The engine and the Dev Kit draw through this interface, so that they can
+ * draw with OpenGL (renderer_gl.cpp) or with SDL_GPU (renderer_gpu.cpp:
+ * Metal, Vulkan, Direct3D 12). The renderers are the library
+ * sludge-renderer, which knows nothing of the engine. A program that links
+ * it defines debugOut (debug.h), which the renderers call for their
+ * messages.
  *
  * Coordinates follow OpenGL:
  *
@@ -38,6 +42,7 @@ enum Program {
 	PROG_TEXTURE,		// A texture, optionally as z-buffer layer or multiplied by the colour
 	PROG_COLOR,			// A solid colour
 	PROG_YUV,			// The Y, U and V planes of a movie frame
+	PROG_VERTEX_COLOR,	// Meshes: a texture times the colour of each vertex and the colour
 	PROG_COUNT
 };
 
@@ -78,8 +83,9 @@ struct DrawUniforms {
 	float zBufferLayer;		// PROG_TEXTURE
 	bool modulateColor;		// PROG_TEXTURE
 
-	// The matrix and colours from setPMVMatrix and setPrimaryColor in
-	// graphics.cpp, and false and 0 for the rest.
+	// The identity matrix, white, transparent black as the secondary
+	// colour, and false and 0 for the rest. The engine starts from
+	// engineUniforms () in graphics.h instead.
 	DrawUniforms ();
 };
 
@@ -91,8 +97,17 @@ struct Quad {
 	const float * texCoords[3];	// 8 floats each, or NULL
 };
 
+// A vertex of a mesh: x and y, the texture coordinates, and red, green,
+// blue and alpha. It has the layout of ImDrawVert of Dear ImGui.
+struct Vertex2D {
+	float x, y;
+	float u, v;
+	unsigned char color[4];
+};
+
 struct Texture;
 struct RenderTarget;
+struct Mesh;
 
 class Renderer {
 public:
@@ -133,20 +148,25 @@ public:
 	// textures[i] is the texture for unit i, or NULL.
 	virtual void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad) = 0;
 
+	// Meshes of triangles, for the Dev Kit. A mesh is a copy of vertices
+	// and 16-bit indices into them, which we can draw until the next
+	// present. Copy all the meshes of a frame into one, if you can: with
+	// SDL_GPU, each copy ends a render pass.
+	virtual Mesh * createFrameMesh (const Vertex2D * vertices, int vertexCount, const unsigned short * indices, int indexCount) = 0;
+	// Draw indexCount indices from firstIndex as triangles, with
+	// baseVertex added to each index, and the texture on unit 0, or white
+	// with NULL. state.program must be PROG_VERTEX_COLOR.
+	virtual void drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) = 0;
+
 	virtual void present () = 0;
 };
 
-extern Renderer * renderer;
-
-// Make the OpenGL renderer for the current OpenGL context. Returns NULL and
-// sets *error when the driver lacks something we need.
-Renderer * createGLRenderer (const char ** error);
+// Make the OpenGL renderer for the current OpenGL context, which shows each
+// frame with swapBuffers. Returns NULL and sets *error when the driver lacks
+// something we need.
+Renderer * createGLRenderer (void (* swapBuffers) (), const char ** error);
 // Make the SDL_GPU renderer for a device that has claimed the window.
 Renderer * createGPURenderer (SDL_GPUDevice * device, SDL_Window * window, const char ** error);
-
-// Shortcuts for drawing with one texture or none.
-void draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, const float * vertices, const float * texCoords);
-void draw (const PipelineState & state, const DrawUniforms & uniforms, const float * vertices);
 
 } // namespace gfx
 

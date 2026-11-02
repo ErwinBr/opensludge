@@ -32,8 +32,11 @@ libdumb1-dev and libvpx-dev, and libsdl3-dev where it exists.
      -DSLUDGE_TESTS=OFF         Leave out the tests. We build them by
                                 default, and you run them with
                                 `ctest --test-dir build'.
-     -DSLUDGE_DEVKIT=OFF        Leave out the Dev Kit, which we build by
-                                default on Linux (see below).
+     -DSLUDGE_DEVKIT_GTK=OFF    Leave out the Dev Kit, which uses GTK 3
+                                and which we build by default on Linux
+                                (see below). A new Dev Kit, with SDL 3
+                                and Dear ImGui, is in progress, behind
+                                -DSLUDGE_DEVKIT=ON.
      -DSLUDGE_ENGINE=OFF        Leave out the engine, for example to build
                                 only the Dev Kit.
      -DSLUDGE_COMPILER=OFF      Leave out the headless compiler,
@@ -170,7 +173,7 @@ CMake builds from source if it is missing, so it builds on Linux, macOS
 and Windows without GTK. To build only the compiler, run
 
      cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLUDGE_ENGINE=OFF \
-       -DSLUDGE_DEVKIT=OFF
+       -DSLUDGE_DEVKIT_GTK=OFF
      cmake --build build
 
 and compile a project with `build/source/DevKit/sludge-compiler
@@ -223,7 +226,7 @@ run
      sudo cmake --install build
 
    Add -DSLUDGE_DOC=ON to install the documentation too. For the
-documentation only, use -DSLUDGE_ENGINE=OFF -DSLUDGE_DEVKIT=OFF
+documentation only, use -DSLUDGE_ENGINE=OFF -DSLUDGE_DEVKIT_GTK=OFF
 -DSLUDGE_DOC=ON.
 
    With `ctest --test-dir build', we also draw the views of the floor

@@ -349,7 +349,7 @@ void blankScreen (int x1, int y1, int x2, int y2) {
 			};
 
 			setPrimaryColor(redValue(currentBlankColour)/255.0f, greenValue(currentBlankColour)/255.0f, blueValue(currentBlankColour)/255.0f, 1.0f);
-			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR), gfx::DrawUniforms (), vertices);
+			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR), engineUniforms (), vertices);
 
 			yoffset += viewportHeight;
 		}
@@ -397,7 +397,7 @@ void hardScroll (int distance) {
 				(GLfloat)sceneWidth-xoffset, (GLfloat)sceneHeight-distance-yoffset, 0. 
 			};
 
-			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, backdropTexCoords);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, vertices, backdropTexCoords);
 
 			yoffset += viewportHeight;
 		}
@@ -445,11 +445,11 @@ void darkScreen () {
 				backdropTexW, backdropTexH
 			}; 
 
-			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, texCoords);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, vertices, texCoords);
 
 			// Then the darkness, without changing the alpha
 			setPrimaryColor(0.0f, 0.0f, 0.0f, 0.5f);
-			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA, gfx::DEPTH_OFF, gfx::MASK_RGB), gfx::DrawUniforms (), vertices);
+			gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA, gfx::DEPTH_OFF, gfx::MASK_RGB), engineUniforms (), vertices);
 
 			yoffset += h;
 		}
@@ -475,7 +475,7 @@ void drawBackDrop () {
 	setPrimaryColor(1.0, 1.0, 1.0, 1.0);
 
 	gfx::PipelineState state (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA);
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.antialias = gameSettings.antiAlias == 1;
 
 	if (parallaxStuff) {
@@ -1070,11 +1070,11 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 				setPrimaryColor(1.0, 1.0, 1.0, 1.0);
 				gfx::Texture * const textures[3] = { tmpTex, NULL, copy };
 				gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
-				gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
+				gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 			} else {
 				// It's all new - nothing special to be done.
 				setPrimaryColor(1.0, 0.0, 0.0, 0.0);
-				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), tmpTex, vertices, texCoords);
+				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), tmpTex, vertices, texCoords);
 			}
 
 			yoffset += viewportHeight;
@@ -1286,7 +1286,7 @@ bool mixHSI (FILE * fp, int x, int y) {
 
 			gfx::Texture * const textures[3] = { tmpTex, NULL, copy };
 			gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
-			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}

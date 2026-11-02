@@ -112,4 +112,9 @@ const char * loadGLFunctions ();
 // for example 21 for OpenGL 2.1.
 int getGLVersion ();
 
+// Print the OpenGL errors so far with debugOut. Returns 1 if there were
+// any, 0 otherwise.
+int printOglError (const char *file, int line);
+#define printOpenGLError() printOglError(__FILE__, __LINE__)
+
 #endif

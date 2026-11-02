@@ -73,7 +73,7 @@ void drawLine(int x1, int y1, int x2, int y2) {
 				backdropTexW, backdropTexH
 			}; 
 
-			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, texCoords);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, vertices, texCoords);
 			
 			// Then the line
 			//FIXME:Removing the lines doesn't work, but also didn't work properly before.
@@ -84,7 +84,7 @@ void drawLine(int x1, int y1, int x2, int y2) {
 			} else {
 				xo1 += diffX;
 			}
-			gfx::DrawUniforms lineUniforms;
+			gfx::DrawUniforms lineUniforms = engineUniforms ();
 			lineUniforms.color[0] = lineUniforms.color[1] = lineUniforms.color[2] = 0.0f;
 			lineUniforms.color[3] = 1.0f;
 

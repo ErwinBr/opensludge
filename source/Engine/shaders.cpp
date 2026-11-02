@@ -11,9 +11,7 @@
 #include <string.h>
 
 #include "debug.h"
-#include "stringy.h"
 #include "shaders.h"
-#include "graphics.h"
 
 #include "shaders_embedded.h"
 

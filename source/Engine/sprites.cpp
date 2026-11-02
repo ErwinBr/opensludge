@@ -491,7 +491,7 @@ void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette
 
 			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], NULL, copy };
 			gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
-			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}
@@ -575,12 +575,12 @@ void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette 
 			gfx::Texture * copy = copyOfBackdrop ();
 			drawIntoTile (backdropTarget, (x1<0) ? xoffset : x1+xoffset, (y1<0) ? yoffset : y1+yoffset, 0, 0, w, h);
 
-			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, backdropVertices, backdropTexCoords2);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, backdropVertices, backdropTexCoords2);
 
 //FIXME: Test this some more. Also pasting the backdrop again is not strictly necessary but allows using the paste shader.
 			gfx::Texture * const textures[3] = { fontPal.burnTex_names[single.texNum], NULL, copy };
 			gfx::Quad quad = { spriteVertices, { spriteTexCoords, NULL, backdropTexCoords } };
-			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), gfx::DrawUniforms (), textures, quad);
+			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 
 			yoffset += viewportHeight;
 		}
@@ -626,7 +626,7 @@ void fontSprite (bool flip, int x, int y, sprite & single, const spritePalette &
 	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // GL_MODULATE instead of decal mixes the colours!
 	setPrimaryColor(fontPal.originalRed/255.f, fontPal.originalGreen/255.f, fontPal.originalBlue/255.f, 1.0f);
 
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.antialias = gameSettings.antiAlias == 1;
 	gfx::draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA), uniforms, fontPal.tex_names[single.texNum], vertices, texCoords);
 }
@@ -782,7 +782,7 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 	}
 	setDrawMode (thisPerson);
 
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
 	uniforms.antialias = gameSettings.antiAlias == 1;
 
@@ -951,7 +951,7 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 				backdropTexW, backdropTexH
 			}; 
 
-			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), copy, vertices, texCoords);
+			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, vertices, texCoords);
 
 			// The z-buffer
 			if (useZB) {
@@ -980,7 +980,7 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 				tx1, ty2
 			}; 
 
-			gfx::DrawUniforms uniforms;
+			gfx::DrawUniforms uniforms = engineUniforms ();
 			uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
 			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], uniforms.useLightTexture ? lightMap.tex : NULL, copy };
 			gfx::Quad quad = { vertices2, { texCoords2, ltexCoords, btexCoords } };

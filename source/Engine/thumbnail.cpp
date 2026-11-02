@@ -53,7 +53,7 @@ bool saveThumbnail (FILE * fp) {
 			backdropTexW, backdropTexH
 		}; 
 
-		gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), backdropTex, vertices, texCoords);
+		gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), backdropTex, vertices, texCoords);
 
 		gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
 		gfx::renderer->setTextureFilter (backdropTex, filter, filter);
@@ -174,7 +174,7 @@ void showThumbnail (char * filename, int atX, int atY) {
 					0.0f, texCoordH
 				}; 
 	
-				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), thumbnailTex, vertices, texCoords);
+				gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), thumbnailTex, vertices, texCoords);
 
 				yoffset += viewportHeight;
 			}

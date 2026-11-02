@@ -1,4 +1,4 @@
-# Find or build the libraries of the engine and of the compiler, and make a
+# Find or build the libraries of the engine, the compiler and the Dev Kit, and make a
 # target for each of them, as follows.
 #
 #   sludge::sdl3   SDL 3
@@ -7,6 +7,8 @@
 #   sludge::dumb   DUMB (tracker music)
 #   sludge::vpx    libvpx (for movies, only when SLUDGE_MOVIES is on)
 #   sludge::webm   the WebM parser of libwebm (for movies, always from source)
+#   sludge::imgui  Dear ImGui with its SDL 3 platform backend (for the Dev
+#                  Kit, always from source)
 #
 # By default, we use the libraries installed on the system, and we build
 # from source those that we don't find. With SLUDGE_BUNDLED_DEPS, we build
@@ -27,6 +29,7 @@ set(SLUDGE_ZLIB_TAG v1.3.2)
 set(SLUDGE_DUMB_TAG 2.0.3)
 set(SLUDGE_VPX_TAG v1.17.0)
 set(SLUDGE_WEBM_TAG libwebm-1.0.0.32)
+set(SLUDGE_IMGUI_TAG v1.92.9b-docking)
 
 if(NOT SLUDGE_BUNDLED_DEPS)
 	find_package(PkgConfig QUIET)
@@ -100,8 +103,9 @@ else()
 	target_include_directories(sludge_png INTERFACE ${libpng_SOURCE_DIR} ${libpng_BINARY_DIR})
 endif()
 
-# The compiler needs only libpng. The other libraries are for the engine.
-if(NOT SLUDGE_ENGINE)
+# The compiler needs only libpng. The Dev Kit needs SDL and Dear ImGui too,
+# and the engine the other libraries.
+if(NOT SLUDGE_ENGINE AND NOT SLUDGE_DEVKIT)
 	return()
 endif()
 
@@ -124,6 +128,38 @@ else()
 	set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 	sludge_fetch(SDL3 https://github.com/libsdl-org/SDL.git ${SLUDGE_SDL_TAG})
 	sludge_target(sdl3 SDL3-static)
+endif()
+
+#
+# Dear ImGui (docking branch), which has no CMake files of its own. We build
+# the core and the SDL 3 platform backend, which turns SDL events into
+# input. The Dev Kit draws ImGui with its own backend over sludge-renderer.
+#
+if(SLUDGE_DEVKIT)
+	FetchContent_Declare(imgui
+		GIT_REPOSITORY https://github.com/ocornut/imgui.git
+		GIT_TAG ${SLUDGE_IMGUI_TAG}
+		GIT_SHALLOW TRUE)
+	FetchContent_MakeAvailable(imgui)
+	add_library(sludge_imgui_lib STATIC
+		${imgui_SOURCE_DIR}/imgui.cpp
+		${imgui_SOURCE_DIR}/imgui_demo.cpp
+		${imgui_SOURCE_DIR}/imgui_draw.cpp
+		${imgui_SOURCE_DIR}/imgui_tables.cpp
+		${imgui_SOURCE_DIR}/imgui_widgets.cpp
+		${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+		${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp)
+	target_include_directories(sludge_imgui_lib SYSTEM PUBLIC
+		${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imgui_SOURCE_DIR}/misc/cpp)
+	# ImGui keeps its 16-bit indices, which the renderers draw everywhere,
+	# OpenGL ES 2.0 too.
+	target_compile_definitions(sludge_imgui_lib PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+	target_link_libraries(sludge_imgui_lib PUBLIC sludge::sdl3)
+	sludge_target(imgui sludge_imgui_lib)
+endif()
+
+if(NOT SLUDGE_ENGINE)
+	return()
 endif()
 
 #

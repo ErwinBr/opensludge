@@ -31,7 +31,7 @@ void transitionFader () {
 	};
 
 	setPrimaryColor(0.0f, 0.0f, 0.0f, 1.0f - brightnessLevel/255.f);
-	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), gfx::DrawUniforms (), vertices);
+	gfx::draw (gfx::PipelineState (gfx::PROG_COLOR, gfx::BLEND_ALPHA), engineUniforms (), vertices);
 }
 
 void transitionCrossFader () {
@@ -53,7 +53,7 @@ void transitionCrossFader () {
 	}; 
 
 	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f - brightnessLevel/255.f);
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.modulateColor = true;
 	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, snapshotTex, vertices, texCoords);
 }
@@ -79,7 +79,7 @@ void transitionSnapshotBox () {
 		snapTexW, 0.0f
 	}; 
 
-	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), gfx::DrawUniforms (), snapshotTex, vertices, texCoords);
+	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), snapshotTex, vertices, texCoords);
 }
 
 //----------------------------------------------------
@@ -145,7 +145,7 @@ void drawTransitionTexture () {
 	};
 
 	setPrimaryColor(1.0f, 1.0f, 1.0f, 1.0f);
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.modulateColor = true;
 	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
 }
@@ -259,7 +259,7 @@ void transitionBlinds () {
 	}; 
 
 	setPrimaryColor(0.0f, 0.0f, 0.0f, 1.0f);
-	gfx::DrawUniforms uniforms;
+	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.modulateColor = true;
 	gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE, gfx::BLEND_ALPHA), uniforms, transitionTex, vertices, texCoords);
 }

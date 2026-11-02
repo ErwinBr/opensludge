@@ -42,7 +42,7 @@ jobs:
           # With the engine, we build the headless compiler, and compile the
           # example projects into build/games. We also test the SDL_GPU
           # renderer, with Vulkan through Mesa's software driver, lavapipe.
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT_GTK=OFF \
             -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
             -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
@@ -111,7 +111,7 @@ jobs:
         # The devices (SLUDGE_DEVICE) draw with OpenGL ES 2.0. We test that
         # code here, with Mesa's software OpenGL ES.
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT=OFF \
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT_GTK=OFF \
             -DSLUDGE_COMPILER=ON -DSLUDGE_GLES2=ON
           cmake --build build
 

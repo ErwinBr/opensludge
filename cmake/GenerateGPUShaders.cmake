@@ -15,7 +15,7 @@
 set(SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/../source/Engine/shaders/gpu)
 set(OUTPUT ${SHADER_DIR}/gpu_shaders.h)
 set(WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/gpu-shaders)
-set(SHADERS quad.vert scale.frag paste.frag texture.frag color.frag yuv.frag)
+set(SHADERS quad.vert mesh.vert scale.frag paste.frag texture.frag color.frag yuv.frag vertexcolor.frag)
 
 find_program(GLSLANG glslangValidator REQUIRED)
 find_program(SPIRV_CROSS spirv-cross REQUIRED)

@@ -157,7 +157,7 @@ void drawZBuffer(int x, int y) {
 			backdropTexW, backdropTexH
 		}; 
 
-		gfx::DrawUniforms uniforms;
+		gfx::DrawUniforms uniforms = engineUniforms ();
 		uniforms.zBuffer = true;
 		uniforms.zBufferLayer = i;
 		gfx::draw (state, uniforms, zBuffer.texture, vertices, texCoords);
