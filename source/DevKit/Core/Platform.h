@@ -11,6 +11,8 @@
  * program calls their callbacks on the main thread, between frames.
  */
 
+#include <stddef.h>
+
 #include <functional>
 #include <string>
 #include <vector>
@@ -48,6 +50,22 @@ public:
 	// which we look for in the PATH when it has no folder. Returns false,
 	// with the reason in *error, when it can't start.
 	virtual bool startProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error) = 0;
+
+	// A program that we read the output of. read and wait block, so call
+	// them on a thread of their own; kill may come from another thread.
+	class Process {
+	public:
+		virtual ~Process () {}
+		// Read some of what the program wrote to stdout and stderr. Returns
+		// 0 when it closed them.
+		virtual size_t read (char * buffer, size_t size) = 0;
+		// Wait for the program to end, and return its exit code.
+		virtual int wait () = 0;
+		virtual void kill () = 0;
+	};
+	// Run a program, as startProgram does, and read its output. Returns
+	// NULL, with the reason in *error, when it can't start.
+	virtual Process * runProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error) = 0;
 
 	// Open a file in the program that the system opens it with, or a web
 	// page.

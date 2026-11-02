@@ -37,8 +37,11 @@ public:
 	Document * open (const std::string & path);
 	// Ask for files to open, and open them.
 	void openWithDialog ();
-	// Make a new, untitled document.
+	// Make a new, untitled document, or for a type that needs a file, ask
+	// for one and save the new document in it. Returns NULL then.
 	Document * create (const DocumentType & type);
+	// The first open document of a kind, such as the project.
+	Document * findKind (const std::string & kind) const;
 
 	// Save a document, in its file or, when it has none yet, in one that
 	// we ask for. done gets whether it was saved.
@@ -65,6 +68,7 @@ private:
 	void remove (Document * document);
 	void saveIn (Document * document, const std::string & path, Done done);
 	void saveFrom (std::vector<Document *> documents, size_t index, Done done);
+	bool closeOthers (const DocumentType & type);
 
 	Platform & platform;
 	RecentFiles & recentFiles;

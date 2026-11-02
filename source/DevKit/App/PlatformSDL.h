@@ -25,10 +25,15 @@ public:
 	void showMessage (MessageKind kind, const std::string & title, const std::string & text);
 	int ask (const std::string & title, const std::string & text, const std::vector<std::string> & buttons);
 	bool startProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error);
+	Process * runProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error);
 	bool openWithSystem (const std::string & pathOrURL);
 	std::string settingsFolder ();
 	std::string cacheFolder ();
 	std::string programFolder ();
+
+	// Keep the settings in another folder, as the tests do, so that they
+	// leave the user's alone.
+	void setSettingsFolder (const std::string & folder) { settingsOverride = folder; }
 
 	// Call the callbacks of the file dialogs that the user answered. The
 	// main loop calls this between frames. SDL may answer on another
@@ -39,6 +44,7 @@ public:
 
 private:
 	SDL_Window * window;
+	std::string settingsOverride;
 	std::mutex mutex;
 	std::vector<Request *> answered;
 

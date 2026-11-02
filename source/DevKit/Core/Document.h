@@ -54,6 +54,13 @@ struct DocumentType {
 	std::string name;						// "Floor"
 	std::vector<std::string> extensions;	// "flo", without the dot
 	std::function<Document * ()> create;
+	// A new one is saved in a file that we ask for first, as a project,
+	// whose files are relative to its folder.
+	bool needsFile;
+	// Only one is open at a time: opening another closes it.
+	bool single;
+
+	DocumentType () : needsFile (false), single (false) {}
 
 	FileFilter filter () const;
 	bool opens (const std::string & path) const;

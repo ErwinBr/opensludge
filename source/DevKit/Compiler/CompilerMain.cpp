@@ -27,6 +27,53 @@
 #include "compiler.hpp"
 #include "interface.h"
 #include "errorlinktofile.h"
+#include "messbox.h"
+
+// The game file that compileEverything made (compiler.cpp).
+extern char * gameFile;
+
+// With --machine, we write what happens for the Dev Kit to read: one line
+// for each event, of fields separated by tabs, in which a tab, a new line
+// and a backslash are \t, \n and \\.
+//
+//   progress <1 or 2> <fraction>
+//   task|file|item <text>
+//   stats <functions> <object types> <globals> <strings> <resources>
+//   message <warning|error|system|internal> <file> <line> <text> <full text>
+//   done <1 or 0> <the game file>
+static bool machine = false;
+
+static void writeField (const char * text)
+{
+	putchar ('\t');
+	for (const char * c = text ? text : ""; *c; c ++) {
+		if (*c == '\t') fputs ("\\t", stdout);
+		else if (*c == '\n') fputs ("\\n", stdout);
+		else if (*c == '\r') continue;
+		else if (*c == '\\') fputs ("\\\\", stdout);
+		else putchar (*c);
+	}
+}
+
+static void endLine ()
+{
+	putchar ('\n');
+	// The Dev Kit reads through a pipe, which would wait for a full buffer.
+	fflush (stdout);
+}
+
+static void writeMessage (const char * type, const char * file, int line, const char * text, const char * fullText)
+{
+	char number[16];
+	snprintf (number, sizeof (number), "%d", line);
+	fputs ("message", stdout);
+	writeField (type);
+	writeField (file);
+	writeField (number);
+	writeField (text);
+	writeField (fullText);
+	endLine ();
+}
 
 //The functions declared in interface.h:
 
@@ -37,7 +84,12 @@ bool askAQuestion (const char * head, const char * msg)
 
 bool errorBox (const char * head, const char * msg)
 {
-	fprintf(stderr, "%s\n%s\n", head, msg);
+	if (machine) {
+		std::string text = std::string (head) + ": " + msg;
+		writeMessage ("system", "", 0, text.c_str (), text.c_str ());
+	} else {
+		fprintf(stderr, "%s\n%s\n", head, msg);
+	}
 
 	return false;
 }
@@ -88,10 +140,50 @@ bool fileExists(char * file) {
 
 void receiveCompilerInfo(compilerInfo *info)
 {
-	if (info->newComments) {
-		if (! errorList) return;
-		fprintf(stderr, "%s\n", errorList->fullText);
+	if (! machine) {
+		if (info->newComments && errorList) fprintf(stderr, "%s\n", errorList->fullText);
+		delete info;
+		return;
 	}
+
+	char number[64];
+	for (int bar = 1; bar <= 2; bar ++) {
+		double progress = bar == 1 ? info->progress1 : info->progress2;
+		if (progress < 0) continue;
+		snprintf (number, sizeof (number), "progress\t%d\t%.4f", bar, progress);
+		fputs (number, stdout);
+		endLine ();
+	}
+	const char * texts[3][2] = { { "task", info->task }, { "file", info->file }, { "item", info->item } };
+	for (int i = 0; i < 3; i ++) {
+		if (! texts[i][1][0]) continue;
+		fputs (texts[i][0], stdout);
+		writeField (texts[i][1]);
+		endLine ();
+	}
+	if (info->funcs >= 0) {
+		snprintf (number, sizeof (number), "stats\t%d\t%d\t%d\t%d\t%d",
+			info->funcs, info->objs, info->globs, info->strings, info->resources);
+		fputs (number, stdout);
+		endLine ();
+	}
+	// The newest comment is the first in the list.
+	if (info->newComments && errorList) {
+		static const char * const types[ERRORTYPE_NUM] = { "warning", "error", "system", "internal" };
+		int type = errorList->errorType >= 0 && errorList->errorType < ERRORTYPE_NUM ? errorList->errorType : ERRORTYPE_INTERNALERROR;
+		writeMessage (types[type], errorList->filename, errorList->lineNumber, errorList->overview, errorList->fullText);
+	}
+	delete info;
+}
+
+static void writeDone (bool success)
+{
+	if (! machine) return;
+	fputs (success ? "done\t1" : "done\t0", stdout);
+	char * game = success && gameFile ? getFullPath (gameFile) : NULL;
+	writeField (game);
+	endLine ();
+	delete [] game;
 }
 
 void printCmdlineUsage() {
@@ -101,6 +193,7 @@ void printCmdlineUsage() {
 	fprintf(stdout, "-t,	--string-file		Write a text file of the strings contained in the game.\n");
 	fprintf(stdout, "-s,	--strip-debug-info	Leave the debug information out of the game file\n");
 	fprintf(stdout, "	--silent		(the same as --strip-debug-info).\n");
+	fprintf(stdout, "	--machine		Write the progress and the errors for the Dev Kit to read\n");
 	fprintf(stdout, "-h,	--help			Print this help message\n\n");
 }
 
@@ -119,6 +212,7 @@ bool parseCmdlineParameters(int argc, char *argv[]) {
 			{"strip-debug-info",	no_argument,	   0, 's' },
 			// The old name of --strip-debug-info.
 			{"silent",		no_argument,	   0, 's' },
+			{"machine",		no_argument,	   0, 'm' },
 			{"help",		no_argument,	   0, 'h' },
 			{0,0,0,0} /* This is a filler for -1 */
 		};
@@ -134,6 +228,9 @@ bool parseCmdlineParameters(int argc, char *argv[]) {
 			break;
 		case 's':
 			programSettings.compilerVerbose = 0;
+			break;
+		case 'm':
+			machine = true;
 			break;
 		case 'h':
 		default:
@@ -155,21 +252,25 @@ int main (int argc, char *argv[])
 	}
 
 	if (argc < 2 || ! fileExists(argv[argc - 1]) ) {
-		fprintf(stderr, "Project file not found.\n");
-		printCmdlineUsage();
+		errorBox ("Project file not found", argv[argc - 1]);
+		writeDone (false);
+		if (! machine) printCmdlineUsage();
 		return -1;
 	}
 
 
 	if (!loadProject (argv[argc - 1], fileList, &fileListNum))
 	{
-		fprintf(stderr, "Error loading project.\n");
+		errorBox ("Error loading project", argv[argc - 1]);
+		writeDone (false);
 		return -1;
 	}
-	fprintf(stderr, "Start compiling...\n");
-	if (!compileEverything(argv[argc - 1], fileList, &fileListNum, &receiveCompilerInfo))
+	if (! machine) fprintf(stderr, "Start compiling...\n");
+	bool success = compileEverything(argv[argc - 1], fileList, &fileListNum, &receiveCompilerInfo);
+	writeDone (success);
+	if (! success)
 	{
-		fprintf(stderr, "Error compiling project.\n");
+		if (! machine) fprintf(stderr, "Error compiling project.\n");
 		return -1;
 	}
 

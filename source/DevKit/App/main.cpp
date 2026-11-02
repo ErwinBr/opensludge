@@ -3,10 +3,13 @@
  * interface, drawn with the renderers of the engine.
  *
  * Usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>]
- *                      [--smoke=<picture.png>] [file ...]
+ *                      [--smoke=<picture.png>] [--smoke-compile=<project>]
+ *                      [file ...]
  *
  * With --smoke, we draw a few frames in a window of a fixed size, save the
- * last one as a PNG, and quit, for the tests. With SLUDGE_DEVKIT_DEBUG set
+ * last one as a PNG, and quit, for the tests. With --smoke-compile, we
+ * open a project and compile it first, and the exit code says whether it
+ * compiled. With SLUDGE_DEVKIT_DEBUG set
  * in the environment, we write the log to stderr, with the details of the
  * renderer.
  */
@@ -50,7 +53,8 @@ static bool startsWith (const char * s, const char * prefix) {
 }
 
 static void usage () {
-	fprintf (stderr, "usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>] [--smoke=<picture.png>] [file ...]\n");
+	fprintf (stderr, "usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>] [--smoke=<picture.png>]\n"
+		"                     [--smoke-compile=<project>] [file ...]\n");
 }
 
 // Save the frame in the window, which we read bottom row first.
@@ -86,6 +90,7 @@ static bool saveFrame (gfx::Renderer * renderer, int width, int height, const ch
 int main (int argc, char ** argv) {
 	const char * rendererChoice = SDL_getenv ("SLUDGE_RENDERER");
 	const char * smokeFile = NULL;
+	const char * smokeProject = NULL;
 	std::vector<std::string> files;
 	for (int i = 1; i < argc; i ++) {
 		const char * arg = argv[i];
@@ -95,6 +100,8 @@ int main (int argc, char ** argv) {
 			SDL_SetHintWithPriority (SDL_HINT_GPU_DRIVER, arg + strlen ("--gpu-driver="), SDL_HINT_OVERRIDE);
 		} else if (startsWith (arg, "--smoke=")) {
 			smokeFile = arg + strlen ("--smoke=");
+		} else if (startsWith (arg, "--smoke-compile=")) {
+			smokeProject = arg + strlen ("--smoke-compile=");
 		} else if (! strcmp (arg, "-h") || ! strcmp (arg, "--help")) {
 			usage ();
 			return 0;
@@ -112,6 +119,10 @@ int main (int argc, char ** argv) {
 	// With SLUDGE_DEVKIT_DEBUG set, we write the log to stderr, with the
 	// details. A smoke test writes it without the details.
 	bool debug = SDL_getenv ("SLUDGE_DEVKIT_DEBUG") != NULL;
+	if (smokeProject && ! smokeFile) {
+		fprintf (stderr, "--smoke-compile needs --smoke\n");
+		return 1;
+	}
 	Log::get ().setEcho (debug || smokeFile, debug);
 	gfx::setLogFunction (logRendererLine);
 
@@ -150,6 +161,14 @@ int main (int argc, char ** argv) {
 	SDL_SetWindowMinimumSize (window, 640, 400);
 
 	PlatformSDL platform (window);
+	if (smokeFile) {
+		// A smoke test starts with no settings, and leaves the user's alone.
+		std::string folder = platform.cacheFolder () + "smoke-settings/";
+		SDL_CreateDirectory (folder.c_str ());
+		SDL_RemovePath ((folder + "recent.txt").c_str ());
+		SDL_RemovePath ((folder + "SLUDGE.ini").c_str ());
+		platform.setSettingsFolder (folder);
+	}
 	setInterfacePlatform (&platform);
 
 	IMGUI_CHECKVERSION ();
@@ -179,6 +198,10 @@ int main (int argc, char ** argv) {
 
 	Workspace workspace (platform, rendererName);
 	workspace.openFiles (files);
+	if (smokeProject) {
+		workspace.openFiles (std::vector<std::string> (1, smokeProject));
+		workspace.compile ();
+	}
 	std::string title = workspace.title ();
 	SDL_SetWindowTitle (window, title.c_str ());
 	SDL_ShowWindow (window);
@@ -186,6 +209,7 @@ int main (int argc, char ** argv) {
 
 	int framesToDraw = FRAMES_AFTER_EVENT;
 	int framesDrawn = 0;
+	int exitCode = 0;
 	bool done = false;
 	while (! done) {
 		SDL_Event event;
@@ -219,9 +243,12 @@ int main (int argc, char ** argv) {
 		ImGui_ImplGfx_RenderDrawData (ImGui::GetDrawData (), width, height);
 
 		framesDrawn ++;
+		// A smoke test waits for its compile, and a few frames after it.
+		if (smokeFile && workspace.compiling ()) framesDrawn = 0;
 		if (smokeFile && framesDrawn == SMOKE_FRAMES) {
 			if (! saveFrame (renderer, width, height, smokeFile)) return 1;
 			done = true;
+			if (smokeProject && ! workspace.compileSucceeded ()) exitCode = 1;
 		}
 		renderer->present ();
 
@@ -238,5 +265,5 @@ int main (int argc, char ** argv) {
 	ImGui::DestroyContext ();
 	gfx::destroyWindowRenderer ();
 	SDL_Quit ();
-	return 0;
+	return exitCode;
 }

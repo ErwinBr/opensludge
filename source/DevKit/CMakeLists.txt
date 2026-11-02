@@ -86,6 +86,17 @@ if(NOT CMAKE_CROSSCOMPILING)
 					-DHASHES=${PROJECT_SOURCE_DIR}/tests/games.sha256
 					-P ${PROJECT_SOURCE_DIR}/tests/check_game_hash.cmake)
 		endforeach()
+
+		# The same with --machine, which the Dev Kit reads.
+		foreach(game Welcome VerbCoin)
+			add_test(NAME compiler_machine_${game}
+				COMMAND ${CMAKE_COMMAND} -DCOMPILER=$<TARGET_FILE:sludge-compiler>
+					-DPROJECT=${PROJECT_SOURCE_DIR}/doc/ExampleProjects/${game}/${game}.slp
+					-DWORK_DIR=${CMAKE_BINARY_DIR}/machine/${game}
+					-DNAME=${game}
+					-DHASHES=${PROJECT_SOURCE_DIR}/tests/games.sha256
+					-P ${PROJECT_SOURCE_DIR}/tests/check_machine_compile.cmake)
+		endforeach()
 	endif()
 endif()
 
@@ -94,13 +105,19 @@ endif()
 if(SLUDGE_DEVKIT)
 	add_library(devkit-core STATIC
 		${DEVKIT_DIR}/Core/CommandStack.cpp
+		${DEVKIT_DIR}/Core/CompileJob.cpp
 		${DEVKIT_DIR}/Core/Document.cpp
 		${DEVKIT_DIR}/Core/DocumentManager.cpp
+		${DEVKIT_DIR}/Core/Launch.cpp
 		${DEVKIT_DIR}/Core/Log.cpp
 		${DEVKIT_DIR}/Core/Preferences.cpp
+		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 	)
 	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
+	# The compile job reads the compiler on a thread of its own.
+	find_package(Threads REQUIRED)
+	target_link_libraries(devkit-core PUBLIC Threads::Threads)
 
 	# The drawing of the views with the renderers of the engine.
 	add_library(devkit-view STATIC ${DEVKIT_DIR}/GraphicalTools/draw2d_gfx.cpp)
@@ -108,12 +125,17 @@ if(SLUDGE_DEVKIT)
 
 	add_executable(sludge-devkit
 		${DEVKIT_DIR}/App/main.cpp
+		${DEVKIT_DIR}/App/BuildPanel.cpp
+		${DEVKIT_DIR}/App/ProjectView.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
 	)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
+	# Where the Dev Kit finds the engine and the compiler when it runs from
+	# the build folder.
+	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/")
 	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::png)
 	if(WIN32)
 		set_target_properties(sludge-devkit PROPERTIES WIN32_EXECUTABLE TRUE)
@@ -127,12 +149,21 @@ if(SLUDGE_DEVKIT)
 		# It needs a display, as the capture tests.
 		add_test(NAME capture-devkit-smoke COMMAND sludge-devkit --smoke=${CMAKE_BINARY_DIR}/devkit-smoke.png)
 		set_tests_properties(capture-devkit-smoke PROPERTIES LABELS capture)
+		# Open a copy of VerbCoin, compile it with sludge-compiler as a
+		# program of its own, and check that it compiled.
+		add_test(NAME capture-devkit-compile
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DPROJECT=${PROJECT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/VerbCoin.slp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-compile
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/compile_test.cmake)
+		set_tests_properties(capture-devkit-compile PROPERTIES LABELS capture DEPENDS compiler_help)
 
 		# The core of the Dev Kit, without a display.
 		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp)
 		target_link_libraries(devkit_core_test PRIVATE devkit-core)
 		file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/core_test)
-		add_test(NAME devkit_core COMMAND devkit_core_test ${CMAKE_CURRENT_BINARY_DIR}/core_test)
+		add_test(NAME devkit_core COMMAND devkit_core_test ${CMAKE_CURRENT_BINARY_DIR}/core_test
+			${PROJECT_SOURCE_DIR}/doc/ExampleProjects)
 
 		# The views of the editors, with both renderers, against the same
 		# reference images as the GTK tools (tests/devkit/view_test.cpp).

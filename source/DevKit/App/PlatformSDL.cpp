@@ -127,7 +127,9 @@ int PlatformSDL::ask (const std::string & title, const std::string & text, const
 	return answer;
 }
 
-bool PlatformSDL::startProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error) {
+// Start a program, in the background or with its output for us to read.
+static SDL_Process * createProcess (const std::vector<std::string> & arguments, const std::string & workingFolder,
+		bool background, std::string * error) {
 	std::vector<const char *> args;
 	for (size_t i = 0; i < arguments.size (); i ++) args.push_back (arguments[i].c_str ());
 	args.push_back (NULL);
@@ -135,16 +137,64 @@ bool PlatformSDL::startProgram (const std::vector<std::string> & arguments, cons
 	SDL_PropertiesID props = SDL_CreateProperties ();
 	SDL_SetPointerProperty (props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *) args.data ());
 	if (! workingFolder.empty ()) SDL_SetStringProperty (props, SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING, workingFolder.c_str ());
-	// The program goes on when we quit.
-	SDL_SetBooleanProperty (props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+	if (background) {
+		// The program goes on when we quit.
+		SDL_SetBooleanProperty (props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+	} else {
+		SDL_SetNumberProperty (props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+		SDL_SetNumberProperty (props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+		SDL_SetBooleanProperty (props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+	}
 	SDL_Process * process = SDL_CreateProcessWithProperties (props);
 	SDL_DestroyProperties (props);
-	if (! process) {
-		if (error) *error = SDL_GetError ();
-		return false;
-	}
+	if (! process && error) *error = SDL_GetError ();
+	return process;
+}
+
+bool PlatformSDL::startProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error) {
+	SDL_Process * process = createProcess (arguments, workingFolder, true, error);
+	if (! process) return false;
 	SDL_DestroyProcess (process);
 	return true;
+}
+
+namespace {
+
+class ProcessSDL : public Platform::Process {
+public:
+	explicit ProcessSDL (SDL_Process * p) : process (p), output (SDL_GetProcessOutput (p)) {}
+	~ProcessSDL () { SDL_DestroyProcess (process); }
+
+	// SDL may give us the output without blocking, so we wait for it
+	// ourselves until there is some, or the end.
+	size_t read (char * buffer, size_t size) {
+		if (! output) return 0;
+		for (;;) {
+			size_t n = SDL_ReadIO (output, buffer, size);
+			if (n > 0) return n;
+			if (SDL_GetIOStatus (output) != SDL_IO_STATUS_NOT_READY) return 0;
+			SDL_Delay (10);
+		}
+	}
+	int wait () {
+		int code = -1;
+		SDL_WaitProcess (process, true, &code);
+		return code;
+	}
+	void kill () {
+		SDL_KillProcess (process, true);
+	}
+
+private:
+	SDL_Process * process;
+	SDL_IOStream * output;
+};
+
+} // namespace
+
+Platform::Process * PlatformSDL::runProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string * error) {
+	SDL_Process * process = createProcess (arguments, workingFolder, false, error);
+	return process ? new ProcessSDL (process) : NULL;
 }
 
 // A file URL, with the characters that a URL can't have encoded.
@@ -176,6 +226,7 @@ bool PlatformSDL::openWithSystem (const std::string & pathOrURL) {
 }
 
 std::string PlatformSDL::settingsFolder () {
+	if (! settingsOverride.empty ()) return settingsOverride;
 	char * path = SDL_GetPrefPath ("OpenSLUDGE", "Dev Kit");
 	std::string folder = path ? path : "";
 	SDL_free (path);

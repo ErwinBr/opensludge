@@ -13,16 +13,20 @@
 #include <string>
 #include <vector>
 
+#include "BuildPanel.h"
+#include "CompileJob.h"
 #include "DocumentManager.h"
 #include "Preferences.h"
+#include "ProjectDocument.h"
 #include "RecentFiles.h"
+#include "WorkspaceActions.h"
 
 namespace devkit {
 
 class DocumentView;
 class Platform;
 
-class Workspace {
+class Workspace : public WorkspaceActions {
 public:
 	Workspace (Platform & platform, const std::string & rendererName);
 	~Workspace ();
@@ -41,7 +45,7 @@ public:
 	// We ask about the documents with changes first.
 	void requestQuit ();
 	bool wantsToQuit () const { return quitting; }
-	// Whether a view needs another frame soon.
+	// Whether we need another frame soon, as while we compile.
 	bool animating () const;
 
 	// Files that were dropped on the window or named on the command line.
@@ -50,7 +54,26 @@ public:
 	// The title of the window.
 	std::string title () const;
 
+	// WorkspaceActions
+	Platform & platform () { return thePlatform; }
+	void openFile (const std::string & path, int line);
+	void compile ();
+	bool compiling () const { return job && job->running (); }
+	void runGame ();
+	void revealInspector () { focusInspector = true; }
+
+	// Whether the last compile succeeded, for the tests.
+	bool compileSucceeded () const { return job && job->succeeded; }
+
 private:
+	ProjectDocument * project () const;
+	// A program of Open SLUDGE that comes with the Dev Kit, such as
+	// sludge-compiler, or its name for the PATH when we can't find it.
+	std::string findProgram (const std::string & name);
+	void startCompile ();
+	// Start the program of a preference for a file, or the system's.
+	void openWith (const std::string & command, const std::string & path, int line);
+
 	void drawMenuBar ();
 	void drawRecentMenu ();
 	void drawDockSpace ();
@@ -66,15 +89,19 @@ private:
 	void handleShortcuts ();
 	std::string preferencesFile () const;
 
-	Platform & platform;
+	Platform & thePlatform;
 	std::string rendererName;
 	RecentFiles recent;
 	DocumentManager manager;
 	Preferences preferences;
 	std::map<std::string, ViewMaker> viewMakers;
 	std::map<Document *, std::unique_ptr<DocumentView> > views;
+	std::unique_ptr<CompileJob> job;
+	BuildPanel buildPanel;
 
 	bool quitting;
+	bool projectPanelHovered;	// In the last frame, for files that the user drops
+	bool focusInspector;
 	bool resetLayout;
 	int layoutFrames;			// Frames until the new layout is done
 	unsigned int documentDock;	// Where new documents go

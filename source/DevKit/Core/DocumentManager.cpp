@@ -66,6 +66,26 @@ void DocumentManager::remove (Document * document) {
 	}
 }
 
+Document * DocumentManager::findKind (const std::string & kind) const {
+	for (size_t i = 0; i < list.size (); i ++) {
+		if (kind == list[i]->kind ()) return list[i];
+	}
+	return NULL;
+}
+
+// For a type of which one is open at a time, close the one that is open,
+// if the user lets us. Its file always exists, so this happens at once.
+bool DocumentManager::closeOthers (const DocumentType & type) {
+	if (! type.single) return true;
+	Document * kindDocument = type.create ();
+	Document * other = findKind (kindDocument->kind ());
+	delete kindDocument;
+	if (! other) return true;
+	bool closed = false;
+	close (other, [&closed] (bool c) { closed = c; });
+	return closed;
+}
+
 Document * DocumentManager::open (const std::string & path) {
 	Document * document = find (path);
 	if (document) {
@@ -78,6 +98,7 @@ Document * DocumentManager::open (const std::string & path) {
 			"The Dev Kit doesn't know this kind of file yet.");
 		return NULL;
 	}
+	if (! closeOthers (*type)) return NULL;
 	document = type->create ();
 	std::string error;
 	if (! document->load (path, &error)) {
@@ -101,8 +122,30 @@ void DocumentManager::openWithDialog () {
 
 Document * DocumentManager::create (const DocumentType & type) {
 	Document * document = type.create ();
-	add (document);
-	return document;
+	if (! type.needsFile) {
+		add (document);
+		return document;
+	}
+	std::vector<FileFilter> filters (1, type.filter ());
+	std::string untitled = document->untitledName ();
+	delete document;
+	platform.saveFileDialog ("New " + type.name, filters, lastFolder + untitled,
+			[this, type] (const std::vector<std::string> & files) {
+		if (files.empty ()) return;
+		if (! closeOthers (type)) return;
+		Document * made = type.create ();
+		std::string error;
+		if (! made->save (files[0], &error)) {
+			platform.showMessage (Platform::MESSAGE_ERROR, "Can't save " + fileNameOf (files[0]),
+				error.empty () ? std::string ("The file can't be written.") : error);
+			delete made;
+			return;
+		}
+		recentFiles.add (files[0]);
+		lastFolder = folderOf (files[0]);
+		add (made);
+	});
+	return NULL;
 }
 
 void DocumentManager::saveIn (Document * document, const std::string & path, Done done) {

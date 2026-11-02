@@ -4,9 +4,13 @@
 #include "imgui_internal.h"
 #include "imgui_stdlib.h"
 
+#include <SDL3/SDL_filesystem.h>
+
 #include "DocumentView.h"
+#include "Launch.h"
 #include "Log.h"
 #include "Platform.h"
+#include "ProjectView.h"
 #include "Workspace.h"
 #include "version.h"
 
@@ -30,8 +34,8 @@ static std::string shortcut (const char * key) {
 }
 
 Workspace::Workspace (Platform & p, const std::string & renderer)
-	: platform (p), rendererName (renderer), recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
-	  manager (p, recent), quitting (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
+	: thePlatform (p), rendererName (renderer), recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
+	  manager (p, recent), buildPanel (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -51,6 +55,11 @@ Workspace::Workspace (Platform & p, const std::string & renderer)
 			Log::get ().add (LogLine::LOG_INFO, "Took the preferences of the GTK Dev Kit from %s\n", old.c_str ());
 		}
 	}
+	manager.registerType (ProjectDocument::type ());
+	registerView ("Project", [this] (Document * document) -> DocumentView * {
+		return new ProjectView ((ProjectDocument *) document, *this);
+	});
+
 	manager.opened = [this] (Document * document) {
 		std::map<std::string, ViewMaker>::iterator maker = viewMakers.find (document->kind ());
 		if (maker != viewMakers.end ()) views[document].reset (maker->second (document));
@@ -58,6 +67,8 @@ Workspace::Workspace (Platform & p, const std::string & renderer)
 	};
 	manager.closing = [this] (Document * document) {
 		views.erase (document);
+		// The build was of this project.
+		if (document == project ()) job.reset ();
 	};
 }
 
@@ -66,7 +77,7 @@ Workspace::~Workspace () {
 }
 
 std::string Workspace::preferencesFile () const {
-	return platform.settingsFolder () + "SLUDGE.ini";
+	return thePlatform.settingsFolder () + "SLUDGE.ini";
 }
 
 void Workspace::registerView (const std::string & kind, ViewMaker make) {
@@ -80,14 +91,147 @@ void Workspace::requestQuit () {
 }
 
 bool Workspace::animating () const {
+	if (compiling ()) return true;
 	for (std::map<Document *, std::unique_ptr<DocumentView> >::const_iterator i = views.begin (); i != views.end (); ++ i) {
 		if (i->second && i->second->animating ()) return true;
 	}
 	return false;
 }
 
+// Files that are dropped on the Project panel go into the project; other
+// files open.
 void Workspace::openFiles (const std::vector<std::string> & files) {
-	for (size_t i = 0; i < files.size (); i ++) manager.open (files[i]);
+	ProjectDocument * p = project ();
+	std::vector<std::string> add;
+	for (size_t i = 0; i < files.size (); i ++) {
+		if (p && projectPanelHovered && fileKind (files[i]) != FILE_DOCUMENT) add.push_back (files[i]);
+		else manager.open (files[i]);
+	}
+	if (! add.empty ()) p->addFiles (add);
+}
+
+ProjectDocument * Workspace::project () const {
+	return (ProjectDocument *) manager.findKind ("Project");
+}
+
+static bool fileExists (const std::string & path) {
+	SDL_PathInfo info;
+	return SDL_GetPathInfo (path.c_str (), &info) && info.type == SDL_PATHTYPE_FILE;
+}
+
+std::string Workspace::findProgram (const std::string & name) {
+#if defined(_WIN32)
+	std::string file = name + ".exe";
+#else
+	std::string file = name;
+#endif
+	std::string here = thePlatform.programFolder ();
+	std::vector<std::string> places;
+	places.push_back (here + file);
+	// In a macOS app, the programs are in Contents/MacOS, and the base path
+	// of SDL is Contents/Resources.
+	places.push_back (here + "../MacOS/" + file);
+#if defined(SLUDGE_BUILD_FOLDER)
+	// In the build folder, the engine is at the top, and the compiler and
+	// the Dev Kit are in source/DevKit.
+	places.push_back (std::string (SLUDGE_BUILD_FOLDER) + file);
+	places.push_back (std::string (SLUDGE_BUILD_FOLDER) + "source/DevKit/" + file);
+#endif
+	for (size_t i = 0; i < places.size (); i ++) {
+		if (fileExists (places[i])) return places[i];
+	}
+	return file;
+}
+
+void Workspace::compile () {
+	ProjectDocument * p = project ();
+	if (! p || compiling ()) return;
+	showBuild = true;
+	ImGui::SetWindowFocus (BUILD_PANEL);
+	// The compiler reads the project from its file.
+	if (p->isModified ()) {
+		manager.save (p, [this] (bool saved) {
+			if (saved) startCompile ();
+		});
+	} else {
+		startCompile ();
+	}
+}
+
+void Workspace::startCompile () {
+	ProjectDocument * p = project ();
+	if (! p) return;
+	CompileOptions options;
+	options.keepImages = preferences.keepImages;
+	options.writeStrings = preferences.writeStrings;
+	options.verbose = preferences.verbose;
+	job.reset (new CompileJob (thePlatform));
+	job->start (findProgram ("sludge-compiler"), p->path (), options);
+}
+
+void Workspace::runGame () {
+	ProjectDocument * p = project ();
+	if (! p) return;
+	std::string game;
+	if (job && job->succeeded) {
+		game = job->gameFile;
+	} else {
+		const ProjectSettings & s = p->settings ();
+		game = p->fullPath (s.finalFile + (s.makeSilent ? " (silent).slg" : ".slg"));
+	}
+	if (! fileExists (game)) {
+		thePlatform.showMessage (Platform::MESSAGE_INFORMATION, "No game to run",
+			"There is no " + fileNameOf (game) + " yet. Compile the project first.");
+		return;
+	}
+	std::vector<std::string> args;
+	args.push_back (findProgram ("sludge-engine"));
+	args.push_back (game);
+	std::string error;
+	if (thePlatform.startProgram (args, p->folder (), &error)) {
+		Log::get ().add (LogLine::LOG_INFO, "Running %s\n", game.c_str ());
+	} else {
+		thePlatform.showMessage (Platform::MESSAGE_ERROR, "Can't run the game", "Can't start " + args[0] + ": " + error);
+	}
+}
+
+void Workspace::openWith (const std::string & command, const std::string & path, int line) {
+	if (command.empty ()) {
+		thePlatform.openWithSystem (path);
+		return;
+	}
+	std::vector<std::string> args = commandLine (command, path, line);
+	std::string error;
+	if (! thePlatform.startProgram (args, folderOf (path), &error)) {
+		thePlatform.showMessage (Platform::MESSAGE_ERROR, "Can't open " + fileNameOf (path),
+			"Can't start " + args[0] + ": " + error + "\n\nYou can choose another program in the preferences.");
+	}
+}
+
+void Workspace::openFile (const std::string & path, int line) {
+	if (! fileExists (path)) {
+		thePlatform.showMessage (Platform::MESSAGE_ERROR, "Can't open " + fileNameOf (path), "There is no file " + path + ".");
+		return;
+	}
+	switch (fileKind (path)) {
+		case FILE_SCRIPT:
+			openWith (preferences.editor, path, line);
+			break;
+		case FILE_IMAGE:
+			openWith (preferences.imageViewer, path, line);
+			break;
+		case FILE_AUDIO:
+			openWith (preferences.audioPlayer, path, line);
+			break;
+		case FILE_MODULE:
+			openWith (preferences.modPlayer, path, line);
+			break;
+		default:
+			// What the Dev Kit edits opens here, the rest as the system does.
+			if (manager.typeOf (path)) manager.open (path);
+			else thePlatform.openWithSystem (path);
+			break;
+	}
 }
 
 std::string Workspace::title () const {
@@ -97,6 +241,7 @@ std::string Workspace::title () const {
 }
 
 void Workspace::draw () {
+	if (job) job->update ();
 	handleShortcuts ();
 	drawMenuBar ();
 	drawDockSpace ();
@@ -120,6 +265,8 @@ void Workspace::handleShortcuts () {
 	Document * document = manager.active ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Q, global)) requestQuit ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_O, global) && ! manager.types ().empty ()) manager.openWithDialog ();
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_B, global)) compile ();
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_R, global)) runGame ();
 	if (! document) return;
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_S, global)) manager.save (document);
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S, global)) manager.saveAs (document);
@@ -182,10 +329,23 @@ void Workspace::drawMenuBar () {
 		ImGui::EndMenu ();
 	}
 	if (ImGui::BeginMenu ("Project")) {
-		ImGui::MenuItem ("Properties...", NULL, false, false);
+		ProjectDocument * p = project ();
+		if (ImGui::MenuItem ("Add Files...", NULL, false, p != NULL)) {
+			ProjectView * view = (ProjectView *) views[p].get ();
+			if (view) view->addFilesWithDialog ();
+		}
+		if (ImGui::MenuItem ("Properties", NULL, false, p != NULL)) {
+			manager.setActive (p);
+			revealInspector ();
+		}
 		ImGui::Separator ();
-		ImGui::MenuItem ("Compile", shortcut ("B").c_str (), false, false);
-		ImGui::MenuItem ("Run Game", shortcut ("R").c_str (), false, false);
+		if (ImGui::MenuItem ("Compile", shortcut ("B").c_str (), false, p && ! compiling ())) compile ();
+		if (job && job->running ()) {
+			if (ImGui::MenuItem ("Cancel Compile")) job->cancel ();
+		}
+		if (ImGui::MenuItem ("Run Game", shortcut ("R").c_str (), false, p != NULL)) runGame ();
+		ImGui::Separator ();
+		if (ImGui::MenuItem ("Close Project", NULL, false, p != NULL)) manager.close (p);
 		ImGui::EndMenu ();
 	}
 	if (ImGui::BeginMenu ("View")) {
@@ -203,7 +363,7 @@ void Workspace::drawMenuBar () {
 		ImGui::EndMenu ();
 	}
 	if (ImGui::BeginMenu ("Help")) {
-		if (ImGui::MenuItem ("SLUDGE Website")) platform.openWithSystem ("https://opensludge.github.io");
+		if (ImGui::MenuItem ("SLUDGE Website")) thePlatform.openWithSystem ("https://opensludge.github.io");
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("About the SLUDGE Dev Kit")) showAbout = true;
 		ImGui::EndMenu ();
@@ -295,6 +455,8 @@ void Workspace::drawDocuments () {
 	std::vector<Document *> documents = manager.documents ();
 	for (size_t i = 0; i < documents.size (); i ++) {
 		Document * document = documents[i];
+		// The project is in the Project panel.
+		if (document == project ()) continue;
 		// The ### part keeps the window the same when the name changes. The
 		// tab has a dot while the document has changes.
 		char name[512];
@@ -319,16 +481,35 @@ void Workspace::drawDocuments () {
 }
 
 void Workspace::drawProjectPanel () {
-	if (ImGui::Begin (PROJECT_PANEL, &showProject)) hint ("No project is open.");
+	bool visible = ImGui::Begin (PROJECT_PANEL, &showProject);
+	projectPanelHovered = ImGui::IsWindowHovered (ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+	ProjectDocument * p = project ();
+	if (p && ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) manager.setActive (p);
+	if (visible) {
+		if (p && views[p]) {
+			views[p]->draw ();
+		} else {
+			hint ("No project is open.");
+			const std::vector<DocumentType> & types = manager.types ();
+			ImGui::SetCursorPosX ((ImGui::GetContentRegionAvail ().x - ImGui::GetFontSize () * 12) * 0.5f);
+			if (ImGui::Button ("New Project...", ImVec2 (ImGui::GetFontSize () * 6, 0)) && ! types.empty ()) manager.create (types[0]);
+			ImGui::SameLine ();
+			if (ImGui::Button ("Open...", ImVec2 (ImGui::GetFontSize () * 6, 0))) manager.openWithDialog ();
+		}
+	}
 	ImGui::End ();
 }
 
 void Workspace::drawBuildPanel () {
-	if (ImGui::Begin (BUILD_PANEL, &showBuild)) hint ("Compile a project to see its errors and warnings here.");
+	if (ImGui::Begin (BUILD_PANEL, &showBuild)) buildPanel.draw (job.get (), project ());
 	ImGui::End ();
 }
 
 void Workspace::drawInspectorPanel () {
+	if (focusInspector) {
+		ImGui::SetNextWindowFocus ();
+		focusInspector = false;
+	}
 	if (ImGui::Begin (INSPECTOR_PANEL, &showInspector)) {
 		Document * document = manager.active ();
 		std::map<Document *, std::unique_ptr<DocumentView> >::iterator view = views.find (document);

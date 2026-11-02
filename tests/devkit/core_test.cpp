@@ -4,17 +4,23 @@
  * preferences. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
- * Usage: core_test <folder for files>
+ * Usage: core_test <folder for files> <folder of the example projects>
  */
 
 #include <stdio.h>
 #include <string.h>
+
+#include <chrono>
+#include <thread>
 
 #include <deque>
 #include <string>
 #include <vector>
 
 #include "CommandStack.h"
+#include "CompileJob.h"
+#include "Launch.h"
+#include "ProjectDocument.h"
 #include "Document.h"
 #include "DocumentManager.h"
 #include "Preferences.h"
@@ -31,7 +37,7 @@ static int failures = 0;
 	} \
 } while (0)
 
-static std::string folder;
+static std::string folder, examples;
 
 static void writeFile (const std::string & path, const std::string & text) {
 	FILE * fp = fopen (path.c_str (), "wb");
@@ -50,9 +56,42 @@ static std::string readFile (const std::string & path) {
 	return text;
 }
 
+// A program that writes the given output, in pieces, and ends.
+class FakeProcess : public Platform::Process {
+public:
+	FakeProcess (const std::string & text, int code) : output (text), at (0), exitCode (code) {}
+	size_t read (char * buffer, size_t size) {
+		// A few bytes at a time, so that lines come in pieces.
+		size_t n = output.size () - at;
+		if (n > 7) n = 7;
+		if (n > size) n = size;
+		memcpy (buffer, output.data () + at, n);
+		at += n;
+		return n;
+	}
+	int wait () { return exitCode; }
+	void kill () { at = output.size (); exitCode = -9; }
+
+private:
+	std::string output;
+	size_t at;
+	int exitCode;
+};
+
 // A Platform that answers from lists, and keeps what it was asked.
 class FakePlatform : public Platform {
 public:
+	std::string processOutput;
+	int processExitCode;
+	std::vector<std::string> ranArguments;
+	std::string ranFolder;
+
+	FakePlatform () : processExitCode (0) {}
+	Process * runProgram (const std::vector<std::string> & arguments, const std::string & workingFolder, std::string *) {
+		ranArguments = arguments;
+		ranFolder = workingFolder;
+		return new FakeProcess (processOutput, processExitCode);
+	}
 	std::deque<int> answers;					// For ask
 	std::deque<std::vector<std::string> > chosen;	// For the file dialogs
 	std::vector<std::string> messages, questions;
@@ -303,17 +342,148 @@ static void testPreferences () {
 	CHECK (defaults.keepImages && defaults.verbose && defaults.editor.empty ());
 }
 
+static void testProjects () {
+	// Both example projects read back as they were written. VerbCoin has
+	// every setting, and comes out byte for byte; Welcome is older and
+	// lacks some, which we write.
+	const char * projects[] = { "Welcome/Welcome.slp", "VerbCoin/VerbCoin.slp" };
+	for (int i = 0; i < 2; i ++) {
+		std::string original = examples + projects[i];
+		ProjectSettings settings, again;
+		std::vector<std::string> files, filesAgain;
+		std::string error;
+		CHECK (ProjectDocument::readProject (original, &settings, &files, &error));
+		std::string copy = folder + "copy.slp";
+		CHECK (ProjectDocument::writeProject (copy, settings, files, &error));
+		CHECK (ProjectDocument::readProject (copy, &again, &filesAgain, &error));
+		CHECK (again == settings && filesAgain == files);
+		if (i == 1) CHECK (readFile (copy) == readFile (original));
+	}
+
+	ProjectDocument project;
+	std::string error;
+	CHECK (project.load (examples + "VerbCoin/VerbCoin.slp", &error));
+	CHECK (project.settings ().windowName == "SLUDGE verb coin example");
+	CHECK (project.settings ().width == 640 && project.settings ().speed == 50 && ! project.settings ().fullScreen);
+	CHECK (project.files ().size () == 12);
+	CHECK (project.files ()[1] == "iface/arrow_icons.slu");
+	CHECK (project.fullPath ("init.slu") == examples + "VerbCoin/init.slu");
+
+	// Files outside, inside and next to the folder of the project.
+	CHECK (project.relativePath (examples + "VerbCoin/ego/new.slu") == "ego/new.slu");
+	CHECK (project.relativePath (examples + "Welcome/script.slu") == "../Welcome/script.slu");
+	CHECK (project.relativePath (examples + "VerbCoin/init.slu") == "init.slu");
+
+	// Changes, which undo.
+	std::vector<std::string> add;
+	add.push_back (examples + "VerbCoin/extra.slu");
+	add.push_back (examples + "VerbCoin/init.slu");
+	CHECK (project.addFiles (add) == 1);
+	CHECK (project.files ().size () == 13 && project.files ()[12] == "extra.slu");
+	project.moveFile (12, 0);
+	CHECK (project.files ()[0] == "extra.slu" && project.files ()[1] == "init.slu");
+	std::vector<int> remove;
+	remove.push_back (0);
+	remove.push_back (2);
+	project.removeFiles (remove);
+	CHECK (project.files ().size () == 11 && project.files ()[0] == "init.slu" && project.files ()[1] == "iface/coin_interface.slu");
+	ProjectSettings changed = project.settings ();
+	changed.windowName = "Changed";
+	project.setSettings (changed);
+	CHECK (project.isModified ());
+	for (int i = 0; i < 4; i ++) project.commands ().undo ();
+	CHECK (! project.isModified ());
+	CHECK (project.files ().size () == 12 && project.settings ().windowName == "SLUDGE verb coin example");
+
+	// The resources of the script of Welcome, which isn't in this project
+	// but is next to it.
+	std::vector<std::string> resources = project.resourcesOf ("../Welcome/script.slu");
+	CHECK (resources.size () == 2 && resources[0] == "image.tga" && resources[1] == "tada.wav");
+	CHECK (project.resourcesOf ("german.tra").empty ());
+}
+
+static void testLaunch () {
+	std::vector<std::string> args = commandLine ("code --goto {file}:{line}", "/a b/c.slu", 12);
+	CHECK (args.size () == 3 && args[0] == "code" && args[2] == "/a b/c.slu:12");
+	args = commandLine ("\"/Applications/My Editor\" -n", "/x.slu", 0);
+	CHECK (args.size () == 3 && args[0] == "/Applications/My Editor" && args[1] == "-n" && args[2] == "/x.slu");
+	args = commandLine ("gedit +{line} {file}", "f.slu", 0);
+	CHECK (args.size () == 3 && args[1] == "+1" && args[2] == "f.slu");
+	CHECK (fileKind ("a/B.SLU") == FILE_SCRIPT && fileKind ("x.tga") == FILE_IMAGE);
+	CHECK (fileKind ("x.ogg") == FILE_AUDIO && fileKind ("x.xm") == FILE_MODULE && fileKind ("x.flo") == FILE_DOCUMENT);
+}
+
+// Let a compile job read its fake compiler, for up to 5 seconds.
+static void finish (CompileJob & job) {
+	for (int i = 0; i < 500 && job.running (); i ++) {
+		job.update ();
+		if (job.running ()) std::this_thread::sleep_for (std::chrono::milliseconds (10));
+	}
+}
+
+static void testCompileJob () {
+	std::vector<std::string> fields = CompileJob::splitFields ("message\terror\ta\\tb.slu\t3\tline\\none\tback\\\\slash");
+	CHECK (fields.size () == 6 && fields[2] == "a\tb.slu" && fields[4] == "line\none" && fields[5] == "back\\slash");
+
+	CompileOptions options;
+	options.verbose = false;
+	std::vector<std::string> args = CompileJob::arguments ("sludge-compiler", "/p/x.slp", options);
+	CHECK (args.size () == 5 && args[1] == "--machine" && args[2] == "--keep-slx" && args[3] == "--strip-debug-info" && args[4] == "/p/x.slp");
+
+	// A compile with a warning and an error, from a fake compiler.
+	FakePlatform platform;
+	platform.processOutput =
+		"task\tParsing\nprogress\t1\t0.5000\nfile\tscript.slu\n"
+		"stats\t1\t2\t3\t4\t5\n"
+		"message\twarning\tscript.slu\t3\tUnused\tWARNING: Unused (in script.slu: line 3)\n"
+		"Something on stderr\n"
+		"message\terror\tscript.slu\t7\tBroken\tERROR: Broken (in script.slu: line 7)\n"
+		"done\t0\t\n";
+	CompileJob job (platform);
+	CHECK (job.start ("sludge-compiler", "/p/x.slp", CompileOptions ()));
+	CHECK (platform.ranFolder == "/p/");
+	finish (job);
+	CHECK (job.finished && ! job.succeeded && ! job.cancelled);
+	CHECK (job.task == "Parsing" && job.file == "script.slu" && job.progress[0] == 0.5);
+	CHECK (job.functions == 1 && job.resources == 5);
+	CHECK (job.messages.size () == 3 && job.errorCount == 1 && job.warningCount == 1);
+	CHECK (job.messages[0].type == BuildMessage::WARNING && job.messages[0].line == 3 && job.messages[0].text == "Unused");
+	CHECK (job.messages[1].type == BuildMessage::OUTPUT && job.messages[1].text == "Something on stderr");
+	CHECK (job.messages[2].type == BuildMessage::ERROR && job.messages[2].file == "script.slu");
+
+	// A compiler that crashes before it is done.
+	platform.processOutput = "task\tParsing\n";
+	platform.processExitCode = 139;
+	CompileJob crash (platform);
+	crash.start ("sludge-compiler", "/p/x.slp", CompileOptions ());
+	finish (crash);
+	CHECK (crash.finished && ! crash.succeeded);
+	CHECK (! crash.messages.empty () && crash.messages.back ().type == BuildMessage::INTERNAL);
+
+	// A compile that succeeds.
+	platform.processOutput = "done\t1\t/p/Game.slg\n";
+	platform.processExitCode = 0;
+	CompileJob good (platform);
+	good.start ("sludge-compiler", "/p/x.slp", CompileOptions ());
+	finish (good);
+	CHECK (good.succeeded && good.gameFile == "/p/Game.slg" && good.messages.empty ());
+}
+
 int main (int argc, char ** argv) {
-	if (argc != 2) {
-		fprintf (stderr, "usage: core_test <folder for files>\n");
+	if (argc != 3) {
+		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects>\n");
 		return 2;
 	}
 	folder = std::string (argv[1]) + "/";
+	examples = std::string (argv[2]) + "/";
 
 	testCommandStack ();
 	testPaths ();
 	testDocuments ();
 	testPreferences ();
+	testProjects ();
+	testLaunch ();
+	testCompileJob ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);
