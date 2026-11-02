@@ -68,10 +68,9 @@ Renderers
    The engine draws through the interface in source/Engine/renderer.h,
 with OpenGL (renderer_gl.cpp) or with SDL_GPU (renderer_gpu.cpp), which
 draws with Metal on macOS, Direct3D 12 on Windows and Vulkan on Linux. By
-default (auto), the engine draws with SDL_GPU on macOS and Windows, and
-with OpenGL on Linux, until we have tested SDL_GPU with Vulkan on real
-GPUs. When one renderer can't draw, the engine uses the other, for
-example OpenGL on Windows without Direct3D 12 or on macOS before 10.14.
+default (auto), the engine draws with SDL_GPU. When one renderer can't
+draw, the engine uses the other, for example OpenGL on Windows without
+Direct3D 12, on Linux without a Vulkan driver, or on macOS before 10.14.
 It prints which renderer it uses, for example `Renderer: SDL_GPU (metal)'.
 
    To choose the renderer, set RENDERER to auto, gpu or gl in the

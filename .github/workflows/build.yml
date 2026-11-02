@@ -83,8 +83,10 @@ jobs:
             echo "The engine exited early with status $status"
             exit 1
           fi
-          if ! grep -q "Renderer: OpenGL" engine.log; then
-            echo "The engine did not start the game with OpenGL"
+          # By default, the engine draws with SDL_GPU, here with Vulkan
+          # through lavapipe.
+          if ! grep -q "Renderer: SDL_GPU (vulkan)" engine.log; then
+            echo "The engine did not start the game with SDL_GPU"
             exit 1
           fi
 

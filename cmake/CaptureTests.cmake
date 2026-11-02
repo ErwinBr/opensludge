@@ -116,9 +116,9 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	sludge_add_capture_test(welcome GAME ${CMAKE_BINARY_DIR}/games/Welcome.slg
 		FRAMES 0-60/10)
 
-	# By default, we draw with SDL_GPU on macOS and Windows, and with OpenGL
-	# on Linux (see createGraphicsWindow in source/Engine/graphics.cpp).
-	if((APPLE OR WIN32) AND SLUDGE_RENDERER_GPU)
+	# By default, we draw with SDL_GPU, where we build it (see
+	# createGraphicsWindow in source/Engine/graphics.cpp).
+	if(SLUDGE_RENDERER_GPU)
 		set(default_renderer gpu)
 		set(other_renderer gl)
 	else()

@@ -460,19 +460,14 @@ static void createGraphicsWindow (bool fullscreen) {
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 	const char * title = gameName ? gameName : "SLUDGE";
 
-	// With auto, we draw with SDL_GPU on macOS and Windows, with Metal and
-	// Direct3D 12, and with OpenGL on Linux, until we have tested SDL_GPU
-	// with Vulkan on real GPUs. When one renderer can't draw, we try the
-	// other.
+	// With auto, we draw with SDL_GPU: with Metal, Direct3D 12 or Vulkan.
+	// When one renderer can't draw, we try the other.
 	const char * choice = requestedRenderer ();
-	bool gpuFirst = false;
-	if (! strcmp (choice, "gpu")) {
-		gpuFirst = true;
-	} else if (strcmp (choice, "gl")) {
-		if (strcmp (choice, "auto")) fprintf (stderr, "Unknown renderer \"%s\", so we choose one\n", choice);
-#if defined(__APPLE__) || defined(_WIN32)
-		gpuFirst = true;
-#endif
+	bool gpuFirst = true;
+	if (! strcmp (choice, "gl")) {
+		gpuFirst = false;
+	} else if (strcmp (choice, "gpu") && strcmp (choice, "auto")) {
+		fprintf (stderr, "Unknown renderer \"%s\", so we choose one\n", choice);
 	}
 
 #if defined(SLUDGE_RENDERER_GPU)

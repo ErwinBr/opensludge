@@ -401,7 +401,7 @@ void printCaptureUsage () {
 	fprintf (stdout, "--user-dir=<folder>		Folder for settings and saved games\n");
 	fprintf (stdout, "--pot-textures			Use power-of-two textures, as on OpenGL ES 2.0 devices\n");
 	fprintf (stdout, "--renderer=<auto|gpu|gl>	Draw with SDL_GPU (Metal, Vulkan, Direct3D 12) or OpenGL;\n");
-	fprintf (stdout, "				auto (default) chooses SDL_GPU on macOS and Windows, OpenGL on Linux\n");
+	fprintf (stdout, "				auto (default) chooses SDL_GPU, and OpenGL where it can't draw\n");
 	fprintf (stdout, "--gpu-driver=<name>		The driver of SDL_GPU: metal, vulkan or direct3d12\n\n");
 }
 
