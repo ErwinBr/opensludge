@@ -5,7 +5,7 @@
 #         -DOUT=<folder> [-DINPUT=<script>] [-DMAX_FRAMES=<n>] [-DFRAMES=<list>]
 #         [-DENGINE_ARGS=<options>] [-DEXPECTED_ARGS=<options>]
 #         [-DREFERENCE_ENGINE=<sludge-engine>] [-DREQUIRE=<regex>]
-#         [-DENGINE_ENV=<variable>=<value>] [-DMAX_DIFF=<n>]
+#         [-DENGINE_ENV=<variable>=<value>...] [-DMAX_DIFF=<n>]
 #         [-DMAX_BAD=<fraction>] -P run.cmake
 #
 # Without REFERENCE_ENGINE, we run the engine twice and the runs must be the
@@ -13,9 +13,9 @@
 # compare with a run of that engine, for example a build of an earlier
 # commit. With EXPECTED_ARGS, the first run has those options instead of
 # ENGINE_ARGS, for example to compare two renderers. The second run has
-# the environment variables of ENGINE_ENV, and its output must match
-# REQUIRE. We unset SLUDGE_RENDERER for both runs. The frames are in
-# OUT/expected and OUT/actual, and the images that differ in
+# the environment variables of ENGINE_ENV, separated by spaces, and its
+# output must match REQUIRE. We unset SLUDGE_RENDERER for both runs. The
+# frames are in OUT/expected and OUT/actual, and the images that differ in
 # OUT/difference.
 
 foreach(var ENGINE FRAMEDIFF GAME OUT)
@@ -48,8 +48,9 @@ function(run_engine engine folder engine_args engine_env)
 		list(APPEND args "--frames=${FRAMES}")
 	endif()
 	separate_arguments(extra NATIVE_COMMAND "${engine_args}")
+	separate_arguments(env NATIVE_COMMAND "${engine_env}")
 	execute_process(
-		COMMAND ${CMAKE_COMMAND} -E env --unset=SLUDGE_RENDERER ${engine_env}
+		COMMAND ${CMAKE_COMMAND} -E env --unset=SLUDGE_RENDERER ${env}
 			"${engine}" ${args} ${extra} "${GAME}"
 		RESULT_VARIABLE result
 		OUTPUT_FILE "${OUT}/${folder}.log"

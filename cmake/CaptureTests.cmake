@@ -84,8 +84,8 @@ function(sludge_add_capture_test name)
 	endforeach()
 endfunction()
 
-# sludge_add_renderer_test(<name> ENGINE_ARGS <options> [ENGINE_ENV <variable>=<value>]
-#                          EXPECTED <gl|gpu>)
+# sludge_add_renderer_test(<name> ENGINE_ARGS <options>
+#                          [ENGINE_ENV "<variable>=<value> ..."] EXPECTED <gl|gpu>)
 # Plays the start of Welcome with ENGINE_ARGS and ENGINE_ENV, which must
 # draw with the EXPECTED renderer, and with that renderer named explicitly;
 # the frames must be the same.
@@ -134,9 +134,11 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			ENGINE_ENV SLUDGE_RENDERER=${other_renderer} EXPECTED ${other_renderer})
 		sludge_add_renderer_test(option-before-environment ENGINE_ARGS --renderer=${other_renderer}
 			ENGINE_ENV SLUDGE_RENDERER=${default_renderer} EXPECTED ${other_renderer})
-		# Without OpenGL, we draw with SDL_GPU.
+		# Without OpenGL, we draw with SDL_GPU. On Wayland, SDL loads OpenGL
+		# through EGL, so we take that away too.
 		sludge_add_renderer_test(gl-fallback ENGINE_ARGS --renderer=gl
-			ENGINE_ENV SDL_OPENGL_LIBRARY=no-such-library EXPECTED gpu)
+			ENGINE_ENV "SDL_OPENGL_LIBRARY=no-such-library SDL_EGL_LIBRARY=no-such-library"
+			EXPECTED gpu)
 	endif()
 	if(SLUDGE_RENDERER_GPU)
 		# Without SDL_GPU, we draw with OpenGL.
