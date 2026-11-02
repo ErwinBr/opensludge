@@ -2,9 +2,25 @@
  * What the renderers share.
  */
 
+#include <stddef.h>
+
 #include "renderer.h"
 
 namespace gfx {
+
+static LogFunction logFunction = NULL;
+
+void setLogFunction (LogFunction log) {
+	logFunction = log;
+}
+
+void logDebug (const char * format, ...) {
+	if (! logFunction) return;
+	va_list args;
+	va_start (args, format);
+	logFunction (format, args);
+	va_end (args);
+}
 
 DrawUniforms::DrawUniforms ()
 	: useLightTexture (false), antialias (false), zBuffer (false), zBufferLayer (0.0f), modulateColor (false) {

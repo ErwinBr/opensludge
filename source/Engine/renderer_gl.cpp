@@ -12,7 +12,6 @@
 
 #include "sludge_gl.h"
 #include "renderer.h"
-#include "debug.h"
 #include "dxgipresent.h"
 #include "shaders.h"
 
@@ -139,7 +138,7 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 	free (vertex);
 	free (fragment);
 	if (! program) return false;
-	debugOut ("Built shader program: %d (%s)\n", program, fragmentFile);
+	logDebug ("Built shader program: %d (%s)\n", program, fragmentFile);
 
 	ProgramInfo & info = programs[p];
 	info.program = program;
@@ -295,7 +294,7 @@ RenderTarget * GLRenderer::createTarget (Texture * color, bool depth) {
 	}
 	GLenum status = glCheckFramebufferStatus (GL_FRAMEBUFFER);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
-		debugOut ("Frame buffer object of %dx%d is incomplete: 0x%04X\n", color->width, color->height, status);
+		logDebug ("Frame buffer object of %dx%d is incomplete: 0x%04X\n", color->width, color->height, status);
 	}
 	bindFramebuffer (currentTarget);
 	return target;

@@ -5,10 +5,14 @@
 #include "language.h"
 
 void debugOut(const char * a, ...) {
-	if (! gameSettings.debugMode) return;
-
 	va_list argptr;
 	va_start(argptr, a);
+	debugOutV(a, argptr);
+	va_end(argptr);
+}
+
+void debugOutV(const char * a, va_list argptr) {
+	if (! gameSettings.debugMode) return;
 
 #if defined(__unix__) || defined(__APPLE__)
 	vfprintf(stderr, a, argptr);

@@ -5,9 +5,7 @@
  * The engine and the Dev Kit draw through this interface, so that they can
  * draw with OpenGL (renderer_gl.cpp) or with SDL_GPU (renderer_gpu.cpp:
  * Metal, Vulkan, Direct3D 12). The renderers are the library
- * sludge-renderer, which knows nothing of the engine. A program that links
- * it defines debugOut (debug.h), which the renderers call for their
- * messages.
+ * sludge-renderer, which knows nothing of the engine.
  *
  * Coordinates follow OpenGL:
  *
@@ -22,10 +20,20 @@
  * renderer chooses a sampler from them when it draws.
  */
 
+#include <stdarg.h>
+
 struct SDL_GPUDevice;
 struct SDL_Window;
 
 namespace gfx {
+
+// The renderers write details that help to find problems, such as the logs
+// of the shader compilers and OpenGL errors, with this function. They write
+// nothing until a program sets one. Problems that stop a renderer from
+// drawing, and which renderer draws, go to stderr regardless.
+typedef void (* LogFunction) (const char * format, va_list args);
+void setLogFunction (LogFunction log);
+void logDebug (const char * format, ...);
 
 enum TexFormat {
 	TEX_RGBA8,

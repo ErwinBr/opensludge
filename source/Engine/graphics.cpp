@@ -354,6 +354,7 @@ static void createGraphicsWindow (bool fullscreen) {
 	}
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 
+	gfx::setLogFunction (debugOutV);
 	gfx::WindowOptions options;
 	options.title = gameName ? gameName : "SLUDGE";
 	options.width = w;

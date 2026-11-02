@@ -3,7 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include "sludge_gl.h"
-#include "debug.h"
+#include "renderer.h"
 
 #if !defined(HAVE_GLES2)
 
@@ -53,7 +53,7 @@ int printOglError (const char *file, int line)
 	glErr = glGetError ();
 	while (glErr != GL_NO_ERROR)
     {
-		debugOut("glError in file %s @ line %d: error code 0x%x\n", file, line, glErr);
+		gfx::logDebug ("glError in file %s @ line %d: error code 0x%x\n", file, line, glErr);
 		retCode = 1;
 		glErr = glGetError ();
     }

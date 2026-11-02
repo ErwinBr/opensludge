@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "debug.h"
+#include "renderer.h"
 #include "shaders.h"
 
 #include "shaders_embedded.h"
@@ -46,11 +46,11 @@ printShaderInfoLog (GLuint shader)
 		infoLog = new char [infologLength];
 		if (infoLog == NULL)
         {
-			debugOut("ERROR: Could not allocate InfoLog buffer");
+			gfx::logDebug ("ERROR: Could not allocate InfoLog buffer");
 			return;
         }
 		glGetShaderInfoLog (shader, infologLength, &charsWritten, infoLog);
-		debugOut("Shader InfoLog:\n%s\n\n", infoLog);
+		gfx::logDebug ("Shader InfoLog:\n%s\n\n", infoLog);
 		delete[] infoLog;
     }
 	printOpenGLError();  // Check for OpenGL errors
@@ -73,11 +73,11 @@ printProgramInfoLog (GLuint program)
 		infoLog = new char [infologLength];
 		if (infoLog == NULL)
         {
-			debugOut( "ERROR: Could not allocate InfoLog buffer");
+			gfx::logDebug ( "ERROR: Could not allocate InfoLog buffer");
 			return;
         }
 		glGetProgramInfoLog (program, infologLength, &charsWritten, infoLog);
-		debugOut( "Program InfoLog:\n%s\n\n", infoLog);
+		gfx::logDebug ( "Program InfoLog:\n%s\n\n", infoLog);
 		delete[] infoLog;
     }
 	printOpenGLError ();  // Check for OpenGL errors
@@ -97,7 +97,7 @@ int buildShaders (const char *vertexShader, const char *fragmentShader)
 	glShaderSource(VS, 1, &vertexShader, NULL);
 	glShaderSource(FS, 1, &fragmentShader, NULL);
 
-	debugOut("Compiling vertex shader... \n");
+	gfx::logDebug ("Compiling vertex shader... \n");
 
 	// Compile vertex shader and print log
 	glCompileShader(VS);
@@ -105,7 +105,7 @@ int buildShaders (const char *vertexShader, const char *fragmentShader)
 	glGetShaderiv(VS, GL_COMPILE_STATUS, &vertCompiled);
 	printShaderInfoLog (VS);
 
-	debugOut("\nCompiling fragment shader... \n");
+	gfx::logDebug ("\nCompiling fragment shader... \n");
 
 	// Compile fragment shader and print log
 	glCompileShader(FS);
@@ -116,7 +116,7 @@ int buildShaders (const char *vertexShader, const char *fragmentShader)
 	if (!vertCompiled || !fragCompiled)
 		return 0;
 
-	debugOut( "\nShaders compiled. \n");
+	gfx::logDebug ( "\nShaders compiled. \n");
 
 
 	// Create a program object and attach the two compiled shaders
@@ -137,7 +137,7 @@ int buildShaders (const char *vertexShader, const char *fragmentShader)
 	if (!linked)
 		return 0;
 
-	debugOut("Shader program linked. \n");
+	gfx::logDebug ("Shader program linked. \n");
 
 	return prog;
 }

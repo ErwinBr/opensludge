@@ -10,7 +10,6 @@
 #include "sludge_gl.h"
 #include "renderer.h"
 #include "renderer_window.h"
-#include "debug.h"
 #include "dxgipresent.h"
 
 #if defined(SLUDGE_FRAMEBUFFER_VSYNC)
@@ -146,9 +145,9 @@ bool createGLWindow (const WindowOptions & options) {
 	if (! renderer) return glFailed ("Startup Error: Couldn't build the shader programs.", error, 1);
 
 	fprintf (stderr, "Renderer: OpenGL\n");
-	debugOut ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
-	debugOut ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
-	debugOut ("OpenGL version: %s\n", glGetString (GL_VERSION));
+	logDebug ("OpenGL vendor: %s\n", glGetString (GL_VENDOR));
+	logDebug ("OpenGL renderer: %s\n", glGetString (GL_RENDERER));
+	logDebug ("OpenGL version: %s\n", glGetString (GL_VERSION));
 	return true;
 }
 

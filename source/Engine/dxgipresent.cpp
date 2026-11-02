@@ -38,8 +38,8 @@
 #include <dxgi1_2.h>
 
 #include "sludge_gl.h"
+#include "renderer.h"
 
-#include "debug.h"
 #include "dxgipresent.h"
 
 // WGL_NV_DX_interop2, from its specification.
@@ -313,7 +313,7 @@ static const char * startOnSameGPU (IDXGIFactory1 * factory, SDL_Window * window
 				problem = startOnAdapter (adapter, window);
 				char name[256];
 				WideCharToMultiByte (CP_UTF8, 0, desc.Description, -1, name, sizeof (name), NULL, NULL);
-				debugOut ("DXGI on %s: %s.\n", name, problem ? problem : "ready");
+				gfx::logDebug ("DXGI on %s: %s.\n", name, problem ? problem : "ready");
 				if (problem) releaseDevice ();
 			}
 			release (adapter);
@@ -338,11 +338,11 @@ SDL_GLContext startDXGIPresentation (SDL_Window * window) {
 	release (factory);
 
 	if (problem) {
-		debugOut ("We show the frames with OpenGL, not DXGI: %s.\n", problem);
+		gfx::logDebug ("We show the frames with OpenGL, not DXGI: %s.\n", problem);
 		stop ();
 		return NULL;
 	}
-	debugOut ("We show the frames through DXGI.\n");
+	gfx::logDebug ("We show the frames through DXGI.\n");
 	presenting = true;
 	return glContext;
 }
@@ -364,9 +364,9 @@ void resizeDXGIPresentation (int newWidth, int newHeight) {
 	// ResizeBuffers fails while a buffer is bound to the device context.
 	deviceContext -> ClearState ();
 	if (FAILED (swapChain -> ResizeBuffers (0, width, height, DXGI_FORMAT_UNKNOWN, 0))) {
-		debugOut ("We could not resize the DXGI swap chain.\n");
+		gfx::logDebug ("We could not resize the DXGI swap chain.\n");
 	}
-	if (! createFramebuffers ()) debugOut ("We could not make the frame buffers for DXGI again.\n");
+	if (! createFramebuffers ()) gfx::logDebug ("We could not make the frame buffers for DXGI again.\n");
 }
 
 void presentWithDXGI () {

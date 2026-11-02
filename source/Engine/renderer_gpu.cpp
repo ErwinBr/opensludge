@@ -36,7 +36,6 @@
 #include <SDL3/SDL.h>
 
 #include "renderer.h"
-#include "debug.h"
 #include "shaders/gpu/gpu_shaders.h"
 
 namespace gfx {
@@ -258,7 +257,7 @@ SDL_GPUShader * GPURenderer::makeShader (const char * name, SDL_GPUShaderStage s
 	info.num_samplers = numSamplers;
 	info.num_uniform_buffers = numUniformBuffers;
 	SDL_GPUShader * shader = SDL_CreateGPUShader (device, &info);
-	if (! shader) debugOut ("Can't make the shader %s: %s\n", name, SDL_GetError ());
+	if (! shader) logDebug ("Can't make the shader %s: %s\n", name, SDL_GetError ());
 	return shader;
 }
 
@@ -716,7 +715,7 @@ SDL_GPUGraphicsPipeline * GPURenderer::pipeline (Program program, Blend blend, C
 	info.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
 
 	SDL_GPUGraphicsPipeline * p = SDL_CreateGPUGraphicsPipeline (device, &info);
-	if (! p) debugOut ("Can't make a pipeline: %s\n", SDL_GetError ());
+	if (! p) logDebug ("Can't make a pipeline: %s\n", SDL_GetError ());
 	pipelines[key] = p;
 	return p;
 }

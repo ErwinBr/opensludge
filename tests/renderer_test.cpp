@@ -17,12 +17,8 @@
 #include "renderer.h"
 #include "renderer_window.h"
 
-void debugOut (const char * format, ...) {
-	if (! getenv ("SLUDGE_TEST_DEBUG")) return;
-	va_list args;
-	va_start (args, format);
+static void logToStderr (const char * format, va_list args) {
 	vfprintf (stderr, format, args);
-	va_end (args);
 }
 
 static const int W = 64, H = 32;
@@ -63,6 +59,7 @@ int main (int argc, char ** argv) {
 		fprintf (stderr, "Can't start SDL: %s\n", SDL_GetError ());
 		return 1;
 	}
+	if (getenv ("SLUDGE_TEST_DEBUG")) gfx::setLogFunction (logToStderr);
 	gfx::WindowOptions options;
 	options.title = "renderer_test";
 	options.width = W;
