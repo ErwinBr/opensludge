@@ -7,6 +7,8 @@
  * only shows it and turns what the user does into commands.
  */
 
+#include <string>
+
 namespace devkit {
 
 class Document;
@@ -20,6 +22,9 @@ public:
 	virtual void draw () = 0;
 	// The contents of the Inspector while the document is active.
 	virtual void drawInspector () {}
+	// A file that the user dropped on the window while the document was
+	// active, such as the backdrop of a floor. Returns whether we took it.
+	virtual bool takeFile (const std::string & path) { (void) path; return false; }
 	// Whether the view needs another frame soon, such as during a drag.
 	virtual bool animating () const { return false; }
 };

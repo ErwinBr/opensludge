@@ -55,6 +55,14 @@ bool intersect(struct vertexList *l1a, struct vertexList *l1b, struct vertexList
 		&& ((ccw(l2, l2->next, l1a) * ccw(l2, l2->next, l1b)) <=0);
 }
 
+// Which way the corner at p1 turns: 1 or -1, or 0 when the three points
+// are on a line, as after Split Line, which doesn't make a polygon concave.
+// (ccw says which way a point lies, and calls points on a line a turn.)
+static int turn (struct vertexList *p0, struct vertexList *p1, struct vertexList *p2) {
+	long long cross = (long long) (p1->x - p0->x) * (p2->y - p0->y) - (long long) (p1->y - p0->y) * (p2->x - p0->x);
+	return cross > 0 ? 1 : cross < 0 ? -1 : 0;
+}
+
 bool polyIsConvex (struct polyList *firstPoly) {
 	if (firstPoly -> firstVertex == NULL) return false;
 	if (firstPoly -> firstVertex -> next == NULL) return false;
@@ -66,7 +74,7 @@ bool polyIsConvex (struct polyList *firstPoly) {
 	vertexList * newVertex2 = newVertex1 -> next;
 	vertexList * newVertex3 = newVertex2 -> next;
 	while (newVertex3) {
-		dir1 = ccw(newVertex1, newVertex2, newVertex3);
+		dir1 = turn(newVertex1, newVertex2, newVertex3);
 		if (dir1) {
 			if (dir && (dir != dir1)) {
 				return false;
@@ -78,14 +86,14 @@ bool polyIsConvex (struct polyList *firstPoly) {
 		newVertex2 = newVertex3;
 		newVertex3 = newVertex3->next;
 	}
-	dir1 = ccw(newVertex1, newVertex2, newVertex3 = firstPoly->firstVertex->next);
+	dir1 = turn(newVertex1, newVertex2, newVertex3 = firstPoly->firstVertex->next);
 	if (dir1) {
 		if (dir && (dir != dir1)) {
 			return false;
 		}
 		dir = dir1;
 	}
-	dir1 = ccw(newVertex2, newVertex3, newVertex3->next);
+	dir1 = turn(newVertex2, newVertex3, newVertex3->next);
 	if (dir1) {
 		if (dir && (dir != dir1)) {
 			return false;
@@ -435,7 +443,7 @@ void noFloor (struct polyList **firstPoly) {
 }
 
 
-bool loadFloorFromFile (char * name, struct polyList **firstPoly) {
+bool loadFloorFromFile (const char * name, struct polyList **firstPoly) {
 	bool adding = false;
 	int numGot = 0, gotX, firstX, firstY;
 	
@@ -589,80 +597,92 @@ void drawFloor (Draw2D & draw, struct polyList * floor, float r, float g, float 
 }
 
 
-bool saveFloorToFile (char * filename, struct polyList **firstPoly) {
-	FILE * fp = fopen (filename, "wt");
-	if (! fp) {
-//		alert ("Can't open file for writing");
-		return false;
+// A polygon that isn't complete yet isn't for fixing. (The GTK tools once
+// checked only floors of more than one polygon, and the unfinished ones
+// too, which they then couldn't fix.)
+bool floorNeedsFixing (struct polyList * firstPoly) {
+	for (polyList * pL = firstPoly; pL; pL = pL -> next) {
+		if (polyIsComplete (pL) && ! polyIsConvex (pL)) return true;
 	}
+	return false;
+}
 
+bool fixFloor (struct polyList **firstPoly) {
 	int dir;
-	bool fixFloor = false;
 	polyList * pL = *firstPoly;
-	if (!pL->next) pL = NULL;
+	// A split that changes nothing would make us try again for ever.
+	int splits = 0;
 	while (pL) {
-		if (! polyIsConvex (pL)) {
-			if (fixFloor || askAQuestion("Error in floor.", "I found a polygon in the floor that isn't convex. That will most likely cause problems. Do you want me to try and fix it for you?")) {
-				fixFloor = true;
-				// Fix it!
-				if (! (dir = getPolyDirection(pL))) {
-					errorBox ("Error", "I can't fix the error. The floor is too complicated, but I'll save it anyway.");
-					pL = NULL;
-					break;
-				}
-				
-				vertexList * vL1 = findConcaveVertex (pL, dir);
-				if (vL1) {
-					vertexList * vL2;
-					if (vL1->next) vL2 = vL1->next; else vL2 = pL->firstVertex->next;
-					if (vL2->next) vL2 = vL2->next; else vL2 = pL->firstVertex->next;
-					
-					// Check that the line doesn't cross any other lines
-					vertexList * vL = pL -> firstVertex;
-					bool doIt = true;
-					while (vL -> next) {
-						if (intersect (vL1, vL2, vL)) {
-							vL2 = (vL2->next) ? vL2->next : pL -> firstVertex;
-							if (vL2 == vL1) {
-								doIt = false;
-								break;
-							} else {
-								vL = pL -> firstVertex;
-							}
-						} else {
-							vL = vL -> next;
-						}
-					}
-						
-					if (doIt) {
-						splitPoly (vL1->x, vL1->y, vL2->x, vL2->y, firstPoly);
-						pL = *firstPoly;
-						continue;
-					}
-				}
-			} else {
-				break;
+		if (polyIsComplete (pL) && ! polyIsConvex (pL)) {
+			// Fix it!
+			if (! (dir = getPolyDirection(pL)) || ++ splits > 1000) {
+				return false;
 			}
-		}
-		if (pL) pL = pL -> next;
-	}
-	
-	pL =  *firstPoly;
-	while (pL) {
-		vertexList * vL = pL -> firstVertex;
-		if (vL) {
-			fprintf (fp, "* ");
-			while (vL -> next) {
-				if (vL->x < 0) vL->x = 0;
-				if (vL->y < 0) vL->y = 0;
-				fprintf (fp, "%i, %i%s", vL -> x, vL -> y, vL -> next -> next ? "; " : "\n");
-				vL = vL -> next;
+
+			vertexList * vL1 = findConcaveVertex (pL, dir);
+			if (vL1) {
+				vertexList * vL2;
+				if (vL1->next) vL2 = vL1->next; else vL2 = pL->firstVertex->next;
+				if (vL2->next) vL2 = vL2->next; else vL2 = pL->firstVertex->next;
+
+				// Check that the line doesn't cross any other lines
+				vertexList * vL = pL -> firstVertex;
+				bool doIt = true;
+				while (vL -> next) {
+					if (intersect (vL1, vL2, vL)) {
+						vL2 = (vL2->next) ? vL2->next : pL -> firstVertex;
+						if (vL2 == vL1) {
+							doIt = false;
+							break;
+						} else {
+							vL = pL -> firstVertex;
+						}
+					} else {
+						vL = vL -> next;
+					}
+				}
+
+				if (doIt) {
+					splitPoly (vL1->x, vL1->y, vL2->x, vL2->y, firstPoly);
+					pL = *firstPoly;
+					continue;
+				}
 			}
 		}
 		pL = pL -> next;
 	}
-	fclose (fp);
 	return true;
+}
+
+bool writeFloorToFile (const char * filename, struct polyList * firstPoly) {
+	FILE * fp = fopen (filename, "wt");
+	if (! fp) return false;
+	for (polyList * pL = firstPoly; pL; pL = pL -> next) {
+		vertexList * vL = pL -> firstVertex;
+		if (vL) {
+			fprintf (fp, "* ");
+			while (vL -> next) {
+				fprintf (fp, "%i, %i%s", vL -> x < 0 ? 0 : vL -> x, vL -> y < 0 ? 0 : vL -> y, vL -> next -> next ? "; " : "\n");
+				vL = vL -> next;
+			}
+		}
+	}
+	return fclose (fp) == 0;
+}
+
+bool saveFloorToFile (char * filename, struct polyList **firstPoly) {
+	// We open the file first, so that we don't ask about a file that we
+	// can't write.
+	FILE * fp = fopen (filename, "wt");
+	if (! fp) return false;
+	fclose (fp);
+
+	if (floorNeedsFixing (*firstPoly)
+			&& askAQuestion("Error in floor.", "I found a polygon in the floor that isn't convex. That will most likely cause problems. Do you want me to try and fix it for you?")
+			&& ! fixFloor (firstPoly)) {
+		errorBox ("Error", "I can't fix the error. The floor is too complicated, but I'll save it anyway.");
+	}
+	return writeFloorToFile (filename, *firstPoly);
 }
 
 void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view) {

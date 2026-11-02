@@ -19,8 +19,21 @@ struct polyList {
 	struct polyList * next;
 };
 
-bool loadFloorFromFile (char * name, struct polyList **firstPoly);
+bool loadFloorFromFile (const char * name, struct polyList **firstPoly);
+// Save a floor, after asking to fix it when it needs fixing.
 bool saveFloorToFile (char * filename, struct polyList **firstPoly);
+
+// Whether a complete polygon of the floor isn't convex, which most likely
+// causes problems in the game.
+bool floorNeedsFixing (struct polyList * firstPoly);
+// Split the polygons that aren't convex into convex ones, where we can.
+// Returns false when a polygon is too complicated.
+bool fixFloor (struct polyList **firstPoly);
+// Save a floor as it is.
+bool writeFloorToFile (const char * filename, struct polyList * firstPoly);
+
+bool polyIsConvex (struct polyList * poly);
+bool polyIsComplete (struct polyList * poly);
 
 void noFloor (struct polyList **firstPoly);
 int addVertex (int x, int y, struct polyList *firstPoly);

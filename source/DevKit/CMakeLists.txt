@@ -116,6 +116,8 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/CompileJob.cpp
 		${DEVKIT_DIR}/Core/Document.cpp
 		${DEVKIT_DIR}/Core/DocumentManager.cpp
+		${DEVKIT_DIR}/Core/FileMemory.cpp
+		${DEVKIT_DIR}/Core/FloorDocument.cpp
 		${DEVKIT_DIR}/Core/Launch.cpp
 		${DEVKIT_DIR}/Core/Log.cpp
 		${DEVKIT_DIR}/Core/Preferences.cpp
@@ -126,7 +128,11 @@ if(SLUDGE_DEVKIT)
 	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
 	# The compile job reads the compiler on a thread of its own.
 	find_package(Threads REQUIRED)
-	target_link_libraries(devkit-core PUBLIC Threads::Threads)
+	# The floors and the other pictures are the models of GraphicalTools.
+	# Those call the functions of Common/interface.h, which
+	# Core/InterfacePlatform.cpp has: the programs take that in themselves,
+	# as a library after devkit-graphics would come too early for GNU ld.
+	target_link_libraries(devkit-core PUBLIC devkit-graphics Threads::Threads)
 
 	# The drawing of the views with the renderers of the engine.
 	add_library(devkit-view STATIC ${DEVKIT_DIR}/GraphicalTools/draw2d_gfx.cpp)
@@ -135,11 +141,14 @@ if(SLUDGE_DEVKIT)
 	add_executable(sludge-devkit
 		${DEVKIT_DIR}/App/main.cpp
 		${DEVKIT_DIR}/App/BuildPanel.cpp
+		${DEVKIT_DIR}/App/CanvasView.cpp
 		${DEVKIT_DIR}/App/FileCheckWindow.cpp
+		${DEVKIT_DIR}/App/FloorView.cpp
+		${DEVKIT_DIR}/Core/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/ProjectView.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
-		${DEVKIT_DIR}/App/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
+		${DEVKIT_DIR}/App/SmokeInput.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
 	)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
@@ -168,8 +177,18 @@ if(SLUDGE_DEVKIT)
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/compile_test.cmake)
 		set_tests_properties(capture-devkit-compile PROPERTIES LABELS capture DEPENDS compiler_help)
 
+		# The floor editor with the mouse and the keys, as a user edits.
+		add_test(NAME capture-devkit-floor
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/floor.flo
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/floor_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/floor-edited.flo
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-floor
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-floor PROPERTIES LABELS capture)
+
 		# The core of the Dev Kit, without a display.
-		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp)
+		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp ${DEVKIT_DIR}/Core/InterfacePlatform.cpp)
 		target_link_libraries(devkit_core_test PRIVATE devkit-core)
 		file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/core_test)
 		add_test(NAME devkit_core COMMAND devkit_core_test ${CMAKE_CURRENT_BINARY_DIR}/core_test

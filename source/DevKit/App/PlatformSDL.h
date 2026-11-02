@@ -34,6 +34,9 @@ public:
 	// Keep the settings in another folder, as the tests do, so that they
 	// leave the user's alone.
 	void setSettingsFolder (const std::string & folder) { settingsOverride = folder; }
+	// For the smoke tests, which nobody watches: show no message boxes, but
+	// log them, and answer questions with their last button, as Escape.
+	void setUnattended (bool on) { unattended = on; }
 
 	// Call the callbacks of the file dialogs that the user answered. The
 	// main loop calls this between frames. SDL may answer on another
@@ -45,6 +48,7 @@ public:
 private:
 	SDL_Window * window;
 	std::string settingsOverride;
+	bool unattended;
 	std::mutex mutex;
 	std::vector<Request *> answered;
 

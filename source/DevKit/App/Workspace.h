@@ -14,9 +14,11 @@
 #include <vector>
 
 #include "BuildPanel.h"
+#include "CanvasView.h"
 #include "CompileJob.h"
 #include "DocumentManager.h"
 #include "FileCheckWindow.h"
+#include "FileMemory.h"
 #include "Preferences.h"
 #include "ProjectDocument.h"
 #include "RecentFiles.h"
@@ -29,7 +31,8 @@ class Platform;
 
 class Workspace : public WorkspaceActions {
 public:
-	Workspace (Platform & platform, const std::string & rendererName);
+	// The editors draw their pictures with graphics.
+	Workspace (Platform & platform, const std::string & rendererName, const CanvasGraphics & graphics);
 	~Workspace ();
 
 	DocumentManager & documents () { return manager; }
@@ -93,7 +96,9 @@ private:
 
 	Platform & thePlatform;
 	std::string rendererName;
+	CanvasGraphics graphics;
 	RecentFiles recent;
+	FileMemory memory;
 	DocumentManager manager;
 	Preferences preferences;
 	std::map<std::string, ViewMaker> viewMakers;

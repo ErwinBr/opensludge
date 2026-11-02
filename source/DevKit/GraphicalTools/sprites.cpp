@@ -401,7 +401,8 @@ bool loadSpriteBank (const char * filename, spriteBank *loadhere) {
 
 unsigned char * spritePixels (const spriteBank * bank, int index) {
 	const sprite & single = bank->sprites[index];
-	int size = single.width * single.height;
+	// The backdrop of the floor maker has a negative height, as z-buffers.
+	int size = single.width * (single.height < 0 ? - single.height : single.height);
 	unsigned char * rgba = new unsigned char [size * 4];
 	if (bank->type < 2) {
 		for (int p = 0; p < size; p ++) {

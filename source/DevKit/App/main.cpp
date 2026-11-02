@@ -4,20 +4,23 @@
  *
  * Usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>]
  *                      [--smoke=<picture.png>] [--smoke-compile=<project>]
- *                      [--smoke-check=<project>]
+ *                      [--smoke-check=<project>] [--smoke-input=<steps>]
  *                      [file ...]
  *
  * With --smoke, we draw a few frames in a window of a fixed size, save the
  * last one as a PNG, and quit, for the tests. With --smoke-compile, we
  * open a project and compile it first, and the exit code says whether it
- * compiled. With --smoke-check, we open a project and check its files. With SLUDGE_DEVKIT_DEBUG set
- * in the environment, we write the log to stderr, with the details of the
- * renderer.
+ * compiled. With --smoke-check, we open a project and check its files. With
+ * --smoke-input, we take the mouse and keys from a file (SmokeInput.h)
+ * instead of the user, and the exit code says whether its steps worked.
+ * With SLUDGE_DEVKIT_DEBUG set in the environment, we write the log to
+ * stderr, with the details of the renderer.
  */
 
 #include <stdio.h>
 #include <string.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,9 +34,13 @@
 #include "renderer.h"
 #include "renderer_window.h"
 
+#include "draw2d.h"
+#include "draw2d_gfx.h"
+
 #include "InterfacePlatform.h"
 #include "Log.h"
 #include "PlatformSDL.h"
+#include "SmokeInput.h"
 #include "Workspace.h"
 
 using namespace devkit;
@@ -55,7 +62,8 @@ static bool startsWith (const char * s, const char * prefix) {
 
 static void usage () {
 	fprintf (stderr, "usage: sludge-devkit [--renderer=auto|gpu|gl] [--gpu-driver=<name>] [--smoke=<picture.png>]\n"
-		"                     [--smoke-compile=<project>] [--smoke-check=<project>] [file ...]\n");
+		"                     [--smoke-compile=<project>] [--smoke-check=<project>] [--smoke-input=<steps>]\n"
+		"                     [file ...]\n");
 }
 
 // Save the frame in the window, which we read bottom row first.
@@ -93,6 +101,7 @@ int main (int argc, char ** argv) {
 	const char * smokeFile = NULL;
 	const char * smokeProject = NULL;
 	const char * smokeCheck = NULL;
+	const char * smokeInput = NULL;
 	std::vector<std::string> files;
 	for (int i = 1; i < argc; i ++) {
 		const char * arg = argv[i];
@@ -106,6 +115,8 @@ int main (int argc, char ** argv) {
 			smokeProject = arg + strlen ("--smoke-compile=");
 		} else if (startsWith (arg, "--smoke-check=")) {
 			smokeCheck = arg + strlen ("--smoke-check=");
+		} else if (startsWith (arg, "--smoke-input=")) {
+			smokeInput = arg + strlen ("--smoke-input=");
 		} else if (! strcmp (arg, "-h") || ! strcmp (arg, "--help")) {
 			usage ();
 			return 0;
@@ -123,9 +134,17 @@ int main (int argc, char ** argv) {
 	// With SLUDGE_DEVKIT_DEBUG set, we write the log to stderr, with the
 	// details. A smoke test writes it without the details.
 	bool debug = SDL_getenv ("SLUDGE_DEVKIT_DEBUG") != NULL;
-	if (smokeProject && ! smokeFile) {
-		fprintf (stderr, "--smoke-compile needs --smoke\n");
+	if ((smokeProject || smokeInput) && ! smokeFile) {
+		fprintf (stderr, "--smoke-compile and --smoke-input need --smoke\n");
 		return 1;
+	}
+	SmokeInput input;
+	if (smokeInput) {
+		std::string error;
+		if (! input.read (smokeInput, &error)) {
+			fprintf (stderr, "%s\n", error.c_str ());
+			return 1;
+		}
 	}
 	Log::get ().setEcho (debug || smokeFile, debug);
 	gfx::setLogFunction (logRendererLine);
@@ -171,7 +190,9 @@ int main (int argc, char ** argv) {
 		SDL_CreateDirectory (folder.c_str ());
 		SDL_RemovePath ((folder + "recent.txt").c_str ());
 		SDL_RemovePath ((folder + "SLUDGE.ini").c_str ());
+		SDL_RemovePath ((folder + "files.txt").c_str ());
 		platform.setSettingsFolder (folder);
+		platform.setUnattended (true);
 	}
 	setInterfacePlatform (&platform);
 
@@ -200,7 +221,11 @@ int main (int argc, char ** argv) {
 	ImGui_ImplSDL3_InitForOther (window);
 	ImGui_ImplGfx_Init (renderer);
 
-	Workspace workspace (platform, rendererName);
+	// The pictures of the editors, and the textures of their sprites.
+	Draw2D * draw2d = createGfxDraw2D (renderer);
+	CanvasGraphics graphics = { renderer, draw2d };
+	std::unique_ptr<Workspace> theWorkspace (new Workspace (platform, rendererName, graphics));
+	Workspace & workspace = *theWorkspace;
 	workspace.openFiles (files);
 	if (smokeProject) {
 		workspace.openFiles (std::vector<std::string> (1, smokeProject));
@@ -223,7 +248,8 @@ int main (int argc, char ** argv) {
 		SDL_Event event;
 		bool haveEvent = framesToDraw > 0 || smokeFile ? SDL_PollEvent (&event) : SDL_WaitEventTimeout (&event, IDLE_WAIT_MS);
 		while (haveEvent) {
-			ImGui_ImplSDL3_ProcessEvent (&event);
+			// In a smoke test with input, the input is the file's only.
+			if (! smokeInput) ImGui_ImplSDL3_ProcessEvent (&event);
 			if (event.type == SDL_EVENT_QUIT) workspace.requestQuit ();
 			// Only the events of our window: on Windows, OpenGL draws in a
 			// hidden window of its own too (dxgipresent.cpp).
@@ -237,7 +263,17 @@ int main (int argc, char ** argv) {
 		platform.deliverAnswers ();
 		if (framesToDraw > 0) framesToDraw --;
 
-		ImGui_ImplSDL3_NewFrame ();
+		if (smokeInput) {
+			// The input is the file's, not that of the mouse of the system.
+			int w, h;
+			SDL_GetWindowSize (window, &w, &h);
+			io.DisplaySize = ImVec2 ((float) w, (float) h);
+			io.DisplayFramebufferScale = ImVec2 (1, 1);
+			io.DeltaTime = 1.0f / 60.0f;
+			if (! input.step (workspace)) exitCode = 1;
+		} else {
+			ImGui_ImplSDL3_NewFrame ();
+		}
 		ImGui::NewFrame ();
 		workspace.draw ();
 		ImGui::Render ();
@@ -252,7 +288,7 @@ int main (int argc, char ** argv) {
 
 		framesDrawn ++;
 		// A smoke test waits for its compile, and a few frames after it.
-		if (smokeFile && workspace.compiling ()) framesDrawn = 0;
+		if (smokeFile && (workspace.compiling () || input.running ())) framesDrawn = 0;
 		if (smokeFile && framesDrawn == SMOKE_FRAMES) {
 			if (! saveFrame (renderer, width, height, smokeFile)) return 1;
 			done = true;
@@ -268,6 +304,9 @@ int main (int argc, char ** argv) {
 		if (workspace.wantsToQuit ()) done = true;
 	}
 
+	// The editors have textures, which go before the renderer.
+	theWorkspace.reset ();
+	delete draw2d;
 	ImGui_ImplGfx_Shutdown ();
 	ImGui_ImplSDL3_Shutdown ();
 	ImGui::DestroyContext ();

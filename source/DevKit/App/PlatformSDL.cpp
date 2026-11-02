@@ -55,7 +55,7 @@ void answerDialog (void * userdata, const char * const * files, int filter) {
 	SDL_PushEvent (&event);
 }
 
-PlatformSDL::PlatformSDL (SDL_Window * w) : window (w) {
+PlatformSDL::PlatformSDL (SDL_Window * w) : window (w), unattended (false) {
 	dialogAnsweredEvent ();
 }
 
@@ -98,12 +98,22 @@ void PlatformSDL::deliverAnswers () {
 }
 
 void PlatformSDL::showMessage (MessageKind kind, const std::string & title, const std::string & text) {
+	if (unattended) {
+		Log::get ().add (kind == MESSAGE_ERROR ? LogLine::LOG_ERROR : kind == MESSAGE_WARNING ? LogLine::LOG_WARNING : LogLine::LOG_INFO,
+			"Message: %s: %s\n", title.c_str (), text.c_str ());
+		return;
+	}
 	SDL_MessageBoxFlags flags = kind == MESSAGE_ERROR ? SDL_MESSAGEBOX_ERROR
 		: kind == MESSAGE_WARNING ? SDL_MESSAGEBOX_WARNING : SDL_MESSAGEBOX_INFORMATION;
 	SDL_ShowSimpleMessageBox (flags, title.c_str (), text.c_str (), window);
 }
 
 int PlatformSDL::ask (const std::string & title, const std::string & text, const std::vector<std::string> & buttons) {
+	if (unattended) {
+		Log::get ().add (LogLine::LOG_INFO, "Question: %s: %s Answer: %s\n", title.c_str (), text.c_str (),
+			buttons.empty () ? "" : buttons.back ().c_str ());
+		return (int) buttons.size () - 1;
+	}
 	std::vector<SDL_MessageBoxButtonData> data;
 	for (size_t i = 0; i < buttons.size (); i ++) {
 		SDL_MessageBoxButtonData button;

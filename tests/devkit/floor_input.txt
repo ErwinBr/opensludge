@@ -1,0 +1,46 @@
+# The floor editor with the mouse, on tests/devkit/fixtures/floor.flo in the
+# window of a smoke test (1280 x 800), where the floor fits at about 92%:
+# a point of the window is about (346 + 0.915 x, 87 + 0.915 y) for the point
+# (x, y) of the floor. The clicks snap to the vertices.
+wait 3
+
+# Draw a triangle at (450, 40), (600, 40), (600, 150), closing it on its
+# first vertex. The loaded polygons are complete, so it is a new one.
+move 758 124
+down
+up
+move 895 124
+down
+up
+move 895 224
+down
+up
+move 758 124
+down
+up
+
+# Move (600, 150) to about (620, 170).
+key 2
+move 895 224
+down
+move 905 234
+move 913 243
+up
+
+# Delete (260, 200), of the polygon with the notch.
+key 3
+move 584 270
+down
+up
+
+# Split the line between (300, 260) and (420, 420), which two polygons
+# share, so that both get (360, 340).
+key 4
+move 620 325
+down
+move 680 400
+move 730 471
+up
+
+wait 2
+save ${OUTPUT}

@@ -1,7 +1,7 @@
 /*
  * Tests of the core of the Dev Kit (source/DevKit/Core): undo and redo,
- * documents, opening, saving and closing them, recent files and the
- * preferences. They need no display: a fake Platform answers the questions
+ * documents, opening, saving and closing them, recent files, the
+ * preferences, projects and floors. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
  * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
@@ -28,6 +28,8 @@
 #include "ProjectDocument.h"
 #include "Document.h"
 #include "DocumentManager.h"
+#include "FileMemory.h"
+#include "FloorDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
 
@@ -541,6 +543,168 @@ static void testProjectCheck () {
 	CHECK (checkProject (project).empty ());
 }
 
+static std::string withoutCR (const std::string & text) {
+	std::string result;
+	for (size_t i = 0; i < text.size (); i ++) {
+		if (text[i] != '\r') result += text[i];
+	}
+	return result;
+}
+
+static FloorPolygon polygon (const int * xy, int count) {
+	FloorPolygon p;
+	for (int i = 0; i < count; i ++) p.push_back (FloorPoint (xy[i * 2], xy[i * 2 + 1]));
+	return p;
+}
+
+static void testFloors () {
+	// Loading reverses the polygons and their vertices, as it always did,
+	// so a floor comes back as it was after two saves.
+	Floor loaded;
+	std::string error;
+	CHECK (FloorDocument::readFloor (fixtures + "floor.flo", &loaded, &error));
+	CHECK (loaded.polygons.size () == 3);
+	CHECK (loaded.vertexCount () == 13);
+	CHECK (loaded.concaveCount () == 1);		// The last one has a notch
+	CHECK (FloorDocument::writeFloor (folder + "floor1.flo", loaded, &error));
+	Floor again;
+	CHECK (FloorDocument::readFloor (folder + "floor1.flo", &again, &error));
+	CHECK (FloorDocument::writeFloor (folder + "floor2.flo", again, &error));
+	// On Windows, floors have \r\n at the ends of lines, as they always had.
+	CHECK (withoutCR (readFile (folder + "floor2.flo")) == withoutCR (readFile (fixtures + "floor.flo")));
+	CHECK (! FloorDocument::readFloor (folder + "no such floor.flo", &again, &error));
+
+	// Drawing a triangle, which closes on its first vertex.
+	FakePlatform platform;
+	FloorDocument floor (&platform);
+	CHECK (! floor.drawing ());
+	CHECK (floor.addVertex (10, 10) == FloorDocument::ADDED);
+	CHECK (floor.drawing ());
+	floor.addVertex (100, 10);
+	floor.addVertex (100, 100);
+	floor.addVertex (10, 10);
+	CHECK (! floor.drawing ());
+	CHECK (floor.floor ().polygons.size () == 1);
+	CHECK (floor.floor ().vertexCount () == 3);
+	CHECK (floor.commands ().undoLabel () == "Add Vertex");
+	CHECK (floor.isModified ());
+
+	// Snapping to a vertex near the cursor.
+	int x = 98, y = 12;
+	CHECK (floor.snap (&x, &y, 6) && x == 100 && y == 10);
+	x = 90;
+	y = 12;
+	CHECK (! floor.snap (&x, &y, 6) && x == 90);
+
+	// After a complete polygon, a click starts a new one; a vertex that it
+	// has already, other than its first, isn't allowed.
+	floor.addVertex (100, 10);
+	CHECK (floor.floor ().polygons.size () == 2);
+	floor.addVertex (200, 10);
+	CHECK (floor.addVertex (200, 10) == FloorDocument::ALREADY_USED);
+	floor.addVertex (200, 100);
+	floor.addVertex (100, 100);
+	floor.addVertex (100, 10);
+	CHECK (floor.floor ().vertexCount () == 7);
+
+	// Moving a vertex moves it in both polygons, and undoes as one.
+	CHECK (floor.moveVertex (100, 10, 110, 20));
+	const Floor & moved = floor.floor ();
+	int found = 0;
+	for (size_t p = 0; p < moved.polygons.size (); p ++) {
+		for (size_t v = 0; v < moved.polygons[p].size (); v ++) {
+			if (moved.polygons[p][v] == FloorPoint (110, 20)) found ++;
+		}
+	}
+	CHECK (found == 3);		// Twice in the second polygon, where it starts and ends
+	CHECK (floor.commands ().undoLabel () == "Move Vertex");
+	floor.commands ().undo ();
+	CHECK (floor.floor ().polygons[0][0] == FloorPoint (100, 10));
+	floor.commands ().redo ();
+	// A polygon that has both places can't take the move.
+	CHECK (! floor.moveVertex (110, 20, 100, 100));
+
+	// Splitting a line adds a vertex in its middle, on a straight line,
+	// which leaves the polygon convex.
+	int before = floor.floor ().vertexCount ();
+	CHECK (floor.floor ().concaveCount () == 0);
+	CHECK (floor.splitLine (10, 10, 110, 20));
+	CHECK (floor.floor ().vertexCount () == before + 1);
+	CHECK (floor.floor ().concaveCount () == 0);
+	CHECK (! floor.needsFixing ());
+	CHECK (! floor.splitLine (10, 10, 200, 100));
+	CHECK (floor.deleteVertex (60, 15));
+	CHECK (floor.floor ().vertexCount () == before);
+
+	// Splitting a polygon along a line between two of its vertices.
+	size_t polygons = floor.floor ().polygons.size ();
+	CHECK (floor.splitFloor (200, 10, 100, 100));
+	CHECK (floor.floor ().polygons.size () == polygons + 1);
+	CHECK (floor.commands ().undoLabel () == "Split Floor");
+
+	// Undo takes it all back to an empty floor, and redo brings it again.
+	Floor drawn = floor.floor ();
+	while (floor.commands ().canUndo ()) floor.commands ().undo ();
+	CHECK (floor.floor () == Floor ());
+	CHECK (! floor.isModified ());
+	while (floor.commands ().canRedo ()) floor.commands ().redo ();
+	CHECK (floor.floor () == drawn);
+
+	// A polygon that isn't convex: saving asks to fix it, and the fix is a
+	// command.
+	FloorDocument concave (&platform);
+	const int notch[] = { 0, 0, 0, 100, 50, 50, 100, 100, 100, 0, 0, 0 };
+	Floor f;
+	f.polygons[0] = polygon (notch, 6);
+	concave.setFloor (f, "Draw");
+	CHECK (concave.floor ().concaveCount () == 1);
+	CHECK (concave.needsFixing ());
+	platform.answers.push_back (0);
+	platform.questions.clear ();
+	CHECK (concave.save (folder + "concave.flo", &error));
+	CHECK (platform.questions.size () == 1);
+	CHECK (concave.floor ().concaveCount () == 0);
+	CHECK (concave.floor ().polygons.size () == 2);
+	CHECK (concave.commands ().undoLabel () == "Fix Floor");
+	CHECK (! concave.isModified ());
+	Floor saved;
+	CHECK (FloorDocument::readFloor (folder + "concave.flo", &saved, &error));
+	CHECK (saved.polygons.size () == 2 && saved.concaveCount () == 0);
+	// Undo brings the notch back, and saving it as it is asks again.
+	concave.commands ().undo ();
+	CHECK (concave.floor ().concaveCount () == 1);
+	platform.answers.push_back (1);
+	CHECK (concave.save (folder + "concave.flo", &error));
+	CHECK (platform.questions.size () == 2);
+	CHECK (concave.floor ().concaveCount () == 1);
+	// A polygon that isn't complete yet isn't for fixing.
+	FloorDocument unfinished (&platform);
+	unfinished.addVertex (0, 0);
+	unfinished.addVertex (100, 0);
+	CHECK (! unfinished.needsFixing ());
+	CHECK (unfinished.fixConcave ());
+}
+
+static void testFileMemory () {
+	std::string file = folder + "files.txt";
+	remove (file.c_str ());
+	{
+		FileMemory memory (file);
+		CHECK (memory.get ("/a/room.flo", "floor.backdrop").empty ());
+		memory.set ("/a/room.flo", "floor.backdrop", "/a/room.png");
+		memory.set ("/a/room.flo", "floor.colour", "1 0.5 0");
+		memory.set ("/b/hall.flo", "floor.backdrop", "/b/hall\tpicture.tga");
+		memory.set ("/a/room.flo", "floor.colour", "0 1 0");
+	}
+	FileMemory memory (file);
+	CHECK (memory.get ("/a/room.flo", "floor.backdrop") == "/a/room.png");
+	CHECK (memory.get ("/a/room.flo", "floor.colour") == "0 1 0");
+	CHECK (memory.get ("/b/hall.flo", "floor.backdrop") == "/b/hallpicture.tga");
+	memory.set ("/a/room.flo", "floor.backdrop", "");
+	CHECK (memory.get ("/a/room.flo", "floor.backdrop").empty ());
+	CHECK (memory.get ("/a/room.flo", "floor.colour") == "0 1 0");
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -559,6 +723,8 @@ int main (int argc, char ** argv) {
 	testCompileJob ();
 	testCodePages ();
 	testProjectCheck ();
+	testFloors ();
+	testFileMemory ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);

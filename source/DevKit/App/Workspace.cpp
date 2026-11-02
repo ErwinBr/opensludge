@@ -7,6 +7,8 @@
 #include <SDL3/SDL_filesystem.h>
 
 #include "DocumentView.h"
+#include "FloorDocument.h"
+#include "FloorView.h"
 #include "Launch.h"
 #include "Log.h"
 #include "Platform.h"
@@ -33,8 +35,10 @@ static std::string shortcut (const char * key) {
 	return std::string (SHORTCUT_PREFIX) + key;
 }
 
-Workspace::Workspace (Platform & p, const std::string & renderer)
-	: thePlatform (p), rendererName (renderer), recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
+Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGraphics & g)
+	: thePlatform (p), rendererName (renderer), graphics (g),
+	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
+	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
 	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
@@ -58,6 +62,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer)
 	manager.registerType (ProjectDocument::type ());
 	registerView ("Project", [this] (Document * document) -> DocumentView * {
 		return new ProjectView ((ProjectDocument *) document, *this);
+	});
+	manager.registerType (FloorDocument::type (p));
+	registerView ("Floor", [this] (Document * document) -> DocumentView * {
+		return new FloorView ((FloorDocument *) document, *this, graphics, memory);
 	});
 
 	manager.opened = [this] (Document * document) {
@@ -99,13 +107,20 @@ bool Workspace::animating () const {
 }
 
 // Files that are dropped on the Project panel go into the project; other
-// files open.
+// files open, or go to the active editor, as a backdrop to a floor.
 void Workspace::openFiles (const std::vector<std::string> & files) {
 	ProjectDocument * p = project ();
 	std::vector<std::string> add;
 	for (size_t i = 0; i < files.size (); i ++) {
-		if (p && projectPanelHovered && fileKind (files[i]) != FILE_DOCUMENT) add.push_back (files[i]);
-		else manager.open (files[i]);
+		if (p && projectPanelHovered && fileKind (files[i]) != FILE_DOCUMENT) {
+			add.push_back (files[i]);
+			continue;
+		}
+		// The active editor may take a file that the Dev Kit doesn't open.
+		Document * active = manager.active ();
+		std::map<Document *, std::unique_ptr<DocumentView> >::iterator view = views.find (active);
+		if (! manager.typeOf (files[i]) && view != views.end () && view->second && view->second->takeFile (files[i])) continue;
+		manager.open (files[i]);
 	}
 	if (! add.empty ()) p->addFiles (add);
 }
@@ -252,8 +267,13 @@ void Workspace::draw () {
 	if (showBuild) drawBuildPanel ();
 	if (showLog) drawLogPanel ();
 	// The frame after we placed the panels, when the tabs exist, we show
-	// the Build in front of the Log.
-	if (layoutFrames > 0 && -- layoutFrames == 0) ImGui::SetWindowFocus (BUILD_PANEL);
+	// the Build in front of the Log, and the document that we opened last
+	// in front of the Start page.
+	if (layoutFrames > 0 && -- layoutFrames == 0) {
+		ImGui::SetWindowFocus (BUILD_PANEL);
+		Document * active = manager.active ();
+		if (active && active != project ()) focusDocument = active;
+	}
 	fileCheck.draw (project ());
 	if (showPreferences) drawPreferencesWindow ();
 	if (showAbout) drawAboutWindow ();
@@ -433,9 +453,9 @@ void Workspace::drawStartPage () {
 	ImGui::Spacing ();
 	ImGui::Separator ();
 	ImGui::Spacing ();
-	ImGui::TextWrapped ("This is the new Dev Kit, which is still being built. The project manager, the floor, "
-		"z-buffer and sprite bank editors and the translation editor come in the next steps. Until then, "
-		"use the GTK Dev Kit to edit your games.");
+	ImGui::TextWrapped ("This is the new Dev Kit, which is still being built. It manages and compiles "
+		"projects, and edits floors. The z-buffer and sprite bank editors and the translation editor "
+		"come in the next steps; until then, use the GTK Dev Kit for those.");
 
 	const std::vector<std::string> & files = recent.files ();
 	if (! files.empty ()) {
