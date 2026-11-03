@@ -14,6 +14,8 @@
 #include "Platform.h"
 #include "ProjectView.h"
 #include "Workspace.h"
+#include "ZBufferDocument.h"
+#include "ZBufferView.h"
 #include "version.h"
 
 namespace devkit {
@@ -66,6 +68,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (FloorDocument::type (p));
 	registerView ("Floor", [this] (Document * document) -> DocumentView * {
 		return new FloorView ((FloorDocument *) document, *this, graphics, memory);
+	});
+	manager.registerType (ZBufferDocument::type ());
+	registerView ("Z-Buffer", [this] (Document * document) -> DocumentView * {
+		return new ZBufferView ((ZBufferDocument *) document, *this, graphics);
 	});
 
 	manager.opened = [this] (Document * document) {
@@ -454,7 +460,7 @@ void Workspace::drawStartPage () {
 	ImGui::Separator ();
 	ImGui::Spacing ();
 	ImGui::TextWrapped ("This is the new Dev Kit, which is still being built. It manages and compiles "
-		"projects, and edits floors. The z-buffer and sprite bank editors and the translation editor "
+		"projects, and edits floors and z-buffers. The sprite bank editor and the translation editor "
 		"come in the next steps; until then, use the GTK Dev Kit for those.");
 
 	const std::vector<std::string> & files = recent.files ();

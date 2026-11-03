@@ -36,8 +36,9 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		bool ok = true;
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
-		else if (s.what == "key" || s.what == "save") ok = ! s.text.empty ();
-		else ok = s.what == "down" || s.what == "up";
+		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open") ok = ! s.text.empty ();
+		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl";
+		else ok = s.what == "up";
 		if (! ok) {
 			char where[64];
 			snprintf (where, sizeof (where), "%d", number);
@@ -49,6 +50,12 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 	}
 	fclose (fp);
 	return true;
+}
+
+// The key of the shortcuts that ImGuiMod_Ctrl stands for: on macOS, ImGui
+// swaps Cmd (Super) and Ctrl as they come in, so that Ctrl is Cmd there.
+static ImGuiKey ctrlKey () {
+	return ImGui::GetIO ().ConfigMacOSXBehaviors ? ImGuiMod_Super : ImGuiMod_Ctrl;
 }
 
 static ImGuiKey keyNamed (const std::string & name) {
@@ -64,6 +71,10 @@ bool SmokeInput::step (Workspace & workspace) {
 		io.AddKeyEvent ((ImGuiKey) keyUp, false);
 		keyUp = 0;
 	}
+	if (ctrlUp) {
+		io.AddKeyEvent (ctrlKey (), false);
+		ctrlUp = false;
+	}
 	if (waiting > 0) {
 		waiting --;
 		return true;
@@ -72,18 +83,43 @@ bool SmokeInput::step (Workspace & workspace) {
 	const Step & s = steps[next ++];
 	if (s.what == "move") {
 		io.AddMousePosEvent (s.x, s.y);
-	} else if (s.what == "down" || s.what == "up") {
-		io.AddMouseButtonEvent (ImGuiMouseButton_Left, s.what == "down");
+	} else if (s.what == "down") {
+		if (s.text == "ctrl") {
+			io.AddKeyEvent (ctrlKey (), true);
+			ctrlHeld = true;
+		}
+		io.AddMouseButtonEvent (ImGuiMouseButton_Left, true);
+	} else if (s.what == "up") {
+		io.AddMouseButtonEvent (ImGuiMouseButton_Left, false);
+		if (ctrlHeld) {
+			io.AddKeyEvent (ctrlKey (), false);
+			ctrlHeld = false;
+		}
 	} else if (s.what == "wait") {
 		waiting = s.frames - 1;
 	} else if (s.what == "key") {
-		ImGuiKey key = keyNamed (s.text);
+		std::string name = s.text;
+		bool ctrl = name.compare (0, 5, "ctrl+") == 0;
+		if (ctrl) name = name.substr (5);
+		ImGuiKey key = keyNamed (name);
 		if (key == ImGuiKey_None) {
-			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: there is no key %s\n", s.text.c_str ());
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: there is no key %s\n", name.c_str ());
 			return false;
 		}
+		if (ctrl) io.AddKeyEvent (ctrlKey (), true);
 		io.AddKeyEvent (key, true);
 		keyUp = key;
+		ctrlUp = ctrl;
+	} else if (s.what == "new") {
+		const std::vector<DocumentType> & types = workspace.documents ().types ();
+		size_t t = 0;
+		while (t < types.size () && types[t].name != s.text) t ++;
+		if (t == types.size () || ! workspace.documents ().create (types[t])) {
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: can't make a new %s\n", s.text.c_str ());
+			return false;
+		}
+	} else if (s.what == "open") {
+		workspace.openFiles (std::vector<std::string> (1, s.text));
 	} else if (s.what == "save") {
 		Document * document = workspace.documents ().active ();
 		std::string error;

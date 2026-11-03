@@ -65,6 +65,14 @@ void CommandStack::clear () {
 	if (changed) changed ();
 }
 
+void CommandStack::clearAfterChange () {
+	savedKnown = false;
+	commands.clear ();
+	position = 0;
+	merging = false;
+	if (changed) changed ();
+}
+
 void CommandStack::markSaved () {
 	savedKnown = true;
 	savedPosition = position;

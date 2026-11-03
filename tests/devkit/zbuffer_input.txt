@@ -1,0 +1,30 @@
+# The z-buffer editor with the mouse, in the window of a smoke test
+# (1280 x 800): a new z-buffer made from fixtures/zbuffer.tga (160 x 120,
+# three layers) by dropping it, which fits at about 374%, so that a point of
+# the window is about (340 + 3.74 x, 87 + 3.74 y) for the point (x, y) of
+# the z-buffer.
+new Z-Buffer
+wait 2
+open ${FIXTURES}/zbuffer.tga
+wait 3
+
+# Ctrl-click (Cmd-click on macOS) layer 3, at the top left.
+move 452 162
+down ctrl
+up
+
+# Drag its y from about 30 to 70.
+move 452 199
+down
+move 452 270
+move 452 349
+up
+
+# Click at about 100, and undo that.
+move 452 461
+down
+up
+key ctrl+Z
+
+wait 2
+save ${OUTPUT}

@@ -3,8 +3,10 @@
 # with what we expect. We run this script with cmake -P and these variables:
 #
 #   DEVKIT    sludge-devkit
-#   DOCUMENT  the document to open
-#   INPUT     the steps, in which ${OUTPUT} is where to save
+#   DOCUMENT  the document to open, if any
+#   INPUT     the steps, in which ${OUTPUT} is where to save and
+#             ${FIXTURES} is the folder of FIXTURES
+#   FIXTURES  the folder of the test files
 #   EXPECTED  the file that we expect
 #   WORK_DIR  a folder for what we make
 
@@ -24,11 +26,12 @@ if(NOT result EQUAL 0)
 	message(FATAL_ERROR "The steps of ${INPUT} didn't work")
 endif()
 
-# On Windows, the lines of the files that we save end with \r\n.
-file(READ ${OUTPUT} saved)
-file(READ ${EXPECTED} expected)
-string(REPLACE "\r" "" saved "${saved}")
-string(REPLACE "\r" "" expected "${expected}")
-if(NOT saved STREQUAL expected)
-	message(FATAL_ERROR "${OUTPUT} isn't as we expect:\n${saved}\nWe expect, as in ${EXPECTED}:\n${expected}")
+# We compare the bytes, but on Windows, the lines of the text files that we
+# save end with \r\n.
+file(READ ${OUTPUT} saved HEX)
+file(READ ${EXPECTED} expected HEX)
+string(REGEX REPLACE "0d0a" "0a" saved_lines "${saved}")
+string(REGEX REPLACE "0d0a" "0a" expected_lines "${expected}")
+if(NOT saved STREQUAL expected AND NOT saved_lines STREQUAL expected_lines)
+	message(FATAL_ERROR "${OUTPUT} isn't as we expect, in ${EXPECTED}")
 endif()

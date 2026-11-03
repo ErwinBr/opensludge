@@ -7,9 +7,12 @@
  * the editors as the user does. A file has a step on each line:
  *
  *   move <x> <y>     the mouse to a point of the window
- *   down, up         the left mouse button
- *   key <name>       press and release a key, such as 2 or Escape
+ *   down [ctrl], up  the left mouse button, with Ctrl held until up
+ *   key <name>       press and release a key, such as 2, Escape or ctrl+z
+ *                    (Ctrl is Cmd on macOS, as in the shortcuts)
  *   wait <frames>    do nothing for some frames
+ *   new <kind>       make a new document, such as a Z-Buffer
+ *   open <file>      open a file, or drop it on the active document
  *   save <file>      save the active document as file
  *
  * Lines that start with # are comments.
@@ -24,7 +27,7 @@ class Workspace;
 
 class SmokeInput {
 public:
-	SmokeInput () : next (0), waiting (0), keyUp (0) {}
+	SmokeInput () : next (0), waiting (0), keyUp (0), ctrlUp (false), ctrlHeld (false) {}
 
 	// Returns false, with the reason in *error, when we can't read it.
 	bool read (const std::string & file, std::string * error);
@@ -45,6 +48,8 @@ private:
 	size_t next;
 	int waiting;
 	int keyUp;		// The key to release in the next frame, or 0
+	bool ctrlUp;	// Whether to release Ctrl then too
+	bool ctrlHeld;	// Ctrl held from down to up
 };
 
 } // namespace devkit

@@ -81,6 +81,9 @@ public:
 	// Forget every command, after a change that we can't undo. A document
 	// that wasn't saved stays changed.
 	void clear ();
+	// Forget every command after a change that we can't undo, such as a
+	// new picture, which leaves the document changed.
+	void clearAfterChange ();
 
 	// The document was saved, or loaded, as it is now.
 	void markSaved ();

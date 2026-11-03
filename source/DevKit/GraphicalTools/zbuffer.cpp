@@ -32,6 +32,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 	const char * errorBack;
 	errorBack = readTGAHeader (imageHeader, fp, thePalette);
 	if (errorBack) {
+		fclose (fp);
 		errorBox ("Error reading TGA file", errorBack);
 		return false;		
 	}
@@ -58,6 +59,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 						
 					} else {
 						delete [] data;
+						fclose (fp);
 						errorBox ("Error reading TGA file", "Too many colours. Max 16 are allowed for making z-buffers. Each separate colour will become a z-buffer. If you need more, use sprites instead.");						
 						return false;
 					}
@@ -179,6 +181,7 @@ unsigned char * zBufferLayerPixels (const spriteBank * buffers, int layer) {
 
 bool saveZBufferFile (const char * name, spriteBank *buffers) {
 	FILE * fp = fopen (name, "wb");
+	if (! fp) return false;
 	int n;
 	uint32_t totalPixels = buffers->sprites[0].width * (-buffers->sprites[0].height);
 	uint32_t thisPixel = 0;
@@ -200,10 +203,10 @@ bool saveZBufferFile (const char * name, spriteBank *buffers) {
 		thisColour = buffers->sprites[0].data[thisPixel];
 
 		// Find how many pixels of the same colour follow this
+		// (Not past the last pixel, which this once read beyond.)
 		countPixels = thisPixel + 1;
-		while (thisColour == buffers->sprites[0].data[countPixels]) {
+		while (countPixels < totalPixels && thisColour == buffers->sprites[0].data[countPixels]) {
 			countPixels ++;
-			if (countPixels == totalPixels) break;
 			if (countPixels - thisPixel == 65551) break;
 		}
 		countPixels -= thisPixel;
@@ -217,8 +220,7 @@ bool saveZBufferFile (const char * name, spriteBank *buffers) {
 		}
 		thisPixel += countPixels;
 	}
-	fclose (fp);
-	return true;
+	return fclose (fp) == 0;
 }
 
 void drawZBufferView (Draw2D & draw, const struct spriteBank * backdrop, int selectedBuffer) {

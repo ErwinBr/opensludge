@@ -171,7 +171,8 @@ void DocumentManager::saveAs (Document * document, Done done) {
 	const DocumentType * type = typeOf (document->untitledName ());
 	std::vector<FileFilter> filters;
 	if (type) filters.push_back (type->filter ());
-	std::string start = document->path ().empty () ? lastFolder + document->untitledName () : document->path ();
+	std::string folder = document->startFolder ().empty () ? lastFolder : document->startFolder ();
+	std::string start = document->path ().empty () ? folder + document->untitledName () : document->path ();
 	platform.saveFileDialog ("Save " + document->displayName (), filters, start,
 			[this, document, done] (const std::vector<std::string> & files) {
 		// The document may have closed while the dialog was open.

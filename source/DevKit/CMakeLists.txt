@@ -124,6 +124,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectCheck.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
+		${DEVKIT_DIR}/Core/ZBufferDocument.cpp
 	)
 	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
 	# The compile job reads the compiler on a thread of its own.
@@ -150,6 +151,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/SmokeInput.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
+		${DEVKIT_DIR}/App/ZBufferView.cpp
 	)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
 	# Where the Dev Kit finds the engine and the compiler when it runs from
@@ -181,11 +183,21 @@ if(SLUDGE_DEVKIT)
 		add_test(NAME capture-devkit-floor
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
 				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/floor.flo
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
 				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/floor_input.txt
 				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/floor-edited.flo
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-floor
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-floor PROPERTIES LABELS capture)
+		# The same for a z-buffer, which the steps make from a TGA picture.
+		add_test(NAME capture-devkit-zbuffer
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/zbuffer_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/zbuffer-edited.zbu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-zbuffer
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-zbuffer PROPERTIES LABELS capture)
 
 		# The core of the Dev Kit, without a display.
 		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp ${DEVKIT_DIR}/Core/InterfacePlatform.cpp)

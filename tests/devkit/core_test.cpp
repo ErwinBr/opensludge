@@ -1,7 +1,7 @@
 /*
  * Tests of the core of the Dev Kit (source/DevKit/Core): undo and redo,
  * documents, opening, saving and closing them, recent files, the
- * preferences, projects and floors. They need no display: a fake Platform answers the questions
+ * preferences, projects, floors and z-buffers. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
  * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
@@ -30,6 +30,7 @@
 #include "DocumentManager.h"
 #include "FileMemory.h"
 #include "FloorDocument.h"
+#include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
 
@@ -685,6 +686,81 @@ static void testFloors () {
 	CHECK (unfinished.fixConcave ());
 }
 
+static void testZBuffers () {
+	// Made from a picture, named after it, and changed, without undo.
+	ZBufferDocument made;
+	CHECK (made.empty ());
+	std::string error;
+	CHECK (! made.save (folder + "empty.zbu", &error) && ! error.empty ());
+	CHECK (made.makeFromTGA (fixtures + "zbuffer.tga"));
+	CHECK (! made.empty ());
+	CHECK (made.layers () > 1);
+	CHECK (made.untitledName () == "zbuffer.zbu");
+	CHECK (made.startFolder () == fixtures);
+	CHECK (made.isModified ());
+	CHECK (! made.commands ().canUndo ());
+	int layers = made.layers ();
+	int w = made.width (), h = made.height ();
+	CHECK (w > 0 && h > 0);
+	// Each layer starts at its lowest row, which is in it.
+	for (int l = 1; l <= layers; l ++) {
+		int y = made.layerY (l) - 1;
+		bool found = false;
+		for (int x = 0; x < w; x ++) found = found || made.layerAt (x, y) == l;
+		CHECK (found);
+	}
+	CHECK (made.layerAt (-1, 0) == 0 && made.layerAt (w, 0) == 0);
+
+	// The y of a layer is a command; the steps of a drag merge.
+	int y1 = made.layerY (1);
+	made.setLayerY (1, 10, 1);
+	made.setLayerY (1, 20, 1);
+	made.setLayerY (1, 30, 1);
+	made.commands ().stopMerging ();
+	CHECK (made.layerY (1) == 30);
+	CHECK (made.commands ().undoLabel () == "Y of Layer 1");
+	made.commands ().undo ();
+	CHECK (made.layerY (1) == y1);
+	CHECK (! made.commands ().canUndo ());
+	made.commands ().redo ();
+	CHECK (made.layerY (1) == 30);
+	// Below the picture too, but not further.
+	made.setLayerY (2, h * 5);
+	CHECK (made.layerY (2) == h * 2);
+	made.setLayerY (2, -4);
+	CHECK (made.layerY (2) == 0);
+
+	// Saved and opened again, as it was.
+	CHECK (made.save (folder + "made.zbu", &error));
+	CHECK (! made.isModified ());
+	ZBufferDocument opened;
+	CHECK (opened.load (folder + "made.zbu", &error));
+	CHECK (opened.layers () == layers && opened.width () == w && opened.height () == h);
+	for (int l = 1; l <= layers; l ++) CHECK (opened.layerY (l) == made.layerY (l));
+	bool same = true;
+	for (int y = 0; y < h; y ++) {
+		for (int x = 0; x < w; x ++) same = same && opened.layerAt (x, y) == made.layerAt (x, y);
+	}
+	CHECK (same);
+	CHECK (opened.untitledName () == "Untitled Z-Buffer.zbu");
+	CHECK (! opened.load (fixtures + "floor.flo", &error));
+
+	// The z-buffers of VerbCoin come back byte for byte, after the header:
+	// theirs is the first version, of a 640 x 480 room, and we write the
+	// second, which has the size.
+	const char * rooms[] = { "VerbCoin/outside/room.zbu", "VerbCoin/inside/room.zbu" };
+	for (int r = 0; r < 2; r ++) {
+		ZBufferDocument room;
+		CHECK (room.load (examples + rooms[r], &error));
+		CHECK (room.width () == 640 && room.height () == 480);
+		CHECK (room.save (folder + "room.zbu", &error));
+		std::string saved = readFile (folder + "room.zbu"), original = readFile (examples + rooms[r]);
+		CHECK (original.compare (0, 4, std::string ("Szb\0", 4)) == 0);
+		CHECK (saved.compare (0, 8, std::string ("Szb\1\2\x80\1\xE0", 8)) == 0);
+		CHECK (saved.substr (8) == original.substr (4));
+	}
+}
+
 static void testFileMemory () {
 	std::string file = folder + "files.txt";
 	remove (file.c_str ());
@@ -724,6 +800,7 @@ int main (int argc, char ** argv) {
 	testCodePages ();
 	testProjectCheck ();
 	testFloors ();
+	testZBuffers ();
 	testFileMemory ();
 
 	if (failures) {

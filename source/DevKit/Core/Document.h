@@ -37,6 +37,9 @@ public:
 	// The name of the kind of document, such as "Floor".
 	virtual const char * kind () const = 0;
 	virtual std::string untitledName () const = 0;
+	// The folder that Save As starts in for a document that has no file
+	// yet, such as that of the picture that it was made from, or empty.
+	virtual std::string startFolder () const { return std::string (); }
 
 protected:
 	// Read or write the file. Return false with the reason in *error.
