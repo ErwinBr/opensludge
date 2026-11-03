@@ -7,7 +7,11 @@
  * ends its render pass only once for each view.
  *
  * The renderers draw triangles only, so a line is a quad, one pixel of the
- * view wide.
+ * view wide. A level or upright line on the edge between two rows or
+ * columns of pixels would have both sides of its quad on the centres of
+ * pixels, and drivers differ on which of them they then fill (the OpenGL
+ * of the macOS arm64 runners fills neither), so we move it to the column left
+ * of the edge, or the row below it on the screen.
  */
 
 #include <math.h>
@@ -29,7 +33,7 @@ const size_t MAX_BATCH_VERTICES = 65536 - 4;
 
 class GfxDraw2D : public Draw2D {
 public:
-	explicit GfxDraw2D (gfx::Renderer * r) : renderer (r), pixel (1.0f) {
+	explicit GfxDraw2D (gfx::Renderer * r) : renderer (r), pixel (1.0f), originX (0.0f), originY (0.0f), down (-1.0f) {
 		colour[0] = colour[1] = colour[2] = colour[3] = 255;
 		gfx::DrawUniforms identity;
 		memcpy (matrix, identity.matrix, sizeof (matrix));
@@ -58,12 +62,17 @@ private:
 	unsigned short startBatch (gfx::Texture * texture, size_t count);
 	void addVertex (float x, float y, float u, float v);
 	void addLine (float x1, float y1, float x2, float y2);
+	bool onPixelEdge (float at, float origin) const;
 
 	gfx::Renderer * renderer;
 	float matrix[16];
 	unsigned char colour[4];
-	// How much of the picture one pixel of the view covers.
+	// How much of the picture one pixel of the view covers, and where the
+	// edges of the pixels are: at the origin and whole pixels from it.
 	float pixel;
+	float originX, originY;
+	// Which way y goes down the screen: -1 or 1.
+	float down;
 
 	struct Batch {
 		gfx::Texture * texture;
@@ -105,6 +114,9 @@ void GfxDraw2D::clear () {
 // The projection of glOrtho, with the near plane at 1 and the far plane
 // at -1, as the GTK tools had it.
 void GfxDraw2D::setProjection (float left, float right, float bottom, float top) {
+	originX = left;
+	originY = bottom;
+	down = bottom < top ? -1.0f : 1.0f;
 	float m[16] = {
 		2.0f / (right - left), 0, 0, 0,
 		0, 2.0f / (top - bottom), 0, 0,
@@ -163,11 +175,24 @@ void GfxDraw2D::addVertex (float x, float y, float u, float v) {
 	vertices.push_back (vertex);
 }
 
+// Whether a coordinate is on the edge between two pixels.
+bool GfxDraw2D::onPixelEdge (float at, float origin) const {
+	float pixels = (at - origin) / pixel;
+	return fabsf (pixels - floorf (pixels + 0.5f)) < 0.001f;
+}
+
 // A line, as a quad one pixel of the view wide.
 void GfxDraw2D::addLine (float x1, float y1, float x2, float y2) {
 	float dx = x2 - x1, dy = y2 - y1;
 	float length = sqrtf (dx * dx + dy * dy);
 	if (length == 0.0f) return;
+	if (dx == 0.0f && onPixelEdge (x1, originX)) {
+		x1 -= pixel * 0.5f;
+		x2 = x1;
+	} else if (dy == 0.0f && onPixelEdge (y1, originY)) {
+		y1 += down * pixel * 0.5f;
+		y2 = y1;
+	}
 	float nx = - dy / length * pixel * 0.5f, ny = dx / length * pixel * 0.5f;
 	unsigned short first = startBatch (NULL, 4);
 	addVertex (x1 + nx, y1 + ny, 0, 0);
