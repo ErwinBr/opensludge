@@ -1,149 +1,63 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<TITLE>Project Manager: Menus</TITLE>
+<TITLE>The Menus of the Dev Kit</TITLE>
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <BODY>
-
 <HR>
 <div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
-<h2>Project Manager: Menus</h2>
+<h2>The Menus of the Dev Kit</h2>
 <HR>
 
-
 <P>
-In the following the actions accessible over the SLUDGE Project Manager menus are described.
+These are the menus of the SLUDGE Dev Kit. On macOS, use Command where it says Ctrl.
 </P>
 
 <H3>File menu:</H3>
 
-
-<P>
-<b>New</b> (Win/Linux) or <b>New Project</b> (Mac):
-</P>
-
-<P>
-Opens a file save box, where you can choose a location and name for the project 
-file you wish to create. The new file will be created containing no script files 
-and its <a href="Project_Manager__Project_Settings_Dialog.html">project settings</a> 
-will be set to default values.
-</P>
-
-<P>
-<b>Open</b>:
-</P>
-
-<P>
-Opens a file open box which lets you locate the project file which you want to load.
-</P>
-
-<p>Mac: This file open box will open any SLUDGE file, except compiled games which
-are handled by the engine.</p>
-
-<P>
-<b>Save</b>:
-</P>
-
-<P>
-</b>Saves the current file. The opened file will be overwritten. 
-To save the file into a new location, use <b>Save as...</b> instead.
-</P>
-
-<P>
-<b>Save as</b>:
-</P>
-
-<P>
-Lets you save the current file to a different filename.</p>
-
-<P>
-<b>Exit</b> (Win/Linux):
-</P>
-
-<P>
-</b>Quits the SLUDGE project manager. (On Mac, the Quit command is found in the
-program menu.)
-</P>
-
-
-
+<P><b>New</b>: makes a new project, floor, z-buffer, sprite bank or translation. A new project asks first where to
+save it, since its files are relative to its folder; the others ask when you save them.</P>
+<P><b>Open... (Ctrl+O)</b>: opens a project or a file that the Dev Kit edits.</P>
+<P><b>Open Recent</b>: the files that you opened last.</P>
+<P><b>Save (Ctrl+S)</b>, <b>Save As... (Ctrl+Shift+S)</b> and <b>Save All</b>: save the file in the tab at the
+front, under another name, or every file with changes.</P>
+<P><b>Close (Ctrl+W)</b>: closes the tab at the front, after asking whether to save its changes.</P>
+<P><b>Quit (Ctrl+Q)</b>: quits the Dev Kit, after asking about each file with changes.</P>
 
 <H3>Edit menu:</H3>
 
-
-<P>
-<b>Preferences</b> 
-</P>
-
-<P>
-</b>Opens the <a href="Project_Manager__Preferences_Dialog.html">Preferences</a> 
-dialog box, where you can manipulate global preferences for the Project Manager.
-(The preferences are found in the program menu on Mac.)
-</P>
-
+<P><b>Undo (Ctrl+Z)</b> and <b>Redo (Ctrl+Shift+Z)</b>: take back the last change of the file in front, and make it
+again. The menu says what they take back.</P>
+<P><b>Preferences...</b>: the <a href="Project_Manager__Preferences_Dialog.html">preferences</a> of the Dev Kit.</P>
 
 <H3>Project menu:</H3>
 
-<P>
-<b>Project properties:</b> (Win/Linux) <b>Edit project settings</b> (Mac).
-</P>
+<P><b>Add Files...</b>: adds scripts, constant definitions and translations to the project.</P>
+<P><b>Properties</b>: shows the <a href="Project_Manager__Project_Settings_Dialog.html">settings of the project</a> in
+the Inspector.</P>
+<P><b>Check Files...</b>: finds what keeps the project from building on every system, such as scripts that aren't
+UTF-8 and file names in another case than on disk, and fixes it.</P>
+<P><b>Compile (Ctrl+B)</b>: saves the project and compiles it into a SLUDGE game (.SLG) file, which has the name of the
+Game file setting. The Build panel shows the progress, the errors and the warnings. While it compiles, <b>Cancel
+Compile</b> stops it.</P>
+<P><b>Run Game (Ctrl+R)</b>: plays the compiled game in the SLUDGE engine.</P>
+<P><b>Close Project</b>: closes the project.</P>
 
-<P>
-Opens the <a href="Project_Manager__Project_Settings_Dialog.html">Project Settings</a> 
-dialog box, where project specific settings are made.
-</P>
+<H3>View menu:</H3>
 
-<P>
-<b>Compile game:</b> 
-</P>
-
-<P>
-Runs the <a href="About_the_SLUDGE_Compiler.html">SLUDGE compiler</a> and, errors permitting, creates a compiled SLUDGE game (.SLG) file. The name of the file will be that which is specified in the <a href="Project_Manager__Project_Settings_Dialog.html">Project Settings</a> dialog. Any warnings or errors will be shown in the <b>Compiler Errors</b> tab in the main window of the project manager.
-</P>
-
-<P>
-<b>Run:</b> (Win/Linux)
-</P>
-
-<P>
-Runs the game. Only works if the project has been compiled since it was loaded. 
-</P>
-
+<P>Shows and hides the Project, Build, Inspector and Log panels. <b>Reset Layout</b> puts every panel back in its
+first place.</P>
 
 <H3>Help menu:</H3>
 
-
-<P>
-<b>About:</b>
-</P>
-
-<P>
-Displays a pop-up dialog box giving the version number and other information about 
-the Project Manager. (This is found in the program menu on Mac.)
-</P>
-
-<P>
-<b>SLUDGE Dev Kit Help</b> (Mac):
-</P>
-
-<P>
-Opens this help file.
-</P>
+<P><b>SLUDGE Dev Kit Help</b>: opens this help. <b>SLUDGE Website</b> opens the website of SLUDGE, and <b>About the
+SLUDGE Dev Kit</b> shows its version.</P>
 
 <H3>See also:</H3>
 
-<P>
-<a href="About_the_SLUDGE_Project_Manager.html">About the SLUDGE Project Manager</a>
-</P>
-
-<P>
-<a href="Project_Manager__Project_Settings_Dialog.html">Project Manager: &quot;Project Settings&quot; Dialog</a>
-</P>
-
-<P>
-<a href="Project_Manager__Preferences_Dialog.html">Project Manager: &quot;Preferences&quot; Dialog</a>
-</P>
+<P><a href="About_the_SLUDGE_Project_Manager.html">Projects</a></P>
+<P><a href="The_Programs.html">The SLUDGE Dev Kit</a></P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012
 </P>

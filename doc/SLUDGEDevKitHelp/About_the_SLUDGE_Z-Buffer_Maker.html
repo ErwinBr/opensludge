@@ -1,26 +1,25 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<TITLE>About the SLUDGE Z-Buffer Maker</TITLE>
+<TITLE>The Z-Buffer Editor</TITLE>
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <BODY>
 <HR>
 <div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
-<h2>About the SLUDGE Z-Buffer Maker</h2>
+<h2>The Z-Buffer Editor</h2>
 <HR>
 
 <P>
-The SLUDGE Z-Buffer Maker is used to create different areas of a scene which can 
-obscure character graphics, such as foreground silhouettes, doorframes and furniture.
+A z-buffer defines the areas of a scene which can obscure character graphics, such as foreground silhouettes,
+doorframes and furniture.
 </P>
 
 <H3>Creating a z-buffer image:</H3>
 
 <P>
-The main work - specifying the areas - cannot be done from within the program itself 
-and must instead be done using a paint package. For example, take the following room 
-(taken from one of the demos):
+The main work - specifying the areas - cannot be done from within the Dev Kit itself and must instead be done using
+a paint package. For example, take the following room (taken from one of the demos):
 </P>
 
 <P>
@@ -36,16 +35,14 @@ The above room image has the following z-buffer image:
 </P>
 
 <P>
-(The size and quality of these images has been reduced for the sake of this 
-documentation - full versions of both images can be found as part of the verb 
-coin example.)
+(The size and quality of these images has been reduced for the sake of this documentation - full versions of both
+images can be found as part of the verb coin example.)
 </P>
 
 <P>
-Mixing these images together shows the concepts behind the z-buffer image, and 
-which layers correspond with which areas in the actual image. Note that <b>this 
-is not a required stage of producing a z-buffer image</b>; it is here only as an 
-aid to understanding the reasons behind creating the image shown above.
+Mixing these images together shows the concepts behind the z-buffer image, and which layers correspond with which
+areas in the actual image. Note that <b>this is not a required stage of producing a z-buffer image</b>; it is here
+only as an aid to understanding the reasons behind creating the image shown above.
 </P>
 
 <P>
@@ -53,78 +50,63 @@ aid to understanding the reasons behind creating the image shown above.
 </P>
 
 <P>
-A z-buffer image must have a black background and coloured areas that define where 
-characters will be obscured by parts of the scene. You are allowed a maximum of 16 
-different colours - each colour will be treated as a different layer.
+A z-buffer image must have a black background and coloured areas that define where characters will be obscured by
+parts of the scene. You are allowed a maximum of 15 different colours besides the black - each colour will be
+treated as a different layer.
 </P>
 
-<H3>Loading your z-buffer image into the SLUDGE z-buffer maker:</H3>
+<H3>Making the z-buffer:</H3>
 
 <P>
-Save your z-buffer image as an uncompressed TGA file and open it in the SLUDGE 
-Z-Buffer Maker using the <b>New from TGA image</b> command on the <b>File</b> menu 
-(Win/Linux) or <b>New zBuffer from TGA image</b> command on the <b>Tools</b> menu. 
-After loading the image from above, the Z-Buffer Maker looks like this:
+Save your z-buffer image as a TGA file. Make a new z-buffer with File &gt; New &gt; Z-Buffer, and choose the
+picture with <b>Make from TGA...</b>, or drop the picture on the z-buffer. The z-buffer gets the name of the picture.
+After loading the image from above, the editor looks like this:
 </P>
 
 <P>
-<IMG SRC="images/zbuffermaker.png">
+<IMG SRC="images/devkit-zbuffer.png" alt="The z-buffer of the verb coin example in the z-buffer editor">
 </P>
 
-The slider at the top of the window is used to select a layer, the selected 
-layer is displayed in white and the <b>y(z)</b> field used to set the cut-off point 
-of the selected layer. The cut-off point of the selected layer is also shown by a 
-green horizontal line.</p>
-
-<p>Windows/Linux: The cut-off point can also be set using the left mouse button. 
-If your scene is larger than the SLUDGE Z-Buffer Maker window, you can scroll 
-around the image by holding down the right mouse button and dragging the mouse 
-in the direction in which you wish to move.
-</p>
-
-<p>Mac: The image can be scrolled by dragging the mouse and zoomed in/out by 
-two-finger scrolling. The cut-off point can be adjusted by holding down Command 
-and dragging the mouse.</p>
+<P>
+The Inspector lists the layers, with the cut-off point of each. The selected layer is shown in white, the others in
+purple, and the cut-off point of the selected layer as a green line. To select a layer, click it in the list, or
+Ctrl-click it in the picture (Command-click on macOS). Set the cut-off point of the selected layer with the <b>Y</b>
+field, or by clicking or dragging in the picture. Every change can be undone with Edit &gt; Undo. The mouse wheel
+zooms, and the middle or right mouse button moves the picture, as in the
+<a href="About_the_SLUDGE_Floor_Maker.html">floor editor</a>.
+</P>
 
 <H3>Cut-off points:</H3>
 
 <P>
-The purpose of the Z-Buffer Maker is to associate cut-off points to the layers 
-defined by the z-buffer image. The cut-off point is the y-value below which a 
-character must be standing in order to be shown in front of the layer in question. 
-By default, when a TGA image is loaded, the cut-off point for each layer is the 
-y-value of the lowest pixel used in the layer.
+The purpose of the z-buffer editor is to associate cut-off points to the layers defined by the z-buffer image. The
+cut-off point is the y-value below which a character must be standing in order to be shown in front of the layer in
+question. By default, when a TGA image is loaded, the cut-off point for each layer is the y-value of the lowest pixel
+used in the layer.
 </P>
 
 <P>
-For example, the cut-off points for the above example are initially set to the 
-following: layer 1 (cyan) has a y-value of 479, layer 2 (green) has a y-value of 
-392 and layer 3 (red) has a y-value of 296.
+For example, the cut-off points for the above example are initially set to the following: layer 1 has a y-value
+of 479, layer 2 has a y-value of 392 and layer 3 has a y-value of 296.
 </P>
 
 <P>
-It is possible to set a cut-off point to a larger value than the height of the 
-screen, which is useful if you want to move a character off the bottom of the 
-screen but still have them obscured by an object.
+It is possible to set a cut-off point to a larger value than the height of the screen, up to twice its height,
+which is useful if you want to move a character off the bottom of the screen but still have them obscured by an
+object.
 </P>
-
-
 
 <H3>Saving and using a z-buffer file:</H3>
 
 <P>
-To save your z-buffer file in the format used by SLUDGE, open the <b>File</b> menu 
-and choose <b>Save</b> or <b>Save as...</b>. The <b>Save</b> option will overwrite 
-the z-buffer file from which the current data was loaded... if the current data 
-was loaded from an image file, it will do the same as the 
-<b>Save as...</b> option, which allows you to save the data under any file name.
+Save the z-buffer with File &gt; Save, or under another name with File &gt; Save As. A z-buffer made from a picture
+asks where to save it the first time, in the folder of the picture.
 </P>
 
 <P>
-To load your z-buffer file into a game, use the <a href="setZBuffer.html">setZBuffer
-</a> function with its <a href="File_Handling.html">file handle</a> as the parameter. 
-To remove a z-buffer from memory in your game, call the same function with NULL 
-as the parameter.
+To load your z-buffer file into a game, use the <a href="setZBuffer.html">setZBuffer</a> function with its
+<a href="File_Handling.html">file handle</a> as the parameter. To remove a z-buffer from memory in your game, call the
+same function with NULL as the parameter.
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

@@ -1,95 +1,77 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<TITLE>About the SLUDGE Project Manager</TITLE>
+<TITLE>Projects</TITLE>
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <BODY>
 <HR>
 <div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
-<h2>About the SLUDGE Project Manager</h2>
+<h2>Projects</h2>
 <HR>
 
-
 <P>
-The SLUDGE Project Manager is the turning-point of the Development Kit. On Windows
-and Linux, it's a separate program. On Mac, the Development Kit is a single 
-program. Use the Program Manager to...
+A SLUDGE project (a .slp file) holds the settings of a game and the list of its scripts. In the Dev Kit, you
+make a project with File &gt; New &gt; Project, and open one with File &gt; Open or by double-clicking it. One
+project is open at a time, in the Project panel:
 </P>
 
 <P>
-<ul>
-	
-<li>...create your project.</li>
-	
-<li>...browse and manage the files in your project.</li>
-	
-<li>...manipulate project settings.</li>
-	
-<li>...compile your game.</li>
-</ul>
+<IMG SRC="images/devkit-project.png" alt="A project in the SLUDGE Dev Kit">
 </P>
 
 <P>
-The SLUDGE Project Manager window looks like this:
+The <b>list at the top</b> shows the files which make up the project. They should be text files with the
+extension &quot;.SLU&quot; (for scripts), &quot;.SLD&quot; (for <a href="Using_Constants_in_SLUDGE.html">
+constants</a>) or &quot;.TRA&quot; (for <a href="Multiple_Languages_in_a_Single_Game.html">translation</a>
+files). The order of the files is not important (unless your script attempts to set the start value of a global
+variable to another which has not yet been created). Prototyping functions and externing variables from other
+files is not required.
 </P>
 
 <P>
-<IMG SRC="images/projectmanager.png">
-</P>
-
-
-<P>
-The <b>Project Files</b> tab shows all the files which make up the project. 
-Doubleclicking a file will open it in the appropriate program (on Windows and 
-Linux some of the programs to use can be specified in the 
-<a href="Project_Manager__Preferences_Dialog.html">Preferences</a> dialog). 
-The file locations shown are based on the location of the currently loaded 
-project file.
+Add files with <b>Add...</b>, or by dropping them on the Project panel, and remove the selected ones with
+<b>Remove</b>, which doesn't delete them from your computer: they just won't be included the next time the project
+is compiled. Drag a file to move it in the list. You can select several files with Ctrl-click (Command-click on
+macOS) and Shift-click. Double-click a file to open it: a script in your text editor, and a translation in the
+Dev Kit.
 </P>
 
 <P>
-The <b>list on the left</b> shows all the scripts which make up the project. 
-The files shown here should be text files with the extension &quot;.SLU&quot; 
-(for scripts), &quot;.SLD&quot; (for <a href="Using_Constants_in_SLUDGE.html">
-constants</a>) or &quot;.TRA&quot; (for <a href="Multiple_Languages_in_a_Single_Game.html">
-translation</a> files). The order of the files is not important (unless your script 
-attempts to set the start value of a global variable to another which has not 
-yet been created). Prototyping functions and externing variables from other files 
-is not required. Adding or removing files is done using the respective buttons 
-below the list. When removing a file, the file itself is not deleted from your 
-computer - it just won't be included the next time the project is compiled.
+The <b>list at the bottom</b> contains all the resources which are used by the selected scripts: the pictures,
+sounds, floors and other files that they name. Double-click one to open it.
 </P>
 
 <P>
-You can select a file in this list by clicking it with the mouse. You can also 
-select multiple files - for example, by holding down your keyboard's Command (Mac)
-or control (Win/Linux) key and clicking on subsequent files with the mouse. 
-The <b>list on the right</b> contains all the resources which are used by the 
-files selected on the left.
+The settings of the project are in the Inspector: see <a href="Project_Manager__Project_Settings_Dialog.html">
+Project Settings</a>.
 </P>
 
+<H3>Compiling and running</H3>
 
+<P>
+Compile the game with <b>Compile</b> in the Project menu, the Project panel or the Build panel. The
+<a href="About_the_SLUDGE_Compiler.html">compiler</a> saves the project first, and shows its progress, errors and
+warnings in the Build panel. Double-click an error to open its script at its line. When the game has compiled,
+<b>Run Game</b> plays it in the SLUDGE engine.
+</P>
 
+<H3>Projects from other systems</H3>
+
+<P>
+A project builds on every system when its scripts are UTF-8 text and name their files in the case that the files
+have on disk. Windows and macOS forgive another case, but Linux doesn't. Projects made with the old Windows
+versions of SLUDGE often have neither. <b>Project &gt; Check Files</b> finds these problems, and fixes the ones that
+you choose: it converts scripts to UTF-8, keeping the old file with .orig after its name, and writes the names of
+files as they are on disk. The compiler finds files in any case on every system, and warns when the case differs.
+</P>
 
 <H3>More on this subject:</H3>
 
-<P>
-<a href="Project_Manager__Menus.html">Project Manager: Menus</a>
-</P>
-
-<P>
-<a href="Project_Manager__Project_Settings_Dialog.html">Project Manager: &quot;Project Settings&quot; Dialog</a>
-</P>
-
-<P>
-<a href="Project_Manager__Preferences_Dialog.html">Project Manager: &quot;Preferences&quot; Dialog</a>
-</P>
-
-<P>
-<a href="Spellchecking_the_Strings_in_your_Game.html">Spellchecking the Strings in your Game</a>
-</P>
-
+<P><a href="Project_Manager__Menus.html">The menus of the Dev Kit</a></P>
+<P><a href="Project_Manager__Project_Settings_Dialog.html">Project Settings</a></P>
+<P><a href="Project_Manager__Preferences_Dialog.html">Preferences</a></P>
+<P><a href="Spellchecking_the_Strings_in_your_Game.html">Spellchecking the Strings in your Game</a></P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012
 </P>

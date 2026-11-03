@@ -1,8 +1,8 @@
 Building the SLUDGE engine
 **************************
 
-   We build the engine with CMake 3.24 or later, on Linux, macOS and
-Windows:
+   We build the engine, the compiler and the Dev Kit with CMake 3.24 or
+later, on Linux, macOS and Windows:
 
      cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
      cmake --build build
@@ -32,11 +32,9 @@ libdumb1-dev and libvpx-dev, and libsdl3-dev where it exists.
      -DSLUDGE_TESTS=OFF         Leave out the tests. We build them by
                                 default, and you run them with
                                 `ctest --test-dir build'.
-     -DSLUDGE_DEVKIT_GTK=OFF    Leave out the Dev Kit, which uses GTK 3
-                                and which we build by default on Linux
-                                (see below). A new Dev Kit, with SDL 3
-                                and Dear ImGui, is in progress, behind
-                                -DSLUDGE_DEVKIT=ON.
+     -DSLUDGE_DEVKIT=OFF        Leave out the Dev Kit (see below), which
+                                we build by default, except with OpenGL ES
+                                2.0 and when cross-compiling.
      -DSLUDGE_ENGINE=OFF        Leave out the engine, for example to build
                                 only the Dev Kit.
      -DSLUDGE_COMPILER=OFF      Leave out the headless compiler,
@@ -52,7 +50,8 @@ Our releases run on macOS 10.13 and later: we build the Intel half with
 Before macOS 10.14, SDL_GPU can't draw with Metal, and the engine draws
 with OpenGL.
 With packaging/macos/make-app.sh, we make an application bundle around
-the engine.
+the engine, and with packaging/macos/make-devkit-app.sh, one around the
+Dev Kit.
 
    On Windows, we build with MSYS2 and MinGW. For 32-bit Windows, from
 Windows XP on, we cross-compile on Linux with
@@ -141,17 +140,23 @@ Making the release packages
 
    In .github/workflows/build.yml, we build and test the engine on Linux,
 macOS and Windows. For a version tag, such as 2.3.0, we publish a release
-with two kinds of packages for macOS and Windows: OpenSLUDGE, the engine
-alone, and Out Of Order, the engine with the game Out Of Order, and with
-the source tarball, sludge-<version>.tar.gz. We make the packages with the
+with three kinds of packages for macOS and Windows: OpenSLUDGE, the
+engine alone, Out Of Order, the engine with the game Out Of Order, and the
+SLUDGE Dev Kit (not for 32-bit Windows), and with the source tarball,
+sludge-<version>.tar.gz. We make the packages with the
 scripts in the packaging folder.
 
      get-out-of-order.sh        Download the data file of Out Of Order from
                                 the Ubuntu archive and check its hash.
      windows/make-zips.sh       Make the zips of OpenSLUDGE and of Out Of
                                 Order for Windows.
+     windows/make-devkit-zip.sh Make the zip of the Dev Kit for Windows.
      macos/make-app.sh          Make a macOS application bundle, with or
                                 without a game.
+     macos/make-devkit-app.sh   Make the application bundle of the Dev
+                                Kit, with the compiler and the engine.
+     copy-devkit-docs.sh        Copy the help or the example projects into
+                                a package of the Dev Kit.
      macos/sign-app.sh          Sign a macOS application bundle.
      make-tarball.sh            Make the source tarball with git archive,
                                 without the files marked export-ignore in
@@ -170,10 +175,10 @@ Building the SLUDGE compiler
    The compiler, sludge-compiler, turns a SLUDGE project (.slp) into a game
 data file (.slg). It runs without a display and needs only libpng, which
 CMake builds from source if it is missing, so it builds on Linux, macOS
-and Windows without GTK. To build only the compiler, run
+and Windows. To build only the compiler, run
 
      cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLUDGE_ENGINE=OFF \
-       -DSLUDGE_DEVKIT_GTK=OFF
+       -DSLUDGE_DEVKIT=OFF
      cmake --build build
 
 and compile a project with `build/source/DevKit/sludge-compiler
@@ -197,39 +202,33 @@ hashes with
 Building the SLUDGE Development Kit
 ***********************************
 
-Windows and Mac OS X
-====================
+   The Dev Kit, sludge-devkit, is one program for the whole of making a
+game: it manages and compiles projects, runs them in the engine, and edits
+floors, z-buffers, sprite banks and translations, which open as tabs. It
+uses SDL 3 for its window, Dear ImGui for its interface, which CMake
+downloads, and the renderers of the engine to draw, with SDL_GPU or
+OpenGL. It needs nothing more than the engine, so the commands at the top
+of this file build it on Linux, macOS and Windows. To build only the Dev
+Kit and the compiler, add -DSLUDGE_ENGINE=OFF; it still runs the engine
+of the system for Run Game.
 
-   So far, we build the Dev Kit with GTK 3 only on Linux. On macOS, the
-compiler builds without the Dev Kit (see above). The Windows
-installer script, sludge.nsi, is for the earlier Dev Kit with GTK+ 2.16
-and GtkGLExt, and the Xcode project in the "Mac Dev Kit" directory is
-for Mac OS X 10.4, so we cannot build the current Dev Kit with either of
-them.
+   The Dev Kit runs sludge-compiler as a program of its own, and
+sludge-engine to run a game. It looks for them next to itself (on macOS,
+in the app), then in the build folder, then on the PATH. In the source,
+source/DevKit/Core is the state of the editors (documents, undo, the
+compile), which knows nothing of SDL or ImGui, and source/DevKit/App the
+program around it.
 
-Linux
-=====
+   On Linux, `sudo cmake --install build' installs the Dev Kit with a menu
+entry, the types of the files that it opens, their icons, and the syntax
+of SLUDGE scripts for the text editors that use GtkSourceView, such as
+GNOME Text Editor and gedit. Add -DSLUDGE_DOC=ON to install the help and
+the example projects too, which Help > SLUDGE Dev Kit Help opens.
 
-   Dependencies of the OpenSLUDGE Dev Kit are GTK 3 (>= 3.20), libepoxy
-and libpng. We draw the views of the floor maker, the z-buffer maker and
-the sprite bank editor with OpenGL 3.2.
-
-   On Debian and Ubuntu the corresponding packages are libgtk-3-dev,
-libepoxy-dev and libpng-dev.
-
-   On Linux, CMake builds the Dev Kit together with the engine, with the
-commands at the top of this file. To build and install only the Dev Kit,
-run
-
-     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLUDGE_ENGINE=OFF
-     cmake --build build
-     sudo cmake --install build
-
-   Add -DSLUDGE_DOC=ON to install the documentation too. For the
-documentation only, use -DSLUDGE_ENGINE=OFF -DSLUDGE_DEVKIT_GTK=OFF
--DSLUDGE_DOC=ON.
-
-   With `ctest --test-dir build', we also draw the views of the floor
-maker, the z-buffer maker and the sprite bank editor offscreen and compare
-them with the reference images in tests/devkit/references. For that,
-Mesa's EGL (libegl-mesa0 on Debian and Ubuntu) is required.
+   The tests of the Dev Kit are in tests/devkit. devkit_core tests the
+state of the editors without a display. The others need one and have the
+label capture: they draw the views of the editors and compare them with
+the reference images in tests/devkit/references, open and compile a
+project, and edit a floor, a z-buffer, a sprite bank and a translation
+with the mouse and the keys of a script (sludge-devkit --smoke-input, see
+source/DevKit/App/SmokeInput.h), comparing what they save.

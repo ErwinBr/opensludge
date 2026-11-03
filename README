@@ -1,7 +1,7 @@
 For installation instructions, see INSTALL.
 
-SLUDGE (except the GTK Dev Kit) is licenced under GNU LGPL version 2.1.
-The GTK Dev Kit is licensed under GNU GPL version 3 or later.
+SLUDGE is licenced under GNU LGPL version 2.1. The Dev Kit uses Dear
+ImGui, under the MIT licence, and SDL 3, under the zlib licence.
 
 Enjoy!
 

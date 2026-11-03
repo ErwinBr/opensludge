@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>sludge-engine</string>
+	<string>@EXECUTABLE@</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
@@ -23,7 +23,7 @@
 	<key>CFBundleVersion</key>
 	<string>@VERSION@</string>
 	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.adventure-games</string>
+	<string>@CATEGORY@</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>@MIN_MACOS@</string>
 	<key>NSHighResolutionCapable</key>

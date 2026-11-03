@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SLUDGE Dev Kit
+GenericName=Adventure Game Development Kit
+Comment=Make SLUDGE adventure games: manage and compile projects, and edit floors, z-buffers, sprite banks and translations
+Comment[de]=SLUDGE-Abenteuerspiele erstellen: Projekte verwalten und kompilieren, Böden, Z-Puffer, Sprite-Bänke und Übersetzungen bearbeiten
+Exec=sludge-devkit %F
+Icon=sludge-devkit
+Terminal=false
+StartupNotify=true
+MimeType=text/x-sludge-project;text/x-sludge-floor;application/x-sludge-zbuffer;application/x-sludge-spritebank;text/x-sludge-translation;
+Categories=Development;IDE;
+Keywords=SLUDGE;adventure;game;floor;sprite;translation;

@@ -28,8 +28,6 @@ There are generic instructions how to compile SLUDGE in the <strong>INSTALL</str
 <li><strong>libdumb1-dev</strong></li>
 <li><strong>libvpx-dev</strong></li>
 <li><strong>xdg-utils</strong></li>
-<li><strong>libgtk-3-dev</strong> (only needed for the Dev Kit)</li>
-<li><strong>libepoxy-dev</strong> (only needed for the Dev Kit)</li>
 </ul>
 </p>
 
@@ -37,9 +35,7 @@ There are generic instructions how to compile SLUDGE in the <strong>INSTALL</str
 
 <p><div class="bash">sudo apt-get install build-essential cmake libsdl3-dev libpng-dev libvorbis-dev libdumb1-dev libvpx-dev xdg-utils</div></p>
 
-<p>The additional dependencies for the Dev Kit:</p>
-
-<p><div class="bash">sudo apt-get install libgtk-3-dev libepoxy-dev</div></p>
+<p>The Dev Kit needs nothing more: it uses SDL 3, as the Engine does, and CMake downloads Dear ImGui, with which it draws its interface.</p>
 
 <p>Some distributions, such as Ubuntu 24.04, have no <strong>libsdl3-dev</strong>. Then leave it out, and CMake downloads SDL 3 and builds it from source. For that, the development packages for your display system and your sound system are required, as listed in the file <strong>docs/README-linux.md</strong> of SDL.</p>
 

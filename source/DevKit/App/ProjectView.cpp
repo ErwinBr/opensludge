@@ -146,9 +146,15 @@ void ProjectView::drawFiles (float height) {
 
 void ProjectView::drawResources () {
 	if (resourcesStale) updateResources ();
-	ImGui::SeparatorText ("Resources of the selected scripts");
-	ImGui::SameLine ();
+	// The heading, with the button at the right, which a narrow panel can
+	// push onto the next line.
+	ImGui::Spacing ();
+	ImGui::TextUnformatted ("Resources of the selected scripts");
+	float button = ImGui::CalcTextSize ("Refresh").x + ImGui::GetStyle ().FramePadding.x * 2;
+	float right = ImGui::GetContentRegionAvail ().x - button;
+	if (ImGui::GetItemRectSize ().x + ImGui::GetStyle ().ItemSpacing.x < right) ImGui::SameLine (right + ImGui::GetStyle ().WindowPadding.x);
 	if (ImGui::SmallButton ("Refresh")) resourcesStale = true;
+	ImGui::SetItemTooltip ("Read the scripts again, after changing them");
 	if (! ImGui::BeginChild ("resources", ImVec2 (0, 0), ImGuiChildFlags_Borders)) {
 		ImGui::EndChild ();
 		return;

@@ -3,10 +3,9 @@
 
 /*
  * A translation (.tra): the strings of a game in another language. We
- * read and write the files as the GTK Translation Editor did
- * (TranslationEditor/translator.cpp), and find the strings of a project as
- * it did, without its changes of folder: the window name, the quit
- * message, and the strings in quotes of the scripts.
+ * read and write the files as the GTK Translation Editor did, and find the
+ * strings of a project as it did, without its changes of folder: the
+ * window name, the quit message, and the strings in quotes of the scripts.
  *
  * Each string needs a translation, has one, or needs none. In a file, a
  * line is the original and the translation separated by a tab; a tab and

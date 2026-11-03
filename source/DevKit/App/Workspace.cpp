@@ -176,6 +176,27 @@ std::string Workspace::findProgram (const std::string & name) {
 	return file;
 }
 
+void Workspace::openHelp () {
+	std::string here = thePlatform.programFolder ();
+	std::vector<std::string> places;
+	// Next to the Dev Kit on Windows, and in the Resources of the app on
+	// macOS, which is the folder of the program for SDL.
+	places.push_back (here + "Help/SLUDGE_Help.html");
+	// Installed on Linux, with -DSLUDGE_DOC=ON.
+	places.push_back (here + "../share/doc/sludge/SLUDGE_Help.html");
+#if defined(SLUDGE_SOURCE_FOLDER)
+	places.push_back (std::string (SLUDGE_SOURCE_FOLDER) + "doc/SLUDGE_Help.html");
+#endif
+	for (size_t i = 0; i < places.size (); i ++) {
+		if (fileExists (places[i])) {
+			thePlatform.openWithSystem (places[i]);
+			return;
+		}
+	}
+	thePlatform.showMessage (Platform::MESSAGE_INFORMATION, "No help",
+		"The help of the Dev Kit isn't installed here. It is in the doc folder of the source of SLUDGE.");
+}
+
 void Workspace::compile () {
 	ProjectDocument * p = project ();
 	if (! p || compiling ()) return;
@@ -199,7 +220,9 @@ void Workspace::startCompile () {
 	options.writeStrings = preferences.writeStrings;
 	options.verbose = preferences.verbose;
 	job.reset (new CompileJob (thePlatform));
-	job->start (findProgram ("sludge-compiler"), p->path (), options);
+	std::string compiler = findProgram ("sludge-compiler");
+	Log::get ().add (LogLine::LOG_DEBUG, "The compiler is %s\n", compiler.c_str ());
+	job->start (compiler, p->path (), options);
 }
 
 void Workspace::runGame () {
@@ -404,6 +427,7 @@ void Workspace::drawMenuBar () {
 		ImGui::EndMenu ();
 	}
 	if (ImGui::BeginMenu ("Help")) {
+		if (ImGui::MenuItem ("SLUDGE Dev Kit Help")) openHelp ();
 		if (ImGui::MenuItem ("SLUDGE Website")) thePlatform.openWithSystem ("https://opensludge.github.io");
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("About the SLUDGE Dev Kit")) showAbout = true;

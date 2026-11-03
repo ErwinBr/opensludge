@@ -77,6 +77,8 @@ private:
 	// sludge-compiler, or its name for the PATH when we can't find it.
 	std::string findProgram (const std::string & name);
 	void startCompile ();
+	// Open the help of the Dev Kit, which comes with it, in the browser.
+	void openHelp ();
 	// Start the program of a preference for a file, or the system's.
 	void openWith (const std::string & command, const std::string & path, int line);
 

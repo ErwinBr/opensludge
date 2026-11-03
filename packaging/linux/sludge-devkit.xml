@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The files of SLUDGE projects, which the Dev Kit opens. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+	<mime-type type="text/x-sludge-project">
+		<sub-class-of type="text/plain"/>
+		<comment>SLUDGE project</comment>
+		<icon name="text-x-sludge-project"/>
+		<glob pattern="*.slp" case-sensitive="false"/>
+	</mime-type>
+	<mime-type type="text/x-sludge-script">
+		<sub-class-of type="text/plain"/>
+		<comment>SLUDGE script</comment>
+		<icon name="text-x-sludge-script"/>
+		<glob pattern="*.slu" case-sensitive="false"/>
+		<glob pattern="*.sld" case-sensitive="false"/>
+	</mime-type>
+	<mime-type type="text/x-sludge-floor">
+		<sub-class-of type="text/plain"/>
+		<comment>SLUDGE floor</comment>
+		<icon name="text-x-sludge-floor"/>
+		<glob pattern="*.flo" case-sensitive="false"/>
+	</mime-type>
+	<mime-type type="text/x-sludge-translation">
+		<sub-class-of type="text/plain"/>
+		<comment>SLUDGE translation</comment>
+		<icon name="text-x-sludge-translation"/>
+		<glob pattern="*.tra" case-sensitive="false"/>
+		<magic>
+			<match type="string" offset="0" value="### SLUDGE Translation File ###"/>
+		</magic>
+	</mime-type>
+	<mime-type type="application/x-sludge-zbuffer">
+		<comment>SLUDGE z-buffer</comment>
+		<icon name="application-x-sludge-zbuffer"/>
+		<glob pattern="*.zbu" case-sensitive="false"/>
+		<magic>
+			<match type="string" offset="0" value="Szb"/>
+		</magic>
+	</mime-type>
+	<mime-type type="application/x-sludge-spritebank">
+		<comment>SLUDGE sprite bank</comment>
+		<icon name="application-x-sludge-spritebank"/>
+		<glob pattern="*.duc" case-sensitive="false"/>
+	</mime-type>
+	<mime-type type="application/x-sludge-compressedimage">
+		<comment>SLUDGE compressed image</comment>
+		<icon name="application-x-sludge-compressedimage"/>
+		<glob pattern="*.slx" case-sensitive="false"/>
+	</mime-type>
+</mime-info>

@@ -1,7 +1,7 @@
-﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<title>About the SLUDGE Compiler</TITLE>
+<TITLE>About the SLUDGE Compiler</TITLE>
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <BODY>
@@ -10,23 +10,21 @@
 <h2>About the SLUDGE Compiler</h2>
 <HR>
 
-
 <P>
-To compile a SLUDGE project, open it in the <a href="About_the_SLUDGE_Project_Manager.html">SLUDGE Project Manager</a> and hit <b>Compile</b> on the <b>Project</b> menu.
+To compile a SLUDGE project, open it in the <a href="The_Programs.html">SLUDGE Dev Kit</a> and choose
+<b>Compile</b> in the <b>Project</b> menu (Ctrl+B, or Command+B on macOS). The Build panel shows the progress of the
+compiler, and the errors and warnings that it finds in your project. Double-click one to open its script at its line.
 </P>
 
 <P>
-If you are on Linux, you can alternatively run
+The compiler is also a program of its own, sludge-compiler, which comes with the Dev Kit and runs without a window,
+for example in a terminal or in a script that builds your game:
 </P>
 
 <p><div class="bash">sludge-compiler projectfile</div></p>
 
 <P>
-in a terminal.
-</P>
-
-<P>
-The SLUDGE compiler is completely automated and will tell you of any errors which it finds with your project. If the compiler closes without warning you of any errors, then your project has been compiled successfully.
+It writes the game next to the project file. <b>sludge-compiler --help</b> lists its options.
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

@@ -96,6 +96,38 @@ static bool saveFrame (gfx::Renderer * renderer, int width, int height, const ch
 	return true;
 }
 
+// The font of the interface of the system, or NULL when we find none.
+static ImFont * addSystemFont (ImGuiIO & io) {
+	std::vector<std::string> fonts;
+#if defined(__APPLE__)
+	fonts.push_back ("/System/Library/Fonts/SFNS.ttf");			// macOS 10.15 and later
+	fonts.push_back ("/System/Library/Fonts/SFNSText.ttf");		// macOS 10.11 to 10.14
+	fonts.push_back ("/System/Library/Fonts/Helvetica.ttc");
+#elif defined(_WIN32)
+	const char * windows = SDL_getenv ("WINDIR");
+	std::string folder = std::string (windows ? windows : "C:\\Windows") + "\\Fonts\\";
+	fonts.push_back (folder + "segoeui.ttf");
+	fonts.push_back (folder + "tahoma.ttf");
+#else
+	const char * folders[] = { "/usr/share/fonts/truetype/", "/usr/share/fonts/TTF/", "/usr/share/fonts/" };
+	const char * names[] = { "dejavu/DejaVuSans.ttf", "DejaVuSans.ttf", "noto/NotoSans-Regular.ttf",
+		"google-noto/NotoSans-Regular.ttf", "liberation/LiberationSans-Regular.ttf", "LiberationSans-Regular.ttf" };
+	for (size_t n = 0; n < sizeof (names) / sizeof (names[0]); n ++) {
+		for (size_t f = 0; f < sizeof (folders) / sizeof (folders[0]); f ++) fonts.push_back (std::string (folders[f]) + names[n]);
+	}
+#endif
+	for (size_t i = 0; i < fonts.size (); i ++) {
+		SDL_PathInfo info;
+		if (! SDL_GetPathInfo (fonts[i].c_str (), &info) || info.type != SDL_PATHTYPE_FILE) continue;
+		ImFont * font = io.Fonts->AddFontFromFileTTF (fonts[i].c_str ());
+		if (font) {
+			Log::get ().add (LogLine::LOG_DEBUG, "The font is %s\n", fonts[i].c_str ());
+			return font;
+		}
+	}
+	return NULL;
+}
+
 int main (int argc, char ** argv) {
 	const char * rendererChoice = SDL_getenv ("SLUDGE_RENDERER");
 	const char * smokeFile = NULL;
@@ -149,7 +181,12 @@ int main (int argc, char ** argv) {
 	Log::get ().setEcho (debug || smokeFile, debug);
 	gfx::setLogFunction (logRendererLine);
 
+	// The identifier is the name of the desktop file on Linux, by which the
+	// desktop finds the icon of the window. On Windows, the window has the
+	// icon of the executable.
 	SDL_SetAppMetadata ("SLUDGE Dev Kit", NULL, "io.github.opensludge.devkit");
+	SDL_SetHint (SDL_HINT_WINDOWS_INTRESOURCE_ICON, "1");
+	SDL_SetHint (SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL, "1");
 	if (! SDL_Init (SDL_INIT_VIDEO)) {
 		fprintf (stderr, "Can't start SDL: %s\n", SDL_GetError ());
 		return 1;
@@ -216,7 +253,22 @@ int main (int argc, char ** argv) {
 	style.ScaleAllSizes (scale);
 	style.FontScaleDpi = scale;
 	style.FontSizeBase = 15.0f;
-	io.Fonts->AddFontDefaultVector ();
+	// The font of the system's interface, which reads better than ImGui's
+	// own, with ImGui's for the characters that it lacks. A smoke test keeps
+	// ImGui's alone, so that the places of things in its window are the
+	// same on every system.
+	// (SLUDGE_DEVKIT_SMOKE_FONT=system gives it the system's, as for the
+	// pictures of the help.)
+	const char * smokeFont = SDL_getenv ("SLUDGE_DEVKIT_SMOKE_FONT");
+	bool systemFont = ! smokeFile || (smokeFont && ! strcmp (smokeFont, "system"));
+	ImFont * font = systemFont ? addSystemFont (io) : NULL;
+	if (font) {
+		ImFontConfig fallback;
+		fallback.MergeMode = true;
+		io.Fonts->AddFontDefaultVector (&fallback);
+	} else {
+		io.Fonts->AddFontDefaultVector ();
+	}
 
 	ImGui_ImplSDL3_InitForOther (window);
 	ImGui_ImplGfx_Init (renderer);

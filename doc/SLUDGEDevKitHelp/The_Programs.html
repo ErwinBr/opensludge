@@ -1,66 +1,84 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<TITLE>The Programs</TITLE>
+<TITLE>The SLUDGE Dev Kit</TITLE>
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <BODY>
 <HR>
 <div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
-<h2>The Programs</h2>
+<h2>The SLUDGE Dev Kit</h2>
 <HR>
 
-
 <P>
-On Windows and Linux, the SLUDGE development kit consists of several programs. You should be able to find them on your Windows Start menu, in the SLUDGE section of your list of programs. Failing that, find the folder into which you installed SLUDGE on your machine, and launch the program of your choice from there.
-</P>
-<p>
-On Mac OS X, the SLUDGE development kit is a single program, but it still works in
-mostly the same way.
-</p>
-
-<P>
-Help on using the various programs comes in the following flavours:
+The SLUDGE Dev Kit is one program, on Windows, macOS and Linux, for the whole of making a game. Open a project
+in it to manage its files and settings, compile it and run it, and open the floors, z-buffers, sprite banks and
+translations of the game to edit them. They open as tabs next to each other, and you can have as many open as
+you like.
 </P>
 
 <P>
-<a href="About_the_SLUDGE_Project_Manager.html">About the SLUDGE Project Manager</a>
+<IMG SRC="images/devkit-project.png" alt="The SLUDGE Dev Kit with the verb coin example">
 </P>
 
 <P>
-<a href="About_the_SLUDGE_Floor_Maker.html">About the SLUDGE Floor Maker</a>
+Around the tabs are panels, which you can drag to another place or into a window of their own. View
+&gt; Reset Layout puts them back.
+</P>
+
+<ul>
+<li><b>Project</b>: the files of the open project, and the files that the selected scripts use.</li>
+<li><b>Inspector</b>: the settings of what you edit: of the project, or of the floor, z-buffer, sprite bank or
+translation in the tab at the front.</li>
+<li><b>Build</b>: the progress of the compiler, and its errors and warnings.</li>
+<li><b>Log</b>: what the Dev Kit did, such as the files that it opened.</li>
+</ul>
+
+<P>
+Everything that you change, in every kind of file, you can undo with Edit &gt; Undo and redo with Edit &gt; Redo.
+A tab with changes that you haven't saved has a dot, and when you close it or quit, the Dev Kit asks whether to
+save them. The Dev Kit remembers the files that you opened last in File &gt; Open Recent, and on its Start page.
 </P>
 
 <P>
-<a href="About_the_SLUDGE_Z-Buffer_Maker.html">About the SLUDGE Z-Buffer Maker</a>
+The Dev Kit comes with the compiler and the engine, and uses them when you compile and run a game. It opens the
+scripts of a project in a text editor, the program of your choice in the
+<a href="Project_Manager__Preferences_Dialog.html">preferences</a>.
 </P>
 
-<P>
-<a href="About_the_SLUDGE_Sprite_Bank_Editor.html">About the SLUDGE Sprite Bank Editor</a>
-</P>
+<H3>Keyboard shortcuts</H3>
 
 <P>
-<a href="About_the_SLUDGE_Translation_Editor.html">About the SLUDGE Translation Editor</a>
+On macOS, use Command where it says Ctrl.
 </P>
 
-<P>
-<a href="About_the_SLUDGE_Compiler.html">About the SLUDGE Compiler</a>
-</P>
+<ul>
+<li>Ctrl+O: open a file. Ctrl+S: save, Ctrl+Shift+S: save as. Ctrl+W: close the tab.</li>
+<li>Ctrl+Z: undo. Ctrl+Shift+Z or Ctrl+Y: redo.</li>
+<li>Ctrl+B: compile the project. Ctrl+R: run the game.</li>
+<li>In a picture: the mouse wheel zooms, the middle or right mouse button or Space with the left one move the
+picture, Ctrl+1 shows it at its size and Ctrl+0 shows all of it.</li>
+<li>In the floor editor: 1 to 5 choose the tools.</li>
+</ul>
+
+<H3>More about the Dev Kit</H3>
+
+<P><a href="About_the_SLUDGE_Project_Manager.html">Projects</a></P>
+<P><a href="About_the_SLUDGE_Floor_Maker.html">The floor editor</a></P>
+<P><a href="About_the_SLUDGE_Z-Buffer_Maker.html">The z-buffer editor</a></P>
+<P><a href="About_the_SLUDGE_Sprite_Bank_Editor.html">The sprite bank editor</a></P>
+<P><a href="About_the_SLUDGE_Translation_Editor.html">The translation editor</a></P>
+<P><a href="About_the_SLUDGE_Compiler.html">The SLUDGE compiler</a></P>
 
 <H3>The SLUDGE Engine</H3>
 
 <P>
-The engine is the only part of the development kit that's needed 
-in order to play a SLUDGE game. Here's a bit more information on how that works:
+The engine is the only part of SLUDGE that's needed in order to play a SLUDGE game. Here's a bit more
+information on how that works:
 </P>
 
-<P>
-<a href="release_the_game.html">How to release the finished game</a>.
-</P>
-
-<P>
-<a href="ini.html">.ini Files for Compiled SLUDGE Games</a>
-</P>
+<P><a href="release_the_game.html">How to release the finished game.</a></P>
+<P><a href="ini.html">.ini Files for Compiled SLUDGE Games</a></P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012
 </P>

@@ -1,0 +1,3 @@
+// The icon of sludge-devkit.exe, which CMake fills in. SDL uses the icon
+// with ID 1 for the window too (SDL_HINT_WINDOWS_INTRESOURCE_ICON).
+1 ICON "@DEVKIT_ICON@"

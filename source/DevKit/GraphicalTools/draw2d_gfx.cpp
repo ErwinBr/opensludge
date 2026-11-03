@@ -103,7 +103,7 @@ void GfxDraw2D::clear () {
 }
 
 // The projection of glOrtho, with the near plane at 1 and the far plane
-// at -1, as in draw2d_gl.cpp.
+// at -1, as the GTK tools had it.
 void GfxDraw2D::setProjection (float left, float right, float bottom, float top) {
 	float m[16] = {
 		2.0f / (right - left), 0, 0, 0,

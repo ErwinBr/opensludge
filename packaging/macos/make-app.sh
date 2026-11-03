@@ -34,6 +34,8 @@ sed -e "s|@BUNDLE_ID@|$bundle_id|g" \
     -e "s|@VERSION@|$version|g" \
     -e "s|@MIN_MACOS@|$min_macos|g" \
     -e "s|@COPYRIGHT@|$copyright|g" \
+    -e "s|@EXECUTABLE@|sludge-engine|g" \
+    -e "s|@CATEGORY@|public.app-category.adventure-games|g" \
     "$here/Info.plist.in" > "$app/Contents/Info.plist"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 

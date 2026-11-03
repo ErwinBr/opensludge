@@ -2,9 +2,10 @@
  * draw2d.h - Part of the SLUDGE Dev Kit
  *
  * 2D drawing for the views of the floor maker, the z-buffer maker and the
- * sprite bank editor. The views draw through this interface, so that they
- * draw the same with OpenGL 3.2 in the GTK tools (draw2d_gl.cpp) and with
- * the renderers of the engine in the new Dev Kit (draw2d_gfx.cpp).
+ * sprite bank editor. The views draw through this interface, which
+ * draw2d_gfx.cpp implements with the renderers of the engine. (The GTK
+ * tools drew it with OpenGL 3.2; the references of tests/devkit come from
+ * them.)
  *
  * The pictures that we draw are the sprites of a sprite bank and the
  * layers of a z-buffer. The drawing makes a texture for each, the first

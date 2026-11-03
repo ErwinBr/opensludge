@@ -32,18 +32,19 @@ jobs:
             libgl-dev libegl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev \
             libxkbcommon-dev wayland-protocols libpulse-dev libasound2-dev \
-            xvfb xauth libgl1-mesa-dri mesa-vulkan-drivers libvulkan1
+            xvfb xauth libgl1-mesa-dri mesa-vulkan-drivers libvulkan1 desktop-file-utils libxml2-utils
 
       - name: Get Out Of Order
         run: packaging/get-out-of-order.sh ooo
 
       - name: Build
         run: |
-          # With the engine, we build the headless compiler, and compile the
-          # example projects into build/games. We also test the SDL_GPU
-          # renderer, with Vulkan through Mesa's software driver, lavapipe.
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT_GTK=OFF \
-            -DSLUDGE_DEVKIT=ON \
+          # With the engine, we build the compiler and the Dev Kit, and
+          # compile the example projects into build/games. We also test the
+          # SDL_GPU renderer, with Vulkan through Mesa's software driver,
+          # lavapipe.
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DSLUDGE_DEVKIT=ON -DSLUDGE_DOC=ON -DCMAKE_INSTALL_PREFIX="$PWD/dist" \
             -DSLUDGE_COMPILER=ON -DSLUDGE_OUT_OF_ORDER=$PWD/ooo/usr/share/out-of-order/gamedata \
             -DSLUDGE_GPU_CAPTURE_TESTS=ON
           cmake --build build
@@ -57,6 +58,9 @@ jobs:
       - name: Capture tests
         # We play games deterministically twice and compare the frames (see
         # source/Engine/capture.h), with Mesa's software OpenGL and Vulkan.
+        # The Dev Kit draws its editors and compares them with references,
+        # and edits a floor, a z-buffer, a sprite bank and a translation with
+        # the mouse and the keys of a script, as a user does.
         run: |
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
             ctest --test-dir build --output-on-failure -L capture
@@ -66,7 +70,21 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: capture-linux
-          path: build/capture/*/difference
+          path: |
+            build/capture/*/difference
+            build/source/DevKit/*-actual.png
+            build/source/DevKit/*-difference.png
+            build/devkit-*/devkit.png
+
+      - name: Install
+        # The Dev Kit with its menu entry, the types of the files that it
+        # opens, their icons and the syntax of the scripts for GtkSourceView.
+        run: |
+          cmake --install build
+          desktop-file-validate dist/share/applications/io.github.opensludge.devkit.desktop
+          xmllint --noout dist/share/mime/packages/sludge-devkit.xml
+          test -x dist/bin/sludge-devkit
+          test -f dist/share/doc/sludge/SLUDGE_Help.html
 
       - name: Play the opening of Out Of Order
         run: |
@@ -112,7 +130,7 @@ jobs:
         # The devices (SLUDGE_DEVICE) draw with OpenGL ES 2.0. We test that
         # code here, with Mesa's software OpenGL ES.
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLUDGE_DEVKIT_GTK=OFF \
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DSLUDGE_COMPILER=ON -DSLUDGE_GLES2=ON
           cmake --build build
 
@@ -129,66 +147,6 @@ jobs:
           name: capture-linux-gles2
           path: build/capture/*/difference
 
-  devkit:
-    name: DevKit (GTK 3)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build pkg-config \
-            libgtk-3-dev libepoxy-dev libpng-dev \
-            xvfb xauth libgl1-mesa-dri libegl1 libegl-mesa0
-
-      - name: Build
-        run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DSLUDGE_ENGINE=OFF -DSLUDGE_DOC=ON -DCMAKE_INSTALL_PREFIX="$PWD/dist"
-          cmake --build build
-          cmake --install build
-
-      - name: Test the drawing of the editor views
-        run: LIBGL_ALWAYS_SOFTWARE=1 ctest --test-dir build --output-on-failure
-
-      - name: Keep the pictures of the failed view tests
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: devkit-view-test
-          path: |
-            build/GTK_Dev_Kit/*-actual.png
-            build/GTK_Dev_Kit/*-difference.png
-            build/Testing/Temporary/LastTest.log
-
-      - name: Smoke-test the tools
-        run: |
-          export LIBGL_ALWAYS_SOFTWARE=1
-          # The compiler is headless and must start without a display.
-          dist/bin/sludge-compiler --help
-          # The editors are GUI applications: each one has to stay alive under a
-          # virtual display. After 5 seconds it must still be running, which
-          # means that it started without a fatal error.
-          for app in sludge-floormaker sludge-zbuffermaker sludge-spritebankeditor \
-                     sludge-translationeditor sludge-projectmanager; do
-            log="$app.log"
-            set +e
-            timeout 5 xvfb-run -a -s "-screen 0 1280x1024x24" dist/bin/$app > "$log" 2>&1
-            status=$?
-            set -e
-            cat "$log"
-            if [ $status -ne 124 ]; then
-              echo "$app exited early with status $status"
-              exit 1
-            fi
-            if grep -E "CRITICAL|ERROR|Segmentation fault" "$log"; then
-              echo "$app reported an error"
-              exit 1
-            fi
-          done
-
   source:
     name: Source tarball
     runs-on: ubuntu-24.04
@@ -198,14 +156,14 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          # The engine and the Dev Kit, as in the jobs above.
+          # The engine and the Dev Kit, as in the Linux job.
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build pkg-config \
             libvorbis-dev libogg-dev libpng-dev libdumb1-dev libvpx-dev \
             libgl-dev libegl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev \
             libxkbcommon-dev wayland-protocols libpulse-dev libasound2-dev \
-            libgtk-3-dev libepoxy-dev libgl1-mesa-dri libegl1 libegl-mesa0
+            libgl1-mesa-dri libegl1 libegl-mesa0
 
       - name: Make the tarball
         run: packaging/make-tarball.sh "$(packaging/version.sh)" dist
@@ -300,11 +258,14 @@ jobs:
         run: |
           packaging/windows/check-dlls.sh objdump build/sludge-engine.exe
           packaging/windows/check-dlls.sh objdump build/source/DevKit/sludge-compiler.exe
+          packaging/windows/check-dlls.sh objdump build/source/DevKit/sludge-devkit.exe
 
       - name: Make the zips
         run: |
           packaging/get-out-of-order.sh ooo
           packaging/windows/make-zips.sh build/sludge-engine.exe ooo "$(packaging/version.sh)" x64 dist
+          packaging/windows/make-devkit-zip.sh build/source/DevKit/sludge-devkit.exe \
+            build/source/DevKit/sludge-compiler.exe build/sludge-engine.exe "$(packaging/version.sh)" x64 dist
 
       - uses: actions/upload-artifact@v7
         with:
@@ -414,8 +375,11 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: sludge-engine-macos-${{ matrix.arch }}
-          path: build/sludge-engine
+          name: sludge-macos-${{ matrix.arch }}
+          path: |
+            build/sludge-engine
+            build/source/DevKit/sludge-compiler
+            build/source/DevKit/sludge-devkit
           if-no-files-found: error
 
   macos-package:
@@ -433,16 +397,19 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: sludge-engine-macos-*
-          path: engines
+          pattern: sludge-macos-*
+          path: programs
 
-      - name: Make the universal executable
+      - name: Make the universal executables
         run: |
           mkdir -p bin
-          lipo -create -output bin/sludge-engine \
-            engines/sludge-engine-macos-arm64/sludge-engine engines/sludge-engine-macos-x86_64/sludge-engine
-          chmod +x bin/sludge-engine
-          lipo -info bin/sludge-engine
+          for program in sludge-engine source/DevKit/sludge-compiler source/DevKit/sludge-devkit; do
+            name=$(basename $program)
+            lipo -create -output bin/$name \
+              programs/sludge-macos-arm64/$program programs/sludge-macos-x86_64/$program
+            chmod +x bin/$name
+            lipo -info bin/$name
+          done
 
       - name: Get Out Of Order
         run: |
@@ -494,8 +461,17 @@ jobs:
           cp -R ooodoc "$out/Documentation"
           cp packaging/macos/README-macOS.txt "$out/"
 
+          out=stage/"SLUDGE Dev Kit"
+          mkdir -p "$out"
+          packaging/macos/make-devkit-app.sh bin/sludge-devkit bin/sludge-compiler bin/sludge-engine \
+            "$out/SLUDGE Dev Kit.app" $MACOS_MINIMUM
+          packaging/macos/sign-app.sh "$out/SLUDGE Dev Kit.app"
+          cp packaging/README-DevKit.txt "$out/README.txt"
+          packaging/copy-devkit-docs.sh examples "$out/Examples"
+
           (cd stage && ditto -c -k --keepParent OpenSLUDGE ../dist/OpenSLUDGE-$version-macOS.zip)
           (cd stage && ditto -c -k --keepParent "Out Of Order" ../dist/OutOfOrder-$version-macOS.zip)
+          (cd stage && ditto -c -k --keepParent "SLUDGE Dev Kit" ../dist/SLUDGE-Dev-Kit-$version-macOS.zip)
           ls -la dist
 
       - name: Notarise
@@ -510,8 +486,10 @@ jobs:
           rm dist/*.zip
           xcrun stapler staple stage/OpenSLUDGE/OpenSLUDGE.app
           xcrun stapler staple "stage/Out Of Order/Out Of Order.app"
+          xcrun stapler staple "stage/SLUDGE Dev Kit/SLUDGE Dev Kit.app"
           (cd stage && ditto -c -k --keepParent OpenSLUDGE ../dist/OpenSLUDGE-$VERSION-macOS.zip)
           (cd stage && ditto -c -k --keepParent "Out Of Order" ../dist/OutOfOrder-$VERSION-macOS.zip)
+          (cd stage && ditto -c -k --keepParent "SLUDGE Dev Kit" ../dist/SLUDGE-Dev-Kit-$VERSION-macOS.zip)
 
       - name: Check the apps
         run: |
@@ -526,6 +504,11 @@ jobs:
               min && /version/ { print "    minos " $2; min = 0 }'
           done
           lipo -info "stage/Out Of Order/Out Of Order.app/Contents/MacOS/sludge-engine"
+          app="stage/SLUDGE Dev Kit/SLUDGE Dev Kit.app"
+          codesign --verify --strict --verbose=2 "$app"
+          for program in sludge-devkit sludge-compiler sludge-engine; do
+            lipo -info "$app/Contents/MacOS/$program"
+          done
           spctl --assess --type execute --verbose "stage/OpenSLUDGE/OpenSLUDGE.app" || \
             echo "(Gatekeeper only accepts notarised apps)"
 
@@ -558,6 +541,26 @@ jobs:
             fi
           done
 
+      - name: Compile a game with the Dev Kit app
+        run: |
+          # The Dev Kit in the app runs the compiler next to it, with both
+          # halves of the universal app, the x86_64 one with Rosetta. It
+          # opens a copy of VerbCoin and compiles it in a smoke test.
+          export HOME=$PWD/home
+          mkdir -p "$HOME"
+          devkit="stage/SLUDGE Dev Kit/SLUDGE Dev Kit.app/Contents/MacOS/sludge-devkit"
+          for variant in arm64 x86_64; do
+            rm -rf verbcoin && cp -R doc/ExampleProjects/VerbCoin verbcoin
+            SLUDGE_DEVKIT_DEBUG=1 arch -$variant "$devkit" --smoke=devkit-$variant.png \
+              --smoke-compile=$PWD/verbcoin/VerbCoin.slp > devkit-$variant.log 2>&1
+            grep -E "compiler is|succeeded" devkit-$variant.log
+            if ! grep -q "Contents/Resources/../MacOS/sludge-compiler" devkit-$variant.log; then
+              echo "The $variant Dev Kit did not run the compiler in the app"
+              exit 1
+            fi
+            ls verbcoin/*.slg
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: macos-apps
@@ -567,7 +570,7 @@ jobs:
   release:
     name: Publish the release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [linux, linux-gles2, devkit, source, windows, windows-x86, macos-package]
+    needs: [linux, linux-gles2, source, windows, windows-x86, macos-package]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

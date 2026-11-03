@@ -1,7 +1,7 @@
 # The SLUDGE compiler, which turns a project of scripts and resources into a
 # game data file (.slg). It runs without a display and needs only libpng,
-# so we build it on every platform. The GTK 3 tools in GTK_Dev_Kit use the
-# libraries here too.
+# so we build it on every platform. The Dev Kit, with SDL 3 and Dear ImGui,
+# is at the end.
 
 set(SOURCE_DIR ${PROJECT_SOURCE_DIR}/source)
 set(DEVKIT_DIR ${SOURCE_DIR}/DevKit)
@@ -48,7 +48,7 @@ target_link_libraries(devkit-compiler PUBLIC devkit-common sludge::png)
 # The models of the floor maker, the z-buffer maker and the sprite bank
 # editor, and the drawing of their views through draw2d.h, which knows
 # nothing of how we draw.
-if(SLUDGE_DEVKIT OR SLUDGE_DEVKIT_GTK)
+if(SLUDGE_DEVKIT)
 	add_library(devkit-graphics STATIC
 		${DEVKIT_DIR}/GraphicalTools/sprites.cpp
 		${DEVKIT_DIR}/GraphicalTools/floormaker.cpp
@@ -160,15 +160,33 @@ if(SLUDGE_DEVKIT)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
 	# Where the Dev Kit finds the engine and the compiler when it runs from
 	# the build folder.
-	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/")
+	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/"
+		SLUDGE_SOURCE_FOLDER="${PROJECT_SOURCE_DIR}/")
 	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::png)
 	if(WIN32)
+		# The icon of the Project Manager of the old Dev Kits.
+		enable_language(RC)
+		set(DEVKIT_ICON ${PROJECT_SOURCE_DIR}/images/projectManagerIcon.ico)
+		configure_file(${DEVKIT_DIR}/App/sludge-devkit.rc.in ${CMAKE_CURRENT_BINARY_DIR}/sludge-devkit.rc)
+		target_sources(sludge-devkit PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/sludge-devkit.rc)
 		set_target_properties(sludge-devkit PROPERTIES WIN32_EXECUTABLE TRUE)
 		if(MINGW)
 			target_link_options(sludge-devkit PRIVATE -static -static-libgcc -static-libstdc++)
 		endif()
 	endif()
 	install(TARGETS sludge-devkit RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+	# On Linux and the like: the menu entry, the types of the files that the
+	# Dev Kit opens, their icons, and the syntax of the scripts for the text
+	# editors that use GtkSourceView, such as GNOME Text Editor and gedit.
+	if(UNIX AND NOT APPLE)
+		set(LINUX_DIR ${PROJECT_SOURCE_DIR}/packaging/linux)
+		install(FILES ${LINUX_DIR}/io.github.opensludge.devkit.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+		install(FILES ${LINUX_DIR}/sludge-devkit.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages)
+		install(DIRECTORY ${LINUX_DIR}/icons/ DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor)
+		foreach(sourceview gtksourceview-3.0 gtksourceview-4 gtksourceview-5)
+			install(FILES ${LINUX_DIR}/sludge.lang DESTINATION ${CMAKE_INSTALL_DATADIR}/${sourceview}/language-specs)
+		endforeach()
+	endif()
 
 	if(SLUDGE_TESTS)
 		# It needs a display, as the capture tests.
@@ -232,7 +250,7 @@ if(SLUDGE_DEVKIT)
 			${PROJECT_SOURCE_DIR}/doc/ExampleProjects ${PROJECT_SOURCE_DIR}/tests/devkit/fixtures)
 
 		# The views of the editors, with both renderers, against the same
-		# reference images as the GTK tools (tests/devkit/view_test.cpp).
+		# reference images that the GTK tools drew (tests/devkit/view_test.cpp).
 		add_executable(view_test ${PROJECT_SOURCE_DIR}/tests/devkit/view_test.cpp)
 		target_compile_definitions(view_test PRIVATE VIEW_TEST_FOLDER="${PROJECT_SOURCE_DIR}/tests/devkit")
 		target_link_libraries(view_test PRIVATE devkit-view)

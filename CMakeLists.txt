@@ -27,17 +27,16 @@ option(SLUDGE_TESTS "Build the tests" ON)
 option(SLUDGE_ENGINE "Build the SLUDGE engine" ON)
 # The compiler is headless and builds everywhere. The Dev Kit needs it.
 option(SLUDGE_COMPILER "Build the headless sludge-compiler" ON)
-# The new Dev Kit uses SDL 3 and Dear ImGui, and draws with the renderers
-# of the engine. Until it does all that the old one does, we keep the old
-# one too, which uses GTK 3, and which we build only on Linux and other Unix
-# systems.
-option(SLUDGE_DEVKIT "Build the SLUDGE Dev Kit (SDL 3 and Dear ImGui; in progress)" OFF)
-if(UNIX AND NOT APPLE)
-	set(DEVKIT_GTK_DEFAULT ON)
+# The Dev Kit, sludge-devkit, edits and compiles projects, with SDL 3 and
+# Dear ImGui, and draws with the renderers of the engine, so it needs
+# desktop OpenGL or SDL_GPU. We leave it out with OpenGL ES 2.0, as on the
+# devices, and when we cross-compile, as for Windows XP.
+if(SLUDGE_GLES2 OR CMAKE_CROSSCOMPILING)
+	set(DEVKIT_DEFAULT OFF)
 else()
-	set(DEVKIT_GTK_DEFAULT OFF)
+	set(DEVKIT_DEFAULT ON)
 endif()
-option(SLUDGE_DEVKIT_GTK "Build the old SLUDGE Dev Kit, which uses GTK 3" ${DEVKIT_GTK_DEFAULT})
+option(SLUDGE_DEVKIT "Build the SLUDGE Dev Kit" ${DEVKIT_DEFAULT})
 option(SLUDGE_DOC "Install the SLUDGE documentation" OFF)
 
 include(GNUInstallDirs)
@@ -49,7 +48,7 @@ endif()
 
 install(FILES AUTHORS README INSTALL DESTINATION ${SLUDGE_DOCDIR})
 
-if((SLUDGE_DEVKIT OR SLUDGE_DEVKIT_GTK) AND NOT SLUDGE_COMPILER)
+if(SLUDGE_DEVKIT AND NOT SLUDGE_COMPILER)
 	message(STATUS "The Dev Kit needs the compiler, so we build it too")
 	set(SLUDGE_COMPILER ON)
 endif()
@@ -61,16 +60,13 @@ endif()
 if(SLUDGE_COMPILER)
 	add_subdirectory(source/DevKit)
 endif()
-if(SLUDGE_DEVKIT_GTK)
-	add_subdirectory(GTK_Dev_Kit)
-endif()
 if(SLUDGE_DOC)
 	add_subdirectory(doc)
 endif()
 
 # The renderers, which the engine and the Dev Kit draw with: OpenGL (or
-# OpenGL ES 2.0), and SDL_GPU. They know nothing of the engine. A program
-# that links them defines debugOut (source/Engine/debug.h).
+# OpenGL ES 2.0), and SDL_GPU. They know nothing of the engine, and log
+# through the function that the program gives gfx::setLogFunction.
 if(SLUDGE_ENGINE OR SLUDGE_DEVKIT)
 	set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/Engine)
 	set(RENDERER_SOURCES renderer.cpp renderer_gl.cpp renderer_window.cpp shaders.cpp sludge_gl.cpp)

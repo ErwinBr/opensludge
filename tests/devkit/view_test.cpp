@@ -9,19 +9,13 @@
  * and a picture of the differences into the current folder.
  *
  * We compare the colours, not the alpha: the views show what they draw over
- * a background, and OpenGL 3.2 in the GTK tools blends the alpha by the
- * alpha (a quarter of a quarter for the floor), while the renderers of the
- * engine blend it as coverage (a quarter).
+ * a background, and the references come from OpenGL 3.2 in the old GTK
+ * tools, which blended the alpha by the alpha (a quarter of a quarter for
+ * the floor), while the renderers of the engine blend it as coverage (a
+ * quarter).
  *
- * We build this test twice:
- *
- * - With VIEW_TEST_GL, for the GTK tools: the views draw with OpenGL 3.2
- *   (draw2d_gl.cpp), in a core profile context like the one that GtkGLArea
- *   creates, which we make with Mesa's surfaceless EGL. An OpenGL error
- *   counts as a failure too.
- * - Without it, for the new Dev Kit: the views draw with the renderers of
- *   the engine (draw2d_gfx.cpp), into a render target, with the renderer
- *   that we name: gl or gpu.
+ * The views draw with the renderers of the engine (draw2d_gfx.cpp), into a
+ * render target, with the renderer that we name: gl or gpu.
  *
  * Usage: view_test [--update] [gl|gpu]
  *
@@ -36,16 +30,10 @@
 
 #include <png.h>
 
-#if defined(VIEW_TEST_GL)
-#include <epoxy/egl.h>
-#include <epoxy/gl.h>
-#include "draw2d_gl.h"
-#else
 #include <SDL3/SDL.h>
 #include "renderer.h"
 #include "renderer_window.h"
 #include "draw2d_gfx.h"
-#endif
 
 #include "draw2d.h"
 #include "floormaker.h"
@@ -128,80 +116,6 @@ static void flipRows (Picture & picture) {
 	}
 }
 
-#if defined(VIEW_TEST_GL)
-
-// Create an OpenGL context without a window, with Mesa's surfaceless EGL
-// platform, make it current, and set up our drawing in it.
-static bool createContext () {
-	EGLDisplay display = eglGetPlatformDisplayEXT (EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
-	if (display == EGL_NO_DISPLAY || ! eglInitialize (display, NULL, NULL)) {
-		fprintf (stderr, "We can't open the surfaceless EGL display.\n");
-		return false;
-	}
-	if (! eglBindAPI (EGL_OPENGL_API)) {
-		fprintf (stderr, "EGL has no OpenGL support.\n");
-		return false;
-	}
-	const EGLint attributes[] = {
-		EGL_CONTEXT_MAJOR_VERSION, 3,
-		EGL_CONTEXT_MINOR_VERSION, 2,
-		EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
-		EGL_NONE
-	};
-	EGLContext context = eglCreateContext (display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, attributes);
-	if (context == EGL_NO_CONTEXT || ! eglMakeCurrent (display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
-		fprintf (stderr, "We can't create an OpenGL 3.2 context.\n");
-		return false;
-	}
-	printf ("OpenGL %s\n", glGetString (GL_VERSION));
-	draw = createGLDraw2D ();
-	prefix = "gl3-";
-	return draw != NULL;
-}
-
-// A frame buffer of the size of a view, in which we draw instead of in a
-// window.
-struct View {
-	int width, height;
-	GLuint framebuffer, renderbuffer;
-};
-
-static View startView (int width, int height) {
-	View v = { width, height, 0, 0 };
-	glGenRenderbuffers (1, &v.renderbuffer);
-	glBindRenderbuffer (GL_RENDERBUFFER, v.renderbuffer);
-	glRenderbufferStorage (GL_RENDERBUFFER, GL_RGBA8, width, height);
-	glGenFramebuffers (1, &v.framebuffer);
-	glBindFramebuffer (GL_FRAMEBUFFER, v.framebuffer);
-	glFramebufferRenderbuffer (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, v.renderbuffer);
-	glViewport (0, 0, width, height);
-	return v;
-}
-
-// Read the view, and say whether anything went wrong.
-static bool readView (const View & v, Picture & picture, std::string * problem) {
-	picture.width = v.width;
-	picture.height = v.height;
-	picture.rgba.resize ((size_t) v.width * v.height * 4);
-	glPixelStorei (GL_PACK_ALIGNMENT, 1);
-	glReadPixels (0, 0, v.width, v.height, GL_RGBA, GL_UNSIGNED_BYTE, picture.rgba.data ());
-	flipRows (picture);
-	GLenum error = glGetError ();
-	while (glGetError () != GL_NO_ERROR) {}
-	if (error == GL_NO_ERROR) return true;
-	char text[64];
-	snprintf (text, sizeof (text), "OpenGL error 0x%x", error);
-	*problem = text;
-	return false;
-}
-
-static void endView (const View & v) {
-	glBindFramebuffer (GL_FRAMEBUFFER, 0);
-	glDeleteFramebuffers (1, &v.framebuffer);
-	glDeleteRenderbuffers (1, &v.renderbuffer);
-}
-
-#else
 
 static gfx::Renderer * renderer = NULL;
 
@@ -272,7 +186,6 @@ static void endView (const View & v) {
 	renderer->destroyTexture (v.texture);
 }
 
-#endif
 
 // Compare the picture in the view with the reference image of the test.
 static void check (const char * name, const View & v) {
@@ -417,30 +330,21 @@ int main (int argc, char ** argv) {
 	const char * choice = "auto";
 	for (int i = 1; i < argc; i ++) {
 		if (! strcmp (argv[i], "--update")) update = true;
-#if ! defined(VIEW_TEST_GL)
 		else if (! strcmp (argv[i], "gl") || ! strcmp (argv[i], "gpu")) choice = argv[i];
-#endif
 		else {
 			fprintf (stderr, "Usage: view_test [--update] [gl|gpu]\n");
 			return 2;
 		}
 	}
-#if defined(VIEW_TEST_GL)
-	(void) choice;
-	if (! createContext ()) return 1;
-#else
 	if (! createContext (choice)) return 1;
-#endif
 
 	testFloorMaker ();
 	testSpriteBankEditor ();
 	testZBufferMaker ();
 
 	delete draw;
-#if ! defined(VIEW_TEST_GL)
 	gfx::destroyWindowRenderer ();
 	SDL_Quit ();
-#endif
 	if (failures) printf ("%d tests failed\n", failures);
 	return failures ? 1 : 0;
 }
