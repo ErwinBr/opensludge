@@ -27,6 +27,8 @@ public:
 	virtual void revealInspector () = 0;
 	// Check the files of the project, in the Check Files window.
 	virtual void checkFiles () = 0;
+	// The file of the open project, or empty.
+	virtual std::string projectFile () const = 0;
 };
 
 } // namespace devkit

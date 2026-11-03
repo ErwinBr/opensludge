@@ -36,7 +36,7 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		bool ok = true;
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
-		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open") ok = ! s.text.empty ();
+		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl";
 		else ok = s.what == "up";
 		if (! ok) {
@@ -110,6 +110,8 @@ bool SmokeInput::step (Workspace & workspace) {
 		io.AddKeyEvent (key, true);
 		keyUp = key;
 		ctrlUp = ctrl;
+	} else if (s.what == "type") {
+		io.AddInputCharactersUTF8 (s.text.c_str ());
 	} else if (s.what == "new") {
 		const std::vector<DocumentType> & types = workspace.documents ().types ();
 		size_t t = 0;

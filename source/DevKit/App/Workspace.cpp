@@ -15,6 +15,8 @@
 #include "ProjectView.h"
 #include "SpriteBankDocument.h"
 #include "SpriteBankView.h"
+#include "TranslationDocument.h"
+#include "TranslationView.h"
 #include "Workspace.h"
 #include "ZBufferDocument.h"
 #include "ZBufferView.h"
@@ -78,6 +80,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (SpriteBankDocument::type ());
 	registerView ("Sprite Bank", [this] (Document * document) -> DocumentView * {
 		return new SpriteBankView ((SpriteBankDocument *) document, *this, graphics);
+	});
+	manager.registerType (TranslationDocument::type ());
+	registerView ("Translation", [this] (Document * document) -> DocumentView * {
+		return new TranslationView ((TranslationDocument *) document, *this);
 	});
 
 	manager.opened = [this] (Document * document) {
@@ -465,9 +471,8 @@ void Workspace::drawStartPage () {
 	ImGui::Spacing ();
 	ImGui::Separator ();
 	ImGui::Spacing ();
-	ImGui::TextWrapped ("This is the new Dev Kit, which is still being built. It manages and compiles "
-		"projects, and edits floors, z-buffers and sprite banks. The translation editor comes in the "
-		"next step; until then, use the GTK Dev Kit for translations.");
+	ImGui::TextWrapped ("Open a project to manage and compile it, or a floor, a z-buffer, a sprite bank or "
+		"a translation to edit it. They open here as tabs; their properties are in the Inspector.");
 
 	const std::vector<std::string> & files = recent.files ();
 	if (! files.empty ()) {

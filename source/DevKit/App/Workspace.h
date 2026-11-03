@@ -66,6 +66,7 @@ public:
 	void runGame ();
 	void revealInspector () { focusInspector = true; }
 	void checkFiles () { fileCheck.open (project ()); }
+	std::string projectFile () const { return project () ? project ()->path () : std::string (); }
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }

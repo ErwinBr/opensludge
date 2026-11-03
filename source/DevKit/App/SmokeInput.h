@@ -10,6 +10,7 @@
  *   down [ctrl], up  the left mouse button, with Ctrl held until up
  *   key <name>       press and release a key, such as 2, Escape or ctrl+z
  *                    (Ctrl is Cmd on macOS, as in the shortcuts)
+ *   type <text>      type text, as into a field
  *   wait <frames>    do nothing for some frames
  *   new <kind>       make a new document, such as a Z-Buffer
  *   open <file>      open a file, or drop it on the active document

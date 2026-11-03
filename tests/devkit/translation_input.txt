@@ -1,0 +1,42 @@
+# The translation editor with the mouse and the keys, on VerbCoin's
+# german.tra in the window of a smoke test (1280 x 800), where row n of the
+# table is at y = 106 + 25 n, its Translate box at x = 635 and its
+# translation at x = 850.
+wait 3
+
+# Retype the translations of rows 6 and 7: Enter keeps one and goes on to
+# the next, and Escape leaves row 8 as it is.
+move 850 256
+down
+up
+key ctrl+A
+type Nein, danke.
+key Enter
+wait 3
+key ctrl+A
+type Gut, dann eben nicht.
+key Enter
+wait 3
+key Escape
+
+# Row 13 needs a translation now.
+move 635 431
+down
+up
+
+# Row 2 needs none, which undo takes back.
+move 635 156
+down
+up
+key ctrl+Z
+
+# The name of the language.
+move 1120 110
+down
+up
+key ctrl+A
+type Deutsch (Test)
+key Enter
+
+wait 2
+save ${OUTPUT}

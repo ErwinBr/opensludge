@@ -1,7 +1,7 @@
 /*
  * Tests of the core of the Dev Kit (source/DevKit/Core): undo and redo,
  * documents, opening, saving and closing them, recent files, the
- * preferences, projects, floors, z-buffers and sprite banks. They need no display: a fake Platform answers the questions
+ * preferences, projects, floors, z-buffers, sprite banks and translations. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
  * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
@@ -33,6 +33,7 @@
 #include "FileMemory.h"
 #include "FloorDocument.h"
 #include "SpriteBankDocument.h"
+#include "TranslationDocument.h"
 #include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
@@ -931,6 +932,110 @@ static void testSpriteBanks () {
 	CHECK (pixelsOf (palette, 0) == tga);
 }
 
+static void testTranslations () {
+	std::string error;
+	// VerbCoin's German comes back as it was (with \r\n on Windows).
+	TranslationDocument german;
+	CHECK (german.load (examples + "VerbCoin/german.tra", &error));
+	CHECK (german.language ().id == 1 && german.language ().name == "Deutsch");
+	CHECK (! german.lines ().empty ());
+	CHECK (german.lines ()[0].original == "SLUDGE verb coin example");
+	CHECK (german.lines ()[0].type == TranslationLine::TRANSLATED);
+	CHECK (german.save (folder + "german.tra", &error));
+	CHECK (withoutCR (readFile (folder + "german.tra")) == withoutCR (readFile (examples + "VerbCoin/german.tra")));
+
+	// The three kinds of line, and what isn't a translation.
+	writeFile (folder + "kinds.tra", "### SLUDGE Translation File ###\n\n[ID]\n7\n\n[NAME]\nNederlands\nnot this\n\n[DATA]\n"
+		"Hello  \t  Hallo \nCaptain Kirk\nGoodbye\t*\t\n");
+	TranslationDocument kinds;
+	CHECK (kinds.load (folder + "kinds.tra", &error));
+	CHECK (kinds.language ().id == 7 && kinds.language ().name == "Nederlands");
+	CHECK (kinds.lines ().size () == 3);
+	CHECK (kinds.lines ()[0].original == "Hello" && kinds.lines ()[0].translation == "Hallo");
+	CHECK (kinds.lines ()[1].type == TranslationLine::NOT_NEEDED);
+	CHECK (kinds.lines ()[2].type == TranslationLine::MISSING);
+	CHECK (kinds.count (TranslationLine::MISSING) == 1);
+	writeFile (folder + "wrong.tra", "Something else\n");
+	CHECK (! kinds.load (folder + "wrong.tra", &error) && ! error.empty ());
+	writeFile (folder + "latin1.tra", "### SLUDGE Translation File ###\n\n[DATA]\nCaf\xE9\n");
+	CHECK (! kinds.load (folder + "latin1.tra", &error));
+	CHECK (error.find ("Line 4") != std::string::npos);
+	CHECK (kinds.lines ().size () == 3);
+
+	// Translating, which undoes, and lines that need none.
+	kinds.setTranslation (2, "Tot\tziens\n");
+	CHECK (kinds.lines ()[2].type == TranslationLine::TRANSLATED && kinds.lines ()[2].translation == "Tot ziens");
+	kinds.setTranslation (2, "");
+	CHECK (kinds.lines ()[2].type == TranslationLine::MISSING);
+	kinds.setNeedsTranslation (0, false);
+	CHECK (kinds.lines ()[0].type == TranslationLine::NOT_NEEDED && kinds.lines ()[0].translation.empty ());
+	kinds.commands ().undo ();
+	CHECK (kinds.lines ()[0].translation == "Hallo");
+	kinds.setNeedsTranslation (1, true);
+	CHECK (kinds.lines ()[1].type == TranslationLine::MISSING);
+	kinds.setTranslation (1, "Kapitein Kirk");
+	Language dutch = kinds.language ();
+	dutch.name = "Vlaams";
+	kinds.setLanguage (dutch, 1);
+	dutch.id = 8;
+	kinds.setLanguage (dutch, 1);
+	kinds.commands ().undo ();
+	CHECK (kinds.language ().id == 7 && kinds.language ().name == "Nederlands");
+	CHECK (kinds.isModified ());
+
+	// What a view shows.
+	TranslationLine shown;
+	shown.original = "Open the Door";
+	shown.translation = "Open de deur";
+	shown.type = TranslationLine::TRANSLATED;
+	CHECK (translationLineShown (shown, SHOW_ALL, ""));
+	CHECK (translationLineShown (shown, SHOW_TRANSLATED, "door"));
+	CHECK (translationLineShown (shown, SHOW_ALL, "DE DEUR"));
+	CHECK (! translationLineShown (shown, SHOW_MISSING, ""));
+	CHECK (! translationLineShown (shown, SHOW_ALL, "window"));
+
+	// The strings of a script.
+	std::vector<std::string> strings = TranslationDocument::stringsOfScript (
+		"say (ego, \"  Hello there \");  # \"not this\"\n"
+		"say (ego, \"A \\\"quote\\\" and a \\\\ backslash\");\r\n"
+		"var a = \"\"; var b = \"   \"; # nothing\n"
+		"say (ego, \"two\") + \"strings\";\n");
+	CHECK (strings.size () == 4);
+	if (strings.size () == 4) {
+		CHECK (strings[0] == "Hello there");
+		CHECK (strings[1] == "A \"quote\" and a \\ backslash");
+		CHECK (strings[2] == "two" && strings[3] == "strings");
+	}
+
+	// Loading the strings of a project: the window name, the quit message
+	// and the scripts, in any case of their names; the translations stay,
+	// and strings that the project no longer has go.
+	std::string project = folder + "Translated/";
+	mkdirs (project + "Scripts");
+	writeFile (project + "Scripts/Init.slu", "sub init () {\n\tsay (ego, \"Hello\");\n\tsay (ego, \"New one\");\n}\n");
+	ProjectSettings settings;
+	settings.windowName = "My Game";
+	settings.quitMessage = "Quit?";
+	CHECK (ProjectDocument::writeProject (project + "Game.slp", settings, std::vector<std::string> (1, "scripts/init.slu"), &error));
+	TranslationDocument loaded;
+	CHECK (loaded.load (folder + "kinds.tra", &error));
+	StringsUpdate update = loaded.loadStrings (project + "Game.slp");
+	CHECK (update.loaded && update.problems.empty ());
+	CHECK (update.added == 3);		// My Game, Quit? and New one, but not Hello
+	CHECK (update.removed == 2);		// Captain Kirk and Goodbye
+	CHECK (loaded.lines ().size () == 4);
+	CHECK (loaded.lines ()[0].original == "Hello" && loaded.lines ()[0].translation == "Hallo");
+	CHECK (loaded.lines ()[1].original == "My Game" && loaded.lines ()[1].type == TranslationLine::MISSING);
+	CHECK (loaded.lines ()[3].original == "New one");
+	CHECK (loaded.commands ().undoLabel () == "Load Strings");
+	update = loaded.loadStrings (project + "Game.slp");
+	CHECK (update.added == 0 && update.removed == 0);
+	loaded.commands ().undo ();
+	CHECK (loaded.lines ().size () == 3);
+	update = loaded.loadStrings (folder + "no such project.slp");
+	CHECK (! update.loaded && ! update.problems.empty ());
+}
+
 static void testFileMemory () {
 	std::string file = folder + "files.txt";
 	remove (file.c_str ());
@@ -972,6 +1077,7 @@ int main (int argc, char ** argv) {
 	testFloors ();
 	testZBuffers ();
 	testSpriteBanks ();
+	testTranslations ();
 	testFileMemory ();
 
 	if (failures) {
