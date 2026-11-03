@@ -243,7 +243,9 @@ jobs:
         # differently from Direct3D 12 (on Linux, lavapipe rounds as
         # llvmpipe does).
         run: |
+          # The view test of the Dev Kit draws with OpenGL too.
           cp /ucrt64/bin/opengl32.dll build/
+          cp /ucrt64/bin/opengl32.dll build/source/DevKit/
           GALLIUM_DRIVER=llvmpipe SDL_GPU_DRIVER=direct3d12 \
             ctest --test-dir build --output-on-failure -L capture -E gpu-vs-gl
 
@@ -252,7 +254,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: capture-windows
-          path: build/capture/*/difference
+          path: |
+            build/capture/*/difference
+            build/source/DevKit/*-actual.png
+            build/source/DevKit/*-difference.png
+            build/devkit-*/devkit.png
 
       - name: Check the executables
         run: |
@@ -355,7 +361,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: capture-macos-${{ matrix.arch }}
-          path: build/capture/*/difference
+          path: |
+            build/capture/*/difference
+            build/source/DevKit/*-actual.png
+            build/source/DevKit/*-difference.png
+            build/devkit-*/devkit.png
 
       - name: Check the executable
         run: |

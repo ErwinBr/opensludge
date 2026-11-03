@@ -204,6 +204,9 @@ static void check (const char * name, const View & v) {
 	bool same = readPNG (reference, expected)
 		&& expected.width == picture.width && expected.height == picture.height;
 	int different = 0;
+	// Where the pixels that differ are, and by how much at most, so that
+	// the log of a failure says what changed.
+	int largest = 0, left = picture.width, top = picture.height, right = -1, bottom = -1;
 	if (same) {
 		Picture difference = picture;
 		for (size_t p = 0; p < picture.rgba.size (); p += 4) {
@@ -212,7 +215,16 @@ static void check (const char * name, const View & v) {
 			unsigned char * d = &difference.rgba[p];
 			bool pixelDifferent = false;
 			for (int c = 0; c < 3; c ++) {
-				if (abs (a[c] - b[c]) > maxChannelDifference) pixelDifferent = true;
+				int channel = abs (a[c] - b[c]);
+				if (channel > largest) largest = channel;
+				if (channel > maxChannelDifference) pixelDifferent = true;
+			}
+			if (pixelDifferent) {
+				int x = (int) (p / 4) % picture.width, y = (int) (p / 4) / picture.width;
+				if (x < left) left = x;
+				if (x > right) right = x;
+				if (y < top) top = y;
+				if (y > bottom) bottom = y;
 			}
 			d[0] = pixelDifferent ? 255 : a[0] / 4;
 			d[1] = d[2] = pixelDifferent ? 0 : a[0] / 4;
@@ -229,6 +241,8 @@ static void check (const char * name, const View & v) {
 		failures ++;
 	} else if (! same) {
 		printf ("FAIL %s: %d pixels differ from %s\n", name, different, reference.c_str ());
+		if (different) printf ("     by up to %d, from (%d, %d) to (%d, %d); see %s%s-actual.png and -difference.png\n",
+			largest, left, top, right, bottom, prefix.c_str (), name);
 		failures ++;
 	} else {
 		printf ("ok   %s (%d pixels differ)\n", name, different);
