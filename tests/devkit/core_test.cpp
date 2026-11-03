@@ -1,7 +1,7 @@
 /*
  * Tests of the core of the Dev Kit (source/DevKit/Core): undo and redo,
  * documents, opening, saving and closing them, recent files, the
- * preferences, projects, floors and z-buffers. They need no display: a fake Platform answers the questions
+ * preferences, projects, floors, z-buffers and sprite banks. They need no display: a fake Platform answers the questions
  * and dialogs.
  *
  * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
@@ -9,6 +9,8 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#include <png.h>
 #include <sys/stat.h>
 #if defined(_WIN32)
 #include <direct.h>
@@ -30,6 +32,7 @@
 #include "DocumentManager.h"
 #include "FileMemory.h"
 #include "FloorDocument.h"
+#include "SpriteBankDocument.h"
 #include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
@@ -761,6 +764,173 @@ static void testZBuffers () {
 	}
 }
 
+// The pixels of a sprite, as RGBA.
+static std::vector<unsigned char> pixelsOf (const SpriteBankDocument & bank, int index) {
+	const sprite & single = bank.bank ().sprites[index];
+	unsigned char * rgba = spritePixels (&bank.bank (), index);
+	std::vector<unsigned char> pixels (rgba, rgba + (size_t) single.width * single.height * 4);
+	delete [] rgba;
+	return pixels;
+}
+
+// A picture of three letters, 4, 2 and 3 pixels wide, with empty columns
+// between them, 6 high.
+static void writeFontPicture (const std::string & file) {
+	const int w = 12, h = 6;
+	std::vector<unsigned char> rgba (w * h * 4, 0);
+	const int columns[] = { 0, 1, 2, 3, 5, 6, 8, 9, 10 };
+	for (int c = 0; c < 9; c ++) {
+		for (int y = 0; y < h; y ++) {
+			unsigned char * p = &rgba[(y * w + columns[c]) * 4];
+			p[0] = 255;
+			p[3] = 255;
+		}
+	}
+	png_image png;
+	memset (&png, 0, sizeof (png));
+	png.version = PNG_IMAGE_VERSION;
+	png.width = w;
+	png.height = h;
+	png.format = PNG_FORMAT_RGBA;
+	png_image_write_to_file (&png, file.c_str (), 0, rgba.data (), 0, NULL);
+}
+
+static void testSpriteBanks () {
+	std::string error;
+	// VerbCoin's banks, with palettes and without, come back byte for byte.
+	const char * banks[] = { "VerbCoin/demofont.duc", "VerbCoin/nicupfontsmall.duc", "VerbCoin/ego/alien.duc",
+		"VerbCoin/outside/duck.duc", "VerbCoin/iface/mushroom.duc", "VerbCoin/iface/mouse.duc" };
+	for (int b = 0; b < 6; b ++) {
+		SpriteBankDocument bank;
+		CHECK (bank.load (examples + banks[b], &error));
+		CHECK (bank.count () > 0);
+		CHECK (bank.save (folder + "bank.duc", &error));
+		CHECK (readFile (folder + "bank.duc") == readFile (examples + banks[b]));
+	}
+
+	// A new bank is 32-bit, and can't be saved empty.
+	SpriteBankDocument bank;
+	CHECK (bank.mode () == SpriteBankDocument::MODE_32BIT);
+	CHECK (! bank.save (folder + "empty.duc", &error));
+
+	// Inserting pictures, with the hotspot in the middle of the bottom row.
+	std::vector<std::string> files (1, fixtures + "sprite.png");
+	CHECK (bank.insertFiles (0, files) == 1);
+	// (Copies: inserting moves the sprites.)
+	const sprite first = bank.bank ().sprites[0];
+	CHECK (bank.hotspot (0) == Hotspot (first.width / 2, first.height - 1));
+	std::vector<unsigned char> picture = pixelsOf (bank, 0);
+	files.push_back (fixtures + "sprite.png");
+	CHECK (bank.insertFiles (0, files) == 2);
+	CHECK (bank.count () == 3);
+	CHECK (bank.commands ().undoLabel () == "Insert Sprites");
+	bank.commands ().undo ();
+	CHECK (bank.count () == 1);
+	bank.commands ().redo ();
+	CHECK (bank.count () == 3);
+	CHECK (pixelsOf (bank, 2) == picture);
+	// A file that isn't a picture inserts nothing.
+	CHECK (bank.insertFiles (1, std::vector<std::string> (1, fixtures + "floor.flo")) == 0);
+	CHECK (bank.count () == 3);
+
+	// Hotspots: one, a drag that merges, a range, centred and at the base.
+	bank.setHotspot (1, Hotspot (5, 6));
+	CHECK (bank.hotspot (1) == Hotspot (5, 6));
+	bank.setHotspot (1, Hotspot (7, 8), 1);
+	bank.setHotspot (1, Hotspot (9, 10), 1);
+	bank.commands ().stopMerging ();
+	bank.commands ().undo ();
+	CHECK (bank.hotspot (1) == Hotspot (5, 6));
+	bank.setHotspots (0, 3, Hotspot (1, 2));
+	CHECK (bank.hotspot (0) == Hotspot (1, 2) && bank.hotspot (2) == Hotspot (1, 2));
+	bank.centreHotspots (0, 2);
+	CHECK (bank.hotspot (0) == Hotspot (first.width / 2, first.height / 2));
+	CHECK (bank.hotspot (2) == Hotspot (1, 2));
+	bank.baseHotspots (2, 1);
+	CHECK (bank.hotspot (2) == Hotspot (first.width / 2, first.height - 1));
+
+	// Export and insert again, as it was.
+	CHECK (bank.exportSprite (0, folder + "exported.png", &error));
+	CHECK (bank.insertFiles (3, std::vector<std::string> (1, folder + "exported.png")) == 1);
+	CHECK (pixelsOf (bank, 3) == picture);
+
+	// Replacing keeps the hotspot, and undoes.
+	Hotspot kept = bank.hotspot (1);
+	CHECK (bank.replaceSprite (1, fixtures + "zbuffer.tga"));
+	CHECK (bank.hotspot (1) == kept);
+	CHECK (pixelsOf (bank, 1) != picture);
+	bank.commands ().undo ();
+	CHECK (pixelsOf (bank, 1) == picture);
+
+	// Deleting a range, which undoes with the pictures and hotspots.
+	Hotspot second = bank.hotspot (2);
+	bank.deleteSprites (1, 2);
+	CHECK (bank.count () == 2);
+	CHECK (bank.commands ().undoLabel () == "Delete Sprites");
+	bank.commands ().undo ();
+	CHECK (bank.count () == 4);
+	CHECK (bank.hotspot (2) == second);
+	CHECK (pixelsOf (bank, 2) == picture);
+
+	// A font: three letters and a space, after the other sprites.
+	writeFontPicture (folder + "font.png");
+	CHECK (bank.makeFont (4, folder + "font.png", 5) == 4);
+	CHECK (bank.count () == 8);
+	CHECK (bank.bank ().sprites[4].width == 4 && bank.bank ().sprites[5].width == 2 && bank.bank ().sprites[6].width == 3);
+	CHECK (bank.bank ().sprites[7].width == 5 && bank.bank ().sprites[7].height == 1);
+	CHECK (bank.commands ().undoLabel () == "Make Font");
+
+	// Saved and opened again, as it was.
+	CHECK (bank.save (folder + "made.duc", &error));
+	SpriteBankDocument opened;
+	CHECK (opened.load (folder + "made.duc", &error));
+	CHECK (opened.count () == bank.count ());
+	bool same = true;
+	for (int i = 0; i < bank.count (); i ++) {
+		same = same && opened.hotspot (i) == bank.hotspot (i) && pixelsOf (opened, i) == pixelsOf (bank, i);
+	}
+	CHECK (same);
+
+	// Undo everything, and the bank is empty again.
+	while (bank.commands ().canUndo ()) bank.commands ().undo ();
+	CHECK (bank.count () == 0);
+	while (bank.commands ().canRedo ()) bank.commands ().redo ();
+	CHECK (bank.count () == 8);
+
+	// A palette bank: an open palette takes the colours of a TGA, which undo
+	// takes back; it can't take PNG pictures or make fonts.
+	SpriteBankDocument palette;
+	CHECK (palette.canSetMode (SpriteBankDocument::MODE_OPEN_PALETTE));
+	palette.setMode (SpriteBankDocument::MODE_OPEN_PALETTE);
+	CHECK (palette.mode () == SpriteBankDocument::MODE_OPEN_PALETTE);
+	CHECK (palette.insertFiles (0, std::vector<std::string> (1, fixtures + "zbuffer.tga")) == 1);
+	int colours = palette.bank ().myPalette.total;
+	CHECK (colours > 1);
+	CHECK (palette.insertFiles (1, std::vector<std::string> (1, fixtures + "sprite.png")) == 0);
+	CHECK (palette.makeFont (0, folder + "font.png", 5) == 0);
+	CHECK (! palette.canSetMode (SpriteBankDocument::MODE_32BIT));
+	CHECK (palette.canSetMode (SpriteBankDocument::MODE_LOCKED_PALETTE));
+	std::vector<unsigned char> tga = pixelsOf (palette, 0);
+	// Saved with its palette, and opened locked.
+	CHECK (palette.save (folder + "palette.duc", &error));
+	SpriteBankDocument reopened;
+	CHECK (reopened.load (folder + "palette.duc", &error));
+	CHECK (reopened.mode () == SpriteBankDocument::MODE_LOCKED_PALETTE);
+	CHECK (pixelsOf (reopened, 0) == tga);
+	palette.commands ().undo ();
+	CHECK (palette.count () == 0);
+	CHECK (palette.bank ().myPalette.total == 1);
+	palette.commands ().redo ();
+	CHECK (palette.bank ().myPalette.total == colours);
+
+	// Converting to 32-bit keeps the pictures, and can't be undone.
+	CHECK (palette.convertTo32 ());
+	CHECK (palette.mode () == SpriteBankDocument::MODE_32BIT);
+	CHECK (! palette.commands ().canUndo ());
+	CHECK (palette.isModified ());
+	CHECK (pixelsOf (palette, 0) == tga);
+}
+
 static void testFileMemory () {
 	std::string file = folder + "files.txt";
 	remove (file.c_str ());
@@ -801,6 +971,7 @@ int main (int argc, char ** argv) {
 	testProjectCheck ();
 	testFloors ();
 	testZBuffers ();
+	testSpriteBanks ();
 	testFileMemory ();
 
 	if (failures) {

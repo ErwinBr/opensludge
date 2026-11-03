@@ -1,0 +1,32 @@
+# The sprite bank editor with the mouse and the keys, on VerbCoin's
+# ego/alien.duc (12 sprites with a palette) in the window of a smoke test
+# (1280 x 800). The canvas fits sprite 0 at about 830%, so that a point of
+# the window is about (683 + 8.3 x, 524 + 8.3 y) for the point (x, y) from
+# the hotspot, and stays so for the other sprites.
+wait 3
+
+# Sprite 1: drag it 10 pixels right and 5 down, which moves its hotspot
+# from (12, 53) to (2, 48).
+key DownArrow
+move 704 304
+down
+move 745 325
+move 787 346
+up
+
+# Sprite 2: Ctrl-click (Cmd-click on macOS) the pixel at (5, -20) from the
+# hotspot, which puts the hotspot at (25, 33).
+key DownArrow
+move 729 362
+down ctrl
+up
+
+# Delete sprite 3, undo that, and delete sprite 4.
+key DownArrow
+key Delete
+key ctrl+Z
+key DownArrow
+key Delete
+
+wait 2
+save ${OUTPUT}

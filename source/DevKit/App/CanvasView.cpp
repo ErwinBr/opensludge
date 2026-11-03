@@ -20,7 +20,7 @@ static const float FIT_MARGIN = 0.95f;
 
 CanvasView::CanvasView (const CanvasGraphics & g)
 	: graphics (g), texture (NULL), target (NULL), targetWidth (0), targetHeight (0),
-	  pictureWidth (0), pictureHeight (0), fitPending (true), fitted (false), scale (1.0f), scrollX (0), scrollY (0),
+	  pictureX (0), pictureY (0), pictureWidth (0), pictureHeight (0), spriteView (false), fitPending (true), fitted (false), scale (1.0f), scrollX (0), scrollY (0),
 	  viewSize (0, 0), pixelRatio (1.0f),
 	  isHovered (false), panning (false), leftPressed (false), leftHeld (false), leftReleased (false), mouse (0, 0) {}
 
@@ -30,16 +30,24 @@ CanvasView::~CanvasView () {
 }
 
 void CanvasView::setPictureSize (int width, int height) {
-	if (width == pictureWidth && height == pictureHeight) return;
+	if (width == pictureWidth && height == pictureHeight && ! pictureX && ! pictureY) return;
+	pictureX = pictureY = 0;
 	pictureWidth = width;
 	pictureHeight = height;
 	fitPending = true;
 }
 
+void CanvasView::setPictureBounds (int x, int y, int width, int height) {
+	pictureX = x;
+	pictureY = y;
+	pictureWidth = width;
+	pictureHeight = height;
+}
+
 // Show the middle of the picture in the middle of the view.
 void CanvasView::centre () {
-	scrollX = (pictureWidth * scale - viewSize.x) * 0.5f;
-	scrollY = (pictureHeight * scale - viewSize.y) * 0.5f;
+	scrollX = (pictureX + pictureWidth * 0.5f) * scale - viewSize.x * 0.5f;
+	scrollY = (pictureY + pictureHeight * 0.5f) * scale - viewSize.y * 0.5f;
 }
 
 void CanvasView::zoomToFit () {
@@ -184,7 +192,8 @@ void CanvasView::draw (const ImVec2 & size, std::function<void (Draw2D & draw)> 
 	renderer->setTarget (target);
 	renderer->setScissor (0, 0, 0, 0);
 	renderer->setViewport (0, 0, width, height);
-	graphics.draw->setViewArea (sx, -sy, width, height, zmul);
+	if (spriteView) graphics.draw->setSpriteViewArea (sx, -sy, width, height, zmul);
+	else graphics.draw->setViewArea (sx, -sy, width, height, zmul);
 	paint (*graphics.draw);
 	graphics.draw->finish ();
 	renderer->setTarget (NULL);

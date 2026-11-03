@@ -124,6 +124,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectCheck.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
+		${DEVKIT_DIR}/Core/SpriteBankDocument.cpp
 		${DEVKIT_DIR}/Core/ZBufferDocument.cpp
 	)
 	target_include_directories(devkit-core PUBLIC ${DEVKIT_DIR}/Core)
@@ -150,6 +151,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/SmokeInput.cpp
+		${DEVKIT_DIR}/App/SpriteBankView.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
 		${DEVKIT_DIR}/App/ZBufferView.cpp
 	)
@@ -198,6 +200,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-zbuffer
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-zbuffer PROPERTIES LABELS capture)
+		# And for a sprite bank: VerbCoin's alien, which has a palette, so
+		# that what we save doesn't depend on the version of zlib.
+		add_test(NAME capture-devkit-sprites
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/ego/alien.duc
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/sprites_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/alien-edited.duc
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-sprites
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-sprites PROPERTIES LABELS capture)
 
 		# The core of the Dev Kit, without a display.
 		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp ${DEVKIT_DIR}/Core/InterfacePlatform.cpp)

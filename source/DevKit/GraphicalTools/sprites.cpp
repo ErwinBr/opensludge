@@ -251,8 +251,14 @@ bool loadSpriteBank (const char * filename, spriteBank *loadhere) {
 		}
 	}
 		
-	if (spriteBankVersion > 3) return errorBox ("Error opening sprite bank", "Unsupported sprite bank file format");
-		if (total <= 0) return errorBox ("Error opening sprite bank", "No sprites in bank or invalid sprite bank file");
+	if (spriteBankVersion > 3) {
+		fclose (fp);
+		return errorBox ("Error opening sprite bank", "Unsupported sprite bank file format");
+	}
+	if (total <= 0) {
+		fclose (fp);
+		return errorBox ("Error opening sprite bank", "No sprites in bank or invalid sprite bank file");
+	}
 			
 	if (spriteBankVersion == 3) {
 		loadhere->type = 2;
@@ -943,16 +949,12 @@ void pasteSprite (Draw2D & draw, const spriteBank * bank, int index, bool zBuffe
 	int height = single->height < 0 ? - single->height : single->height;
 	if (! single->data || ! single->width || ! height) return;
 
-	// As the GTK tools always did, we stretch the texture coordinates of
-	// the bottom row by two pixels.
+	// The whole picture. (The GTK tools once took two rows more than the
+	// picture has, which squashed it and repeated its bottom row.)
 	float tx1 = 0.0f;
 	float ty1 = 0.0f;
 	float tx2 = 1.0f;
-	float ty2;
-	if (single->height < 0)
-		ty2 = (float) (-(single->height + 2)) / height;
-	else
-		ty2 = (float) (single->height + 2) / height;
+	float ty2 = 1.0f;
 
 	int x1 = -single->xhot;
 	int y1 = -single->yhot;

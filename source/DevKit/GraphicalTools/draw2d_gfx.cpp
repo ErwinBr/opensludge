@@ -48,6 +48,7 @@ public:
 		float tx1, float ty1, float tx2, float ty2);
 	void finish ();
 	void forgetPictures (const spriteBank * bank);
+	gfx::Texture * texture (const spriteBank * bank, int index, bool zBufferLayer);
 
 private:
 	void setProjection (float left, float right, float bottom, float top);
@@ -57,7 +58,6 @@ private:
 	unsigned short startBatch (gfx::Texture * texture, size_t count);
 	void addVertex (float x, float y, float u, float v);
 	void addLine (float x1, float y1, float x2, float y2);
-	gfx::Texture * texture (const spriteBank * bank, int index, bool zBufferLayer);
 
 	gfx::Renderer * renderer;
 	float matrix[16];
@@ -277,4 +277,10 @@ void GfxDraw2D::forgetPictures (const spriteBank * bank) {
 
 Draw2D * createGfxDraw2D (gfx::Renderer * renderer) {
 	return new GfxDraw2D (renderer);
+}
+
+gfx::Texture * gfxPictureTexture (Draw2D * draw, const spriteBank * bank, int index, bool zBufferLayer) {
+	if (index < 0 || index >= bank->total || ! bank->sprites[index].data || bank->sprites[index].width < 1
+			|| bank->sprites[index].height == 0) return NULL;
+	return static_cast<GfxDraw2D *> (draw)->texture (bank, index, zBufferLayer);
 }

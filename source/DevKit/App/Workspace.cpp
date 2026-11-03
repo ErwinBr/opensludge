@@ -13,6 +13,8 @@
 #include "Log.h"
 #include "Platform.h"
 #include "ProjectView.h"
+#include "SpriteBankDocument.h"
+#include "SpriteBankView.h"
 #include "Workspace.h"
 #include "ZBufferDocument.h"
 #include "ZBufferView.h"
@@ -72,6 +74,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (ZBufferDocument::type ());
 	registerView ("Z-Buffer", [this] (Document * document) -> DocumentView * {
 		return new ZBufferView ((ZBufferDocument *) document, *this, graphics);
+	});
+	manager.registerType (SpriteBankDocument::type ());
+	registerView ("Sprite Bank", [this] (Document * document) -> DocumentView * {
+		return new SpriteBankView ((SpriteBankDocument *) document, *this, graphics);
 	});
 
 	manager.opened = [this] (Document * document) {
@@ -460,8 +466,8 @@ void Workspace::drawStartPage () {
 	ImGui::Separator ();
 	ImGui::Spacing ();
 	ImGui::TextWrapped ("This is the new Dev Kit, which is still being built. It manages and compiles "
-		"projects, and edits floors and z-buffers. The sprite bank editor and the translation editor "
-		"come in the next steps; until then, use the GTK Dev Kit for those.");
+		"projects, and edits floors, z-buffers and sprite banks. The translation editor comes in the "
+		"next step; until then, use the GTK Dev Kit for translations.");
 
 	const std::vector<std::string> & files = recent.files ();
 	if (! files.empty ()) {

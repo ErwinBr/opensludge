@@ -40,6 +40,14 @@ public:
 	// The size of the picture, which 100% and Fit show. When it changes, we
 	// fit it in the view again.
 	void setPictureSize (int width, int height);
+	// The part of the picture that 100% and Fit show, when it doesn't start
+	// at 0, 0, as a sprite around its hotspot. A change doesn't fit it
+	// again, so that the next sprite of an animation stays in its place.
+	void setPictureBounds (int x, int y, int width, int height);
+	// Draw with Draw2D::setSpriteViewArea, in which y grows upwards from
+	// the hotspot. The mouse is still in y that grows downwards: -y of the
+	// sprite's.
+	void setSpriteView (bool on) { spriteView = on; }
 	void zoomToFit ();
 	void zoomToActualSize ();
 	void zoomBy (float factor);
@@ -77,7 +85,8 @@ private:
 	gfx::RenderTarget * target;
 	int targetWidth, targetHeight;
 
-	int pictureWidth, pictureHeight;
+	int pictureX, pictureY, pictureWidth, pictureHeight;
+	bool spriteView;
 	bool fitPending;
 	// Whether we show the picture as Fit did, so that we fit it again when
 	// the view changes size, until the user zooms or pans.
