@@ -51,6 +51,16 @@ struct Hotspot {
 	bool operator != (const Hotspot & o) const { return ! (*this == o); }
 };
 
+// How to cut a sprite sheet into sprites: a grid of columns x rows cells
+// of the same size, read a row at a time from the top left.
+struct SheetLayout {
+	int columns, rows;
+	int count;			// How many cells to use, in reading order
+	bool skipEmpty;		// Leave out the cells that are all transparent
+	bool trim;			// Cut each sprite down to its pixels that show
+	SheetLayout () : columns (1), rows (1), count (1), skipEmpty (true), trim (false) {}
+};
+
 class SpriteBankDocument : public Document {
 public:
 	enum Mode { MODE_OPEN_PALETTE = 0, MODE_LOCKED_PALETTE = 1, MODE_32BIT = 2 };
@@ -91,6 +101,12 @@ public:
 	// empty, and insert them at a place, followed by a space of the given
 	// width, as the GTK editor's Fontify did. Needs 32-bit.
 	int makeFont (int at, const std::string & file, int spaceWidth);
+	// Cut a picture (PNG or TGA) into the cells of a grid and insert them
+	// at a place, each with its hotspot at the middle of the bottom row of
+	// its cell, so that the frames of an animation line up; trimming keeps
+	// them where they were in their cells. Returns how many we inserted;
+	// the errors go to errorBox. They undo together.
+	int insertSheet (int at, const std::string & file, const SheetLayout & layout);
 
 	// Hotspots. Commands with the same mergeKey (other than 0) merge, as in
 	// a drag.

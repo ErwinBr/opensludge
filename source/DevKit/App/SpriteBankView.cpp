@@ -1,8 +1,10 @@
 #include <math.h>
 #include <algorithm>
 #include <stdio.h>
+#include <string.h>
 
 #include "imgui.h"
+#include "renderer.h"
 
 #include "draw2d.h"
 #include "draw2d_gfx.h"
@@ -23,11 +25,13 @@ static const int DRAG_KEY = 1, FIELD_KEY = 2;
 SpriteBankView::SpriteBankView (SpriteBankDocument * b, WorkspaceActions & a, const CanvasGraphics & g)
 	: bank (b), pictures (&b->bank ()), actions (a), graphics (g), canvas (g), anchor (0), current (0), scrollToCurrent (false),
 	  showBox (false), spaceWidth (10), dragging (false), dragX (0), dragY (0),
-	  pending (new Pending), noticeUntil (0) {
+	  sheetLoaded (false), sheetToOpen (false), pending (new Pending), noticeUntil (0) {
+	memset (&sheet, 0, sizeof (sheet));
 	canvas.setSpriteView (true);
 }
 
 SpriteBankView::~SpriteBankView () {
+	closeSheet ();
 	graphics.draw->forgetPictures (pictures);
 }
 
@@ -180,7 +184,8 @@ void SpriteBankView::askForFiles (Pending::What what) {
 	} else {
 		filters.push_back (pictures);
 		const char * title = what == Pending::INSERT ? "Insert pictures as sprites"
-			: what == Pending::REPLACE ? "Replace the picture of the sprite" : "Make a font from a picture";
+			: what == Pending::REPLACE ? "Replace the picture of the sprite"
+			: what == Pending::SHEET ? "Import a sprite sheet" : "Make a font from a picture";
 		actions.platform ().openFileDialog (title, filters, folder, what == Pending::INSERT, done);
 	}
 }
@@ -212,15 +217,140 @@ void SpriteBankView::handlePending () {
 			if (letters) selectRun (at, letters, at + letters - 1);
 			break;
 		}
+		case Pending::SHEET:
+			openSheet (files[0]);
+			break;
 		default:
 			break;
 	}
+}
+
+void SpriteBankView::openSheet (const std::string & file) {
+	closeSheet ();
+	// A 32-bit copy to show, whatever the mode of the bank.
+	sheet.type = SpriteBankDocument::MODE_32BIT;
+	addSprite (0, &sheet);
+	std::string extension = extensionOf (file);
+	bool loaded = extension == "png" ? loadSpriteFromPNG (file.c_str (), &sheet, 0)
+		: extension == "tga" && loadSpriteFromTGA (file.c_str (), &sheet, 0);
+	spriteBankChanged (&sheet);
+	if (! loaded) {
+		closeSheet ();
+		return;
+	}
+	sheetFile = file;
+	sheetLoaded = sheetToOpen = true;
+	layout = SheetLayout ();
+}
+
+void SpriteBankView::closeSheet () {
+	graphics.draw->forgetPictures (&sheet);
+	forgetSpriteBank (&sheet);
+	memset (&sheet, 0, sizeof (sheet));
+	sheetLoaded = false;
+}
+
+void SpriteBankView::drawSheetDialog () {
+	if (sheetToOpen) {
+		ImGui::OpenPopup ("Import Sprite Sheet");
+		sheetToOpen = false;
+	}
+	ImGui::SetNextWindowSize (ImVec2 (ImGui::GetFontSize () * 30, 0), ImGuiCond_Appearing);
+	if (! ImGui::BeginPopupModal ("Import Sprite Sheet", NULL, ImGuiWindowFlags_NoSavedSettings)) return;
+	if (! sheetLoaded) {
+		ImGui::CloseCurrentPopup ();
+		ImGui::EndPopup ();
+		return;
+	}
+	const sprite & picture = sheet.sprites[0];
+	ImGui::TextUnformatted (fileNameOf (sheetFile).c_str ());
+	ImGui::SameLine ();
+	ImGui::TextDisabled ("%d \xC3\x97 %d pixels", picture.width, picture.height);
+
+	// The sheet, as large as fits, with its grid; the cells that we leave
+	// out are darker.
+	float most = ImGui::GetContentRegionAvail ().x, high = ImGui::GetFontSize () * 18;
+	float z = most / picture.width;
+	if (picture.height * z > high) z = high / picture.height;
+	if (z > 8.0f) z = 8.0f;
+	ImVec2 size (picture.width * z, picture.height * z);
+	ImVec2 at = ImGui::GetCursorScreenPos ();
+	ImDrawList * list = ImGui::GetWindowDrawList ();
+	list->AddRectFilled (at, ImVec2 (at.x + size.x, at.y + size.y), ImGui::GetColorU32 (ImGuiCol_FrameBg));
+	gfx::Texture * texture = gfxPictureTexture (graphics.draw, &sheet, 0, false);
+	// Pixel for pixel, as the canvas shows them.
+	if (texture) graphics.renderer->setTextureFilter (texture, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+	if (texture) list->AddImage (ImTextureRef (ImGui_ImplGfx_TextureID (texture)), at, ImVec2 (at.x + size.x, at.y + size.y));
+	bool fits = picture.width % layout.columns == 0 && picture.height % layout.rows == 0;
+	float cw = size.x / layout.columns, ch = size.y / layout.rows;
+	for (int c = layout.count; c < layout.columns * layout.rows; c ++) {
+		ImVec2 p (at.x + (c % layout.columns) * cw, at.y + (c / layout.columns) * ch);
+		list->AddRectFilled (p, ImVec2 (p.x + cw, p.y + ch), IM_COL32 (0, 0, 0, 160));
+	}
+	ImU32 line = fits ? IM_COL32 (90, 200, 255, 220) : IM_COL32 (255, 90, 90, 220);
+	for (int c = 0; c <= layout.columns; c ++) list->AddLine (ImVec2 (at.x + c * cw, at.y), ImVec2 (at.x + c * cw, at.y + size.y), line);
+	for (int r = 0; r <= layout.rows; r ++) list->AddLine (ImVec2 (at.x, at.y + r * ch), ImVec2 (at.x + size.x, at.y + r * ch), line);
+	ImGui::Dummy (size);
+
+	int columns = layout.columns, rows = layout.rows;
+	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
+	ImGui::InputInt ("Columns", &columns);
+	ImGui::SameLine ();
+	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
+	ImGui::InputInt ("Rows", &rows);
+	if (columns < 1) columns = 1;
+	if (rows < 1) rows = 1;
+	if (columns > picture.width) columns = picture.width;
+	if (rows > picture.height) rows = picture.height;
+	if (columns != layout.columns || rows != layout.rows) {
+		layout.columns = columns;
+		layout.rows = rows;
+		layout.count = columns * rows;
+	}
+	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
+	if (ImGui::InputInt ("Frames", &layout.count)) {
+		if (layout.count < 1) layout.count = 1;
+		if (layout.count > layout.columns * layout.rows) layout.count = layout.columns * layout.rows;
+	}
+	ImGui::SetItemTooltip ("How many cells to use, a row at a time from the top left");
+	ImGui::SameLine ();
+	if (fits) ImGui::TextDisabled ("Each frame is %d \xC3\x97 %d", picture.width / layout.columns, picture.height / layout.rows);
+	else ImGui::TextColored (ImVec4 (1.0f, 0.4f, 0.4f, 1.0f), "The cells aren't all the same size");
+	ImGui::Checkbox ("Skip empty cells", &layout.skipEmpty);
+	ImGui::SetItemTooltip ("Leave out the cells that are all transparent");
+	ImGui::SameLine ();
+	ImGui::Checkbox ("Trim empty space", &layout.trim);
+	ImGui::SetItemTooltip ("Cut each frame down to its pixels that show, keeping its place around the hotspot");
+
+	// As for inserting pictures, a bank with a palette takes only TGA.
+	bool canLoad = bank->mode () == SpriteBankDocument::MODE_32BIT || extensionOf (sheetFile) != "png";
+	if (! canLoad) ImGui::TextColored (ImVec4 (1.0f, 0.4f, 0.4f, 1.0f), "A PNG picture needs a 32-bit colour bank.");
+
+	ImGui::Separator ();
+	ImGui::BeginDisabled (! fits || ! canLoad);
+	if (ImGui::Button ("Import")) {
+		int at = insertionPoint ();
+		int inserted = bank->insertSheet (at, sheetFile, layout);
+		if (inserted) selectRun (at, inserted, at);
+		closeSheet ();
+		ImGui::CloseCurrentPopup ();
+	}
+	ImGui::EndDisabled ();
+	ImGui::SameLine ();
+	if (ImGui::Button ("Cancel") || ImGui::Shortcut (ImGuiKey_Escape)) {
+		closeSheet ();
+		ImGui::CloseCurrentPopup ();
+	}
+	ImGui::EndPopup ();
 }
 
 void SpriteBankView::drawToolbar () {
 	bool empty = ! bank->count ();
 	if (ImGui::Button ("Insert...")) askForFiles (Pending::INSERT);
 	ImGui::SetItemTooltip ("Insert PNG or TGA pictures as sprites, after the selected ones");
+	ImGui::SameLine ();
+	if (ImGui::Button ("Import Sheet...")) askForFiles (Pending::SHEET);
+	ImGui::SetItemTooltip ("Cut a picture into a grid of frames, after the selected sprites");
 	ImGui::SameLine ();
 	ImGui::BeginDisabled (empty);
 	if (ImGui::Button ("Replace...")) askForFiles (Pending::REPLACE);
@@ -388,6 +518,7 @@ void SpriteBankView::draw () {
 	keepSelection ();
 
 	drawToolbar ();
+	drawSheetDialog ();
 	handleKeys ();
 	float height = ImGui::GetContentRegionAvail ().y;
 	ImGui::BeginChild ("sprites", ImVec2 (ImGui::GetFontSize () * 9, height), ImGuiChildFlags_ResizeX | ImGuiChildFlags_Borders);

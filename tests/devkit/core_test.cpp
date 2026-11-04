@@ -912,6 +912,31 @@ static void writeFontPicture (const std::string & file) {
 	png_image_write_to_file (&png, file.c_str (), 0, rgba.data (), 0, NULL);
 }
 
+// A sprite sheet of 3 x 2 cells of 4 x 5 pixels: in each cell but the
+// last, a block of colour c + 1 from (1, 1) to (2, 3); the last cell is
+// empty.
+static void writeSheetPicture (const std::string & file) {
+	const int w = 12, h = 10;
+	std::vector<unsigned char> rgba (w * h * 4, 0);
+	for (int c = 0; c < 5; c ++) {
+		int cx = (c % 3) * 4, cy = (c / 3) * 5;
+		for (int y = 1; y <= 3; y ++) {
+			for (int x = 1; x <= 2; x ++) {
+				unsigned char * p = &rgba[((cy + y) * w + cx + x) * 4];
+				p[0] = (unsigned char) (40 * (c + 1));
+				p[3] = 255;
+			}
+		}
+	}
+	png_image png;
+	memset (&png, 0, sizeof (png));
+	png.version = PNG_IMAGE_VERSION;
+	png.width = w;
+	png.height = h;
+	png.format = PNG_FORMAT_RGBA;
+	png_image_write_to_file (&png, file.c_str (), 0, rgba.data (), 0, NULL);
+}
+
 // The places from..from+howMany-1.
 static std::vector<int> run (int from, int howMany) {
 	std::vector<int> indices;
@@ -1046,6 +1071,44 @@ static void testSpriteBanks () {
 	CHECK (bank.bank ().sprites[4].width == 4 && bank.bank ().sprites[5].width == 2 && bank.bank ().sprites[6].width == 3);
 	CHECK (bank.bank ().sprites[7].width == 5 && bank.bank ().sprites[7].height == 1);
 	CHECK (bank.commands ().undoLabel () == "Make Font");
+
+	// A sprite sheet, cut into frames with their hotspots at the base of
+	// their cells, the empty cell skipped or kept, and trimmed.
+	writeSheetPicture (folder + "sheet.png");
+	{
+		SpriteBankDocument sheet;
+		SheetLayout layout;
+		layout.columns = 3;
+		layout.rows = 2;
+		layout.count = 6;
+		CHECK (sheet.insertSheet (0, folder + "sheet.png", layout) == 5);
+		CHECK (sheet.bank ().sprites[4].width == 4 && sheet.bank ().sprites[4].height == 5);
+		CHECK (sheet.hotspot (0) == Hotspot (2, 4));
+		CHECK (sheet.commands ().undoLabel () == "Import Sheet");
+		sheet.commands ().undo ();
+		CHECK (sheet.count () == 0);
+		layout.skipEmpty = false;
+		CHECK (sheet.insertSheet (0, folder + "sheet.png", layout) == 6);
+		layout.count = 2;
+		CHECK (sheet.insertSheet (6, folder + "sheet.png", layout) == 2);
+		CHECK (sheet.count () == 8);
+		// Trimmed to the block, which keeps its place around the hotspot.
+		layout.count = 6;
+		layout.trim = true;
+		layout.skipEmpty = true;
+		CHECK (sheet.insertSheet (0, folder + "sheet.png", layout) == 5);
+		CHECK (sheet.bank ().sprites[1].width == 2 && sheet.bank ().sprites[1].height == 3);
+		CHECK (sheet.hotspot (1) == Hotspot (1, 3));
+		std::vector<unsigned char> block = pixelsOf (sheet, 1);
+		bool solid = block.size () == 2 * 3 * 4;
+		for (size_t p = 0; p + 3 < block.size (); p += 4) solid = solid && block[p] == 80 && block[p + 3] == 255;
+		CHECK (solid);
+		// Cells that aren't all the same size.
+		int before = sheet.count ();
+		layout.columns = 5;
+		CHECK (sheet.insertSheet (0, folder + "sheet.png", layout) == 0);
+		CHECK (sheet.count () == before);
+	}
 
 	// Saved and opened again, as it was.
 	CHECK (bank.save (folder + "made.duc", &error));

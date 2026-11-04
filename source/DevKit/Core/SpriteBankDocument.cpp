@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include <png.h>
@@ -313,6 +314,91 @@ int SpriteBankDocument::makeFont (int at, const std::string & file, int spaceWid
 	putCopies (sprites, at, letters);
 	keepSplice ("Make Font", at, std::vector<SpriteCopy> (), letters, before);
 	return howMany;
+}
+
+// The part of a picture from (x, y), width x height, as a sprite.
+static SpriteCopy cutOut (const SpriteCopy & picture, int bytes, int x, int y, int width, int height) {
+	SpriteCopy cell;
+	cell.width = width;
+	cell.height = height;
+	cell.xhot = cell.yhot = 0;
+	cell.data.resize ((size_t) width * height * bytes);
+	for (int row = 0; row < height; row ++) {
+		const unsigned char * from = &picture.data[((size_t) (y + row) * picture.width + x) * bytes];
+		memcpy (&cell.data[(size_t) row * width * bytes], from, (size_t) width * bytes);
+	}
+	return cell;
+}
+
+// Whether a pixel shows: colour 0 is transparent with a palette, and alpha
+// 0 without.
+static bool shows (const SpriteCopy & cell, int bytes, int x, int y) {
+	const unsigned char * p = &cell.data[((size_t) y * cell.width + x) * bytes];
+	return bytes == 1 ? p[0] != 0 : p[3] != 0;
+}
+
+int SpriteBankDocument::insertSheet (int at, const std::string & file, const SheetLayout & layout) {
+	if (layout.columns < 1 || layout.rows < 1) return 0;
+	if (at < 0) at = 0;
+	if (at > sprites.total) at = sprites.total;
+	PaletteCopy before = paletteOf (sprites);
+	// Load it as a sprite of the bank, so that it gets the colours of the
+	// palette as inserted pictures do, and take it out again.
+	addSprite (at, &sprites);
+	if (! loadPicture (file, sprites, at)) {
+		deleteSprite (at, &sprites);
+		setPalette (sprites, before);
+		return 0;
+	}
+	SpriteCopy picture = copyOf (sprites, at);
+	deleteSprite (at, &sprites);
+	spriteBankChanged (&sprites);
+	if (picture.width % layout.columns || picture.height % layout.rows) {
+		setPalette (sprites, before);
+		char text[200];
+		snprintf (text, sizeof (text), "The picture is %d \xC3\x97 %d pixels, which can't be cut into %d columns and %d rows of the same size.",
+			picture.width, picture.height, layout.columns, layout.rows);
+		errorBox ("Can't cut the sprite sheet", text);
+		return 0;
+	}
+	int bytes = sprites.type < MODE_32BIT ? 1 : 4;
+	int cellWidth = picture.width / layout.columns, cellHeight = picture.height / layout.rows;
+	int cells = layout.columns * layout.rows;
+	if (layout.count < cells) cells = layout.count;
+	std::vector<SpriteCopy> frames;
+	for (int c = 0; c < cells && sprites.total + (int) frames.size () < MAX_SPRITES; c ++) {
+		SpriteCopy cell = cutOut (picture, bytes, (c % layout.columns) * cellWidth, (c / layout.columns) * cellHeight, cellWidth, cellHeight);
+		cell.xhot = cellWidth / 2;
+		cell.yhot = cellHeight - 1;
+		// The box of the pixels that show.
+		int left = cellWidth, top = cellHeight, right = -1, bottom = -1;
+		for (int y = 0; y < cellHeight; y ++) {
+			for (int x = 0; x < cellWidth; x ++) {
+				if (! shows (cell, bytes, x, y)) continue;
+				if (x < left) left = x;
+				if (x > right) right = x;
+				if (y < top) top = y;
+				if (y > bottom) bottom = y;
+			}
+		}
+		bool empty = right < 0;
+		if (empty && layout.skipEmpty) continue;
+		if (layout.trim && ! empty) {
+			SpriteCopy trimmed = cutOut (cell, bytes, left, top, right - left + 1, bottom - top + 1);
+			trimmed.xhot = cell.xhot - left;
+			trimmed.yhot = cell.yhot - top;
+			cell = trimmed;
+		}
+		frames.push_back (cell);
+	}
+	if (frames.empty ()) {
+		setPalette (sprites, before);
+		errorBox ("Can't cut the sprite sheet", "Every cell of the picture is transparent.");
+		return 0;
+	}
+	putCopies (sprites, at, frames);
+	keepSplice ("Import Sheet", at, std::vector<SpriteCopy> (), frames, before);
+	return (int) frames.size ();
 }
 
 bool SpriteBankDocument::exportSprite (int index, const std::string & file, std::string * error) const {

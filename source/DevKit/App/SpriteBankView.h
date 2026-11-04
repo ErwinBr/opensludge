@@ -9,7 +9,8 @@
  * (Cmd-click on macOS) puts the hotspot on a pixel. In the list,
  * Shift-click selects a range of sprites and Ctrl-click (Cmd-click) adds
  * or takes away one, for Delete and for the hotspot buttons; dragging
- * sprites in the list puts them somewhere else.
+ * sprites in the list puts them somewhere else. Import Sheet cuts a
+ * picture into a grid of frames.
  */
 
 #include <memory>
@@ -40,7 +41,7 @@ private:
 	// What a file dialog was for, and its answer, which may come after we
 	// are gone.
 	struct Pending {
-		enum What { NONE, INSERT, REPLACE, EXPORT, FONT } what;
+		enum What { NONE, INSERT, REPLACE, EXPORT, FONT, SHEET } what;
 		bool answered;
 		std::vector<std::string> files;
 		Pending () : what (NONE), answered (false) {}
@@ -52,6 +53,10 @@ private:
 	void handleMouse ();
 	void handleKeys ();
 	void handlePending ();
+	// The dialog that cuts a sprite sheet into sprites.
+	void openSheet (const std::string & file);
+	void closeSheet ();
+	void drawSheetDialog ();
 	void askForFiles (Pending::What what);
 
 	// The selected sprites, ascending.
@@ -93,6 +98,13 @@ private:
 	bool dragging;
 	Hotspot dragHotspot;
 	float dragX, dragY;
+
+	// The sprite sheet of the dialog, as one sprite to show, and how to cut
+	// it.
+	std::string sheetFile;
+	spriteBank sheet;
+	bool sheetLoaded, sheetToOpen;
+	SheetLayout layout;
 
 	std::shared_ptr<Pending> pending;
 	std::string notice;
