@@ -21,8 +21,9 @@ is how it looks with Egor the Ego of the verb coin example:
 
 <P>
 The sprites of the bank are on the left. Click one to see it in the picture, at its hotspot, where the two lines
-cross. Shift-click another to select every sprite between them, and use the arrow keys, Home and End to go through
-them.
+cross. Shift-click another to select every sprite between them, or Ctrl-click (Command-click on macOS) sprites to
+select them, or take them out of the selection, one at a time. Use the arrow keys, Home and End to go through them.
+Drag sprites up or down the list to change their order; dragging a selected sprite moves all the selected ones.
 </P>
 
 <H3>Opening and creating sprite banks</H3>
@@ -51,7 +52,7 @@ The mode of a bank is in the Inspector. If <b>Open palette</b> is selected, any 
 adding which aren't already in the palette are added automatically. If <b>Locked palette</b> is selected and the
 image uses colours which don't appear in the sprite bank's palette, the closest colours which do exist in the palette
 will be used. Each sprite bank can use only one palette, and the maximum number of colours is 255. A bank with a
-palette opens with the palette locked. Choosing <b>32-bit</b> converts a bank with a palette, which can't be undone.
+palette opens with the palette locked. Choosing <b>32-bit colour</b> converts a bank with a palette, which can't be undone.
 </P>
 
 <H3>Setting the hotspot for a sprite</H3>
@@ -73,7 +74,7 @@ and with several selected, <b>Use the Hotspot of ... for All</b> gives them all 
 
 <P>
 You can also drag the sprite in the picture to move it around its hotspot, or Ctrl-click a pixel (Command-click on
-macOS) to put the hotspot there. <b>Box</b> shows the size of the sprite. Every change can be undone with Edit &gt;
+macOS) to put the hotspot there. <b>Show sprite size</b> draws a box around the sprite. Every change can be undone with Edit &gt;
 Undo.
 </P>
 
@@ -106,7 +107,7 @@ used as transparent; the same colour as is treated as transparent by the <a href
 <H3>Making a font</H3>
 
 <P>
-<b>Make Font from Picture...</b> in the Inspector makes it easier to get fonts into SLUDGE, but it can also be used if
+<b>Make Font from Picture...</b>, under <b>Fontify</b> in the Inspector, makes it easier to get fonts into SLUDGE, but it can also be used if
 you prefer to create your sprites on a single image before converting them into a sprite bank. It searches an image for
 segments that are horizontally separated by transparency and creates a sprite out of each segment, after the selected
 sprites. An additional space character is created after them, as wide as <b>Width of a space</b>. As an example, let's
@@ -126,7 +127,7 @@ It turns it into these four sprites:
 </P>
 
 <P>
-The green background is shown because <b>Box</b> is checked.
+The green background is shown because <b>Show sprite size</b> is checked.
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

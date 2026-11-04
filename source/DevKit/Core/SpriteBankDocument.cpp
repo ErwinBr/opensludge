@@ -119,6 +119,72 @@ private:
 	PaletteCopy before, after;
 };
 
+// Sprites at some places taken out, and the palette before and after.
+class SpriteRemoval : public Command {
+public:
+	SpriteRemoval (SpriteBankDocument * d, const std::string & l, const std::vector<int> & i,
+			const std::vector<SpriteCopy> & r, const PaletteCopy & b, const PaletteCopy & a)
+		: document (d), text (l), indices (i), removed (r), before (b), after (a) {}
+
+	std::string label () const { return text; }
+	void apply () {
+		// From the end, so that the places before stay where they were.
+		for (size_t k = indices.size (); k -- > 0; ) deleteSprite (indices[k], &document->sprites);
+		spriteBankChanged (&document->sprites);
+		setPalette (document->sprites, after);
+	}
+	void revert () {
+		for (size_t k = 0; k < indices.size (); k ++) {
+			putCopies (document->sprites, indices[k], std::vector<SpriteCopy> (1, removed[k]));
+		}
+		setPalette (document->sprites, before);
+	}
+
+private:
+	SpriteBankDocument * document;
+	std::string text;
+	std::vector<int> indices;		// Ascending
+	std::vector<SpriteCopy> removed;
+	PaletteCopy before, after;
+};
+
+// The sprites in a new order: the sprite at n was at order[n].
+class SpriteOrder : public Command {
+public:
+	SpriteOrder (SpriteBankDocument * d, const std::string & l, const std::vector<int> & o)
+		: document (d), text (l), order (o) {}
+
+	std::string label () const { return text; }
+	void apply () {
+		spriteBank & bank = document->sprites;
+		std::vector<sprite> old (bank.sprites, bank.sprites + bank.total);
+		for (size_t n = 0; n < order.size (); n ++) bank.sprites[n] = old[order[n]];
+		spriteBankChanged (&bank);
+	}
+	void revert () {
+		spriteBank & bank = document->sprites;
+		std::vector<sprite> now (bank.sprites, bank.sprites + bank.total);
+		for (size_t n = 0; n < order.size (); n ++) bank.sprites[order[n]] = now[n];
+		spriteBankChanged (&bank);
+	}
+
+private:
+	SpriteBankDocument * document;
+	std::string text;
+	std::vector<int> order;
+};
+
+// The places that are in the bank, ascending, each once.
+static std::vector<int> validIndices (const std::vector<int> & indices, int total) {
+	std::vector<bool> chosen (total > 0 ? total : 0, false);
+	for (size_t k = 0; k < indices.size (); k ++) {
+		if (indices[k] >= 0 && indices[k] < total) chosen[indices[k]] = true;
+	}
+	std::vector<int> valid;
+	for (int i = 0; i < total; i ++) if (chosen[i]) valid.push_back (i);
+	return valid;
+}
+
 DocumentType SpriteBankDocument::type () {
 	DocumentType type;
 	type.name = "Sprite Bank";
@@ -196,6 +262,33 @@ void SpriteBankDocument::deleteSprites (int from, int howMany) {
 	keepSplice (howMany == 1 ? "Delete Sprite" : "Delete Sprites", from, removed, std::vector<SpriteCopy> (), before);
 }
 
+void SpriteBankDocument::deleteSprites (const std::vector<int> & indices) {
+	std::vector<int> valid = validIndices (indices, sprites.total);
+	if (valid.empty ()) return;
+	PaletteCopy before = paletteOf (sprites);
+	std::vector<SpriteCopy> removed;
+	for (size_t k = 0; k < valid.size (); k ++) removed.push_back (copyOf (sprites, valid[k]));
+	commands ().run (new SpriteRemoval (this, valid.size () == 1 ? "Delete Sprite" : "Delete Sprites", valid, removed, before, before));
+}
+
+int SpriteBankDocument::moveSprites (const std::vector<int> & indices, int to) {
+	std::vector<int> valid = validIndices (indices, sprites.total);
+	if (valid.empty ()) return to;
+	if (to < 0) to = 0;
+	if (to > sprites.total) to = sprites.total;
+	std::vector<bool> moving (sprites.total, false);
+	for (size_t k = 0; k < valid.size (); k ++) moving[valid[k]] = true;
+	std::vector<int> order;
+	for (int i = 0; i < to; i ++) if (! moving[i]) order.push_back (i);
+	int at = (int) order.size ();
+	order.insert (order.end (), valid.begin (), valid.end ());
+	for (int i = to; i < sprites.total; i ++) if (! moving[i]) order.push_back (i);
+	bool same = true;
+	for (size_t n = 0; n < order.size (); n ++) same = same && order[n] == (int) n;
+	if (! same) commands ().run (new SpriteOrder (this, valid.size () == 1 ? "Move Sprite" : "Move Sprites", order));
+	return at;
+}
+
 int SpriteBankDocument::makeFont (int at, const std::string & file, int spaceWidth) {
 	if (sprites.type < MODE_32BIT) {
 		errorBox ("Can't make a font", "A font needs a 32-bit sprite bank. Convert the bank to 32-bit first.");
@@ -268,26 +361,29 @@ void SpriteBankDocument::setHotspot (int index, Hotspot hotspot, int mergeKey) {
 	changeHotspots (after, "Hotspot", mergeKey);
 }
 
-void SpriteBankDocument::setHotspots (int from, int howMany, Hotspot hotspot) {
+void SpriteBankDocument::setHotspots (const std::vector<int> & indices, Hotspot hotspot) {
 	std::vector<Hotspot> after = hotspots ();
-	for (int i = from; i < from + howMany && i < sprites.total; i ++) {
-		if (i >= 0) after[i] = hotspot;
-	}
+	std::vector<int> valid = validIndices (indices, sprites.total);
+	for (size_t k = 0; k < valid.size (); k ++) after[valid[k]] = hotspot;
 	changeHotspots (after, "Hotspots", 0);
 }
 
-void SpriteBankDocument::centreHotspots (int from, int howMany) {
+void SpriteBankDocument::centreHotspots (const std::vector<int> & indices) {
 	std::vector<Hotspot> after = hotspots ();
-	for (int i = from; i < from + howMany && i < sprites.total; i ++) {
-		if (i >= 0) after[i] = Hotspot (sprites.sprites[i].width / 2, sprites.sprites[i].height / 2);
+	std::vector<int> valid = validIndices (indices, sprites.total);
+	for (size_t k = 0; k < valid.size (); k ++) {
+		const sprite & single = sprites.sprites[valid[k]];
+		after[valid[k]] = Hotspot (single.width / 2, single.height / 2);
 	}
 	changeHotspots (after, "Centre Hotspot", 0);
 }
 
-void SpriteBankDocument::baseHotspots (int from, int howMany) {
+void SpriteBankDocument::baseHotspots (const std::vector<int> & indices) {
 	std::vector<Hotspot> after = hotspots ();
-	for (int i = from; i < from + howMany && i < sprites.total; i ++) {
-		if (i >= 0) after[i] = Hotspot (sprites.sprites[i].width / 2, sprites.sprites[i].height - 1);
+	std::vector<int> valid = validIndices (indices, sprites.total);
+	for (size_t k = 0; k < valid.size (); k ++) {
+		const sprite & single = sprites.sprites[valid[k]];
+		after[valid[k]] = Hotspot (single.width / 2, single.height - 1);
 	}
 	changeHotspots (after, "Hotspot at Base", 0);
 }

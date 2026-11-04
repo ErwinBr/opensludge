@@ -1,4 +1,5 @@
 #include <math.h>
+#include <algorithm>
 #include <stdio.h>
 
 #include "imgui.h"
@@ -18,12 +19,6 @@ namespace devkit {
 static const double NOTICE_SECONDS = 5.0;
 // The merge keys of the commands: a drag on the canvas, and the fields.
 static const int DRAG_KEY = 1, FIELD_KEY = 2;
-
-#if defined(__APPLE__)
-static const char * const CTRL_CLICK = "Cmd-click";
-#else
-static const char * const CTRL_CLICK = "Ctrl-click";
-#endif
 
 SpriteBankView::SpriteBankView (SpriteBankDocument * b, WorkspaceActions & a, const CanvasGraphics & g)
 	: bank (b), pictures (&b->bank ()), actions (a), graphics (g), canvas (g), anchor (0), current (0), scrollToCurrent (false),
@@ -45,24 +40,103 @@ void SpriteBankView::say (const std::string & text) {
 	noticeUntil = ImGui::GetTime () + NOTICE_SECONDS;
 }
 
+std::vector<int> SpriteBankView::selection () const {
+	std::vector<int> indices;
+	for (size_t i = 0; i < chosen.size (); i ++) if (chosen[i]) indices.push_back ((int) i);
+	return indices;
+}
+
+int SpriteBankView::selectedCount () const {
+	int n = 0;
+	for (size_t i = 0; i < chosen.size (); i ++) if (chosen[i]) n ++;
+	return n;
+}
+
+int SpriteBankView::insertionPoint () const {
+	if (! bank->count ()) return 0;
+	std::vector<int> indices = selection ();
+	return indices.empty () ? bank->count () : indices.back () + 1;
+}
+
+void SpriteBankView::keepSelection () {
+	int total = bank->count ();
+	if ((int) chosen.size () != total) chosen.resize (total, false);
+	if (current >= total) current = total - 1;
+	if (anchor >= total) anchor = total - 1;
+	if (current < 0) current = 0;
+	if (anchor < 0) anchor = 0;
+	if (total && ! selectedCount ()) chosen[current] = true;
+}
+
 void SpriteBankView::select (int index, bool extend) {
-	if (index < 0) index = 0;
+	keepSelection ();
 	if (index >= bank->count ()) index = bank->count () - 1;
 	if (index < 0) index = 0;
 	current = index;
 	if (! extend) anchor = index;
+	std::fill (chosen.begin (), chosen.end (), false);
+	int from = anchor < current ? anchor : current, to = anchor < current ? current : anchor;
+	for (int i = from; i <= to && i < (int) chosen.size (); i ++) chosen[i] = true;
 	scrollToCurrent = true;
 	bank->commands ().stopMerging ();
 }
 
-void SpriteBankView::insert (const std::vector<std::string> & files) {
-	int at = bank->count () ? first () + howMany () : 0;
-	int inserted = bank->insertFiles (at, files);
-	if (inserted) {
-		anchor = at;
-		current = at + inserted - 1;
-		scrollToCurrent = true;
+void SpriteBankView::selectRun (int from, int howMany, int newCurrent) {
+	keepSelection ();
+	std::fill (chosen.begin (), chosen.end (), false);
+	for (int i = from; i < from + howMany && i < (int) chosen.size (); i ++) if (i >= 0) chosen[i] = true;
+	anchor = from;
+	current = newCurrent;
+	keepSelection ();
+	scrollToCurrent = true;
+	bank->commands ().stopMerging ();
+}
+
+void SpriteBankView::click (int index, bool shift, bool ctrl) {
+	keepSelection ();
+	if (index < 0 || index >= (int) chosen.size ()) return;
+	if (shift) {
+		// A range from the anchor, added to the others with Ctrl.
+		if (! ctrl) std::fill (chosen.begin (), chosen.end (), false);
+		int from = anchor < index ? anchor : index, to = anchor < index ? index : anchor;
+		for (int i = from; i <= to; i ++) chosen[i] = true;
+		current = index;
+	} else if (ctrl) {
+		anchor = index;
+		if (! chosen[index]) {
+			chosen[index] = true;
+			current = index;
+		} else if (selectedCount () > 1) {
+			chosen[index] = false;
+			if (current == index) {
+				// The nearest one that is still selected.
+				for (int d = 1; d < (int) chosen.size (); d ++) {
+					if (isSelected (index + d)) { current = index + d; break; }
+					if (isSelected (index - d)) { current = index - d; break; }
+				}
+			}
+		}
+	} else {
+		std::fill (chosen.begin (), chosen.end (), false);
+		chosen[index] = true;
+		anchor = current = index;
 	}
+	bank->commands ().stopMerging ();
+}
+
+void SpriteBankView::moveDragged (int dragged, int to) {
+	std::vector<int> moving = isSelected (dragged) ? selection () : std::vector<int> (1, dragged);
+	int at = bank->moveSprites (moving, to);
+	int newCurrent = at;
+	// The canvas keeps the sprite that it showed, if it moved.
+	for (size_t k = 0; k < moving.size (); k ++) if (moving[k] == current) newCurrent = at + (int) k;
+	selectRun (at, (int) moving.size (), newCurrent);
+}
+
+void SpriteBankView::insert (const std::vector<std::string> & files) {
+	int at = insertionPoint ();
+	int inserted = bank->insertFiles (at, files);
+	if (inserted) selectRun (at, inserted, at + inserted - 1);
 }
 
 bool SpriteBankView::takeFile (const std::string & path) {
@@ -74,10 +148,12 @@ bool SpriteBankView::takeFile (const std::string & path) {
 
 void SpriteBankView::deleteSelected () {
 	if (! bank->count ()) return;
-	int from = first ();
-	bank->deleteSprites (from, howMany ());
-	anchor = current = from;
-	select (from, false);
+	keepSelection ();
+	std::vector<int> indices = selection ();
+	if (indices.empty ()) return;
+	bank->deleteSprites (indices);
+	std::fill (chosen.begin (), chosen.end (), false);
+	select (indices[0], false);
 }
 
 void SpriteBankView::askForFiles (Pending::What what) {
@@ -131,13 +207,9 @@ void SpriteBankView::handlePending () {
 			break;
 		}
 		case Pending::FONT: {
-			int at = bank->count () ? first () + howMany () : 0;
+			int at = insertionPoint ();
 			int letters = bank->makeFont (at, files[0], spaceWidth);
-			if (letters) {
-				anchor = at;
-				current = at + letters - 1;
-				scrollToCurrent = true;
-			}
+			if (letters) selectRun (at, letters, at + letters - 1);
 			break;
 		}
 		default:
@@ -165,7 +237,9 @@ void SpriteBankView::drawToolbar () {
 	ImGui::SameLine ();
 	canvas.drawZoomButtons ();
 	ImGui::SameLine ();
-	ImGui::Checkbox ("Box", &showBox);
+	ImGui::TextDisabled ("|");
+	ImGui::SameLine ();
+	ImGui::Checkbox ("Show sprite size", &showBox);
 	ImGui::SetItemTooltip ("Show the size of the sprite");
 }
 
@@ -174,15 +248,41 @@ void SpriteBankView::drawThumbnails () {
 	ImGuiStyle & style = ImGui::GetStyle ();
 	float row = ImGui::GetFontSize () * 3.5f;
 	float picture = row - style.FramePadding.y * 2;
+	// The release that ends a drag doesn't select.
+	bool wasDragging = ImGui::GetDragDropPayload () != NULL;
+	int dragged = -1, dropAt = -1;
 	ImGuiListClipper clipper;
 	clipper.Begin (sprites.total, row + style.ItemSpacing.y);
 	if (scrollToCurrent) clipper.IncludeItemByIndex (current);
 	while (clipper.Step ()) {
 		for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i ++) {
 			ImGui::PushID (i);
-			bool selected = i >= first () && i < first () + howMany ();
-			if (ImGui::Selectable ("##sprite", selected, ImGuiSelectableFlags_None, ImVec2 (0, row))) {
-				select (i, ImGui::GetIO ().KeyShift);
+			if (ImGui::Selectable ("##sprite", isSelected (i), ImGuiSelectableFlags_None, ImVec2 (0, row)) && ! wasDragging) {
+				click (i, ImGui::GetIO ().KeyShift, ImGui::GetIO ().KeyCtrl);
+			}
+			if (ImGui::BeginDragDropSource ()) {
+				ImGui::SetDragDropPayload ("SLUDGE_SPRITES", &i, sizeof (i));
+				int n = isSelected (i) ? selectedCount () : 1;
+				if (n == 1) ImGui::Text ("Sprite %d", i);
+				else ImGui::Text ("%d sprites", n);
+				ImGui::EndDragDropSource ();
+			}
+			if (ImGui::BeginDragDropTarget ()) {
+				const ImGuiPayload * payload = ImGui::AcceptDragDropPayload ("SLUDGE_SPRITES",
+					ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect);
+				if (payload) {
+					// Above or below the middle of the row: the gap before or after it.
+					ImVec2 min = ImGui::GetItemRectMin (), max = ImGui::GetItemRectMax ();
+					bool below = ImGui::GetMousePos ().y > (min.y + max.y) * 0.5f;
+					float y = below ? max.y + style.ItemSpacing.y * 0.5f : min.y - style.ItemSpacing.y * 0.5f;
+					ImGui::GetWindowDrawList ()->AddLine (ImVec2 (min.x, y), ImVec2 (max.x, y),
+						ImGui::GetColorU32 (ImGuiCol_DragDropTarget), 2.0f);
+					if (payload->IsDelivery ()) {
+						dragged = * (const int *) payload->Data;
+						dropAt = i + (below ? 1 : 0);
+					}
+				}
+				ImGui::EndDragDropTarget ();
 			}
 			if (scrollToCurrent && i == current) {
 				ImGui::SetScrollHereY (0.5f);
@@ -210,6 +310,7 @@ void SpriteBankView::drawThumbnails () {
 			ImGui::PopID ();
 		}
 	}
+	if (dragged >= 0 && dropAt >= 0) moveDragged (dragged, dropAt);
 }
 
 void SpriteBankView::handleMouse () {
@@ -283,11 +384,8 @@ void SpriteBankView::drawCanvas () {
 
 void SpriteBankView::draw () {
 	handlePending ();
-	// Undo may have taken sprites away.
-	if (current >= bank->count ()) current = bank->count () - 1;
-	if (anchor >= bank->count ()) anchor = bank->count () - 1;
-	if (current < 0) current = 0;
-	if (anchor < 0) anchor = 0;
+	// Undo may have taken sprites away, or put them back.
+	keepSelection ();
 
 	drawToolbar ();
 	handleKeys ();
@@ -301,16 +399,10 @@ void SpriteBankView::draw () {
 	ImGui::EndGroup ();
 }
 
-static void hintText (const char * text) {
-	ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
-	ImGui::TextWrapped ("%s", text);
-	ImGui::PopStyleColor ();
-}
-
 void SpriteBankView::drawInspector () {
 	ImGui::SeparatorText ("Sprite Bank");
 	ImGui::Text ("%d sprite%s", bank->count (), bank->count () == 1 ? "" : "s");
-	static const char * const modes[] = { "Open palette", "Locked palette", "32-bit" };
+	static const char * const modes[] = { "Open palette", "Locked palette", "32-bit colour" };
 	static const char * const tips[] = {
 		"New pictures add their colours to the palette, up to 255",
 		"New pictures get the closest colours of the palette",
@@ -336,37 +428,41 @@ void SpriteBankView::drawInspector () {
 	}
 
 	if (bank->count ()) {
-		const sprite & single = bank->bank ().sprites[current];
+		std::vector<int> indices = selection ();
 		char title[64];
-		if (howMany () > 1) snprintf (title, sizeof (title), "Sprites %d to %d", first (), first () + howMany () - 1);
-		else snprintf (title, sizeof (title), "Sprite %d", current);
+		if (indices.size () <= 1) snprintf (title, sizeof (title), "Sprite %d", current);
+		else if (indices.back () - indices.front () + 1 == (int) indices.size ()) {
+			snprintf (title, sizeof (title), "Sprites %d to %d", indices.front (), indices.back ());
+		} else snprintf (title, sizeof (title), "%d Sprites", (int) indices.size ());
 		ImGui::SeparatorText (title);
-		ImGui::Text ("%d \xC3\x97 %d pixels", single.width, single.height);
 		Hotspot h = bank->hotspot (current);
-		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 5);
+		ImGui::AlignTextToFramePadding ();
+		ImGui::Text ("Hotspot");
+		ImGui::SameLine ();
+		ImGui::Text ("X:");
+		ImGui::SameLine ();
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
 		if (ImGui::DragInt ("##x", &h.x, 0.25f)) bank->setHotspot (current, h, FIELD_KEY);
 		if (ImGui::IsItemDeactivated ()) bank->commands ().stopMerging ();
 		ImGui::SameLine ();
-		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 5);
-		if (ImGui::DragInt ("Hotspot##y", &h.y, 0.25f)) bank->setHotspot (current, h, FIELD_KEY);
+		ImGui::Text ("Y:");
+		ImGui::SameLine ();
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+		if (ImGui::DragInt ("##y", &h.y, 0.25f)) bank->setHotspot (current, h, FIELD_KEY);
 		if (ImGui::IsItemDeactivated ()) bank->commands ().stopMerging ();
-		if (ImGui::Button ("Centre")) bank->centreHotspots (first (), howMany ());
+		if (ImGui::Button ("Centre")) bank->centreHotspots (indices);
 		ImGui::SetItemTooltip ("Put the hotspot in the middle of the selected sprites");
 		ImGui::SameLine ();
-		if (ImGui::Button ("Base")) bank->baseHotspots (first (), howMany ());
+		if (ImGui::Button ("Base")) bank->baseHotspots (indices);
 		ImGui::SetItemTooltip ("Put the hotspot in the middle of the bottom row of the selected sprites");
-		if (howMany () > 1) {
+		if (indices.size () > 1) {
 			char label[64];
 			snprintf (label, sizeof (label), "Use the Hotspot of %d for All", current);
-			if (ImGui::Button (label)) bank->setHotspots (first (), howMany (), h);
+			if (ImGui::Button (label)) bank->setHotspots (indices, h);
 		}
-		char hint[200];
-		snprintf (hint, sizeof (hint), "Drag the sprite on the canvas to move it around its hotspot, or %s "
-			"a pixel to put the hotspot there. Shift-click sprites to select a range.", CTRL_CLICK);
-		hintText (hint);
 	}
 
-	ImGui::SeparatorText ("Font");
+	ImGui::SeparatorText ("Fontify");
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
 	if (ImGui::InputInt ("Width of a space", &spaceWidth)) {
 		if (spaceWidth < 1) spaceWidth = 1;
@@ -375,8 +471,6 @@ void SpriteBankView::drawInspector () {
 	ImGui::BeginDisabled (bank->mode () != SpriteBankDocument::MODE_32BIT);
 	if (ImGui::Button ("Make Font from Picture...")) askForFiles (Pending::FONT);
 	ImGui::EndDisabled ();
-	hintText ("Cuts a picture of letters, side by side with empty columns between them, into a sprite for "
-		"each letter, followed by a space. Needs 32-bit.");
 }
 
 } // namespace devkit

@@ -10,7 +10,8 @@
  *
  * Inserting, replacing and deleting sprites keep copies of the sprites
  * that they take out and put in, and of the palette, which a picture adds
- * colours to. Hotspots are small, so their commands keep them all.
+ * colours to. Moving sprites keeps only their new order. Hotspots are
+ * small, so their commands keep them all.
  * Converting a palette bank to 32-bit can't be undone.
  *
  * A bank is in one of three modes: an open palette, which takes the
@@ -77,6 +78,13 @@ public:
 	// Replace the picture of a sprite, keeping its hotspot.
 	bool replaceSprite (int index, const std::string & file);
 	void deleteSprites (int from, int howMany);
+	// Delete the sprites at some places, which needn't be next to each
+	// other. They undo together.
+	void deleteSprites (const std::vector<int> & indices);
+	// Move the sprites at some places, in their order, to the gap before
+	// the sprite at to (count () for the end), as the order was before the
+	// move. Returns where the first of them is now.
+	int moveSprites (const std::vector<int> & indices, int to);
 	// Save a sprite as a PNG picture.
 	bool exportSprite (int index, const std::string & file, std::string * error) const;
 	// Cut a picture into the letters of a font, at the columns that are
@@ -87,11 +95,11 @@ public:
 	// Hotspots. Commands with the same mergeKey (other than 0) merge, as in
 	// a drag.
 	void setHotspot (int index, Hotspot hotspot, int mergeKey = 0);
-	// Give sprites from..from+howMany-1 the same hotspot.
-	void setHotspots (int from, int howMany, Hotspot hotspot);
+	// Give some sprites the same hotspot.
+	void setHotspots (const std::vector<int> & indices, Hotspot hotspot);
 	// The hotspots in the middle of the sprites, or of their bottom rows.
-	void centreHotspots (int from, int howMany);
-	void baseHotspots (int from, int howMany);
+	void centreHotspots (const std::vector<int> & indices);
+	void baseHotspots (const std::vector<int> & indices);
 
 	// Change between the palette modes, or choose any mode while the bank
 	// is empty.
@@ -106,6 +114,8 @@ protected:
 
 private:
 	friend class SpriteSplice;
+	friend class SpriteRemoval;
+	friend class SpriteOrder;
 	// Change the hotspots as one command.
 	void changeHotspots (const std::vector<Hotspot> & after, const std::string & label, int mergeKey);
 	std::vector<Hotspot> hotspots () const;

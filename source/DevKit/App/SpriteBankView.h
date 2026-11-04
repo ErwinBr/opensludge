@@ -6,8 +6,10 @@
  * selected one at its hotspot in a canvas, and the mode, the hotspot and
  * the font in the Inspector. Dragging on the canvas moves the sprite
  * around its hotspot, as in the GTK Sprite Bank Editor; Ctrl-click
- * (Cmd-click on macOS) puts the hotspot on a pixel. Shift-click selects
- * a range of sprites, for Delete and for the hotspot buttons.
+ * (Cmd-click on macOS) puts the hotspot on a pixel. In the list,
+ * Shift-click selects a range of sprites and Ctrl-click (Cmd-click) adds
+ * or takes away one, for Delete and for the hotspot buttons; dragging
+ * sprites in the list puts them somewhere else.
  */
 
 #include <memory>
@@ -52,9 +54,22 @@ private:
 	void handlePending ();
 	void askForFiles (Pending::What what);
 
-	int first () const { return anchor < current ? anchor : current; }
-	int howMany () const { return (anchor < current ? current - anchor : anchor - current) + 1; }
+	// The selected sprites, ascending.
+	std::vector<int> selection () const;
+	int selectedCount () const;
+	bool isSelected (int index) const { return index >= 0 && index < (int) chosen.size () && chosen[index]; }
+	// Where new sprites go: after the last selected one.
+	int insertionPoint () const;
+	// Keep the selection as long as the bank, with something in it.
+	void keepSelection ();
+	// Select one sprite, or the range from the anchor to it.
 	void select (int index, bool extend);
+	// Select howMany sprites from one.
+	void selectRun (int from, int howMany, int newCurrent);
+	// A click on a sprite in the list.
+	void click (int index, bool shift, bool ctrl);
+	// Move the sprites that a drag from dragged took to the gap before to.
+	void moveDragged (int dragged, int to);
 	void insert (const std::vector<std::string> & files);
 	void deleteSelected ();
 	void say (const std::string & text);
@@ -66,7 +81,9 @@ private:
 	CanvasGraphics graphics;
 	CanvasView canvas;
 
-	// The selected sprites, from anchor to current.
+	// The selected sprites; current is the one on the canvas, and anchor
+	// where a Shift-click range starts.
+	std::vector<bool> chosen;
 	int anchor, current;
 	bool scrollToCurrent;
 	bool showBox;

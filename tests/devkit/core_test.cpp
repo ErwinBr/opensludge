@@ -965,12 +965,12 @@ static void testSpriteBanks () {
 	bank.commands ().stopMerging ();
 	bank.commands ().undo ();
 	CHECK (bank.hotspot (1) == Hotspot (5, 6));
-	bank.setHotspots (0, 3, Hotspot (1, 2));
+	bank.setHotspots (run (0, 3), Hotspot (1, 2));
 	CHECK (bank.hotspot (0) == Hotspot (1, 2) && bank.hotspot (2) == Hotspot (1, 2));
-	bank.centreHotspots (0, 2);
+	bank.centreHotspots (run (0, 2));
 	CHECK (bank.hotspot (0) == Hotspot (first.width / 2, first.height / 2));
 	CHECK (bank.hotspot (2) == Hotspot (1, 2));
-	bank.baseHotspots (2, 1);
+	bank.baseHotspots (run (2, 1));
 	CHECK (bank.hotspot (2) == Hotspot (first.width / 2, first.height - 1));
 
 	// Export and insert again, as it was.
@@ -995,6 +995,49 @@ static void testSpriteBanks () {
 	CHECK (bank.count () == 4);
 	CHECK (bank.hotspot (2) == second);
 	CHECK (pixelsOf (bank, 2) == picture);
+
+	// Deleting sprites that aren't next to each other, which undoes too.
+	std::vector<Hotspot> spots;
+	for (int i = 0; i < 4; i ++) spots.push_back (bank.hotspot (i));
+	std::vector<unsigned char> replaced = pixelsOf (bank, 1);
+	std::vector<int> some;
+	some.push_back (0);
+	some.push_back (2);
+	bank.deleteSprites (some);
+	CHECK (bank.count () == 2);
+	CHECK (bank.hotspot (0) == spots[1] && bank.hotspot (1) == spots[3]);
+	CHECK (bank.commands ().undoLabel () == "Delete Sprites");
+	bank.commands ().undo ();
+	CHECK (bank.count () == 4);
+	bool back = true;
+	for (int i = 0; i < 4; i ++) back = back && bank.hotspot (i) == spots[i];
+	CHECK (back);
+	CHECK (pixelsOf (bank, 1) == replaced);
+
+	// Moving sprites, down and up, and back with undo.
+	for (int i = 0; i < 4; i ++) bank.setHotspot (i, Hotspot (i, i));
+	CHECK (bank.moveSprites (some, 4) == 2);
+	CHECK (bank.hotspot (0) == Hotspot (1, 1) && bank.hotspot (1) == Hotspot (3, 3));
+	CHECK (bank.hotspot (2) == Hotspot (0, 0) && bank.hotspot (3) == Hotspot (2, 2));
+	CHECK (bank.commands ().undoLabel () == "Move Sprites");
+	CHECK (pixelsOf (bank, 0) == replaced);
+	bank.commands ().undo ();
+	bool order = true;
+	for (int i = 0; i < 4; i ++) order = order && bank.hotspot (i) == Hotspot (i, i);
+	CHECK (order);
+	bank.commands ().redo ();
+	CHECK (bank.hotspot (0) == Hotspot (1, 1));
+	bank.commands ().undo ();
+	CHECK (bank.moveSprites (std::vector<int> (1, 3), 0) == 0);
+	CHECK (bank.hotspot (0) == Hotspot (3, 3) && bank.hotspot (1) == Hotspot (0, 0));
+	CHECK (bank.commands ().undoLabel () == "Move Sprite");
+	bank.commands ().undo ();
+	// A move to where they are is no change, so it keeps the redo.
+	CHECK (bank.commands ().canRedo ());
+	CHECK (bank.moveSprites (run (1, 2), 1) == 1);
+	CHECK (bank.moveSprites (run (1, 2), 3) == 1);
+	CHECK (bank.commands ().canRedo ());
+	CHECK (bank.hotspot (1) == Hotspot (1, 1));
 
 	// A font: three letters and a space, after the other sprites.
 	writeFontPicture (folder + "font.png");
