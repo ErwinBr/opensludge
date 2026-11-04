@@ -43,7 +43,9 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 	data = new unsigned char [imageHeader.width * imageHeader.height];
 	panels[0] = cutoff[0] = 0;
 	
-	for (t2 = imageHeader.height; t2; t2 --) {
+	for (int row = 0; row < imageHeader.height; row ++) {
+		// The cutoff of a layer is one past the lowest row it covers, counted from the top
+		t2 = tgaRowFromTop (imageHeader, row) + 1;
 		pointer = data + (t2-1)*imageHeader.width;
 		for (t1 = 0; t1 < imageHeader.width; t1 ++) {
 			color = readColFunction (fp, imageHeader.pixelDepth, thePalette, 0, 0);
@@ -55,8 +57,8 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 					if (n < 16) {
 						panels[n] = color;
 						numPanels ++;
-						if (n) cutoff[n] = t2;
-						
+						cutoff[n] = 0;
+
 					} else {
 						delete [] data;
 						fclose (fp);
@@ -64,6 +66,7 @@ bool loadZBufferFromTGA (const char * fileName, spriteBank *loadhere) {
 						return false;
 					}
 				}
+				if (t2 > cutoff[n]) cutoff[n] = t2;
 				panel = n;
 			} else {
 				panel = 0;

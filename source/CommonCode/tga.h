@@ -29,6 +29,14 @@ unsigned short int makeColour (unsigned char r, unsigned char g, unsigned char b
 unsigned short readAColour (FILE * fp, int bpc, palCol thePalette[], int x, int y);
 unsigned short readCompressedColour (FILE * fp, int bpc, palCol thePalette[], int x, int y);
 const char * readTGAHeader (TGAHeader & h, FILE * fp, palCol thePalette[]);
+
+// The pixels of a TGA come row by row, from the bottom row up, unless bit 5
+// of the image descriptor says they come from the top row down (as Krita,
+// GIMP and Photoshop often write them). Gives the row, counted from the top,
+// that the n-th row in the file belongs on.
+inline int tgaRowFromTop (const TGAHeader & h, int n) {
+	return (h.imageDescriptor & 32) ? n : h.height - 1 - n;
+}
 void setDither (int dither);
 bool getDither ();
 

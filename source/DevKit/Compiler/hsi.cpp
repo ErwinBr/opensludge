@@ -75,7 +75,8 @@ int loadBackDropForCompiler (char * fileName) {
 
 		unsigned char r,g,b,a;
 
-		for (int t2 = imageHeader.height-1; t2>=0; t2 --) {
+		for (int n = 0; n < imageHeader.height; n ++) {
+			int t2 = tgaRowFromTop (imageHeader, n);
 			for (int t1 = 0; t1 < imageHeader.width; t1 ++) {
 				if (! imageHeader.compressed) {
 					grabRGBA (fp, imageHeader.pixelDepth, r, g, b, a, thePalette);

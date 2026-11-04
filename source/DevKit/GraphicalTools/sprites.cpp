@@ -567,7 +567,8 @@ bool loadSpriteFromTGA (const char * file, struct spriteBank *sprites, int index
 		unsigned char r,g,b;
 		int c;
 			
-		for (int t2 = imageHeader.height-1; t2>=0; t2 --) {
+		for (int n = 0; n < imageHeader.height; n ++) {
+			int t2 = tgaRowFromTop (imageHeader, n);
 			for (int t1 = 0; t1 < imageHeader.width; t1 ++) {
 				if (! imageHeader.compressed) {
 					grabRGB (fp, imageHeader.pixelDepth, r, g, b, thePalette);
@@ -599,7 +600,8 @@ bool loadSpriteFromTGA (const char * file, struct spriteBank *sprites, int index
 		unsigned char r,g,b,a;
 		fprintf (stderr, "Compressed: %d (%d)\n", imageHeader.compressed, imageHeader.pixelDepth);
 		
-		for (int t2 = imageHeader.height-1; t2>=0; t2 --) {
+		for (int n = 0; n < imageHeader.height; n ++) {
+			int t2 = tgaRowFromTop (imageHeader, n);
 			for (int t1 = 0; t1 < imageHeader.width; t1 ++) {
 				if (! imageHeader.compressed) {
 					grabRGBA (fp, imageHeader.pixelDepth, r, g, b, a, thePalette);
