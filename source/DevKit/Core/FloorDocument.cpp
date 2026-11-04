@@ -169,21 +169,68 @@ bool FloorDocument::cancelDrawing () {
 
 bool FloorDocument::moveVertex (int x1, int y1, int x2, int y2) {
 	return change ("Move Vertex", [x1, y1, x2, y2] (polyList ** list) {
-		moveVertices (x1, y1, x2, y2, *list);
+		::moveVertices (x1, y1, x2, y2, *list);
 	});
 }
 
 Floor FloorDocument::movedFloor (int x1, int y1, int x2, int y2) const {
 	polyList * list = theFloor.toPolyList ();
-	moveVertices (x1, y1, x2, y2, list);
+	::moveVertices (x1, y1, x2, y2, list);
 	Floor moved = Floor::fromPolyList (list);
 	Floor::freePolyList (list);
 	return moved;
 }
 
+// The floor with the points moved by (dx, dy), or false when a polygon
+// would get the same vertex twice (other than where it closes).
+static bool offsetFloor (const Floor & floor, const std::vector<FloorPoint> & points, int dx, int dy, Floor * moved) {
+	*moved = floor;
+	for (size_t p = 0; p < moved->polygons.size (); p ++) {
+		FloorPolygon & polygon = moved->polygons[p];
+		for (size_t v = 0; v < polygon.size (); v ++) {
+			for (size_t i = 0; i < points.size (); i ++) {
+				if (floor.polygons[p][v] == points[i]) {
+					polygon[v].x += dx;
+					polygon[v].y += dy;
+					break;
+				}
+			}
+		}
+		// A complete polygon ends on its first vertex again.
+		size_t count = polygon.size ();
+		if (count > 1 && polygon.front () == polygon.back ()) count --;
+		for (size_t a = 0; a < count; a ++) {
+			for (size_t b = a + 1; b < count; b ++) {
+				if (polygon[a] == polygon[b]) return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool FloorDocument::moveVertices (const std::vector<FloorPoint> & points, int dx, int dy) {
+	if (points.empty () || (! dx && ! dy)) return false;
+	Floor moved;
+	if (! offsetFloor (theFloor, points, dx, dy, &moved)) return false;
+	if (moved == theFloor) return false;
+	setFloor (moved, points.size () == 1 ? "Move Vertex" : "Move Vertices");
+	return true;
+}
+
+Floor FloorDocument::movedFloor (const std::vector<FloorPoint> & points, int dx, int dy) const {
+	Floor moved;
+	return offsetFloor (theFloor, points, dx, dy, &moved) ? moved : theFloor;
+}
+
 bool FloorDocument::deleteVertex (int x, int y) {
 	return change ("Delete Vertex", [x, y] (polyList ** list) {
 		killVertex (x, y, list);
+	});
+}
+
+bool FloorDocument::deleteVertices (const std::vector<FloorPoint> & points) {
+	return change (points.size () == 1 ? "Delete Vertex" : "Delete Vertices", [&points] (polyList ** list) {
+		for (size_t i = 0; i < points.size (); i ++) killVertex (points[i].x, points[i].y, list);
 	});
 }
 

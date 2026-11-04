@@ -38,7 +38,7 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "documents") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type") ok = ! s.text.empty ();
-		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl";
+		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl" || s.text == "shift";
 		else ok = s.what == "up" || s.what == "close";
 		if (! ok) {
 			char where[64];
@@ -85,16 +85,16 @@ bool SmokeInput::step (Workspace & workspace) {
 	if (s.what == "move") {
 		io.AddMousePosEvent (s.x, s.y);
 	} else if (s.what == "down") {
-		if (s.text == "ctrl") {
-			io.AddKeyEvent (ctrlKey (), true);
-			ctrlHeld = true;
+		if (s.text == "ctrl" || s.text == "shift") {
+			heldKey = s.text == "ctrl" ? ctrlKey () : ImGuiMod_Shift;
+			io.AddKeyEvent ((ImGuiKey) heldKey, true);
 		}
 		io.AddMouseButtonEvent (ImGuiMouseButton_Left, true);
 	} else if (s.what == "up") {
 		io.AddMouseButtonEvent (ImGuiMouseButton_Left, false);
-		if (ctrlHeld) {
-			io.AddKeyEvent (ctrlKey (), false);
-			ctrlHeld = false;
+		if (heldKey) {
+			io.AddKeyEvent ((ImGuiKey) heldKey, false);
+			heldKey = 0;
 		}
 	} else if (s.what == "wait") {
 		waiting = s.frames - 1;

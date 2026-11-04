@@ -693,6 +693,22 @@ void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view) {
 
 	drawFloor(draw, view->floor, view->r, view->g, view->b, view->pointPixels);
 
+	draw.setDrawingColour(1.0f, 0.00f, 0.00f, 1.0f);
+	for (int i = 0; i < view->selectedCount; i ++) {
+		drawCircle (draw, view->selectedXY[i * 2], view->selectedXY[i * 2 + 1], LIT_POINTS * view->pointPixels, true);
+	}
+
+	if (view->boxing) {
+		const float box[] = {
+			(float) view->boxX1, (float) view->boxY1, (float) view->boxX2, (float) view->boxY1,
+			(float) view->boxX2, (float) view->boxY2, (float) view->boxX1, (float) view->boxY2
+		};
+		draw.setDrawingColour(1.0f, 0.00f, 0.00f, 0.15f);
+		draw.drawPolygon(box, 4);
+		draw.setDrawingColour(1.0f, 0.00f, 0.00f, 1.0f);
+		draw.drawLineLoop(box, 4);
+	}
+
 	if (view->selecting) {
 		draw.setDrawingColour(1.0f, 0.00f, 0.00f, 1.0f);
 		const float line[] = { (float) view->selx1, (float) view->sely1, (float) view->selx2, (float) view->sely2 };

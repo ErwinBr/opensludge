@@ -54,8 +54,10 @@ struct spriteBank;
 // In the floor maker view, we draw the backdrop, the floor in the colour
 // r, g, b, a larger circle on the vertex at (litX, litY) when lit is set,
 // and the line from (selx1, sely1) to (selx2, sely2) in red when selecting
-// is set. The dots and circles keep their size in the window: a point of
-// it is pointPixels pixels of the picture.
+// is set. The selected vertices, selectedCount x, y pairs, get large red
+// circles, and the box from (boxX1, boxY1) to (boxX2, boxY2) is drawn in red
+// when boxing is set. The dots and circles keep their size in the window: a
+// point of it is pointPixels pixels of the picture.
 struct floorMakerView {
 	struct spriteBank * backdrop;
 	struct polyList * floor;
@@ -65,6 +67,10 @@ struct floorMakerView {
 	bool selecting;
 	int selx1, sely1, selx2, sely2;
 	float pointPixels;
+	const int * selectedXY;
+	int selectedCount;
+	bool boxing;
+	int boxX1, boxY1, boxX2, boxY2;
 };
 
 void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view);

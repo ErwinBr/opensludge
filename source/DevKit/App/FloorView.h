@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "CanvasView.h"
 #include "DocumentView.h"
@@ -41,6 +42,8 @@ private:
 	void paint (Draw2D & draw);
 	// How close, in pixels of the picture, the cursor must be to a vertex.
 	int closeness () const;
+	void keepSelection ();
+	void selectionOffset (int * dx, int * dy) const;
 
 	void chooseBackdrop ();
 	bool loadBackdrop (const std::string & path);
@@ -70,6 +73,12 @@ private:
 	// A drag of the Move, Split Line or Split Floor tool, from a vertex.
 	bool dragging;
 	int fromX, fromY, toX, toY;
+	// Where the mouse was pressed for the drag, in pixels of the picture.
+	int pressX, pressY;
+	// The vertices that the Move tool moves, and the box that selects them.
+	std::vector<FloorPoint> selected;
+	bool boxing;
+	int boxX1, boxY1, boxX2, boxY2;
 
 	// A short message under the canvas, such as why a vertex can't go
 	// somewhere, until this time.

@@ -681,6 +681,54 @@ static void testFloors () {
 	while (floor.commands ().canRedo ()) floor.commands ().redo ();
 	CHECK (floor.floor () == drawn);
 
+	// Moving several vertices by an offset: in every polygon that has them,
+	// as one command, unless one would land on another of its polygon.
+	FloorDocument squares (&platform);
+	const int left[] = { 0, 0, 100, 0, 100, 100, 0, 100, 0, 0 };
+	const int right[] = { 100, 0, 200, 0, 200, 100, 100, 100, 100, 0 };
+	Floor two;
+	two.polygons[0] = polygon (left, 5);
+	two.polygons.push_back (polygon (right, 5));
+	squares.setFloor (two, "Draw");
+	std::vector<FloorPoint> edge;
+	edge.push_back (FloorPoint (100, 0));
+	edge.push_back (FloorPoint (100, 100));
+	CHECK (squares.moveVertices (edge, 10, 0));
+	CHECK (squares.commands ().undoLabel () == "Move Vertices");
+	CHECK (squares.floor ().polygons[0][1] == FloorPoint (110, 0));
+	CHECK (squares.floor ().polygons[1][0] == FloorPoint (110, 0));
+	CHECK (squares.floor ().polygons[1][4] == FloorPoint (110, 0));
+	CHECK (squares.floor ().polygons[1][3] == FloorPoint (110, 100));
+	CHECK (squares.floor ().vertexCount () == two.vertexCount ());
+	CHECK (squares.movedFloor (edge, 0, 0) == squares.floor ());
+	squares.commands ().undo ();
+	CHECK (squares.floor () == two);
+	std::vector<FloorPoint> corner (1, FloorPoint (200, 0));
+	CHECK (! squares.moveVertices (corner, -100, 0));
+	CHECK (squares.movedFloor (corner, -100, 0) == two);
+	CHECK (squares.floor () == two);
+	CHECK (! squares.moveVertices (edge, 0, 0));
+	// All of the floor.
+	std::vector<FloorPoint> all;
+	for (int i = 0; i < 4; i ++) all.push_back (FloorPoint (left[i * 2], left[i * 2 + 1]));
+	all.push_back (FloorPoint (200, 0));
+	all.push_back (FloorPoint (200, 100));
+	CHECK (squares.moveVertices (all, 5, 7));
+	CHECK (squares.floor ().polygons[0][0] == FloorPoint (5, 7));
+	CHECK (squares.floor ().polygons[1][2] == FloorPoint (205, 107));
+	squares.commands ().undo ();
+	CHECK (squares.floor () == two);
+	// Deleting a corner of each square leaves two triangles, as one command.
+	std::vector<FloorPoint> corners;
+	corners.push_back (FloorPoint (0, 0));
+	corners.push_back (FloorPoint (200, 100));
+	CHECK (squares.deleteVertices (corners));
+	CHECK (squares.commands ().undoLabel () == "Delete Vertices");
+	CHECK (squares.floor ().polygons.size () == 2);
+	CHECK (squares.floor ().vertexCount () == 6);
+	squares.commands ().undo ();
+	CHECK (squares.floor () == two);
+
 	// A polygon that isn't convex: saving asks to fix it, and the fix is a
 	// command.
 	FloorDocument concave (&platform);

@@ -7,7 +7,8 @@
  * the editors as the user does. A file has a step on each line:
  *
  *   move <x> <y>     the mouse to a point of the window
- *   down [ctrl], up  the left mouse button, with Ctrl held until up
+ *   down [ctrl|shift], up
+ *                    the left mouse button, with Ctrl or Shift held until up
  *   key <name>       press and release a key, such as 2, Escape or ctrl+z
  *                    (Ctrl is Cmd on macOS, as in the shortcuts)
  *   type <text>      type text, as into a field
@@ -30,7 +31,7 @@ class Workspace;
 
 class SmokeInput {
 public:
-	SmokeInput () : next (0), waiting (0), keyUp (0), ctrlUp (false), ctrlHeld (false) {}
+	SmokeInput () : next (0), waiting (0), keyUp (0), ctrlUp (false), heldKey (0) {}
 
 	// Returns false, with the reason in *error, when we can't read it.
 	bool read (const std::string & file, std::string * error);
@@ -52,7 +53,7 @@ private:
 	int waiting;
 	int keyUp;		// The key to release in the next frame, or 0
 	bool ctrlUp;	// Whether to release Ctrl then too
-	bool ctrlHeld;	// Ctrl held from down to up
+	int heldKey;	// The modifier held from down to up, or 0
 };
 
 } // namespace devkit

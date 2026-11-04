@@ -80,6 +80,8 @@ public:
 	// places can't take it.
 	bool moveVertex (int x1, int y1, int x2, int y2);
 	bool deleteVertex (int x, int y);
+	// Delete several vertices as one command, as deleteVertex does each.
+	bool deleteVertices (const std::vector<FloorPoint> & points);
 	// While we draw a polygon: take away its last vertex, so that the one
 	// before it is the last again, or take away the whole polygon.
 	bool removeLastVertex ();
@@ -95,8 +97,15 @@ public:
 	// Whether saving would offer to fix the floor, as fixConcave does.
 	bool needsFixing () const;
 
+	// Move several vertices by (dx, dy), in every polygon that has them, as
+	// one command. A polygon in which a moved vertex would land on another
+	// of its vertices can't take it, and nothing moves.
+	bool moveVertices (const std::vector<FloorPoint> & points, int dx, int dy);
+
 	// What the floor is after a move, to show it while the user drags.
 	Floor movedFloor (int x1, int y1, int x2, int y2) const;
+	// What the floor is after moveVertices, or as it is when they can't go.
+	Floor movedFloor (const std::vector<FloorPoint> & points, int dx, int dy) const;
 
 	// Change the floor as a command, as the tools do.
 	void setFloor (const Floor & floor, const std::string & label);

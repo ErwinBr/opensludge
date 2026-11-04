@@ -4,8 +4,10 @@
 # (x, y) of the floor. The clicks snap to the vertices.
 wait 3
 
-# Draw a triangle at (450, 40), (600, 40), (600, 150), closing it on its
-# first vertex. The loaded polygons are complete, so it is a new one.
+# A floor with vertices opens in Move, so we choose Draw. Draw a triangle at
+# (450, 40), (600, 40), (600, 150), closing it on its first vertex, which
+# chooses Move again. The loaded polygons are complete, so it is a new one.
+key 1
 move 758 124
 down
 up
@@ -21,6 +23,7 @@ up
 
 # Start a stray polygon at (300, 100), (380, 120), (350, 180); Backspace
 # takes back (350, 180), we click it again, and Esc throws the polygon away.
+key 1
 move 620 178
 down
 up
@@ -36,7 +39,7 @@ down
 up
 key Escape
 
-# Move (600, 150) to about (620, 170).
+# Esc left Draw on. Move (600, 150) to about (620, 170).
 key 2
 move 895 224
 down
@@ -58,6 +61,37 @@ down
 move 680 400
 move 730 471
 up
+
+# Select the triangle with a box from about (430, 20) to (635, 190), and
+# drag it by its vertex at (449, 40), about 50 left and 50 down.
+key 2
+move 739 105
+down
+move 830 180
+move 927 261
+up
+move 757 124
+down
+move 735 146
+move 711 170
+up
+
+# Click (80, 60), Shift-click (60, 180), and drag (80, 60) about 20 to the
+# right, which moves both.
+move 419 142
+down
+up
+move 401 252
+down shift
+up
+move 419 142
+down
+move 428 142
+move 437 142
+up
+
+# Delete deletes them both.
+key Delete
 
 wait 2
 save ${OUTPUT}

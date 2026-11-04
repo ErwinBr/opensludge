@@ -249,8 +249,9 @@ static void check (const char * name, const View & v) {
 	}
 }
 
-// The floor maker, with the floor from fixtures/floor.flo, a lit vertex and
-// a selection line, shown whole at half size and in part at full size.
+// The floor maker, with the floor from fixtures/floor.flo, a lit vertex, a
+// selection line, selected vertices and a selection box, shown whole at half
+// size and in part at full size.
 static void testFloorMaker () {
 	struct spriteBank backdrop;
 	memset (&backdrop, 0, sizeof (backdrop));
@@ -262,11 +263,15 @@ static void testFloorMaker () {
 		failures ++;
 		return;
 	}
+	// Two selected vertices, and a box being dragged around another.
+	const int selectedXY[] = { 560, 240, 600, 400 };
 	struct floorMakerView fmv = {
 		&backdrop, floor, 1.0f, 1.0f, 1.0f,
 		true, 300, 260,
 		true, 60, 300, 420, 420,
-		2.0f
+		2.0f,
+		selectedXY, 2,
+		true, 40, 20, 300, 220
 	};
 
 	View v = startView (320, 240);
