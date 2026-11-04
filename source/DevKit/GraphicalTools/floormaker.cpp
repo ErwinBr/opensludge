@@ -7,6 +7,7 @@
  *
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
@@ -512,13 +513,41 @@ bool loadFloorFromFile (const char * name, struct polyList **firstPoly) {
 	return true;
 }
 
-void drawFloor (Draw2D & draw, struct polyList * floor, float r, float g, float b) {
+// A circle of the given radius around (x, y), filled or as an outline.
+static void drawCircle (Draw2D & draw, float x, float y, float radius, bool filled) {
+	const int SEGMENTS = 20;
+	float points[SEGMENTS * 2];
+	for (int i = 0; i < SEGMENTS; i ++) {
+		float angle = (float) i * 6.2831853f / SEGMENTS;
+		points[i * 2] = x + radius * cosf (angle);
+		points[i * 2 + 1] = y + radius * sinf (angle);
+	}
+	if (filled) draw.drawPolygon (points, SEGMENTS);
+	else draw.drawLineLoop (points, SEGMENTS);
+}
+
+// The radii, in points of the window, of the dot on a vertex and of the
+// circle on the vertex under the cursor.
+static const float VERTEX_POINTS = 3.5f;
+static const float LIT_POINTS = 7.0f;
+
+void drawFloor (Draw2D & draw, struct polyList * floor, float r, float g, float b, float pointPixels) {
 	struct polyList * pL = floor;
 	
 	struct vertexList * vL;
-	struct vertexList * drawnVertices = NULL;
+	std::vector<vertexList> drawnVertices;
 	
 	if (! floor) return;
+
+	// The first vertex of the polygon that we draw in, while it isn't
+	// complete, is an open circle; we don't draw a dot on it.
+	vertexList * start = NULL;
+	if (floor -> firstVertex && ! polyIsComplete (floor)) {
+		start = floor -> firstVertex;
+		while (start -> next) start = start -> next;
+		drawnVertices.push_back (*start);
+	}
+	float radius = VERTEX_POINTS * pointPixels;
 	
 	while (pL) {
 		std::vector<float> points;
@@ -534,65 +563,27 @@ void drawFloor (Draw2D & draw, struct polyList * floor, float r, float g, float 
 		draw.drawPolygon(points.data(), points.size() / 2);
 			
 		draw.setDrawingColour(r, g, b, 1.0);
-		vL = pL -> firstVertex;
-		while (vL) {
-			
+		for (vL = pL -> firstVertex; vL; vL = vL -> next) {
 			// Draw the line from here to the next point
 			if (vL -> next) {
 				const float line[] = { (float) vL -> x, (float) vL -> y, (float) vL -> next -> x, (float) vL -> next -> y };
 				draw.drawLines(line, 2);
 			}
-			// Do we want to draw crosses at the corners?
-			 
-			if (1 /*markVertices*/) {
-				vertexList * newV = drawnVertices;
-				 
-				while (newV) {
-					if (newV -> x == vL -> x && newV -> y == vL -> y) break;
-					newV = newV -> next;
-				}
-				 
-				// We haven't drawn this cross already
-				if (! newV) {
-					 
-					// Remember we've drawn it					 
-					newV = new vertexList;
-					if (newV) {
-						newV -> next = drawnVertices;
-						drawnVertices = newV;
-						newV -> x = vL -> x;
-						newV -> y = vL -> y;
-					}
-					 
-					// Draw it
-					const float cross[] = {
-						(float) vL -> x - 5, (float) vL -> y - 5, (float) vL -> x + 5, (float) vL -> y + 5,
-						(float) vL -> x + 5, (float) vL -> y - 5, (float) vL -> x - 5, (float) vL -> y + 5
-					};
-					draw.drawLines(cross, 4);
-				}
+			// A dot on each vertex, once.
+			bool drawn = false;
+			for (size_t i = 0; i < drawnVertices.size () && ! drawn; i ++) {
+				drawn = drawnVertices[i].x == vL -> x && drawnVertices[i].y == vL -> y;
 			}
-			vL = vL -> next;
+			if (! drawn) {
+				drawnVertices.push_back (*vL);
+				drawCircle (draw, vL -> x, vL -> y, radius, true);
+			}
 		}
 		pL = pL -> next;
 	}
-	vL = floor -> firstVertex;
-	if (! polyIsComplete (floor) && vL) {
-		float xx = vL -> x;
-		float yy = vL -> y;
-		const float square[] = { xx-5, yy-5, xx+5, yy-5, xx+5, yy+5, xx-5, yy+5 };
-		draw.drawPolygon(square, 4);
-		
-		while (vL -> next) vL = vL -> next;
-		xx = vL -> x;
-		yy = vL -> y;
-		const float diamond[] = { xx-7, yy, xx, yy-7, xx+7, yy, xx, yy+7 };
-		draw.drawPolygon(diamond, 4);
-	}
-	while (drawnVertices) {
-		struct vertexList * k = drawnVertices;
-		drawnVertices = drawnVertices -> next;
-		delete k;
+	if (start) {
+		draw.setDrawingColour(r, g, b, 1.0);
+		drawCircle (draw, start -> x, start -> y, radius, false);
 	}
 }
 
@@ -696,18 +687,14 @@ void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view) {
 	draw.drawLines(axes, 4);
 
 	if (view->lit) {
-		draw.setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
-		const float square[] = {
-			(float) view->litX-8, (float) view->litY-8, (float) view->litX+8, (float) view->litY-8,
-			(float) view->litX+8, (float) view->litY+8, (float) view->litX-8, (float) view->litY+8
-		};
-		draw.drawPolygon(square, 4);
+		draw.setDrawingColour(view->r, view->g, view->b, 1.0f);
+		drawCircle (draw, view->litX, view->litY, LIT_POINTS * view->pointPixels, true);
 	}
 
-	drawFloor(draw, view->floor, view->r, view->g, view->b);
+	drawFloor(draw, view->floor, view->r, view->g, view->b, view->pointPixels);
 
 	if (view->selecting) {
-		draw.setDrawingColour(1.0f, 0.00f, 1.00f, 1.0f);
+		draw.setDrawingColour(1.0f, 0.00f, 0.00f, 1.0f);
 		const float line[] = { (float) view->selx1, (float) view->sely1, (float) view->selx2, (float) view->sely2 };
 		draw.drawLines(line, 2);
 	}

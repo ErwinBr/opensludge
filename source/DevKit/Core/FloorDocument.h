@@ -80,6 +80,10 @@ public:
 	// places can't take it.
 	bool moveVertex (int x1, int y1, int x2, int y2);
 	bool deleteVertex (int x, int y);
+	// While we draw a polygon: take away its last vertex, so that the one
+	// before it is the last again, or take away the whole polygon.
+	bool removeLastVertex ();
+	bool cancelDrawing ();
 	// Add a vertex in the middle of the edge between two vertices.
 	bool splitLine (int x1, int y1, int x2, int y2);
 	// Split the polygon that has both vertices in two, along the line

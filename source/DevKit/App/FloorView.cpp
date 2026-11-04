@@ -36,7 +36,7 @@ struct ToolInfo {
 
 static const ToolInfo tools[FloorView::TOOL_COUNT] = {
 	{ "Draw", ImGuiKey_1, "Click to add a vertex to the polygon you're drawing. Click its first vertex to close it; "
-		"the next click starts a new polygon." },
+		"the next click starts a new polygon. Backspace removes the last vertex, Esc the whole unfinished polygon." },
 	{ "Move", ImGuiKey_2, "Drag a vertex to move it, in every polygon that has it." },
 	{ "Delete", ImGuiKey_3, "Click a vertex to delete it." },
 	{ "Split Line", ImGuiKey_4, "Drag from one end of a line to the other to add a vertex in its middle." },
@@ -196,7 +196,14 @@ void FloorView::handleMouse () {
 	litX = sx;
 	litY = sy;
 
-	if (dragging && ImGui::IsKeyPressed (ImGuiKey_Escape)) dragging = false;
+	if (dragging && ImGui::IsKeyPressed (ImGuiKey_Escape)) {
+		dragging = false;
+	} else if (tool == TOOL_DRAW && floor->drawing () && ! ImGui::GetIO ().WantTextInput) {
+		// While we draw a polygon, Backspace takes back its last vertex and
+		// Esc all of it.
+		if (ImGui::Shortcut (ImGuiKey_Backspace, ImGuiInputFlags_Repeat)) floor->removeLastVertex ();
+		else if (ImGui::Shortcut (ImGuiKey_Escape)) floor->cancelDrawing ();
+	}
 
 	if (canvas.pressed ()) {
 		switch (tool) {
@@ -270,6 +277,7 @@ void FloorView::paint (Draw2D & draw) {
 	view.lit = lit;
 	view.litX = litX;
 	view.litY = litY;
+	view.pointPixels = canvas.pixelsOfPoints (1.0f);
 	// The line of a drag, or from the last vertex to the cursor while we
 	// draw a polygon.
 	view.selecting = false;

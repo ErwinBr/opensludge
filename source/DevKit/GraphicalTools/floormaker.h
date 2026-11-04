@@ -45,13 +45,17 @@ struct polyList * addPoly (struct polyList *firstPoly);
 void splitPoly (int x1, int y1, int x2, int y2, struct polyList **firstPoly);
 void splitLine (int x1, int y1, int x2, int y2, struct polyList *firstPoly);
 
-void drawFloor (Draw2D & draw, struct polyList * pL, float r, float g, float b);
+// Draw a floor in the colour r, g, b, with a dot on each vertex that is
+// pointPixels pixels of the picture for each point of the window across.
+void drawFloor (Draw2D & draw, struct polyList * pL, float r, float g, float b, float pointPixels);
 
 struct spriteBank;
 
 // In the floor maker view, we draw the backdrop, the floor in the colour
-// r, g, b, a square on the vertex at (litX, litY) when lit is set, and the
-// line from (selx1, sely1) to (selx2, sely2) when selecting is set.
+// r, g, b, a larger circle on the vertex at (litX, litY) when lit is set,
+// and the line from (selx1, sely1) to (selx2, sely2) in red when selecting
+// is set. The dots and circles keep their size in the window: a point of
+// it is pointPixels pixels of the picture.
 struct floorMakerView {
 	struct spriteBank * backdrop;
 	struct polyList * floor;
@@ -60,6 +64,7 @@ struct floorMakerView {
 	int litX, litY;
 	bool selecting;
 	int selx1, sely1, selx2, sely2;
+	float pointPixels;
 };
 
 void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view);

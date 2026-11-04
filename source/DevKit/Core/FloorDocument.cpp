@@ -151,6 +151,22 @@ FloorDocument::AddResult FloorDocument::addVertex (int x, int y) {
 	return result;
 }
 
+bool FloorDocument::removeLastVertex () {
+	if (! drawing ()) return false;
+	Floor changed = theFloor;
+	changed.polygons[0].erase (changed.polygons[0].begin ());
+	setFloor (changed, "Remove Vertex");
+	return true;
+}
+
+bool FloorDocument::cancelDrawing () {
+	if (! drawing ()) return false;
+	Floor changed = theFloor;
+	changed.polygons[0].clear ();
+	setFloor (changed, "Cancel Polygon");
+	return true;
+}
+
 bool FloorDocument::moveVertex (int x1, int y1, int x2, int y2) {
 	return change ("Move Vertex", [x1, y1, x2, y2] (polyList ** list) {
 		moveVertices (x1, y1, x2, y2, *list);

@@ -647,6 +647,32 @@ static void testFloors () {
 	CHECK (floor.floor ().polygons.size () == polygons + 1);
 	CHECK (floor.commands ().undoLabel () == "Split Floor");
 
+	// While we draw a polygon, Backspace takes back its last vertex and Esc
+	// the whole polygon, each as a command; neither touches a complete one.
+	CHECK (! floor.removeLastVertex ());
+	CHECK (! floor.cancelDrawing ());
+	Floor complete = floor.floor ();
+	floor.addVertex (300, 300);
+	floor.addVertex (400, 300);
+	floor.addVertex (400, 400);
+	CHECK (floor.removeLastVertex ());
+	CHECK (floor.floor ().polygons[0].size () == 2);
+	CHECK (floor.floor ().polygons[0][0] == FloorPoint (400, 300));
+	CHECK (floor.drawing ());
+	CHECK (floor.commands ().undoLabel () == "Remove Vertex");
+	CHECK (floor.cancelDrawing ());
+	CHECK (floor.floor ().polygons[0].empty ());
+	CHECK (! floor.drawing ());
+	CHECK (floor.floor ().polygons.size () == complete.polygons.size () + 1);
+	CHECK (floor.floor ().vertexCount () == complete.vertexCount ());
+	floor.commands ().undo ();
+	CHECK (floor.floor ().polygons[0].size () == 2);
+	floor.commands ().redo ();
+	// Taking back the only vertex leaves nothing drawn.
+	floor.addVertex (300, 300);
+	CHECK (floor.removeLastVertex ());
+	CHECK (! floor.drawing ());
+
 	// Undo takes it all back to an empty floor, and redo brings it again.
 	Floor drawn = floor.floor ();
 	while (floor.commands ().canUndo ()) floor.commands ().undo ();

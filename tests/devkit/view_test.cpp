@@ -265,7 +265,8 @@ static void testFloorMaker () {
 	struct floorMakerView fmv = {
 		&backdrop, floor, 1.0f, 1.0f, 1.0f,
 		true, 300, 260,
-		true, 60, 300, 420, 420
+		true, 60, 300, 420, 420,
+		2.0f
 	};
 
 	View v = startView (320, 240);
@@ -275,6 +276,7 @@ static void testFloorMaker () {
 
 	draw->setViewArea (200, -200, v.width, v.height, 1.0f);
 	fmv.r = 0.4f;
+	fmv.pointPixels = 1.0f;
 	drawFloorMakerView (*draw, &fmv);
 	check ("floormaker-scrolled", v);
 	endView (v);

@@ -42,6 +42,8 @@ Now, start putting the floor onto the screen. The boundary of a floor is made up
 (vertices, as they're called in the program). Choose the <b>Draw</b> tool and click where you want to add a vertex.
 A line from the last vertex follows the mouse. When you're done, click the first vertex again to complete the
 walkable area. Clicking near a vertex takes that vertex, so that polygons can share their vertices exactly.
+While you draw, <b>Backspace</b> removes the last vertex you added, so that you carry on from the one before it,
+and <b>Esc</b> throws away the polygon you haven't completed yet. Both can be undone.
 </P>
 
 <P>
@@ -67,7 +69,8 @@ Choose a tool in the toolbar, in the Inspector, or with the keys 1 to 5.
 <ul>
 <li><b>Draw</b> (1): already discussed above. If you want to add a section of floor outside of what's already been
 defined, click again after completing a polygon, which starts a new one. If you want to create a floor plan with
-holes (for example, so that characters can walk around both sides of pillars) you must use this method.</li>
+holes (for example, so that characters can walk around both sides of pillars) you must use this method.
+Backspace removes the last vertex of the polygon you're drawing, and Esc removes all of it.</li>
 <li><b>Move</b> (2): drag a vertex to move it to a new location, in every polygon that has it. Vertices can even be
 dragged onto other, already existing vertices.</li>
 <li><b>Delete</b> (3): click a vertex and it will be removed. (Once a polygon has too few vertices it is

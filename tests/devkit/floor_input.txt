@@ -19,6 +19,23 @@ move 758 124
 down
 up
 
+# Start a stray polygon at (300, 100), (380, 120), (350, 180); Backspace
+# takes back (350, 180), we click it again, and Esc throws the polygon away.
+move 620 178
+down
+up
+move 694 197
+down
+up
+move 666 252
+down
+up
+key Backspace
+move 666 252
+down
+up
+key Escape
+
 # Move (600, 150) to about (620, 170).
 key 2
 move 895 224
