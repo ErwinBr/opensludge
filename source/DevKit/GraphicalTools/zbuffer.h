@@ -9,7 +9,12 @@ bool loadZBufferFile (const char * name, struct spriteBank *loadhere);
 // colour that they choose. Free it with delete [].
 unsigned char * zBufferLayerPixels (const struct spriteBank * buffers, int layer);
 
+// Make the layers of a z-buffer from a picture, in which each colour is a
+// layer, on black or transparent, and the y of each is its lowest row.
 bool loadZBufferFromTGA (const char * fileName, struct spriteBank *loadhere);
+bool loadZBufferFromPNG (const char * fileName, struct spriteBank *loadhere);
+// From a PNG or a TGA, by the extension of its name.
+bool loadZBufferFromImage (const char * fileName, struct spriteBank *loadhere);
 
 // Draw the z-buffers, the selected one in white and the others in purple,
 // with the outline of the backdrop and the cut-off line of the selected

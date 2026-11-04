@@ -770,7 +770,7 @@ static void testZBuffers () {
 	CHECK (made.empty ());
 	std::string error;
 	CHECK (! made.save (folder + "empty.zbu", &error) && ! error.empty ());
-	CHECK (made.makeFromTGA (fixtures + "zbuffer.tga"));
+	CHECK (made.makeFromImage (fixtures + "zbuffer.tga"));
 	CHECK (! made.empty ());
 	CHECK (made.layers () > 1);
 	CHECK (made.untitledName () == "zbuffer.zbu");
@@ -837,6 +837,48 @@ static void testZBuffers () {
 		CHECK (saved.compare (0, 8, std::string ("Szb\1\2\x80\1\xE0", 8)) == 0);
 		CHECK (saved.substr (8) == original.substr (4));
 	}
+
+	// From a PNG: transparent and black pixels are the background, and
+	// each other colour is a layer whose y is one past its lowest row.
+	{
+		const int pw = 8, ph = 6;
+		std::vector<unsigned char> rgba (pw * ph * 4, 0);
+		for (int y = 0; y < ph; y ++) {
+			for (int x = 0; x < pw; x ++) {
+				unsigned char * p = &rgba[(y * pw + x) * 4];
+				if (y < 2 && x < 4) { p[0] = 255; p[3] = 255; }
+				else if (y >= 2 && y < 5 && x >= 4) { p[2] = 255; p[3] = 255; }
+				else if (y == 5) { p[3] = 255; }
+			}
+		}
+		png_image png;
+		memset (&png, 0, sizeof (png));
+		png.version = PNG_IMAGE_VERSION;
+		png.width = pw;
+		png.height = ph;
+		png.format = PNG_FORMAT_RGBA;
+		CHECK (png_image_write_to_file (&png, (folder + "zbuffer.png").c_str (), 0, rgba.data (), 0, NULL));
+		ZBufferDocument fromPNG;
+		CHECK (fromPNG.makeFromImage (folder + "zbuffer.png"));
+		CHECK (fromPNG.layers () == 2 && fromPNG.width () == pw && fromPNG.height () == ph);
+		CHECK (fromPNG.layerY (1) == 2 && fromPNG.layerY (2) == 5);
+		CHECK (fromPNG.layerAt (0, 0) == 1 && fromPNG.layerAt (7, 4) == 2);
+		CHECK (fromPNG.layerAt (7, 0) == 0 && fromPNG.layerAt (0, 5) == 0);
+		CHECK (fromPNG.untitledName () == "zbuffer.zbu");
+
+		// Too many colours.
+		std::vector<unsigned char> many (16 * 2 * 4, 0);
+		for (int x = 0; x < 16; x ++) {
+			many[x * 4] = (unsigned char) (x * 16 + 15);
+			many[x * 4 + 3] = 255;
+		}
+		png.width = 16;
+		png.height = 2;
+		CHECK (png_image_write_to_file (&png, (folder + "many.png").c_str (), 0, many.data (), 0, NULL));
+		ZBufferDocument tooMany;
+		CHECK (! tooMany.makeFromImage (folder + "many.png"));
+		CHECK (tooMany.empty ());
+	}
 }
 
 // The pixels of a sprite, as RGBA.
@@ -868,6 +910,13 @@ static void writeFontPicture (const std::string & file) {
 	png.height = h;
 	png.format = PNG_FORMAT_RGBA;
 	png_image_write_to_file (&png, file.c_str (), 0, rgba.data (), 0, NULL);
+}
+
+// The places from..from+howMany-1.
+static std::vector<int> run (int from, int howMany) {
+	std::vector<int> indices;
+	for (int i = from; i < from + howMany; i ++) indices.push_back (i);
+	return indices;
 }
 
 static void testSpriteBanks () {

@@ -58,8 +58,9 @@ treated as a different layer.
 <H3>Making the z-buffer:</H3>
 
 <P>
-Save your z-buffer image as a TGA file. Make a new z-buffer with File &gt; New &gt; Z-Buffer, and choose the
-picture with <b>Make from TGA...</b>, or drop the picture on the z-buffer. The z-buffer gets the name of the picture.
+Save your z-buffer image as a PNG or TGA file. In a PNG, transparent pixels count as background too. Make a new
+z-buffer with File &gt; New &gt; Z-Buffer, and choose the image with <b>Load image...</b>, or drop the image on the
+z-buffer. The z-buffer gets the name of the image.
 After loading the image from above, the editor looks like this:
 </P>
 
@@ -70,9 +71,9 @@ After loading the image from above, the editor looks like this:
 <P>
 The Inspector lists the layers, with the cut-off point of each. The selected layer is shown in white, the others in
 purple, and the cut-off point of the selected layer as a green line. To select a layer, click it in the list, or
-Ctrl-click it in the picture (Command-click on macOS). Set the cut-off point of the selected layer with the <b>Y</b>
-field, or by clicking or dragging in the picture. Every change can be undone with Edit &gt; Undo. The mouse wheel
-zooms, and the middle or right mouse button moves the picture, as in the
+Ctrl-click it in the image (Command-click on macOS). Set the cut-off point of the selected layer with the <b>Y</b>
+field, or by clicking or dragging in the image. Every change can be undone with Edit &gt; Undo. The mouse wheel
+zooms, and the middle or right mouse button moves the image, as in the
 <a href="About_the_SLUDGE_Floor_Maker.html">floor editor</a>.
 </P>
 
@@ -81,7 +82,7 @@ zooms, and the middle or right mouse button moves the picture, as in the
 <P>
 The purpose of the z-buffer editor is to associate cut-off points to the layers defined by the z-buffer image. The
 cut-off point is the y-value below which a character must be standing in order to be shown in front of the layer in
-question. By default, when a TGA image is loaded, the cut-off point for each layer is the y-value of the lowest pixel
+question. By default, when an image is loaded, the cut-off point for each layer is the y-value of the lowest pixel
 used in the layer.
 </P>
 
@@ -99,8 +100,8 @@ object.
 <H3>Saving and using a z-buffer file:</H3>
 
 <P>
-Save the z-buffer with File &gt; Save, or under another name with File &gt; Save As. A z-buffer made from a picture
-asks where to save it the first time, in the folder of the picture.
+Save the z-buffer with File &gt; Save, or under another name with File &gt; Save As. A z-buffer made from an image
+asks where to save it the first time, in the folder of the image.
 </P>
 
 <P>

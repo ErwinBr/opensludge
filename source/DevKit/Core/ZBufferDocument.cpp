@@ -67,10 +67,10 @@ void ZBufferDocument::take (spriteBank & loaded) {
 	spriteBankChanged (&buffers);
 }
 
-bool ZBufferDocument::makeFromTGA (const std::string & path) {
+bool ZBufferDocument::makeFromImage (const std::string & path) {
 	spriteBank loaded;
 	memset (&loaded, 0, sizeof (loaded));
-	if (! loadZBufferFromTGA (path.c_str (), &loaded)) {
+	if (! loadZBufferFromImage (path.c_str (), &loaded)) {
 		forgetSpriteBank (&loaded);
 		return false;
 	}

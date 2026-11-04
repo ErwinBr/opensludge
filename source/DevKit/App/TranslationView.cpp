@@ -227,12 +227,6 @@ void TranslationView::draw () {
 	}
 }
 
-static void hintText (const char * text) {
-	ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
-	ImGui::TextWrapped ("%s", text);
-	ImGui::PopStyleColor ();
-}
-
 void TranslationView::drawInspector () {
 	ImGui::SeparatorText ("Language");
 	Language language = translation->language ();
@@ -246,7 +240,6 @@ void TranslationView::drawInspector () {
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 12);
 	if (ImGui::InputText ("Name", &language.name)) translation->setLanguage (language, NAME_KEY);
 	if (ImGui::IsItemDeactivated ()) translation->commands ().stopMerging ();
-	hintText ("The game chooses a language by its ID. The name is what the game shows for it.");
 
 	ImGui::SeparatorText ("Strings");
 	ImGui::Text ("%d strings", (int) translation->lines ().size ());
@@ -261,8 +254,6 @@ void TranslationView::drawInspector () {
 	} else {
 		if (ImGui::Button ("Load Strings from a Project...")) chooseProject ();
 	}
-	hintText ("Adds the strings of the scripts, the window name and the quit message that the translation doesn't "
-		"have yet, and removes those that the project no longer has. Translations stay.");
 }
 
 } // namespace devkit

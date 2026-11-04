@@ -38,11 +38,11 @@ void ZBufferView::say (const std::string & text) {
 
 void ZBufferView::choosePicture () {
 	std::vector<FileFilter> filters;
-	FileFilter tga = { "TGA pictures", "tga" };
-	filters.push_back (tga);
+	FileFilter images = { "Images", "png;tga" };
+	filters.push_back (images);
 	std::string folder = zbuffer->path ().empty () ? zbuffer->startFolder () : folderOf (zbuffer->path ());
 	std::shared_ptr<std::string> chosen = chosenPicture;
-	actions.platform ().openFileDialog ("Make the z-buffer from a picture", filters, folder, false,
+	actions.platform ().openFileDialog ("Make the z-buffer from an image", filters, folder, false,
 			[chosen] (const std::vector<std::string> & files) {
 		if (! files.empty ()) *chosen = files[0];
 	});
@@ -56,7 +56,7 @@ void ZBufferView::makeFrom (const std::string & path) {
 		if (actions.platform ().ask ("Replace the layers?", "The layers of " + zbuffer->displayName ()
 				+ " and their y become those of " + fileNameOf (path) + ". Undo can't take that back.", buttons) != 0) return;
 	}
-	if (zbuffer->makeFromTGA (path)) {
+	if (zbuffer->makeFromImage (path)) {
 		selected = 1;
 		dragging = false;
 		canvas.setPictureSize (zbuffer->width (), zbuffer->height ());
@@ -64,7 +64,8 @@ void ZBufferView::makeFrom (const std::string & path) {
 }
 
 bool ZBufferView::takeFile (const std::string & path) {
-	if (extensionOf (path) != "tga") return false;
+	std::string extension = extensionOf (path);
+	if (extension != "tga" && extension != "png") return false;
 	makeFrom (path);
 	return true;
 }
@@ -80,7 +81,10 @@ void ZBufferView::handleMouse () {
 			dragging = true;
 		}
 	}
-	if (dragging && canvas.held ()) zbuffer->setLayerY (selected, y, DRAG_KEY);
+	if (dragging && canvas.held ()) {
+		zbuffer->setLayerY (selected, y, DRAG_KEY);
+		ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeNS);
+	}
 	if (dragging && canvas.released ()) {
 		dragging = false;
 		zbuffer->commands ().stopMerging ();
@@ -96,12 +100,12 @@ void ZBufferView::draw () {
 	if (selected > zbuffer->layers ()) selected = zbuffer->layers ();
 	if (selected < 1) selected = 1;
 
-	if (ImGui::Button ("Make from TGA...")) choosePicture ();
-	ImGui::SetItemTooltip ("Make the layers from a TGA picture, in which each colour is a layer");
+	if (ImGui::Button ("Load image...")) choosePicture ();
+	ImGui::SetItemTooltip ("Make the layers from a PNG or TGA image, in which each colour is a layer");
 	if (zbuffer->empty ()) {
 		ImVec2 avail = ImGui::GetContentRegionAvail ();
-		const char * text = "Make the z-buffer from a TGA picture of the room, in which each colour "
-			"(up to 15) is a layer, on black or transparent. You can drop the picture here too.";
+		const char * text = "Make the z-buffer from a PNG or TGA image of the room, in which each colour "
+			"(up to 15) is a layer, on black or transparent. You can drop the image here too.";
 		float width = avail.x < ImGui::GetFontSize () * 30 ? avail.x : ImGui::GetFontSize () * 30;
 		ImGui::SetCursorPos (ImVec2 (ImGui::GetCursorPosX () + (avail.x - width) * 0.5f, ImGui::GetCursorPosY () + avail.y * 0.35f));
 		ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + width);
@@ -140,17 +144,11 @@ void ZBufferView::draw () {
 	}
 }
 
-static void hintText (const char * text) {
-	ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
-	ImGui::TextWrapped ("%s", text);
-	ImGui::PopStyleColor ();
-}
-
 void ZBufferView::drawInspector () {
 	if (zbuffer->empty ()) {
 		ImGui::SeparatorText ("Z-Buffer");
 		ImGui::TextDisabled ("No layers yet.");
-		if (ImGui::Button ("Make from TGA...")) choosePicture ();
+		if (ImGui::Button ("Load image...")) choosePicture ();
 		return;
 	}
 
@@ -173,11 +171,6 @@ void ZBufferView::drawInspector () {
 		}
 		ImGui::EndListBox ();
 	}
-#if defined(__APPLE__)
-	hintText ("Cmd-click a layer on the canvas to select it.");
-#else
-	hintText ("Ctrl-click a layer on the canvas to select it.");
-#endif
 
 	char title[32];
 	snprintf (title, sizeof (title), "Layer %d", selected);
@@ -186,12 +179,9 @@ void ZBufferView::drawInspector () {
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 8);
 	if (ImGui::DragInt ("Y", &y, 1.0f, 0, zbuffer->maxY ())) zbuffer->setLayerY (selected, y, FIELD_KEY);
 	if (ImGui::IsItemDeactivated ()) zbuffer->commands ().stopMerging ();
-	hintText ("A character whose feet are above this line, further away, is behind the layer. Click or "
-		"drag on the canvas to set it. It can be below the picture, for characters that walk out at the bottom.");
 
-	ImGui::SeparatorText ("Picture");
-	if (ImGui::Button ("Make from TGA...")) choosePicture ();
-	hintText ("Each colour of the picture is a layer. Making the layers sets the y of each to its lowest row.");
+	ImGui::SeparatorText ("Image");
+	if (ImGui::Button ("Load image...")) choosePicture ();
 }
 
 } // namespace devkit

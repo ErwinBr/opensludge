@@ -48,9 +48,9 @@ public:
 	// The layer of a pixel, or 0 when it is in none.
 	int layerAt (int x, int y) const;
 
-	// Make the layers from the colours of a TGA picture, as the GTK
+	// Make the layers from the colours of a PNG or TGA image, as the GTK
 	// Z-Buffer Maker did. Its errors go to errorBox (interface.h).
-	bool makeFromTGA (const std::string & path);
+	bool makeFromImage (const std::string & path);
 
 protected:
 	bool read (const std::string & path, std::string * error);
