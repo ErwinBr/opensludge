@@ -51,6 +51,8 @@ public:
 	bool wantsToQuit () const { return quitting; }
 	// Whether we need another frame soon, as while we compile.
 	bool animating () const;
+	// The frame has been drawn and presented.
+	void frameDone ();
 
 	// Files that were dropped on the window or named on the command line.
 	void openFiles (const std::vector<std::string> & files);
@@ -70,6 +72,9 @@ public:
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
+	// Close the tab of the active document in the next frame, as its X
+	// does, for the tests.
+	void closeActiveTab () { closeTab = true; }
 
 private:
 	ProjectDocument * project () const;
@@ -106,6 +111,9 @@ private:
 	Preferences preferences;
 	std::map<std::string, ViewMaker> viewMakers;
 	std::map<Document *, std::unique_ptr<DocumentView> > views;
+	// The views of documents that closed in this frame. Their textures may
+	// still be in what ImGui has to draw, so they go when it is presented.
+	std::vector<std::unique_ptr<DocumentView> > closedViews;
 	std::unique_ptr<CompileJob> job;
 	BuildPanel buildPanel;
 	FileCheckWindow fileCheck;
@@ -117,6 +125,7 @@ private:
 	int layoutFrames;			// Frames until the new layout is done
 	unsigned int documentDock;	// Where new documents go
 	Document * focusDocument;	// A document to bring to the front
+	bool closeTab;				// See closeActiveTab
 
 	bool showProject, showBuild, showInspector, showLog;
 	bool showPreferences, showAbout, showDemo;

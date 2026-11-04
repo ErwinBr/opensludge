@@ -15,6 +15,8 @@
  *   new <kind>       make a new document, such as a Z-Buffer
  *   open <file>      open a file, or drop it on the active document
  *   save <file>      save the active document as file
+ *   close            close the tab of the active document, as its X does
+ *   documents <n>    fail unless n documents are open
  *
  * Lines that start with # are comments.
  */

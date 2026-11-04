@@ -60,6 +60,8 @@ private:
 	void say (const std::string & text);
 
 	SpriteBankDocument * bank;
+	// Its pictures, which we forget when we go, after the document.
+	const spriteBank * pictures;
 	WorkspaceActions & actions;
 	CanvasGraphics graphics;
 	CanvasView canvas;

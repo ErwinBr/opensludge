@@ -172,8 +172,12 @@ void CanvasView::draw (const ImVec2 & size, std::function<void (Draw2D & draw)> 
 	int width = (int) (viewSize.x * pixelRatio + 0.5f), height = (int) (viewSize.y * pixelRatio + 0.5f);
 	int sx = (int) floorf (scrollX * pixelRatio + 0.5f), sy = (int) floorf (scrollY * pixelRatio + 0.5f);
 	float zmul = 1.0f / (scale * pixelRatio);
-	mouse.x = ((io.MousePos.x - origin.x) * pixelRatio + sx) * zmul;
-	mouse.y = ((io.MousePos.y - origin.y) * pixelRatio + sy) * zmul;
+	// Without a mouse, as before it first moves, ImGui has it at -FLT_MAX,
+	// and we keep where it was.
+	if (ImGui::IsMousePosValid ()) {
+		mouse.x = ((io.MousePos.x - origin.x) * pixelRatio + sx) * zmul;
+		mouse.y = ((io.MousePos.y - origin.y) * pixelRatio + sy) * zmul;
+	}
 
 	// The left button is the editor's.
 	if (! panning && ! space) {

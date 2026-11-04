@@ -45,7 +45,7 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	: thePlatform (p), rendererName (renderer), graphics (g),
 	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
 	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
-	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL),
+	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), closeTab (false),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -92,14 +92,23 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 		focusDocument = document;
 	};
 	manager.closing = [this] (Document * document) {
-		views.erase (document);
+		std::map<Document *, std::unique_ptr<DocumentView> >::iterator view = views.find (document);
+		if (view != views.end ()) {
+			closedViews.push_back (std::move (view->second));
+			views.erase (view);
+		}
 		// The build was of this project.
 		if (document == project ()) job.reset ();
 	};
 }
 
 Workspace::~Workspace () {
+	closedViews.clear ();
 	views.clear ();
+}
+
+void Workspace::frameDone () {
+	closedViews.clear ();
 }
 
 std::string Workspace::preferencesFile () const {
@@ -540,8 +549,13 @@ void Workspace::drawDocuments () {
 			else hint ("The Dev Kit can't edit this kind of file yet.");
 		}
 		ImGui::End ();
+		if (closeTab && document == manager.active ()) {
+			open = false;
+			closeTab = false;
+		}
 		if (! open) manager.close (document);
 	}
+	closeTab = false;
 }
 
 void Workspace::drawProjectPanel () {

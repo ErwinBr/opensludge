@@ -36,9 +36,10 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		bool ok = true;
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
+		else if (s.what == "documents") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl";
-		else ok = s.what == "up";
+		else ok = s.what == "up" || s.what == "close";
 		if (! ok) {
 			char where[64];
 			snprintf (where, sizeof (where), "%d", number);
@@ -131,6 +132,14 @@ bool SmokeInput::step (Workspace & workspace) {
 			return false;
 		}
 		Log::get ().add (LogLine::LOG_INFO, "Saved %s as %s\n", document->displayName ().c_str (), s.text.c_str ());
+	} else if (s.what == "close") {
+		workspace.closeActiveTab ();
+	} else if (s.what == "documents") {
+		int open = (int) workspace.documents ().documents ().size ();
+		if (open != s.frames) {
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: %d documents are open, not %d\n", open, s.frames);
+			return false;
+		}
 	}
 	return true;
 }

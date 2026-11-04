@@ -347,6 +347,7 @@ int main (int argc, char ** argv) {
 			if (smokeProject && ! workspace.compileSucceeded ()) exitCode = 1;
 		}
 		renderer->present ();
+		workspace.frameDone ();
 
 		if (workspace.title () != title) {
 			title = workspace.title ();

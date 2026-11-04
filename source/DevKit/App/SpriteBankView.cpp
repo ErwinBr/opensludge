@@ -26,14 +26,14 @@ static const char * const CTRL_CLICK = "Ctrl-click";
 #endif
 
 SpriteBankView::SpriteBankView (SpriteBankDocument * b, WorkspaceActions & a, const CanvasGraphics & g)
-	: bank (b), actions (a), graphics (g), canvas (g), anchor (0), current (0), scrollToCurrent (false),
+	: bank (b), pictures (&b->bank ()), actions (a), graphics (g), canvas (g), anchor (0), current (0), scrollToCurrent (false),
 	  showBox (false), spaceWidth (10), dragging (false), dragX (0), dragY (0),
 	  pending (new Pending), noticeUntil (0) {
 	canvas.setSpriteView (true);
 }
 
 SpriteBankView::~SpriteBankView () {
-	graphics.draw->forgetPictures (&bank->bank ());
+	graphics.draw->forgetPictures (pictures);
 }
 
 bool SpriteBankView::animating () const {

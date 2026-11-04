@@ -20,11 +20,11 @@ static const double NOTICE_SECONDS = 5.0;
 static const int DRAG_KEY = 1, FIELD_KEY = 2;
 
 ZBufferView::ZBufferView (ZBufferDocument * z, WorkspaceActions & a, const CanvasGraphics & g)
-	: zbuffer (z), actions (a), graphics (g), canvas (g), selected (1), dragging (false),
+	: zbuffer (z), pictures (&z->bank ()), actions (a), graphics (g), canvas (g), selected (1), dragging (false),
 	  chosenPicture (new std::string), noticeUntil (0) {}
 
 ZBufferView::~ZBufferView () {
-	graphics.draw->forgetPictures (&zbuffer->bank ());
+	graphics.draw->forgetPictures (pictures);
 }
 
 bool ZBufferView::animating () const {

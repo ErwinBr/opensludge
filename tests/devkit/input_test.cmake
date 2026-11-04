@@ -1,19 +1,23 @@
 # Edit a document in the Dev Kit with the mouse and the keys of a file
 # (sludge-devkit --smoke-input, App/SmokeInput.h), save it, and compare it
-# with what we expect. We run this script with cmake -P and these variables:
+# with what we expect, or only see that the steps work when we expect no
+# file. We run this script with cmake -P and these variables:
 #
 #   DEVKIT    sludge-devkit
 #   DOCUMENT  the document to open, if any
 #   INPUT     the steps, in which ${OUTPUT} is where to save and
 #             ${FIXTURES} is the folder of FIXTURES
 #   FIXTURES  the folder of the test files
-#   EXPECTED  the file that we expect
+#   EXPECTED  the file that we expect, if any
+#   EXAMPLES  the folder of the example projects, for INPUT
 #   WORK_DIR  a folder for what we make
 
 file(REMOVE_RECURSE ${WORK_DIR})
 file(MAKE_DIRECTORY ${WORK_DIR})
-get_filename_component(name ${EXPECTED} NAME)
-set(OUTPUT ${WORK_DIR}/${name})
+if(EXPECTED)
+	get_filename_component(name ${EXPECTED} NAME)
+	set(OUTPUT ${WORK_DIR}/${name})
+endif()
 configure_file(${INPUT} ${WORK_DIR}/input.txt)
 
 execute_process(
@@ -24,6 +28,10 @@ execute_process(
 message("${output}")
 if(NOT result EQUAL 0)
 	message(FATAL_ERROR "The steps of ${INPUT} didn't work")
+endif()
+
+if(NOT EXPECTED)
+	return()
 endif()
 
 # We compare the bytes, but on Windows, the lines of the text files that we
