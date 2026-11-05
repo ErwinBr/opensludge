@@ -47,8 +47,49 @@ inline int TF_abs (int a) {
 	return (a > 0) ? a : -a;
 }
 
+void setPersonAnim (onScreenPerson & m, personaAnimation * anim, bool owned) {
+	if (m.ownAnim && m.ownAnim != anim) {
+		// Another animation could take its address, so that lastUsedAnim
+		// wouldn't see the change. Before, the old animation was never freed.
+		if (m.lastUsedAnim == m.ownAnim) m.lastUsedAnim = NULL;
+		deleteAnim (m.ownAnim);
+	}
+	m.myAnim = anim;
+	m.ownAnim = owned ? anim : NULL;
+}
+
 void setFrames (onScreenPerson & m, int a) {
-	m.myAnim = m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction];
+	setPersonAnim (m, m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction], false);
+}
+
+void retainCostume (persona * cossy) {
+	if (cossy) cossy -> timesUsed ++;
+}
+
+void releaseCostume (persona * cossy) {
+	if (! cossy) return;
+	if (-- cossy -> timesUsed > 0) return;
+	if (cossy -> animation) {
+		for (int a = 0; a < cossy -> numDirections * 3; a ++) deleteAnim (cossy -> animation[a]);
+		delete [] cossy -> animation;
+	}
+	delete cossy;
+}
+
+// The character no longer uses old: forget the last animation if it was one
+// of old, as the animations of old may go.
+static void forgetCostume (onScreenPerson & m, persona * old) {
+	if (! old || ! old -> animation) return;
+	for (int a = 0; a < old -> numDirections * 3; a ++) {
+		if (m.lastUsedAnim == old -> animation[a]) m.lastUsedAnim = NULL;
+	}
+}
+
+static void deletePerson (onScreenPerson * p) {
+	setPersonAnim (* p, NULL, false);
+	forgetCostume (* p, p -> myPersona);
+	releaseCostume (p -> myPersona);
+	delete p;
 }
 
 personaAnimation * createPersonaAnim (int num, variableStack * & stacky) {
@@ -783,6 +824,8 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	newPerson -> floaty = 0;
 	newPerson -> walkSpeed = newPerson -> thisType -> walkSpeed;
 	newPerson -> myAnim = NULL;
+	newPerson -> lastUsedAnim = NULL;
+	newPerson -> ownAnim = NULL;
 	newPerson -> spinSpeed = newPerson -> thisType -> spinSpeed;
 	newPerson -> r = 0;
 	newPerson -> g = 0;
@@ -790,6 +833,7 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	newPerson -> colourmix = 0;
 	newPerson -> transparency = 0;
 	newPerson -> myPersona = p;
+	retainCostume (p);
 
 	setFrames (* newPerson, ANI_STAND);
 
@@ -833,7 +877,9 @@ void animatePerson (int obj, personaAnimation * fram) {	// Set a new SINGLE anim
 		moveMe -> continueAfterWalking = NULL;
 		moveMe -> walking = false;
 		moveMe -> spinning = false;
-		moveMe -> myAnim = fram;
+		setPersonAnim (* moveMe, fram, true);
+	} else {
+		deleteAnim (fram);
 	}
 }
 
@@ -844,6 +890,9 @@ void animatePerson (int obj, persona * per) {			// Set a new costume
 	//	moveMe -> continueAfterWalking = NULL;
 	//	moveMe -> walking = false;
 		moveMe -> spinning = false;
+		// The same costume again keeps its count.
+		retainCostume (per);
+		persona * old = moveMe -> myPersona;
 		moveMe -> myPersona = per;
 		rethinkAngle (moveMe);
 		if (moveMe-> walking) {
@@ -851,6 +900,8 @@ void animatePerson (int obj, persona * per) {			// Set a new costume
 		} else {
 			setFrames (* moveMe, ANI_STAND);
 		}
+		if (old != per) forgetCostume (* moveMe, old);
+		releaseCostume (old);
 	}
 }
 
@@ -862,7 +913,7 @@ void killAllPeople () {
 		killPeople = allPeople;
 		allPeople = allPeople -> next;
 		removeObjectType (killPeople -> thisType);
-		delete killPeople;
+		deletePerson (killPeople);
 	}
 }
 
@@ -883,7 +934,7 @@ void killMostPeople () {
 			if (killPeople -> continueAfterWalking) abortFunction (killPeople -> continueAfterWalking);
 			killPeople -> continueAfterWalking = NULL;
 			removeObjectType (killPeople -> thisType);
-			delete killPeople;
+			deletePerson (killPeople);
 		}
 	}
 }
@@ -906,7 +957,7 @@ void removeOneCharacter (int i) {
 
 		* killPeople = p -> next;
 		removeObjectType (p -> thisType);
-		delete p;
+		deletePerson (p);
 	}
 }
 
@@ -1072,9 +1123,12 @@ bool loadPeople (FILE * fp) {
 
 		me -> myPersona = new persona;
 		if (! checkNew (me -> myPersona)) return false;
+		me -> myPersona -> timesUsed = 1;
 
+		// A copy of its own, even when it was an animation of the costume.
 		me -> myAnim = new personaAnimation;
 		if (! checkNew (me -> myAnim)) return false;
+		me -> ownAnim = me -> myAnim;
 
 		me -> x = getFloat (fp);
 		me -> y = getFloat (fp);

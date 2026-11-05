@@ -277,6 +277,7 @@ bool loadVariable (variable * to, FILE * fp) {
 		case SVT_COSTUME:
 		to -> varData.costumeHandler = new persona;
 		if (! checkNew (to -> varData.costumeHandler)) return false;
+		to -> varData.costumeHandler -> timesUsed = 1;
 		loadCostume (to -> varData.costumeHandler, fp);
 		return true;
 

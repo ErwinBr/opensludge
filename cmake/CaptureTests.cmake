@@ -156,7 +156,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			inside/room.tga outside/duck.duc outside/room.flo outside/room.tga outside/room.zbu)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
-	foreach(file RenderTest.slp render.slu big.png hole.png light.png sky.png movie.webm)
+	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
@@ -172,6 +172,22 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	# devices.
 	sludge_add_capture_test(rendertest-pot GAME ${CMAKE_BINARY_DIR}/games/RenderTest.slg
 		FRAMES ${render_frames} ENGINE_ARGS --pot-textures)
+
+	# Costumes and animations that go again must take their sprite banks with
+	# them: with no room for unused banks, the engine ends with none loaded.
+	sludge_compile_game(UnloadTest ${render_project}/UnloadTest.slp)
+	add_test(NAME capture-unload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DFRAMEDIFF=$<TARGET_FILE:framediff>
+			-DGAME=${CMAKE_BINARY_DIR}/games/UnloadTest.slg
+			-DFRAMES=0
+			-DOUT=${CMAKE_BINARY_DIR}/capture/unload
+			"-DENGINE_ARGS=--renderer=gl"
+			"-DENGINE_ENV=SLUDGE_SPRITEBANK_CACHE_MB=0 SLUDGE_SPRITEBANK_LOG=1"
+			"-DREQUIRE=unloaded [0-9]+; 0 loaded, 0 in use"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
+	set_tests_properties(capture-unload PROPERTIES LABELS capture TIMEOUT 300)
 endif()
 
 if(SLUDGE_OUT_OF_ORDER)

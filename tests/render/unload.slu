@@ -1,0 +1,54 @@
+# UnloadTest: makes costumes and animations, gives them to characters and
+# lets them all go again. With SLUDGE_SPRITEBANK_CACHE_MB=0, the engine must
+# then unload every sprite bank (see cmake/CaptureTests.cmake).
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 4),
+		anim ('ego/alien.duc', 11),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 7, 8, 9, 10),
+		anim ('ego/alien.duc', 6, 4, 5),
+		anim ('ego/alien.duc', 11));
+}
+
+sub init () {
+	var c;
+	var a;
+	for (var i = 0; i < 3; i ++) {
+		# A costume in a variable, shared by the character and setCostume.
+		c = egoCostume ();
+		addCharacter (ego, 320, 400, c);
+		setCostume (ego, c);
+		pause (2);
+		# A single animation of the character's own.
+		animate (ego, anim ('ego/alien.duc', 0, 1, 2, 3));
+		pause (2);
+		animate (ego, anim ('ego/alien.duc', 7, 8));
+		pause (2);
+		# Back to the costume.
+		setCostume (ego, egoCostume ());
+		pause (2);
+		removeCharacter (ego);
+		c = 0;
+	}
+
+	# A character made from an animation, not a costume.
+	a = anim ('outside/duck.duc', 0, 1, 2);
+	addCharacter (duck, 200, 350, a);
+	pause (2);
+	removeAllCharacters ();
+	a = 0;
+
+	# Animating a character that isn't there, and pasting an image.
+	animate (duck, anim ('outside/duck.duc', 3));
+	pasteImage (anim ('iface/mouse.duc', 0), 100, 100);
+	pause (10);
+	quitGame ();
+}

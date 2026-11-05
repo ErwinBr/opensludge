@@ -54,6 +54,11 @@ void unlinkVar (variable & thisVar) {
 		deleteAnim (thisVar.varData.animHandler);
 		break;
 
+		case SVT_COSTUME:
+		releaseCostume (thisVar.varData.costumeHandler);
+		thisVar.varData.costumeHandler = NULL;
+		break;
+
 		default:
 		break;
 	}
@@ -83,6 +88,8 @@ personaAnimation * getAnimationFromVar (variable & thisVar) {
 }
 
 void newCostumeVariable (variable & thisVar, persona * i) {
+	// Before unlinking, in case thisVar holds i already.
+	retainCostume (i);
 	unlinkVar (thisVar);
 	thisVar.varType = SVT_COSTUME;
 	thisVar.varData.costumeHandler = i;
@@ -95,6 +102,7 @@ persona * getCostumeFromVar (variable & thisVar) {
 		case SVT_ANIM:
 		p = new persona;
 		if (! checkNew (p)) return NULL;
+		p -> timesUsed = 1;		// The caller's reference
 		p -> numDirections = 1;
 		p -> animation = new personaAnimation * [3];
 		if (! checkNew (p -> animation)) return NULL;
@@ -105,6 +113,7 @@ persona * getCostumeFromVar (variable & thisVar) {
 		break;
 
 		case SVT_COSTUME:
+		retainCostume (thisVar.varData.costumeHandler);
 		return thisVar.varData.costumeHandler;
 		break;
 
@@ -448,6 +457,7 @@ bool copyMain (const variable & from, variable & to) {
 
 		case SVT_COSTUME:
 		to.varData.costumeHandler = from.varData.costumeHandler;
+		retainCostume (to.varData.costumeHandler);
 		return true;
 
 		case SVT_ANIM:

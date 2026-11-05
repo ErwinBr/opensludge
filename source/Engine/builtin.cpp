@@ -424,6 +424,7 @@ builtIn(pasteImage)
 	if (pp == NULL) return BR_CONTINUE;
 
 	pasteCursor (x, y, pp);
+	deleteAnim (pp);
 	return BR_CONTINUE;
 }
 
@@ -1505,11 +1506,11 @@ builtIn(removeAllScreenRegions)
 builtIn(addCharacter)
 {
 	UNUSEDALL
-	persona * p;
 	int x, y, objectNumber;
 
-	p = getCostumeFromVar (fun -> stack -> thisVar);
-	if (p == NULL) return BR_ERROR;
+	// Our reference goes on every return; addPerson takes its own.
+	CostumeRef p (getCostumeFromVar (fun -> stack -> thisVar));
+	if (p.get () == NULL) return BR_ERROR;
 
 	trimStack (fun -> stack);
 	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
@@ -1518,7 +1519,7 @@ builtIn(addCharacter)
 	trimStack (fun -> stack);
 	if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	if (addPerson (x, y, objectNumber, p)) return BR_CONTINUE;
+	if (addPerson (x, y, objectNumber, p.get ())) return BR_CONTINUE;
 	return BR_ERROR;
 }
 
@@ -1649,8 +1650,10 @@ builtIn(animate)
 	trimStack (fun -> stack);
 	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
+	// animatePerson takes the animation, and may delete it.
+	int time = timeForAnim (pp);
 	animatePerson (obj, pp);
-	setVariable (fun -> reg, SVT_INT, timeForAnim (pp));
+	setVariable (fun -> reg, SVT_INT, time);
 	return BR_CONTINUE;
 }
 
@@ -1658,12 +1661,13 @@ builtIn(setCostume)
 {
 	UNUSEDALL
 	int obj;
-	persona * pp = getCostumeFromVar (fun -> stack -> thisVar);
-	if (pp == NULL) return BR_ERROR;
+	// Our reference goes on every return; animatePerson takes its own.
+	CostumeRef pp (getCostumeFromVar (fun -> stack -> thisVar));
+	if (pp.get () == NULL) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	animatePerson (obj, pp);
+	animatePerson (obj, pp.get ());
 	return BR_CONTINUE;
 }
 
@@ -2137,7 +2141,7 @@ builtIn(normalCharacter)
 	onScreenPerson * thisPerson = findPerson (objectNumber);
 	if (thisPerson)
 	{
-		thisPerson -> myAnim = thisPerson -> myPersona -> animation[thisPerson -> direction];
+		setPersonAnim (* thisPerson, thisPerson -> myPersona -> animation[thisPerson -> direction], false);
 		setVariable (fun -> reg, SVT_INT, 1);
 	} else {
 		setVariable (fun -> reg, SVT_INT, 0);
