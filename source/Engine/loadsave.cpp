@@ -322,7 +322,10 @@ void saveFunction (loadedFunction * fun, FILE * fp) {
 	}
 }
 
-loadedFunction * loadFunction (FILE * fp) {
+// No saved game has functions called this deep; a damaged one might.
+static const int maxCallDepth = 10000;
+
+static loadedFunction * loadFunction (FILE * fp, int depth) {
 	int a;
 
 	// Reserve memory...
@@ -334,9 +337,19 @@ loadedFunction * loadFunction (FILE * fp) {
 
 	buildFunc -> originalNumber = get2bytes (fp);
 	buildFunc -> calledBy = NULL;
-	if (fgetc (fp)) {
-		buildFunc -> calledBy = loadFunction (fp);
-		if (! buildFunc -> calledBy) return NULL;
+	// At the end of a cut-off file, fgetc gives EOF, which isn't 0: we
+	// went on loading callers until the stack ran out.
+	int calledBy = fgetc (fp);
+	if (calledBy == EOF || (calledBy && depth >= maxCallDepth)) {
+		delete buildFunc;
+		return NULL;
+	}
+	if (calledBy) {
+		buildFunc -> calledBy = loadFunction (fp, depth + 1);
+		if (! buildFunc -> calledBy) {
+			delete buildFunc;
+			return NULL;
+		}
 	}
 
 	buildFunc -> timeLeft = get4bytes (fp);
@@ -356,6 +369,10 @@ loadedFunction * loadFunction (FILE * fp) {
 	}
 
 	return buildFunc;
+}
+
+loadedFunction * loadFunction (FILE * fp) {
+	return loadFunction (fp, 0);
 }
 
 //----------------------------------------------------------------------
@@ -567,6 +584,7 @@ bool loadGame (char * fname) {
 	int countFunctions = get2bytes (fp);
 	while (countFunctions --) {
 		rFunc = loadFunction (fp);
+		if (! rFunc) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 		rFunc -> next = NULL;
 		(* buildList) = rFunc;
 		buildList = & (rFunc -> next);
@@ -577,7 +595,7 @@ bool loadGame (char * fname) {
 		loadVariable (& globalVars[a], fp);
 	}
 
-	loadPeople (fp);
+	if (! loadPeople (fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 
 
 	if (fgetc (fp)) {
