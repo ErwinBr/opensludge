@@ -43,11 +43,15 @@ void unlinkVar (variable & thisVar) {
 
 		case SVT_FASTARRAY:
 		thisVar.varData.fastArray -> timesUsed --;
-		if (thisVar.varData.theStack -> timesUsed <= 0) {
+		if (thisVar.varData.fastArray -> timesUsed <= 0) {
+			// Its elements may hold strings, stacks, animations and costumes.
+			for (int i = 0; i < thisVar.varData.fastArray -> size; i ++) {
+				unlinkVar (thisVar.varData.fastArray -> fastVariables[i]);
+			}
 			delete [] thisVar.varData.fastArray -> fastVariables;
-			delete[] thisVar.varData.fastArray;
-			thisVar.varData.fastArray = NULL;
+			delete thisVar.varData.fastArray;
 		}
+		thisVar.varData.fastArray = NULL;
 		break;
 
 		case SVT_ANIM:

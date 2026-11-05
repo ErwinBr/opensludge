@@ -46,6 +46,16 @@ sub init () {
 	removeAllCharacters ();
 	a = 0;
 
+	# A fast array of animations, shared by two variables: it must stay
+	# while one of them holds it, and take its animations when both let go.
+	var f = makeFastArray (newStack (anim ('iface/mouse.duc', 0), anim ('outside/duck.duc', 1)));
+	var g = f;
+	f = 0;
+	pasteImage (g[0], 300, 100);
+	pasteImage (g[1], 300, 200);
+	pause (2);
+	g = 0;
+
 	# Animating a character that isn't there, and pasting an image.
 	animate (duck, anim ('outside/duck.duc', 3));
 	pasteImage (anim ('iface/mouse.duc', 0), 100, 100);
