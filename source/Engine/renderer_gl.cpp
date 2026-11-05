@@ -81,6 +81,7 @@ public:
 
 	RenderTarget * createTarget (Texture * color, bool depth);
 	void destroyTarget (RenderTarget * target);
+	void detachTarget (RenderTarget * target);
 	void setTarget (RenderTarget * target);
 	void setViewport (int x, int y, int width, int height);
 	void setScissor (int x, int y, int width, int height);
@@ -300,9 +301,13 @@ RenderTarget * GLRenderer::createTarget (Texture * color, bool depth) {
 	return target;
 }
 
+void GLRenderer::detachTarget (RenderTarget * target) {
+	if (currentTarget == target) setTarget (NULL);
+}
+
 void GLRenderer::destroyTarget (RenderTarget * target) {
 	if (! target) return;
-	if (currentTarget == target) setTarget (NULL);
+	detachTarget (target);
 	glDeleteFramebuffers (1, &target->framebuffer);
 	if (target->depth) glDeleteRenderbuffers (1, &target->depth);
 	delete target;

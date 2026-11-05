@@ -31,22 +31,37 @@ Renderer::Renderer ()
 void Renderer::releaseTexture (Texture * t) {
 	if (! t) return;
 	SDL_assert (SDL_GetCurrentThreadID () == ownerThread);
-	Released r = { t, frame };
+	Released r = { t, NULL, frame };
+	released.push_back (r);
+}
+
+void Renderer::releaseTarget (RenderTarget * target) {
+	if (! target) return;
+	SDL_assert (SDL_GetCurrentThreadID () == ownerThread);
+	detachTarget (target);
+	Released r = { NULL, target, frame };
 	released.push_back (r);
 }
 
 void Renderer::destroyReleasedTextures (bool all) {
 	SDL_assert (SDL_GetCurrentThreadID () == ownerThread);
 	if (! all) frame ++;
-	size_t kept = 0;
-	for (size_t i = 0; i < released.size (); i ++) {
-		if (all || frame - released[i].frame >= (uint64_t) framesInFlight) {
-			destroyTexture (released[i].texture);
-		} else {
-			released[kept ++] = released[i];
+	// Targets first: a target may draw into a texture released with it.
+	for (int pass = 0; pass < 2; pass ++) {
+		size_t kept = 0;
+		for (size_t i = 0; i < released.size (); i ++) {
+			Released & r = released[i];
+			bool due = all || frame - r.frame >= (uint64_t) framesInFlight;
+			if (due && pass == 0 && r.target) {
+				destroyTarget (r.target);
+			} else if (due && pass == 1 && r.texture) {
+				destroyTexture (r.texture);
+			} else {
+				released[kept ++] = r;
+			}
 		}
+		released.resize (kept);
 	}
-	released.resize (kept);
 }
 
 DrawUniforms::DrawUniforms ()

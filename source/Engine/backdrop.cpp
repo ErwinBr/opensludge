@@ -64,7 +64,7 @@ extern int cameraX, cameraY;
 extern float cameraZoom;
 
 void setBackdropTexture (gfx::Texture * t) {
-	if (backdropTarget) gfx::renderer->destroyTarget (backdropTarget);
+	if (backdropTarget) gfx::renderer->releaseTarget (backdropTarget);
 	backdropTarget = NULL;
 	backdropTex = t;
 	if (t) backdropTarget = gfx::renderer->createTarget (t, true);
@@ -77,7 +77,7 @@ gfx::Texture * copyOfBackdrop () {
 		int cw, ch;
 		gfx::renderer->textureSize (backdropCopy, &cw, &ch);
 		if (cw != tw || ch != th) {
-			gfx::renderer->destroyTexture (backdropCopy);
+			gfx::renderer->releaseTexture (backdropCopy);
 			backdropCopy = NULL;
 		}
 	}
@@ -96,7 +96,7 @@ gfx::Texture * copyOfBackdrop () {
 }
 
 void nosnapshot () {
-	gfx::renderer->destroyTexture (snapshotTex);
+	gfx::renderer->releaseTexture (snapshotTex);
 	snapshotTex = NULL;
 }
 
@@ -141,7 +141,7 @@ bool snapshot () {
 	viewSpeech ();					// ...and anything being said
 	drawStatusBar ();
 
-	gfx::renderer->destroyTarget (target);
+	gfx::renderer->releaseTarget (target);
 	drawIntoWindow ();
 	setPixelCoords (false);
 
@@ -208,12 +208,12 @@ bool restoreSnapshot (FILE * fp) {
 void killBackDrop () {
 	gfx::Texture * t = backdropTex;
 	setBackdropTexture (NULL);
-	gfx::renderer->destroyTexture (t);
+	gfx::renderer->releaseTexture (t);
 	backdropExists = false;
 }
 
 void killLightMap () {
-	gfx::renderer->destroyTexture (lightMap.tex);
+	gfx::renderer->releaseTexture (lightMap.tex);
 	lightMap.tex = NULL;
 	if (lightMap.data) {
 		delete [] lightMap.data;
@@ -229,7 +229,7 @@ void killParallax () {
 		parallaxStuff = k -> next;
 
 		// Now kill the image
-		gfx::renderer->destroyTexture (k -> tex);
+		gfx::renderer->releaseTexture (k -> tex);
 		delete [] k -> texture;
 		delete k;
 		k = NULL;
@@ -1082,7 +1082,7 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 
 		xoffset += viewportWidth;
 	}
-	gfx::renderer->destroyTexture (tmpTex);
+	gfx::renderer->releaseTexture (tmpTex);
 
 	drawIntoWindow ();
 	setPixelCoords (false);
@@ -1293,7 +1293,7 @@ bool mixHSI (FILE * fp, int x, int y) {
 
 		xoffset += viewportWidth;
 	}
-	gfx::renderer->destroyTexture (tmpTex);
+	gfx::renderer->releaseTexture (tmpTex);
 	drawIntoWindow ();
 	setPixelCoords (false);
 	return true;

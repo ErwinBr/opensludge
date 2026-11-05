@@ -12,7 +12,7 @@ extern int sceneWidth, sceneHeight;
 
 void killZBuffer () {
 	if (zBuffer.tex) {
-		gfx::renderer->destroyTexture (zBuffer.texture);
+		gfx::renderer->releaseTexture (zBuffer.texture);
 		zBuffer.texture = NULL;
 		delete [] zBuffer.tex;
 		zBuffer.tex = NULL;

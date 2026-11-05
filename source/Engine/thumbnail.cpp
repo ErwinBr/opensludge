@@ -68,8 +68,8 @@ bool saveThumbnail (FILE * fp) {
 		}
 		delete [] rgba;
 
-		gfx::renderer->destroyTarget (target);
-		gfx::renderer->destroyTexture (thumbnailTex);
+		gfx::renderer->releaseTarget (target);
+		gfx::renderer->releaseTexture (thumbnailTex);
 		drawIntoWindow ();
 		setPixelCoords (false);
 
@@ -182,7 +182,7 @@ void showThumbnail (char * filename, int atX, int atY) {
 		}
 		drawIntoWindow ();
 		setPixelCoords (false);
-		gfx::renderer->destroyTexture (thumbnailTex);
+		gfx::renderer->releaseTexture (thumbnailTex);
 	}
 }
 

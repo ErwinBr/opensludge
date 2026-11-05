@@ -137,6 +137,7 @@ public:
 
 	RenderTarget * createTarget (Texture * color, bool depth);
 	void destroyTarget (RenderTarget * target);
+	void detachTarget (RenderTarget * target);
 	void setTarget (RenderTarget * target);
 	void setViewport (int x, int y, int width, int height);
 	void setScissor (int x, int y, int width, int height);
@@ -518,12 +519,16 @@ RenderTarget * GPURenderer::createTarget (Texture * color, bool depth) {
 	return t;
 }
 
-void GPURenderer::destroyTarget (RenderTarget * t) {
-	if (! t) return;
+void GPURenderer::detachTarget (RenderTarget * t) {
 	if (current == t) {
 		endPass ();
 		current = NULL;
 	}
+}
+
+void GPURenderer::destroyTarget (RenderTarget * t) {
+	if (! t) return;
+	detachTarget (t);
 	if (t->depth) SDL_ReleaseGPUTexture (device, t->depth);
 	delete t;
 }

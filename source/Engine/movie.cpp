@@ -756,9 +756,9 @@ static void finishMovie ()
 	vorbis_comment_clear(&movie->vorbisComment);
 	vorbis_info_clear(&movie->vorbisInfo);
     delete movie->segment;
-	gfx::renderer->destroyTexture (yTex);
-	gfx::renderer->destroyTexture (uTex);
-	gfx::renderer->destroyTexture (vTex);
+	gfx::renderer->releaseTexture (yTex);
+	gfx::renderer->releaseTexture (uTex);
+	gfx::renderer->releaseTexture (vTex);
 	yTex = uTex = vTex = NULL;
 
 	// Delete any remaining buffers

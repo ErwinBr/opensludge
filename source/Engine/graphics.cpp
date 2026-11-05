@@ -192,8 +192,8 @@ static void resizeFrame () {
 		int tw, th;
 		gfx::renderer->textureSize (frameTexture, &tw, &th);
 		if (tw == width && th == height) return;
-		gfx::renderer->destroyTarget (frameTarget);
-		gfx::renderer->destroyTexture (frameTexture);
+		gfx::renderer->releaseTarget (frameTarget);
+		gfx::renderer->releaseTexture (frameTexture);
 	}
 	frameTexture = gfx::renderer->createTexture (width, height, gfx::TEX_RGBA8, NULL);
 	gfx::renderer->setTextureFilter (frameTexture, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);

@@ -131,6 +131,9 @@ public:
 	// since the last present used. Call both from the thread that made the
 	// renderer.
 	void releaseTexture (Texture * t);
+	// The same for a render target. If we draw into it, we draw into the
+	// window from now on, as after destroyTarget.
+	void releaseTarget (RenderTarget * target);
 	// How many released textures we haven't destroyed yet.
 	size_t texturesBeingReleased () const { return released.size (); }
 
@@ -187,10 +190,13 @@ protected:
 	void destroyReleasedTextures (bool all);
 	// How many presents after its release we destroy a texture.
 	int framesInFlight;
+	// Stop drawing into a target that is going (destroyTarget does it too).
+	virtual void detachTarget (RenderTarget * target) = 0;
 
 private:
 	struct Released {
-		Texture * texture;
+		Texture * texture;			// Or NULL, and
+		RenderTarget * target;		// a target, or NULL
 		uint64_t frame;
 	};
 	std::vector<Released> released;

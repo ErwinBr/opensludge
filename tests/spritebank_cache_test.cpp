@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <vector>
 #include <algorithm>
+#include <string>
 
 #include "sprbanks.h"
 
@@ -99,6 +100,8 @@ public:
 
 	std::vector<gfx::Texture *> alive, destroyed;
 	uintptr_t next;
+	// What happened to targets, in order: 'd' detached, 'x' destroyed, 't' a texture destroyed.
+	std::string events;
 
 	bool isAlive (gfx::Texture * t) const { return std::find (alive.begin (), alive.end (), t) != alive.end (); }
 	void flush () { destroyReleasedTextures (true); }
@@ -111,6 +114,7 @@ public:
 	void destroyTexture (gfx::Texture * t) {
 		alive.erase (std::find (alive.begin (), alive.end (), t));
 		destroyed.push_back (t);
+		events += 't';
 	}
 	void present () { destroyReleasedTextures (false); }
 
@@ -120,8 +124,9 @@ public:
 	void setTextureFilter (gfx::Texture *, gfx::Filter, gfx::Filter) {}
 	void setTextureWrap (gfx::Texture *, gfx::Wrap, gfx::Wrap) {}
 	void readTexture (gfx::Texture *, unsigned char *) {}
-	gfx::RenderTarget * createTarget (gfx::Texture *, bool) { return NULL; }
-	void destroyTarget (gfx::RenderTarget *) {}
+	gfx::RenderTarget * createTarget (gfx::Texture *, bool) { return (gfx::RenderTarget *) (next ++); }
+	void destroyTarget (gfx::RenderTarget * t) { detachTarget (t); events += 'x'; }
+	void detachTarget (gfx::RenderTarget *) { events += 'd'; }
 	void setTarget (gfx::RenderTarget *) {}
 	void setViewport (int, int, int, int) {}
 	void setScissor (int, int, int, int) {}
@@ -166,6 +171,20 @@ static void testRelease () {
 	CHECK (r.isAlive (v) && r.texturesBeingReleased () == 1, "a bank releases its textures once");
 	r.flush ();
 	CHECK (! r.isAlive (v), "and they go later");
+
+	// A released target stops being drawn into at once, and goes with the
+	// textures, before them.
+	gfx::Texture * colour = r.createTexture (1, 1, gfx::TEX_RGBA8, NULL);
+	gfx::RenderTarget * target = r.createTarget (colour, false);
+	r.events.clear ();
+	r.releaseTexture (colour);
+	r.releaseTarget (target);
+	CHECK (r.events == "d" && r.isAlive (colour), "a released target is detached at once");
+	r.present ();
+	r.present ();
+	CHECK (r.events == "d", "and kept while frames may use it");
+	r.present ();
+	CHECK (r.events == "ddxt" && ! r.isAlive (colour), "then destroyed, before its texture");
 }
 
 int main () {

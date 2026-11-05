@@ -109,7 +109,7 @@ void freezeGraphics() {
 
 	gameSettings.antiAlias = antiAlias;
 
-	gfx::renderer->destroyTarget (target);
+	gfx::renderer->releaseTarget (target);
 	drawIntoWindow ();
 	setPixelCoords(false);
 }
@@ -170,23 +170,23 @@ bool freeze () {
 	// Copy the old scene to the new backdrop
 	gfx::Texture * reserved = backdropTex;
 	setBackdropTexture (freezeTex);
-	gfx::renderer->destroyTexture (reserved);
+	gfx::renderer->releaseTexture (reserved);
 	freezeTex = NULL;
 	backdropExists = true;
 
 	// Free texture memory used by old stuff
 	parallaxStuff = newFreezer -> parallaxStuff;
 	while (parallaxStuff) {
-		gfx::renderer->destroyTexture (parallaxStuff -> tex);
+		gfx::renderer->releaseTexture (parallaxStuff -> tex);
 		parallaxStuff -> tex = NULL;
 		parallaxStuff = parallaxStuff -> next;
 	}
 	if (newFreezer -> zBufferImage) {
-		gfx::renderer->destroyTexture (zBuffer.texture);
+		gfx::renderer->releaseTexture (zBuffer.texture);
 		zBuffer.texture = NULL;
 	}
-	gfx::renderer->destroyTexture (oldLightMap);
-	gfx::renderer->destroyTexture (oldBackdrop);
+	gfx::renderer->releaseTexture (oldLightMap);
+	gfx::renderer->releaseTexture (oldBackdrop);
 
 	newFreezer -> allPeople = allPeople;
 	allPeople = NULL;
@@ -274,7 +274,7 @@ void unfreeze (bool killImage) {
 	if (killImage) killBackDrop ();
 	gfx::Texture * replaced = backdropTex;
 	setBackdropTexture (NULL);
-	gfx::renderer->destroyTexture (replaced);
+	gfx::renderer->releaseTexture (replaced);
 	if (backdropTexture) delete[] backdropTexture;
 	backdropTexture = frozenStuff -> backdropTexture;
 	backdropExists = true;
