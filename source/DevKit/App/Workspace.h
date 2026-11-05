@@ -75,6 +75,8 @@ public:
 	// Close the tab of the active document in the next frame, as its X
 	// does, for the tests.
 	void closeActiveTab () { closeTab = true; }
+	// The editor of the active document, if it has one, for the tests.
+	DocumentView * activeView () const;
 
 private:
 	ProjectDocument * project () const;

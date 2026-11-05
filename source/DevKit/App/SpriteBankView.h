@@ -36,6 +36,9 @@ public:
 	// Pictures become sprites, after the selected ones.
 	bool takeFile (const std::string & path);
 	bool animating () const;
+	// Open the dialog that cuts a sprite sheet into sprites, as Import
+	// Sheet does once the file is chosen; false if we can't read it.
+	bool openSheet (const std::string & file);
 
 private:
 	// What a file dialog was for, and its answer, which may come after we
@@ -53,8 +56,8 @@ private:
 	void handleMouse ();
 	void handleKeys ();
 	void handlePending ();
-	// The dialog that cuts a sprite sheet into sprites.
-	void openSheet (const std::string & file);
+	// Forget the sheet of the dialog. Not in the middle of a frame that
+	// drew it: ImGui still has to draw its texture.
 	void closeSheet ();
 	void drawSheetDialog ();
 	void askForFiles (Pending::What what);
@@ -104,6 +107,8 @@ private:
 	std::string sheetFile;
 	spriteBank sheet;
 	bool sheetLoaded, sheetToOpen;
+	// The dialog closed in the last frame; we forget the sheet in the next.
+	bool sheetToClose;
 	SheetLayout layout;
 
 	std::shared_ptr<Pending> pending;

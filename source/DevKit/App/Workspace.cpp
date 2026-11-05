@@ -152,6 +152,11 @@ void Workspace::openFiles (const std::vector<std::string> & files) {
 	if (! add.empty ()) p->addFiles (add);
 }
 
+DocumentView * Workspace::activeView () const {
+	std::map<Document *, std::unique_ptr<DocumentView> >::const_iterator view = views.find (manager.active ());
+	return view == views.end () ? NULL : view->second.get ();
+}
+
 ProjectDocument * Workspace::project () const {
 	return (ProjectDocument *) manager.findKind ("Project");
 }

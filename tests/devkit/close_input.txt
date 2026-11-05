@@ -46,3 +46,14 @@ documents 1
 key ctrl+W
 wait 2
 documents 0
+
+# Cancel the Import Sprite Sheet dialog of a sprite bank with Escape, which
+# once freed the picture of the sheet while the frame still had to draw it.
+open ${EXAMPLES}/VerbCoin/ego/alien.duc
+wait 3
+sheet ${FIXTURES}/sprite.png
+wait 3
+key Escape
+wait 3
+sheet ${FIXTURES}/sprite.png
+wait 3

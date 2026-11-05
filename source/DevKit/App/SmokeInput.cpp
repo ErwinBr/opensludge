@@ -8,6 +8,7 @@
 #include "DocumentManager.h"
 #include "Log.h"
 #include "SmokeInput.h"
+#include "SpriteBankView.h"
 #include "Workspace.h"
 
 namespace devkit {
@@ -37,7 +38,7 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "documents") ok = sscanf (rest, "%d", &s.frames) == 1;
-		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type") ok = ! s.text.empty ();
+		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type" || s.what == "sheet") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl" || s.text == "shift";
 		else ok = s.what == "up" || s.what == "close";
 		if (! ok) {
@@ -123,6 +124,12 @@ bool SmokeInput::step (Workspace & workspace) {
 		}
 	} else if (s.what == "open") {
 		workspace.openFiles (std::vector<std::string> (1, s.text));
+	} else if (s.what == "sheet") {
+		SpriteBankView * view = dynamic_cast<SpriteBankView *> (workspace.activeView ());
+		if (! view || ! view->openSheet (s.text)) {
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: can't import %s as a sprite sheet\n", s.text.c_str ());
+			return false;
+		}
 	} else if (s.what == "save") {
 		Document * document = workspace.documents ().active ();
 		std::string error;

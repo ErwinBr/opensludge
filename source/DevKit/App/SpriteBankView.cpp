@@ -25,7 +25,7 @@ static const int DRAG_KEY = 1, FIELD_KEY = 2;
 SpriteBankView::SpriteBankView (SpriteBankDocument * b, WorkspaceActions & a, const CanvasGraphics & g)
 	: bank (b), pictures (&b->bank ()), actions (a), graphics (g), canvas (g), anchor (0), current (0), scrollToCurrent (false),
 	  showBox (false), spaceWidth (10), dragging (false), dragX (0), dragY (0),
-	  sheetLoaded (false), sheetToOpen (false), pending (new Pending), noticeUntil (0) {
+	  sheetLoaded (false), sheetToOpen (false), sheetToClose (false), pending (new Pending), noticeUntil (0) {
 	memset (&sheet, 0, sizeof (sheet));
 	canvas.setSpriteView (true);
 }
@@ -225,7 +225,7 @@ void SpriteBankView::handlePending () {
 	}
 }
 
-void SpriteBankView::openSheet (const std::string & file) {
+bool SpriteBankView::openSheet (const std::string & file) {
 	closeSheet ();
 	// A 32-bit copy to show, whatever the mode of the bank.
 	sheet.type = SpriteBankDocument::MODE_32BIT;
@@ -236,21 +236,24 @@ void SpriteBankView::openSheet (const std::string & file) {
 	spriteBankChanged (&sheet);
 	if (! loaded) {
 		closeSheet ();
-		return;
+		return false;
 	}
 	sheetFile = file;
 	sheetLoaded = sheetToOpen = true;
 	layout = SheetLayout ();
+	return true;
 }
 
 void SpriteBankView::closeSheet () {
 	graphics.draw->forgetPictures (&sheet);
 	forgetSpriteBank (&sheet);
 	memset (&sheet, 0, sizeof (sheet));
-	sheetLoaded = false;
+	sheetLoaded = sheetToClose = false;
 }
 
 void SpriteBankView::drawSheetDialog () {
+	// The last frame, which drew the sheet, has been presented by now.
+	if (sheetToClose) closeSheet ();
 	if (sheetToOpen) {
 		ImGui::OpenPopup ("Import Sprite Sheet");
 		sheetToOpen = false;
@@ -332,13 +335,13 @@ void SpriteBankView::drawSheetDialog () {
 		int at = insertionPoint ();
 		int inserted = bank->insertSheet (at, sheetFile, layout);
 		if (inserted) selectRun (at, inserted, at);
-		closeSheet ();
+		sheetToClose = true;
 		ImGui::CloseCurrentPopup ();
 	}
 	ImGui::EndDisabled ();
 	ImGui::SameLine ();
 	if (ImGui::Button ("Cancel") || ImGui::Shortcut (ImGuiKey_Escape)) {
-		closeSheet ();
+		sheetToClose = true;
 		ImGui::CloseCurrentPopup ();
 	}
 	ImGui::EndPopup ();
