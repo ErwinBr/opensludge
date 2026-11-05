@@ -12,7 +12,7 @@ ProjectSettings::ProjectSettings ()
 	: windowName ("New SLUDGE Game"), finalFile ("Gamedata"), language ("English"), dataFolder ("save"),
 	  quitMessage ("Are you sure you want to quit?"),
 	  mouse (2), fullScreen (true), makeSilent (false), showLogo (true), showLoading (true), invisible (false),
-	  ditherImages (true), width (640), height (480), speed (20),
+	  ditherImages (true), extrudeSpriteEdges (false), width (640), height (480), speed (20),
 	  chrDefaultEnabled (true), chrDefaultSoftnessX (4), chrDefaultSoftnessY (4),
 	  chrMaxEnabled (true), chrMaxReadIni (true), chrMaxSoftnessX (100), chrMaxSoftnessY (100) {}
 
@@ -21,7 +21,8 @@ bool ProjectSettings::operator == (const ProjectSettings & o) const {
 		&& dataFolder == o.dataFolder && quitMessage == o.quitMessage && customIcon == o.customIcon
 		&& customLogo == o.customLogo && mouse == o.mouse && fullScreen == o.fullScreen
 		&& makeSilent == o.makeSilent && showLogo == o.showLogo && showLoading == o.showLoading
-		&& invisible == o.invisible && ditherImages == o.ditherImages && width == o.width
+		&& invisible == o.invisible && ditherImages == o.ditherImages
+		&& extrudeSpriteEdges == o.extrudeSpriteEdges && width == o.width
 		&& height == o.height && speed == o.speed && chrDefaultEnabled == o.chrDefaultEnabled
 		&& chrDefaultSoftnessX == o.chrDefaultSoftnessX && chrDefaultSoftnessY == o.chrDefaultSoftnessY
 		&& chrMaxEnabled == o.chrMaxEnabled && chrMaxReadIni == o.chrMaxReadIni
@@ -94,6 +95,7 @@ bool ProjectDocument::readProject (const std::string & path, ProjectSettings * s
 		else if (key == "mouse") s->mouse = parseNumber (value);
 		else if (key == "hidemouse") s->mouse = yes (value) ? 2 : 1;	// The old setting
 		else if (key == "ditherimages") s->ditherImages = yes (value);
+		else if (key == "extrudespriteedges") s->extrudeSpriteEdges = yes (value);
 		else if (key == "fullscreen") s->fullScreen = yes (value);
 		else if (key == "showlogo") s->showLogo = yes (value);
 		else if (key == "showloading") s->showLoading = yes (value);
@@ -142,6 +144,8 @@ bool ProjectDocument::writeProject (const std::string & path, const ProjectSetti
 	fprintf (fp, "showloading=%c\n", s.showLoading ? 'Y' : 'N');
 	fprintf (fp, "invisible=%c\n", s.invisible ? 'Y' : 'N');
 	fprintf (fp, "ditherimages=%c\n", s.ditherImages ? 'Y' : 'N');
+	// Only when it's on, so that older projects stay as they were.
+	if (s.extrudeSpriteEdges) fprintf (fp, "extrudespriteedges=Y\n");
 	fprintf (fp, "width=%i\n", s.width);
 	fprintf (fp, "height=%i\n", s.height);
 	fprintf (fp, "speed=%i\n", s.speed);

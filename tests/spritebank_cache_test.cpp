@@ -12,6 +12,9 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <map>
+
+#include "spritebankdecode.h"
 
 #include "sprbanks.h"
 
@@ -109,6 +112,8 @@ public:
 	gfx::Texture * createTexture (int, int, gfx::TexFormat, const void *) {
 		gfx::Texture * t = (gfx::Texture *) (next ++);
 		alive.push_back (t);
+		Modes m = { -1, -1, -1, -1 };	// Unset
+		modes[t] = m;
 		return t;
 	}
 	void destroyTexture (gfx::Texture * t) {
@@ -121,8 +126,10 @@ public:
 	void setTextureImage (gfx::Texture *, int, int, const void *) {}
 	void updateTexture (gfx::Texture *, int, int, int, int, const void *) {}
 	void textureSize (const gfx::Texture *, int *, int *) {}
-	void setTextureFilter (gfx::Texture *, gfx::Filter, gfx::Filter) {}
-	void setTextureWrap (gfx::Texture *, gfx::Wrap, gfx::Wrap) {}
+	struct Modes { int minFilter, magFilter, wrapS, wrapT; };
+	std::map<gfx::Texture *, Modes> modes;
+	void setTextureFilter (gfx::Texture * t, gfx::Filter a, gfx::Filter b) { modes[t].minFilter = a; modes[t].magFilter = b; }
+	void setTextureWrap (gfx::Texture * t, gfx::Wrap s, gfx::Wrap w) { modes[t].wrapS = s; modes[t].wrapT = w; }
 	void readTexture (gfx::Texture *, unsigned char *) {}
 	gfx::RenderTarget * createTarget (gfx::Texture *, bool) { return (gfx::RenderTarget *) (next ++); }
 	void destroyTarget (gfx::RenderTarget * t) { detachTarget (t); events += 'x'; }
@@ -187,9 +194,56 @@ static void testRelease () {
 	CHECK (r.events == "ddxt" && ! r.isAlive (colour), "then destroyed, before its texture");
 }
 
+// uploadPages makes each page, and for fonts each burn page, clamped at the
+// edges, with one filter both ways. The renderers have no mipmaps: OpenGL
+// makes textures without them and SDL_GPU with one level (num_levels = 1).
+static void testUpload () {
+	for (int font = 0; font < 2; font ++) {
+		for (int linear = 0; linear < 2; linear ++) {
+			spritebank::DecodedBank decoded;
+			decoded.version = 3;
+			decoded.isFont = font != 0;
+			decoded.paletteSize = 0;
+			for (int i = 0; i < 40; i ++) {
+				spritebank::DecodedSprite sp;
+				sp.width = 30 + i * 7;
+				sp.height = 20 + i * 11;
+				sp.xhot = sp.yhot = 0;
+				sp.rgba.assign ((size_t) sp.width * sp.height * 4, 255);
+				if (font) sp.burn = sp.rgba;
+				decoded.sprites.push_back (sp);
+			}
+			spritebank::Layout layout;
+			spritebank::Pages pages;
+			std::string error;
+			CHECK (spritebank::layout (decoded, false, layout, error) && spritebank::makePages (decoded, layout, false, pages, error), "pages to upload");
+			FakeRenderer r;
+			std::vector<AtlasPage> out;
+			gfx::Filter filter = linear ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
+			uploadPages (r, layout, pages, font != 0, filter, out);
+			CHECK (out.size () == layout.pageWidth.size () && r.alive.size () == out.size () * (font ? 2 : 1), "a texture for each page, and each burn page");
+			bool clamped = true, filtered = true, sized = true;
+			for (size_t n = 0; n < out.size (); n ++) {
+				gfx::Texture * ts[2] = { out[n].tex.get (), out[n].burn.get () };
+				for (int k = 0; k < (font ? 2 : 1); k ++) {
+					FakeRenderer::Modes m = r.modes[ts[k]];
+					if (m.wrapS != gfx::WRAP_CLAMP || m.wrapT != gfx::WRAP_CLAMP) clamped = false;
+					if (m.minFilter != filter || m.magFilter != filter) filtered = false;
+				}
+				if (out[n].w != layout.pageWidth[n] || out[n].h != layout.pageHeight[n]) sized = false;
+				if (out[n].gpuBytes != (size_t) out[n].w * out[n].h * 4 * (font ? 2 : 1)) sized = false;
+			}
+			CHECK (clamped, "pages clamp at the edges");
+			CHECK (filtered, "pages filter one way, nearest or linear, both ways");
+			CHECK (sized, "pages have the layout's sizes");
+		}
+	}
+}
+
 int main () {
 	testCache ();
 	testRelease ();
+	testUpload ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);
 		return 1;

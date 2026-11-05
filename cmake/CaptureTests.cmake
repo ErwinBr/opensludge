@@ -188,6 +188,26 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DREQUIRE=unloaded [0-9]+; 0 loaded, 0 in use"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
 	set_tests_properties(capture-unload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Extruding the edges of sprites into their gutters (SPRITEEDGES, or the
+	# project's "Clean edges") changes only what filtering reads beside a
+	# sprite: with linear filtering, a few pixels at the edges of sprites, by
+	# a little (at most 3 in a channel in RenderTest). The default frames
+	# don't change.
+	add_test(NAME capture-rendertest-extrude
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DFRAMEDIFF=$<TARGET_FILE:framediff>
+			-DGAME=${CMAKE_BINARY_DIR}/games/RenderTest.slg
+			-DFRAMES=${render_frames}
+			-DOUT=${CMAKE_BINARY_DIR}/capture/rendertest-extrude
+			"-DENGINE_ARGS=--renderer=gl -a-1"
+			"-DENGINE_ENV=SLUDGE_SPRITE_EDGES=1"
+			# Frames without images differ in their CRC; MAX_BAD stops
+			# framediff from comparing those, and allows 3 pixels a frame.
+			-DMAX_DIFF=8 -DMAX_BAD=0.00001
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
+	set_tests_properties(capture-rendertest-extrude PROPERTIES LABELS capture TIMEOUT 900)
 endif()
 
 if(SLUDGE_OUT_OF_ORDER)

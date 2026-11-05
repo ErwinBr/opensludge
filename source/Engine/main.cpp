@@ -291,6 +291,19 @@ void checkInput() {
 }
 
 
+// With SLUDGE_RENDER_STATS set, we write what each frame drew on stderr.
+extern unsigned int fontSpriteDraws;
+static void printRenderStats () {
+	static int on = -1;
+	if (on < 0) on = getenv ("SLUDGE_RENDER_STATS") != NULL;
+	if (on) {
+		const gfx::RenderStats & s = gfx::renderer->lastFrameStats ();
+		fprintf (stderr, "Render stats: %u draws (%u text), %u meshes, %u texture switches, %u textures (%llu KB)\n",
+			s.draws, fontSpriteDraws, s.meshDraws, s.textureSwitches, s.textures, (unsigned long long) s.textureBytes / 1024);
+	}
+	fontSpriteDraws = 0;
+}
+
 int main(int argc, char *argv[]) try
 {
 	/* Dimensions of our window. */
@@ -430,6 +443,7 @@ int main(int argc, char *argv[]) try
 		handleInput ();
 		if (! movieIsPlaying || ! showMovieFrame ()) sludgeDisplay ();
 		trimSpriteBanks ();
+		printRenderStats ();
 		// In a test run, we don't move the mouse pointer between frames.
 		Wait_Frame (captureIsDeterministic () ? NULL : movePointerBetweenFrames);
 		if (captureEndFrame ()) weAreDoneSoQuit = 1;

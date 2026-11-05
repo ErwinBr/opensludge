@@ -78,6 +78,7 @@ int logoW = 0, logoH = 0;
 
 int gameVersion;
 int specialSettings;
+bool gameExtrudesSpriteEdges = false;
 FILETIME fileTime;
 extern int desiredfps;
 extern char * gamePath;
@@ -235,6 +236,9 @@ bool initSludge (char * filename) {
 	checker = NULL;
 
     unsigned char customIconLogo = fgetc (fp);
+	// Bit 4: extrude the edges of sprites (the compiler sets it from the
+	// project; older engines ignore it).
+	gameExtrudesSpriteEdges = (customIconLogo & 4) != 0;
 
 	if (customIconLogo & 1) {
 		// There is an icon - read it!

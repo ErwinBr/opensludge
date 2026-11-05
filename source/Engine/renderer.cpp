@@ -3,6 +3,7 @@
  */
 
 #include <stddef.h>
+#include <string.h>
 
 #include <SDL3/SDL.h>
 
@@ -25,7 +26,33 @@ void logDebug (const char * format, ...) {
 }
 
 Renderer::Renderer ()
-	: framesInFlight (1), frame (0), ownerThread (SDL_GetCurrentThreadID ()) {
+	: framesInFlight (1), frame (0), ownerThread (SDL_GetCurrentThreadID ()), lastUnit0 (NULL) {
+	memset (&stats, 0, sizeof (stats));
+	memset (&lastStats, 0, sizeof (lastStats));
+}
+
+void Renderer::countDraw (const Texture * unit0) {
+	stats.draws ++;
+	if (unit0 != lastUnit0) stats.textureSwitches ++;
+	lastUnit0 = unit0;
+}
+
+void Renderer::countMeshDraw (const Texture * texture) {
+	stats.meshDraws ++;
+	if (texture != lastUnit0) stats.textureSwitches ++;
+	lastUnit0 = texture;
+}
+
+void Renderer::countTextureSize (TexFormat format, int oldWidth, int oldHeight, int newWidth, int newHeight) {
+	size_t bpp = format == TEX_RGBA8 ? 4 : 1;
+	stats.textureBytes -= (size_t) oldWidth * oldHeight * bpp;
+	stats.textureBytes += (size_t) newWidth * newHeight * bpp;
+}
+
+void Renderer::finishFrameStats () {
+	lastStats = stats;
+	stats.draws = stats.meshDraws = stats.textureSwitches = 0;
+	lastUnit0 = NULL;
 }
 
 void Renderer::releaseTexture (Texture * t) {

@@ -143,7 +143,7 @@ if(SLUDGE_ENGINE)
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
-		spritebankdecode.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
+		spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
@@ -223,9 +223,10 @@ if(SLUDGE_ENGINE)
 		target_link_libraries(spritebank_test PRIVATE sludge::png)
 		add_test(NAME spritebank COMMAND spritebank_test)
 
-		add_executable(spritebank_cache_test tests/spritebank_cache_test.cpp ${ENGINE_DIR}/sprbanks.cpp)
+		add_executable(spritebank_cache_test tests/spritebank_cache_test.cpp ${ENGINE_DIR}/sprbanks.cpp
+			${ENGINE_DIR}/spriteupload.cpp ${ENGINE_DIR}/spritebankdecode.cpp)
 		target_include_directories(spritebank_cache_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
-		target_link_libraries(spritebank_cache_test PRIVATE sludge-renderer)
+		target_link_libraries(spritebank_cache_test PRIVATE sludge-renderer sludge::png)
 		add_test(NAME spritebank_cache COMMAND spritebank_cache_test)
 
 		include(cmake/CaptureTests.cmake)

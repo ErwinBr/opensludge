@@ -278,6 +278,9 @@ void ProjectView::drawInspector () {
 		check ("Player limit", &s.chrMaxReadIni, "Read the limit from the player's settings");
 		number ("Most X", &s.chrMaxSoftnessX, 0, 1000, NULL);
 		number ("Most Y", &s.chrMaxSoftnessY, 0, 1000, NULL);
+		check ("Clean edges", &s.extrudeSpriteEdges,
+			"Give the transparent edges of sprites their colour, so that smoothing doesn't darken them. "
+			"Players can change it with SPRITEEDGES in their settings");
 		ImGui::EndTable ();
 	}
 	ImGui::PopID ();

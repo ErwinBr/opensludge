@@ -37,6 +37,7 @@ struct settingsStruct
 	bool startupShowLoading;
 	bool startupInvisible;
 	bool forceSilent;
+	bool extrudeSpriteEdges;	// Bit 4 of the icon and logo byte of the game
 
 	int	screenHeight;
 	int screenWidth;

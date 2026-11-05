@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+#include <stdlib.h>
 #include <string>
 #include <vector>
 #include <png.h>
@@ -214,13 +216,14 @@ static DecodedBank spritesOfWidths (const std::vector<int> & widths, int height)
 	return bank;
 }
 
-static void testLayout () {
+// The old layout, which layoutOneRow keeps for comparisons.
+static void testOldLayout () {
 	std::string error;
 	Layout l;
 
 	// Two sprites that fit in one 511-wide row, then one that doesn't.
 	DecodedBank bank = spritesOfWidths (std::vector<int> {100, 200, 300}, 10);
-	CHECK (layout (bank, false, l, error), "layout");
+	CHECK (layoutOneRow (bank, false, l, error), "layout");
 	CHECK (l.tex_x[0] == 1 && l.tex_x[1] == 102 && l.texNum[1] == 0, "first texture starts after a gap");
 	CHECK (l.texNum[2] == 1 && l.tex_x[2] == 0, "a new texture starts without a gap");
 	CHECK (l.pageWidth[0] == 303 && l.pageHeight[0] == 12, "first texture size");
@@ -228,22 +231,22 @@ static void testLayout () {
 
 	// A sprite exactly 511 wide always starts a new texture.
 	bank = spritesOfWidths (std::vector<int> {511}, 4);
-	CHECK (layout (bank, false, l, error) && l.pageWidth.size () == 2 && l.pageWidth[0] == 1 && l.texNum[0] == 1, "511 wide starts a new texture");
+	CHECK (layoutOneRow (bank, false, l, error) && l.pageWidth.size () == 2 && l.pageWidth[0] == 1 && l.texNum[0] == 1, "511 wide starts a new texture");
 
 	// Wide sprites share textures up to 2047.
 	bank = spritesOfWidths (std::vector<int> {1000, 1000, 1000}, 4);
-	CHECK (layout (bank, false, l, error) && l.texNum[1] == 0 && l.texNum[2] == 1, "wide sprites share up to 2047");
+	CHECK (layoutOneRow (bank, false, l, error) && l.texNum[1] == 0 && l.texNum[2] == 1, "wide sprites share up to 2047");
 
-	CHECK (layout (spritesOfWidths (std::vector<int> {100, 200, 300}, 10), true, l, error)
+	CHECK (layoutOneRow (spritesOfWidths (std::vector<int> {100, 200, 300}, 10), true, l, error)
 		&& l.pageWidth[0] == 512 && l.pageHeight[0] == 16 && l.pageWidth[1] == 512 && l.pageHeight[1] == 16, "power of two sizes");
 
 	// More than 256 textures fail.
-	CHECK (! layout (spritesOfWidths (std::vector<int> (300, 1500), 1), false, l, error), "too many textures fail");
+	CHECK (! layoutOneRow (spritesOfWidths (std::vector<int> (300, 1500), 1), false, l, error), "too many textures fail");
 
 	// The pages: each sprite from the second row, the first row empty.
 	bank = spritesOfWidths (std::vector<int> {2, 3, 511}, 2);
 	Pages pages;
-	CHECK (layout (bank, false, l, error) && makePages (bank, l, pages, error), "pages");
+	CHECK (layoutOneRow (bank, false, l, error) && makePages (bank, l, false, pages, error), "pages");
 	const Bytes & p0 = pages.colour[0];
 	int w = l.pageWidth[0];
 	CHECK (p0[(0 * w + 1) * 4] == 0 && p0[(1 * w + 1) * 4] == 1 && p0[(2 * w + 2) * 4] == 1, "first sprite in the second row");
@@ -254,12 +257,322 @@ static void testLayout () {
 	CHECK (pages.burn.empty (), "no burn pages for sprites");
 }
 
+
+// Sprites of many sizes, from a fixed sequence, each pixel telling which
+// sprite and which pixel it is: R = sprite number + 1, G = x, B = y.
+static DecodedBank mixedSprites (int count, bool isFont) {
+	DecodedBank bank;
+	bank.version = 3;
+	bank.isFont = isFont;
+	bank.paletteSize = 0;
+	unsigned int seed = 12345;
+	for (int i = 0; i < count; i ++) {
+		seed = seed * 1103515245 + 12345;
+		DecodedSprite s;
+		s.width = 1 + (seed >> 8) % 120;
+		s.height = 1 + (seed >> 20) % 90;
+		if (i == 7) { s.width = 2100; s.height = 30; }	// Too wide for a page
+		if (i == 11) { s.width = 20; s.height = 2050; }	// Too tall
+		s.xhot = s.yhot = 0;
+		s.rgba.resize ((size_t) s.width * s.height * 4);
+		for (int y = 0; y < s.height; y ++) {
+			for (int x = 0; x < s.width; x ++) {
+				unsigned char * p = &s.rgba[((size_t) y * s.width + x) * 4];
+				p[0] = (unsigned char) (i + 1);
+				p[1] = (unsigned char) x;
+				p[2] = (unsigned char) y;
+				p[3] = (x + y) % 3 ? 255 : 128;
+			}
+		}
+		if (isFont) {
+			s.burn.resize (s.rgba.size ());
+			for (size_t k = 0; k < s.burn.size (); k += 4) {
+				s.burn[k] = s.burn[k + 1] = s.burn[k + 2] = 255;
+				s.burn[k + 3] = 200;
+			}
+		}
+		bank.sprites.push_back (s);
+	}
+	return bank;
+}
+
+static bool isPowerOfTwo (int n) {
+	return n > 0 && (n & (n - 1)) == 0;
+}
+
+static void testShelfLayout () {
+	std::string error;
+	for (int pot = 0; pot < 2; pot ++) {
+		DecodedBank bank = mixedSprites (400, false);
+		Layout l;
+		CHECK (layout (bank, pot != 0, l, error), "shelf layout");
+		size_t n = bank.sprites.size ();
+		bool inside = true, fits = true, overlaps = false, sizes = true;
+		for (size_t i = 0; i < n; i ++) {
+			const DecodedSprite & s = bank.sprites[i];
+			int p = l.texNum[i];
+			if (p < 0 || p >= (int) l.pageWidth.size ()) { inside = false; continue; }
+			// The sprite and its gutter inside the page.
+			if (l.tex_x[i] - gutter < 0 || l.tex_y[i] - gutter < 0
+					|| l.tex_x[i] + s.width + gutter > l.pageWidth[p] || l.tex_y[i] + s.height + gutter > l.pageHeight[p]) inside = false;
+			bool big = s.width + 2 * gutter > pageSize || s.height + 2 * gutter > pageSize;
+			if (big) {
+				// Alone, in a page just big enough (before rounding up).
+				for (size_t j = 0; j < n; j ++) if (j != i && l.texNum[j] == p) fits = false;
+				if (! pot && (l.pageWidth[p] != s.width + 2 * gutter || l.pageHeight[p] != s.height + 2 * gutter)) fits = false;
+			} else if (l.pageWidth[p] > pageSize || l.pageHeight[p] > pageSize) {
+				fits = false;
+			}
+			// No two sprites' cells (sprite and gutter) overlap.
+			for (size_t j = i + 1; j < n; j ++) {
+				if (l.texNum[j] != p) continue;
+				const DecodedSprite & t = bank.sprites[j];
+				if (l.tex_x[i] - gutter < l.tex_x[j] + t.width + gutter && l.tex_x[j] - gutter < l.tex_x[i] + s.width + gutter
+						&& l.tex_y[i] - gutter < l.tex_y[j] + t.height + gutter && l.tex_y[j] - gutter < l.tex_y[i] + s.height + gutter) overlaps = true;
+			}
+		}
+		for (size_t p = 0; p < l.pageWidth.size (); p ++) {
+			if (pot && (! isPowerOfTwo (l.pageWidth[p]) || ! isPowerOfTwo (l.pageHeight[p]))) sizes = false;
+		}
+		CHECK (inside, "every sprite and its gutter inside its page");
+		CHECK (fits, "pages of at most 2048, and big sprites alone");
+		CHECK (! overlaps, "no sprites or gutters overlap");
+		CHECK (sizes, "power-of-two pages when asked");
+
+		// The pages hold each sprite, by its own number, with empty gutters.
+		Pages pages;
+		CHECK (makePages (bank, l, false, pages, error), "shelf pages");
+		bool same = true, empty = true;
+		for (size_t i = 0; i < n; i ++) {
+			const DecodedSprite & s = bank.sprites[i];
+			int p = l.texNum[i], pw = l.pageWidth[p];
+			const Bytes & page = pages.colour[p];
+			for (int y = -gutter; y < s.height + gutter; y ++) {
+				for (int x = -gutter; x < s.width + gutter; x ++) {
+					const unsigned char * t = &page[((size_t) (l.tex_y[i] + y) * pw + l.tex_x[i] + x) * 4];
+					if (x >= 0 && y >= 0 && x < s.width && y < s.height) {
+						if (memcmp (t, &s.rgba[((size_t) y * s.width + x) * 4], 4)) same = false;
+					} else if (t[0] || t[1] || t[2] || t[3]) {
+						empty = false;
+					}
+				}
+			}
+		}
+		CHECK (same, "each sprite in its place, with its own number");
+		CHECK (empty, "gutters transparent black");
+	}
+
+	// The tallest first, so that shelves fill well: in the first page, no
+	// shelf is lower than one below it.
+	DecodedBank bank = spritesOfWidths (std::vector<int> {10, 20, 30}, 5);
+	bank.sprites[1].height = 50;
+	bank.sprites[1].rgba.assign (20 * 50 * 4, 2);
+	Layout l;
+	CHECK (layout (bank, false, l, error) && l.tex_y[1] == gutter && l.tex_x[1] == gutter, "the tallest sprite goes first");
+	CHECK (l.texNum[0] == 0 && l.texNum[2] == 0 && l.pageWidth.size () == 1, "small banks fit one page");
+}
+
+static void testExtrusionAndBurn () {
+	std::string error;
+	DecodedBank bank = mixedSprites (60, true);
+	Layout l;
+	Pages plain, extruded;
+	CHECK (layout (bank, false, l, error) && makePages (bank, l, false, plain, error) && makePages (bank, l, true, extruded, error), "font pages");
+	bool burnPlaced = true, edges = true, alpha = true, inner = true;
+	for (size_t i = 0; i < bank.sprites.size (); i ++) {
+		const DecodedSprite & s = bank.sprites[i];
+		int p = l.texNum[i], pw = l.pageWidth[p];
+		for (int y = -gutter; y < s.height + gutter; y ++) {
+			for (int x = -gutter; x < s.width + gutter; x ++) {
+				size_t at = ((size_t) (l.tex_y[i] + y) * pw + l.tex_x[i] + x) * 4;
+				bool in = x >= 0 && y >= 0 && x < s.width && y < s.height;
+				// Burn pixels exactly where the colour pixels are.
+				if (in != (plain.burn[p][at + 3] != 0)) burnPlaced = false;
+				int sx = x < 0 ? 0 : (x >= s.width ? s.width - 1 : x);
+				int sy = y < 0 ? 0 : (y >= s.height ? s.height - 1 : y);
+				const unsigned char * edge = &s.rgba[((size_t) sy * s.width + sx) * 4];
+				const unsigned char * t = &extruded.colour[p][at];
+				if (in) {
+					if (memcmp (t, edge, 4)) inner = false;
+				} else {
+					if (t[0] != edge[0] || t[1] != edge[1] || t[2] != edge[2]) edges = false;
+					if (t[3] || extruded.burn[p][at + 3]) alpha = false;
+					if (extruded.burn[p][at] != 255) edges = false;
+				}
+			}
+		}
+	}
+	CHECK (burnPlaced, "burn pages placed exactly like the colour pages");
+	CHECK (inner, "extrusion leaves the sprites as they are");
+	CHECK (edges, "extruded gutters have the colour of the nearest edge pixel");
+	CHECK (alpha, "extruded gutters stay transparent");
+}
+
+// The formulas of the draw functions before texRect, as they were.
+static TexRect oldTexRect (int tex_x, int width, int height, int W, int H, TexKind kind) {
+	TexRect r;
+	if (kind == TEXKIND_SCALE) {
+		r.u1 = (float)(tex_x) / W;
+		r.v1 = (float) 1.0 / H;
+		r.u2 = (float)(tex_x + width) / W;
+		r.v2 = (float)(height + 1) / H;
+	} else if (kind == TEXKIND_PASTE) {
+		r.u1 = (float)(tex_x) / W;
+		r.v1 = 0.0;
+		r.u2 = (float)(tex_x + width) / W;
+		r.v2 = (float)(height) / H;
+	} else {
+		r.u1 = (float)(tex_x - 0.5) / W;
+		r.v1 = 0.0;
+		r.u2 = (float)(tex_x + width + (kind == TEXKIND_FONT_FLIP ? 1.0 : 0.5)) / W;
+		r.v2 = (float)(height + 2) / H;
+	}
+	return r;
+}
+
+static void testTexRect () {
+	const TexKind kinds[] = { TEXKIND_SCALE, TEXKIND_PASTE, TEXKIND_FONT, TEXKIND_FONT_FLIP, TEXKIND_BURN };
+	bool bits = true;
+	unsigned int seed = 99;
+	for (int n = 0; n < 2000; n ++) {
+		seed = seed * 1103515245 + 12345;
+		int W = 1 + (seed >> 4) % 2047, H = 3 + (seed >> 15) % 300;
+		int w = 1 + (seed >> 9) % 200, h = 1 + (seed >> 22) % (H - 2);
+		int x = (seed >> 13) % W;
+		for (int k = 0; k < 5; k ++) {
+			TexRect a = texRect (x, 1, w, h, W, H, kinds[k]), b = oldTexRect (x, w, h, W, H, kinds[k]);
+			if (memcmp (&a, &b, sizeof (a))) bits = false;
+		}
+	}
+	CHECK (bits, "with the sprite in row 1, texRect is the old formulas, bit for bit");
+
+	// Relative to the sprite, every kind reaches as far as before: scale
+	// exactly the sprite, paste from the row above, fonts half a texel either
+	// side and a row above and below.
+	const int W = 2048, H = 1531, x = 1237, y = 905, w = 37, h = 23;
+	TexRect sc = texRect (x, y, w, h, W, H, TEXKIND_SCALE);
+	TexRect pa = texRect (x, y, w, h, W, H, TEXKIND_PASTE);
+	TexRect fo = texRect (x, y, w, h, W, H, TEXKIND_FONT);
+	TexRect ff = texRect (x, y, w, h, W, H, TEXKIND_FONT_FLIP);
+	const float e = 1e-3f;
+	CHECK (fabsf (sc.u1 * W - x) < e && fabsf (sc.u2 * W - (x + w)) < e && fabsf (sc.v1 * H - y) < e && fabsf (sc.v2 * H - (y + h)) < e, "scale: the sprite exactly");
+	CHECK (fabsf (pa.v1 * H - (y - 1)) < e && fabsf (pa.v2 * H - (y - 1 + h)) < e, "paste: from the row above");
+	CHECK (fabsf (fo.u1 * W - (x - 0.5f)) < e && fabsf (fo.u2 * W - (x + w + 0.5f)) < e
+		&& fabsf (fo.v1 * H - (y - 1)) < e && fabsf (fo.v2 * H - (y + h + 1)) < e, "font: half a texel and a row either side");
+	CHECK (fabsf (ff.u2 * W - (x + w + 1)) < e, "flipped font: a whole texel on the right");
+
+	// Pixel centres: drawing at 1:1, 2x and 0.5x, the centre of output pixel
+	// i samples texel x + (i + 0.5) / scale.
+	const float scales[] = { 1.0f, 2.0f, 0.5f };
+	bool centres = true;
+	for (int k = 0; k < 3; k ++) {
+		int n = (int) (w * scales[k]);
+		for (int i = 0; i < n; i ++) {
+			float t = (i + 0.5f) / n;
+			float u = sc.u1 + (sc.u2 - sc.u1) * t;
+			float want = x + (i + 0.5f) * w / n;
+			if (fabsf (u * W - want) > e) centres = false;
+		}
+	}
+	CHECK (centres, "pixel centres sample texel centres at 1:1, 2x and 0.5x");
+}
+
+// Sample a page as nearest filtering with CLAMP_TO_EDGE does.
+static const unsigned char * nearest (const Bytes & page, int W, int H, float u, float v) {
+	int x = (int) floorf (u * W), y = (int) floorf (v * H);
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (x >= W) x = W - 1;
+	if (y >= H) y = H - 1;
+	return &page[((size_t) y * W + x) * 4];
+}
+
+static void testNearestSampling () {
+	std::string error;
+	// At most 255 sprites, so that the red channel tells them apart.
+	DecodedBank bank = mixedSprites (250, false);
+	Layout shelf, old;
+	Pages shelfPages, oldPages;
+	CHECK (layout (bank, false, shelf, error) && makePages (bank, shelf, false, shelfPages, error), "shelf pages");
+	CHECK (layoutOneRow (bank, false, old, error) && makePages (bank, old, false, oldPages, error), "old pages");
+
+	const float scales[] = { 1.0f, 2.0f, 0.5f, 0.75f };
+	int same = 0, ties = 0, wrong = 0, outside = 0;
+	for (size_t i = 0; i < bank.sprites.size (); i ++) {
+		const DecodedSprite & s = bank.sprites[i];
+		if (s.width > 1000 || s.height > 1000) continue;
+		int p = shelf.texNum[i], q = old.texNum[i];
+		if (old.texNum[i] > 0 && old.tex_x[i] == 0) continue;	// The old quirks
+		TexRect a = texRect (shelf.tex_x[i], shelf.tex_y[i], s.width, s.height, shelf.pageWidth[p], shelf.pageHeight[p], TEXKIND_SCALE);
+		TexRect b = texRect (old.tex_x[i], old.tex_y[i], s.width, s.height, old.pageWidth[q], old.pageHeight[q], TEXKIND_SCALE);
+		for (int k = 0; k < 4; k ++) {
+			int nx = (int) (s.width * scales[k]), ny = (int) (s.height * scales[k]);
+			for (int py = 0; py < ny; py ++) {
+				for (int px = 0; px < nx; px ++) {
+					float tx = (px + 0.5f) / nx, ty = (py + 0.5f) / ny;
+					const unsigned char * na = nearest (shelfPages.colour[p], shelf.pageWidth[p], shelf.pageHeight[p],
+						a.u1 + (a.u2 - a.u1) * tx, a.v1 + (a.v2 - a.v1) * ty);
+					const unsigned char * nb = nearest (oldPages.colour[q], old.pageWidth[q], old.pageHeight[q],
+						b.u1 + (b.u2 - b.u1) * tx, b.v1 + (b.v2 - b.v1) * ty);
+					// Never a gutter or another sprite.
+					if (na[0] != (unsigned char) (i + 1)) { outside ++; continue; }
+					if (! memcmp (na, nb, 4)) { same ++; continue; }
+					// Where the exact position lies on the edge between two
+					// texels, either may come out: it depends on rounding.
+					double ex = (px + 0.5) * s.width / nx, ey = (py + 0.5) * s.height / ny;
+					bool tie = fabs (ex - floor (ex + 0.5)) < 1e-6 || fabs (ey - floor (ey + 0.5)) < 1e-6;
+					if (tie && abs (na[1] - nb[1]) <= 1 && abs (na[2] - nb[2]) <= 1) ties ++;
+					else wrong ++;
+				}
+			}
+		}
+	}
+	CHECK (outside == 0, "nearest samples never reach a gutter or another sprite");
+	CHECK (wrong == 0, "nearest samples read the old texels, except exactly between two");
+	printf ("Nearest samples: %d as before, %d on a texel edge went the other way\n", same, ties);
+
+	// At the smallest scales, the anti-aliasing samples of the smart scaler
+	// never reach another sprite: down to a scale of 0.07. The shader samples
+	// uv +- fwidth (uv) x scale, where fwidth is per pixel of the window and
+	// scale is window / game x 0.25, at most 1. That is 1 / (4 x sprite
+	// scale) texels away; we take a window 4 times the game, where the
+	// fragments come closest to the sprite's edge.
+	int reached = 0;
+	for (size_t i = 0; i < bank.sprites.size (); i ++) {
+		const DecodedSprite & s = bank.sprites[i];
+		if (s.width > 1000 || s.height > 1000) continue;
+		int p = shelf.texNum[i];
+		int W = shelf.pageWidth[p], H = shelf.pageHeight[p];
+		TexRect a = texRect (shelf.tex_x[i], shelf.tex_y[i], s.width, s.height, W, H, TEXKIND_SCALE);
+		const float spriteScale = 0.07f, window = 4.0f;
+		int nx = (int) (s.width * spriteScale * window), ny = (int) (s.height * spriteScale * window);
+		if (nx < 1 || ny < 1) continue;
+		float fu = (a.u2 - a.u1) / nx, fv = (a.v2 - a.v1) / ny;	// fwidth, times a scale of 1
+		for (int py = 0; py < ny; py ++) {
+			for (int px = 0; px < nx; px ++) {
+				float u = a.u1 + fu * (px + 0.5f), v = a.v1 + fv * (py + 0.5f);
+				for (int sx = -1; sx <= 1; sx += 2) {
+					for (int sy = -1; sy <= 1; sy += 2) {
+						const unsigned char * t = nearest (shelfPages.colour[p], W, H, u + sx * fu, v + sy * fv);
+						if (t[3] && t[0] != (unsigned char) (i + 1)) reached ++;
+					}
+				}
+			}
+		}
+	}
+	CHECK (reached == 0, "anti-aliasing samples at scale 0.07 never reach another sprite");
+}
+
 int main () {
 	testVersion0 ();
 	testVersion2 ();
 	testVersion3 ();
 	testDamagedHeaders ();
-	testLayout ();
+	testOldLayout ();
+	testShelfLayout ();
+	testExtrusionAndBurn ();
+	testTexRect ();
+	testNearestSampling ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);
 		return 1;

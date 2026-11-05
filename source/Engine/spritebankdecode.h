@@ -77,16 +77,27 @@ struct DecodedBank {
 // Decodes a whole bank. On failure, returns false with a message for fatal().
 bool decode (Reader & in, bool isFont, DecodedBank & bank, std::string & error);
 
-// Where the sprites go in the textures: the layout of the engine since its
-// first version, which games may depend on. Each texture is one row of
-// sprites, with a 1-pixel gap between them and an empty first row; sprite i
-// is at x = tex_x[i], y = 1 in texture texNum[i].
+// Where the sprites go in the textures: sprite i is at (tex_x[i], tex_y[i])
+// in texture texNum[i].
 struct Layout {
-	std::vector<int> tex_x, texNum;
+	std::vector<int> tex_x, tex_y, texNum;
 	std::vector<int> pageWidth, pageHeight;
 };
 
+// The layout: shelves in pages of up to pageSize x pageSize, the tallest
+// sprites first, each with a gutter of transparent pixels on every side, so
+// that filtering and the anti-aliasing of the smart scaler, which samples up
+// to about 1 / (4 x scale) texels away, never reach another sprite (down to
+// a scale of 0.07). Fonts and pastes sample the gutter next to the sprite.
+const int pageSize = 2048;
+const int gutter = 4;
 bool layout (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::string & error);
+
+// The layout of the engine before 2.3.2: each texture one row of sprites,
+// with a 1-pixel gap between them and an empty first row. In each texture
+// after the first, the first sprite has no gap to its left and loses its
+// last row. For tests, and to log which sprites the new layout changes.
+bool layoutOneRow (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::string & error);
 
 // The RGBA pixels of each texture (and, for fonts, of each burn texture),
 // pageWidth * pageHeight each.
@@ -94,7 +105,28 @@ struct Pages {
 	std::vector<std::vector<unsigned char> > colour, burn;
 };
 
-bool makePages (const DecodedBank & bank, const Layout & layout, Pages & out, std::string & error);
+// With extrude, the gutter around each sprite gets the colour of the
+// sprite's nearest edge pixel, with alpha 0, so that filtering doesn't darken
+// the edges. Without it, the gutter is transparent black, as it always was.
+bool makePages (const DecodedBank & bank, const Layout & layout, bool extrude, Pages & out, std::string & error);
+
+// How each way of drawing a sprite samples its texture. They are relative
+// to the sprite, which starts at (tex_x, tex_y) in a page of pageW x pageH,
+// with the empty row above it and the empty columns beside it that some of
+// them sample, as the engine always did.
+enum TexKind {
+	TEXKIND_SCALE,		// Characters (scaleSprite, fixScaleSprite): the sprite exactly
+	TEXKIND_PASTE,		// pasteSpriteToBackDrop: from the row above the sprite, h rows
+	TEXKIND_FONT,		// fontSprite: half a texel either side, a row above and below
+	TEXKIND_FONT_FLIP,	// flipped: a whole texel more on the right
+	TEXKIND_BURN,		// burnSpriteToBackDrop: as fontSprite
+};
+
+struct TexRect {
+	float u1, v1, u2, v2;
+};
+
+TexRect texRect (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind);
 
 int nextPowerOfTwo (int n);
 

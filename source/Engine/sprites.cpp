@@ -31,11 +31,41 @@ extern float cameraZoom;
 
 unsigned char currentBurnR = 0, currentBurnG = 0, currentBurnB = 0;
 
+// Draws of text and the mouse cursor in this frame, for SLUDGE_RENDER_STATS.
+unsigned int fontSpriteDraws = 0;
+
 
 size_t spriteBank::gpuBytes () const {
 	size_t n = 0;
 	for (size_t i = 0; i < pages.size (); i ++) n += pages[i].gpuBytes;
 	return n;
+}
+
+// Whether to give the gutters around sprites the colour of their edges: as
+// SLUDGE_SPRITE_EDGES says (for tests), else as SPRITEEDGES in the .ini
+// says, else as the game says (from its project in the Dev Kit).
+extern bool gameExtrudesSpriteEdges;
+bool spriteEdgesExtruded () {
+	const char * env = getenv ("SLUDGE_SPRITE_EDGES");
+	if (env) return atoi (env) != 0;
+	if (gameSettings.spriteEdges >= 0) return gameSettings.spriteEdges != 0;
+	return gameExtrudesSpriteEdges;
+}
+
+// With SLUDGE_SPRITEBANK_LOG, name the sprites that look different from
+// before 2.3.2: the first sprite of each texture after the first lost its last
+// row and had no gap to its left in the old layout.
+static void logOldLayoutChanges (int fileNum, const spritebank::DecodedBank & decoded) {
+	if (! getenv ("SLUDGE_SPRITEBANK_LOG")) return;
+	spritebank::Layout old;
+	std::string error;
+	if (! spritebank::layoutOneRow (decoded, false, old, error)) return;
+	for (size_t i = 0; i < decoded.sprites.size (); i ++) {
+		if (old.texNum[i] > 0 && old.tex_x[i] == 0) {
+			fprintf (stderr, "Sprite bank %d: sprite %d (%d x %d) now shows its last row and left gap\n",
+				fileNum, (int) i, decoded.sprites[i].width, decoded.sprites[i].height);
+		}
+	}
 }
 
 bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
@@ -62,11 +92,11 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 		}
 	}
 	ok = ok && spritebank::layout (decoded, ! NPOT_textures, layout, error);
-	ok = ok && spritebank::makePages (decoded, layout, pages, error);
+	ok = ok && spritebank::makePages (decoded, layout, spriteEdgesExtruded (), pages, error);
 	if (! ok) return fatal (error.c_str ());
+	logOldLayoutChanges (fileNum, decoded);
 
 	int total = (int) decoded.sprites.size ();
-	int numTextures = (int) layout.pageWidth.size ();
 
 	// Whatever the bank held before goes now.
 	spriteBank bank;
@@ -83,6 +113,7 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 		sp.xhot = from.xhot;
 		sp.yhot = from.yhot;
 		sp.tex_x = layout.tex_x[i];
+		sp.tex_y = layout.tex_y[i];
 		sp.texNum = layout.texNum[i];
 		// We keep the alpha of the sprites, but not of fonts, to find out
 		// which character the mouse is over.
@@ -95,26 +126,7 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 	}
 
 	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
-
-	bank.pages.resize (numTextures);
-	for (int tex_num = 0; tex_num < numTextures; tex_num++) {
-		AtlasPage & page = bank.pages[tex_num];
-		page.w = layout.pageWidth[tex_num];
-		page.h = layout.pageHeight[tex_num];
-		page.gpuBytes = (size_t) page.w * page.h * 4 * (isFont ? 2 : 1);
-
-		gfx::Texture * t = gfx::renderer->createTexture (page.w, page.h, gfx::TEX_RGBA8, pages.colour[tex_num].data ());
-		gfx::renderer->setTextureWrap (t, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
-		gfx::renderer->setTextureFilter (t, filter, filter);
-		page.tex = gfx::UniqueTexture (gfx::renderer, t);
-
-		if (isFont) {
-			gfx::Texture * b = gfx::renderer->createTexture (page.w, page.h, gfx::TEX_RGBA8, pages.burn[tex_num].data ());
-			gfx::renderer->setTextureWrap (b, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
-			gfx::renderer->setTextureFilter (b, filter, filter);
-			page.burn = gfx::UniqueTexture (gfx::renderer, b);
-		}
-	}
+	uploadPages (* gfx::renderer, layout, pages, isFont, filter, bank.pages);
 
 	loadhere = std::move (bank);
 	setResourceForFatal (-1);
@@ -124,10 +136,12 @@ bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
 
 void pasteSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
 
-	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
-	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
-	float ty2 = (float)(single.height)/bank.pages[single.texNum].h;
+	const AtlasPage & page = bank.pages[single.texNum];
+	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, spritebank::TEXKIND_PASTE);
+	float tx1 = r.u1;
+	float ty1 = r.v1;
+	float tx2 = r.u2;
+	float ty2 = r.v2;
 
 	float btx1;
 	float btx2;
@@ -211,10 +225,12 @@ void pasteSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteB
 
 void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank) {
 
-	float tx1 = (float)(single.tex_x - 0.5) / bank.pages[single.texNum].w;
-	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width + 0.5) / bank.pages[single.texNum].w;
-	float ty2 = (float)(single.height+2)/bank.pages[single.texNum].h;
+	const AtlasPage & page = bank.pages[single.texNum];
+	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, spritebank::TEXKIND_BURN);
+	float tx1 = r.u1;
+	float ty1 = r.v1;
+	float tx2 = r.u2;
+	float ty2 = r.v2;
 
 	const GLfloat spriteTexCoords[] = { 
 		tx1, ty1,
@@ -300,11 +316,14 @@ void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBa
 
 
 static void fontSprite (bool flip, int x, int y, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
+	fontSpriteDraws ++;
 
-	float tx1 = (float)(single.tex_x-0.5) / bank.pages[single.texNum].w;
-	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width+(flip ? 1.0 : 0.5)) / bank.pages[single.texNum].w;
-	float ty2 = (float)(single.height+2)/bank.pages[single.texNum].h;
+	const AtlasPage & page = bank.pages[single.texNum];
+	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, (flip ? spritebank::TEXKIND_FONT_FLIP : spritebank::TEXKIND_FONT));
+	float tx1 = r.u1;
+	float ty1 = r.v1;
+	float tx2 = r.u2;
+	float ty2 = r.v2;
 
 	float x1 = (float)x - (float)single.xhot/cameraZoom;
 	float y1 = (float)y - (float)single.yhot/cameraZoom;
@@ -393,10 +412,12 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, onScreenPerson
 
 	if (scale <= 0.05) return false;
 
-	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
-	float ty1 = (float) 1.0/bank.pages[single.texNum].h;
-	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
-	float ty2 = (float)(single.height+1)/bank.pages[single.texNum].h;
+	const AtlasPage & page = bank.pages[single.texNum];
+	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, spritebank::TEXKIND_SCALE);
+	float tx1 = r.u1;
+	float ty1 = r.v1;
+	float tx2 = r.u2;
+	float ty2 = r.v2;
 
 	int diffX = (int)(((float)single.width) * scale);
 	int diffY = (int)(((float)single.height) * scale);
@@ -538,10 +559,12 @@ void fixScaleSprite (int x, int y, const sprite & single, const spriteBank & ban
 
 	if (scale <= 0.05) return;
 
-	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
-	float ty1 = (float) 1.0/bank.pages[single.texNum].h;//0.0;
-	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
-	float ty2 = (float)(single.height+1)/bank.pages[single.texNum].h;
+	const AtlasPage & page = bank.pages[single.texNum];
+	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, spritebank::TEXKIND_SCALE);
+	float tx1 = r.u1;
+	float ty1 = r.v1;
+	float tx2 = r.u2;
+	float ty2 = r.v2;
 
 	int diffX = (int)(((float)single.width) * scale);
 	int diffY = (int)(((float)single.height) * scale);

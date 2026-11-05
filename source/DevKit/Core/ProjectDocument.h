@@ -21,6 +21,9 @@ struct ProjectSettings {
 	std::string windowName, finalFile, language, dataFolder, quitMessage, customIcon, customLogo;
 	int mouse;				// 1 shows the mouse of the system, 2 hides it
 	bool fullScreen, makeSilent, showLogo, showLoading, invisible, ditherImages;
+	// Give the gutters around sprites in their textures the colour of the
+	// sprites' edges (bit 4 of the icon and logo byte of the game).
+	bool extrudeSpriteEdges;
 	int width, height, speed;	// speed is the milliseconds of a frame
 	// The settings of the rendering of characters.
 	bool chrDefaultEnabled;

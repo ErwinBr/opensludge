@@ -53,6 +53,7 @@ void noSettings () {
 	settings.startupShowLogo = true;
 	settings.startupShowLoading = true;
 	settings.startupInvisible = false;
+	settings.extrudeSpriteEdges = false;
 	chrRenderingSettingsFillDefaults(true);
 }
 
@@ -122,6 +123,9 @@ void readDir (char * t) {
 
 		} else if (strcmp (splitLine -> string, "makesilent") == 0) {
 			settings.forceSilent = (splitLine -> next -> string[0] == 'Y');
+
+		} else if (strcmp (splitLine -> string, "extrudespriteedges") == 0) {
+			settings.extrudeSpriteEdges = (splitLine -> next -> string[0] == 'Y');
 
 		} else if (strcmp (splitLine -> string, "height") == 0) {
 			settings.screenHeight = stringToInt (splitLine -> next -> string);
@@ -231,6 +235,7 @@ void writeSettings (FILE * fp) {
 	fprintf 		(fp, "showloading=%c\n", 		settings.startupShowLoading ? 'Y':'N');
 	fprintf 		(fp, "invisible=%c\n", 			settings.startupInvisible ? 'Y':'N');
 	fileWriteBool 		(fp, "ditherimages", 			settings.ditherImages);
+	if (settings.extrudeSpriteEdges) fprintf (fp, "extrudespriteedges=Y\n");
 	fprintf 	  	(fp, "width=%i\n",			settings.screenWidth);
 	fprintf 	  	(fp, "height=%i\n", 			settings.screenHeight);
 	fprintf 		(fp, "speed=%i\n", 			settings.frameSpeed);

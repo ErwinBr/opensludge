@@ -364,12 +364,14 @@ Texture * GPURenderer::createTexture (int width, int height, TexFormat format, c
 	t->minFilter = FILTER_NEAREST;
 	t->magFilter = FILTER_LINEAR;
 	t->wrapS = t->wrapT = WRAP_REPEAT;
+	countTexture (1);
 	setTextureImage (t, width, height, pixels);
 	return t;
 }
 
 void GPURenderer::setTextureImage (Texture * t, int width, int height, const void * pixels) {
 	if (! t->texture || t->width != width || t->height != height) {
+		countTextureSize (t->format, t->width, t->height, width, height);
 		if (t->texture) SDL_ReleaseGPUTexture (device, t->texture);
 		// Any texture with colour can be a render target.
 		SDL_GPUTextureUsageFlags usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
@@ -429,6 +431,8 @@ void GPURenderer::updateTexture (Texture * t, int x, int y, int width, int heigh
 
 void GPURenderer::destroyTexture (Texture * t) {
 	if (! t) return;
+	countTextureSize (t->format, t->width, t->height, 0, 0);
+	countTexture (-1);
 	SDL_ReleaseGPUTexture (device, t->texture);
 	delete t;
 }
@@ -778,6 +782,7 @@ void GPURenderer::pushFragmentUniforms (Program program, const DrawUniforms & u)
 }
 
 void GPURenderer::draw (const PipelineState & state, const DrawUniforms & u, Texture * const textures[3], const Quad & quad) {
+	countDraw (textures[0]);
 	if (! startDraw (state.program, state)) return;
 
 	VertexUniforms v;
@@ -885,6 +890,7 @@ Mesh * GPURenderer::createFrameMesh (const Vertex2D * vertices, int vertexCount,
 
 void GPURenderer::drawMesh (const PipelineState & state, const DrawUniforms & u, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) {
 	if (indexCount <= 0) return;
+	countMeshDraw (texture);
 	if (! startDraw (PROG_VERTEX_COLOR, state)) return;
 
 	MeshUniforms v;
@@ -939,6 +945,7 @@ void GPURenderer::present () {
 	retiredBuffers.clear ();
 	meshVertices.used = meshIndices.used = 0;
 	destroyReleasedTextures (false);
+	finishFrameStats ();
 }
 
 } // namespace

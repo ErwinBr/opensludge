@@ -231,6 +231,10 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
             if (settings.customLogo && settings.customLogo[0])
                 customIconLogo +=2;
 
+            // Older engines look only at bits 1 and 2.
+            if (settings.extrudeSpriteEdges)
+                customIconLogo +=4;
+
             fputc (customIconLogo, projectFile);
 
             // ADD ICON ------------------------------------

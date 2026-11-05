@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 #include <setjmp.h>
 #include <png.h>
 
@@ -335,9 +336,34 @@ bool decode (Reader & in, bool isFont, DecodedBank & bank, std::string & error) 
 	return true;
 }
 
-bool layout (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::string & error) {
+namespace {
+
+bool checkPages (const DecodedBank & bank, Layout & out, bool powerOfTwo, std::string & error) {
+	uint64_t bytes = 0;
+	for (size_t p = 0; p < out.pageWidth.size (); p ++) {
+		if (powerOfTwo) {
+			out.pageWidth[p] = nextPowerOfTwo (out.pageWidth[p]);
+			out.pageHeight[p] = nextPowerOfTwo (out.pageHeight[p]);
+		}
+		if (out.pageWidth[p] > maxDimension || out.pageHeight[p] > maxDimension) {
+			return fail (error, "Can't open sprite bank / font - a texture would be too big.");
+		}
+		bytes += (uint64_t) out.pageWidth[p] * out.pageHeight[p] * 4 * (bank.isFont ? 2 : 1);
+		if (bytes > maxBankBytes) return fail (error, "Can't open sprite bank / font - it's too big.");
+	}
+	return true;
+}
+
+struct Shelf {
+	int y, height, used;
+};
+
+}
+
+bool layoutOneRow (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::string & error) {
 	size_t total = bank.sprites.size ();
 	out.tex_x.assign (total, 0);
+	out.tex_y.assign (total, 1);
 	out.texNum.assign (total, 0);
 	out.pageWidth.assign (1, 1);
 	out.pageHeight.assign (1, 1);
@@ -362,22 +388,142 @@ bool layout (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::strin
 		out.texNum[i] = n;
 	}
 
-	uint64_t bytes = 0;
-	for (size_t p = 0; p < out.pageWidth.size (); p ++) {
-		if (powerOfTwo) {
-			out.pageWidth[p] = nextPowerOfTwo (out.pageWidth[p]);
-			out.pageHeight[p] = nextPowerOfTwo (out.pageHeight[p]);
-		}
-		if (out.pageWidth[p] > maxDimension || out.pageHeight[p] > maxDimension) {
-			return fail (error, "Can't open sprite bank / font - a texture would be too big.");
-		}
-		bytes += (uint64_t) out.pageWidth[p] * out.pageHeight[p] * 4 * (bank.isFont ? 2 : 1);
-		if (bytes > maxBankBytes) return fail (error, "Can't open sprite bank / font - it's too big.");
-	}
-	return true;
+	return checkPages (bank, out, powerOfTwo, error);
 }
 
-bool makePages (const DecodedBank & bank, const Layout & layout, Pages & out, std::string & error) {
+bool layout (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::string & error) {
+	size_t total = bank.sprites.size ();
+	out.tex_x.assign (total, 0);
+	out.tex_y.assign (total, 0);
+	out.texNum.assign (total, 0);
+	out.pageWidth.clear ();
+	out.pageHeight.clear ();
+
+	// The tallest first; the sprites keep their numbers.
+	std::vector<int> order (total);
+	for (size_t i = 0; i < total; i ++) order[i] = (int) i;
+	std::stable_sort (order.begin (), order.end (), [&bank] (int a, int b) {
+		return bank.sprites[a].height > bank.sprites[b].height;
+	});
+
+	// For each page we fill: its shelves, and the height they take.
+	std::vector<std::vector<Shelf> > shelves;
+	std::vector<int> usedHeight;
+
+	for (size_t o = 0; o < total; o ++) {
+		int i = order[o];
+		int w = bank.sprites[i].width + 2 * gutter, h = bank.sprites[i].height + 2 * gutter;
+
+		int page = -1, x = 0, y = 0;
+		if (w > pageSize || h > pageSize) {
+			// A page of its own, just big enough.
+			page = (int) out.pageWidth.size ();
+			out.pageWidth.push_back (w);
+			out.pageHeight.push_back (h);
+			shelves.push_back (std::vector<Shelf> ());
+			usedHeight.push_back (pageSize + 1);	// Nothing else goes in
+		} else {
+			// The first shelf with room, in any page; else a new shelf; else a new page.
+			for (size_t p = 0; p < shelves.size () && page < 0; p ++) {
+				for (size_t sh = 0; sh < shelves[p].size (); sh ++) {
+					Shelf & shelf = shelves[p][sh];
+					if (shelf.height >= h && shelf.used + w <= pageSize) {
+						page = (int) p;
+						x = shelf.used;
+						y = shelf.y;
+						shelf.used += w;
+						break;
+					}
+				}
+			}
+			for (size_t p = 0; p < shelves.size () && page < 0; p ++) {
+				if (usedHeight[p] + h <= pageSize) {
+					page = (int) p;
+					Shelf shelf = { usedHeight[p], h, w };
+					shelves[p].push_back (shelf);
+					y = usedHeight[p];
+					usedHeight[p] += h;
+				}
+			}
+			if (page < 0) {
+				page = (int) out.pageWidth.size ();
+				if (page > 255) return fail (error, "Can't open sprite bank / font - it's too big.");
+				out.pageWidth.push_back (0);
+				out.pageHeight.push_back (0);
+				Shelf shelf = { 0, h, w };
+				shelves.push_back (std::vector<Shelf> (1, shelf));
+				usedHeight.push_back (h);
+			}
+			if (x + w > out.pageWidth[page]) out.pageWidth[page] = x + w;
+			if (y + h > out.pageHeight[page]) out.pageHeight[page] = y + h;
+		}
+		out.texNum[i] = page;
+		out.tex_x[i] = x + gutter;
+		out.tex_y[i] = y + gutter;
+	}
+
+	return checkPages (bank, out, powerOfTwo, error);
+}
+
+// These are the formulas of the draw functions in sprites.cpp from before
+// sprites had a tex_y, with the row the sprite starts in (then always 1) as
+// tex_y. They must stay the same, float for float.
+TexRect texRect (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind) {
+	TexRect r;
+	switch (kind) {
+		case TEXKIND_SCALE:
+		r.u1 = (float) (tex_x) / pageW;
+		r.v1 = (float) (tex_y) / pageH;
+		r.u2 = (float) (tex_x + width) / pageW;
+		r.v2 = (float) (tex_y + height) / pageH;
+		break;
+
+		case TEXKIND_PASTE:
+		r.u1 = (float) (tex_x) / pageW;
+		r.v1 = (float) (tex_y - 1) / pageH;
+		r.u2 = (float) (tex_x + width) / pageW;
+		r.v2 = (float) (tex_y - 1 + height) / pageH;
+		break;
+
+		case TEXKIND_FONT:
+		case TEXKIND_FONT_FLIP:
+		case TEXKIND_BURN:
+		r.u1 = (float) (tex_x - 0.5) / pageW;
+		r.v1 = (float) (tex_y - 1) / pageH;
+		r.u2 = (float) (tex_x + width + (kind == TEXKIND_FONT_FLIP ? 1.0 : 0.5)) / pageW;
+		r.v2 = (float) (tex_y - 1 + height + 2) / pageH;
+		break;
+	}
+	return r;
+}
+
+namespace {
+
+// Give the gutter around a sprite at (x0, y0), w x h, the colour of the
+// nearest pixel of the sprite, with alpha 0.
+void extrudeGutter (std::vector<unsigned char> & page, int pw, int ph, int x0, int y0, int w, int h) {
+	if (w <= 0 || h <= 0) return;
+	for (int y = y0 - gutter; y < y0 + h + gutter; y ++) {
+		if (y < 0 || y >= ph) continue;
+		int sy = y < y0 ? y0 : (y >= y0 + h ? y0 + h - 1 : y);
+		if (sy >= ph) continue;
+		for (int x = x0 - gutter; x < x0 + w + gutter; x ++) {
+			if (x < 0 || x >= pw) continue;
+			if (y >= y0 && y < y0 + h && x >= x0 && x < x0 + w) continue;
+			int sx = x < x0 ? x0 : (x >= x0 + w ? x0 + w - 1 : x);
+			unsigned char * to = &page[((size_t) y * pw + x) * 4];
+			const unsigned char * from = &page[((size_t) sy * pw + sx) * 4];
+			to[0] = from[0];
+			to[1] = from[1];
+			to[2] = from[2];
+			to[3] = 0;
+		}
+	}
+}
+
+}
+
+bool makePages (const DecodedBank & bank, const Layout & layout, bool extrude, Pages & out, std::string & error) {
 	size_t numPages = layout.pageWidth.size ();
 	out.colour.assign (numPages, std::vector<unsigned char> ());
 	out.burn.assign (bank.isFont ? numPages : 0, std::vector<unsigned char> ());
@@ -391,15 +537,19 @@ bool makePages (const DecodedBank & bank, const Layout & layout, Pages & out, st
 		const DecodedSprite & sp = bank.sprites[i];
 		int page = layout.texNum[i];
 		int pw = layout.pageWidth[page], ph = layout.pageHeight[page];
-		int x0 = layout.tex_x[i];
-		if (x0 < 0 || x0 + sp.width > pw) return fail (error, "Can't open sprite bank / font - bad layout.");
+		int x0 = layout.tex_x[i], y0 = layout.tex_y[i];
+		if (x0 < 0 || x0 + sp.width > pw || y0 < 0) return fail (error, "Can't open sprite bank / font - bad layout.");
 		size_t rowBytes = (size_t) sp.width * 4;
-		// Sprites start in the second row. The last row of a sprite may not
-		// fit in its texture (see layout); it was never drawn.
-		for (int y = 0; y < sp.height && y + 1 < ph; y ++) {
-			size_t at = ((size_t) (y + 1) * pw + x0) * 4;
+		// In the old layout (layoutOneRow), the last row of a sprite may not
+		// fit in its texture; it was never drawn.
+		for (int y = 0; y < sp.height && y0 + y < ph; y ++) {
+			size_t at = ((size_t) (y0 + y) * pw + x0) * 4;
 			memcpy (&out.colour[page][at], &sp.rgba[y * rowBytes], rowBytes);
 			if (bank.isFont && ! sp.burn.empty ()) memcpy (&out.burn[page][at], &sp.burn[y * rowBytes], rowBytes);
+		}
+		if (extrude) {
+			extrudeGutter (out.colour[page], pw, ph, x0, y0, sp.width, sp.height);
+			if (bank.isFont) extrudeGutter (out.burn[page], pw, ph, x0, y0, sp.width, sp.height);
 		}
 	}
 	return true;

@@ -75,6 +75,7 @@ void readIniFile (char * filename) {
 	gameSettings.debugMode = false;
 	strcpy (gameSettings.renderer, "auto");
 	gameSettings.spriteBankCacheBudgetMB = 128;
+	gameSettings.spriteEdges = -1;
 
 	delete [] langName;
 	langName = NULL;
@@ -125,6 +126,10 @@ void readIniFile (char * filename) {
 					{
 						gameSettings.debugMode = stringToInt (secondSoFar);
 					}
+					else if (strcmp (lineSoFar, "SPRITEEDGES") == 0)
+					{
+						gameSettings.spriteEdges = stringToInt (secondSoFar) ? 1 : 0;
+					}
 					else if (strcmp (lineSoFar, "SPRITEBANKCACHEMB") == 0)
 					{
 						gameSettings.spriteBankCacheBudgetMB = stringToInt (secondSoFar);
@@ -174,6 +179,7 @@ void saveIniFile (char * filename) {
 	fprintf (fp, "DEBUGMODE=%d\n", gameSettings.debugMode);
 	fprintf (fp, "RENDERER=%s\n", gameSettings.renderer);
 	fprintf (fp, "SPRITEBANKCACHEMB=%u\n", gameSettings.spriteBankCacheBudgetMB);
+	if (gameSettings.spriteEdges >= 0) fprintf (fp, "SPRITEEDGES=%d\n", gameSettings.spriteEdges);
 
 	fclose (fp);
 }

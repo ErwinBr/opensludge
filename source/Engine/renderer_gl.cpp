@@ -217,6 +217,8 @@ Texture * GLRenderer::createTexture (int width, int height, TexFormat format, co
 	Texture * t = new Texture;
 	glGenTextures (1, &t->name);
 	t->format = format;
+	t->width = t->height = 0;
+	countTexture (1);
 	// The defaults of OpenGL, but with a minification filter that works
 	// without mipmaps.
 	t->minFilter = FILTER_NEAREST;
@@ -229,6 +231,7 @@ Texture * GLRenderer::createTexture (int width, int height, TexFormat format, co
 }
 
 void GLRenderer::setTextureImage (Texture * t, int width, int height, const void * pixels) {
+	countTextureSize (t->format, t->width, t->height, width, height);
 	t->width = width;
 	t->height = height;
 	glBindTexture (GL_TEXTURE_2D, t->name);
@@ -242,6 +245,8 @@ void GLRenderer::updateTexture (Texture * t, int x, int y, int width, int height
 
 void GLRenderer::destroyTexture (Texture * t) {
 	if (! t) return;
+	countTextureSize (t->format, t->width, t->height, 0, 0);
+	countTexture (-1);
 	glDeleteTextures (1, &t->name);
 	delete t;
 }
@@ -399,6 +404,7 @@ void GLRenderer::setUniforms (const ProgramInfo & info, const DrawUniforms & u) 
 
 void GLRenderer::draw (const PipelineState & state, const DrawUniforms & uniforms, Texture * const textures[3], const Quad & quad) {
 	const ProgramInfo & info = programs[state.program];
+	countDraw (textures[0]);
 	applyState (state);
 	glUseProgram (info.program);
 	setUniforms (info, uniforms);
@@ -438,6 +444,7 @@ Mesh * GLRenderer::createFrameMesh (const Vertex2D * vertices, int vertexCount, 
 
 void GLRenderer::drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) {
 	if (indexCount <= 0) return;
+	countMeshDraw (texture);
 	const ProgramInfo & info = programs[PROG_VERTEX_COLOR];
 	applyState (state);
 	glUseProgram (info.program);
@@ -472,6 +479,7 @@ void GLRenderer::present () {
 	frameMeshes.clear ();
 	// OpenGL waits itself for draws that use a deleted texture.
 	destroyReleasedTextures (false);
+	finishFrameStats ();
 }
 
 GLRenderer::~GLRenderer () {

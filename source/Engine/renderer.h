@@ -120,6 +120,15 @@ struct Texture;
 struct RenderTarget;
 struct Mesh;
 
+// What a frame drew, for measuring (SLUDGE_RENDER_STATS in the engine).
+struct RenderStats {
+	unsigned int draws;				// Quads
+	unsigned int meshDraws;
+	unsigned int textureSwitches;	// Draws with another texture on unit 0 than the draw before
+	unsigned int textures;			// Alive at the end of the frame
+	size_t textureBytes;			// Their pixels
+};
+
 class Renderer {
 public:
 	Renderer ();
@@ -136,6 +145,8 @@ public:
 	void releaseTarget (RenderTarget * target);
 	// How many released textures we haven't destroyed yet.
 	size_t texturesBeingReleased () const { return released.size (); }
+	// What the last presented frame drew.
+	const RenderStats & lastFrameStats () const { return lastStats; }
 
 	// Textures. Pixels are tightly packed, 4 or 1 bytes each, and may be
 	// NULL for a texture whose contents we draw.
@@ -193,6 +204,13 @@ protected:
 	// Stop drawing into a target that is going (destroyTarget does it too).
 	virtual void detachTarget (RenderTarget * target) = 0;
 
+	// The renderers count what they draw and keep with these.
+	void countDraw (const Texture * unit0);
+	void countMeshDraw (const Texture * texture);
+	void countTextureSize (TexFormat format, int oldWidth, int oldHeight, int newWidth, int newHeight);
+	void countTexture (int change) { stats.textures += change; }
+	void finishFrameStats ();
+
 private:
 	struct Released {
 		Texture * texture;			// Or NULL, and
@@ -201,6 +219,8 @@ private:
 	};
 	std::vector<Released> released;
 	uint64_t frame;
+	RenderStats stats, lastStats;
+	const Texture * lastUnit0;
 	uint64_t ownerThread;
 
 	Renderer (const Renderer &);

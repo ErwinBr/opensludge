@@ -167,6 +167,61 @@ int main (int argc, char ** argv) {
 		r->present ();
 	}
 
+	// A sprite page as uploadPages makes it: clamped at the edges, nearest,
+	// and with one level only. It reads back as we uploaded it; drawn at
+	// less than half size, each pixel is one texel (a mipmap would average
+	// them); and beyond its edge, it repeats its edge.
+	{
+		const int PW = 8, PH = 4;
+		unsigned char page[PW * PH * 4];
+		for (int i = 0; i < PW * PH; i ++) {
+			page[i * 4] = (unsigned char) (i * 8);
+			page[i * 4 + 1] = (unsigned char) (255 - i * 8);
+			page[i * 4 + 2] = (unsigned char) ((i % 2) * 255);
+			page[i * 4 + 3] = 255;
+		}
+		gfx::Texture * pageTex = r->createTexture (PW, PH, gfx::TEX_RGBA8, page);
+		r->setTextureWrap (pageTex, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
+		r->setTextureFilter (pageTex, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+		unsigned char back[PW * PH * 4];
+		r->readTexture (pageTex, back);
+		if (memcmp (back, page, sizeof (page))) {
+			fprintf (stderr, "FAIL: a sprite page doesn't read back as uploaded\n");
+			failures ++;
+		}
+
+		// 8 x 4 texels into 4 x 2 pixels, with u and v to 0.99, so that no
+		// pixel centre lies on a texel edge: pixels sample columns 0, 2, 4, 6
+		// and rows 0, 2. Then 2 x 2 pixels left of the texture, which clamp
+		// to column 0.
+		gfx::Vertex2D quads[8] = {
+			vertex (0, 0, 0, 0, 255, 255, 255, 255), vertex (4, 0, 0.99f, 0, 255, 255, 255, 255),
+			vertex (0, 2, 0, 0.99f, 255, 255, 255, 255), vertex (4, 2, 0.99f, 0.99f, 255, 255, 255, 255),
+			vertex (8, 0, -1.0f, 0, 255, 255, 255, 255), vertex (10, 0, -0.5f, 0, 255, 255, 255, 255),
+			vertex (8, 2, -1.0f, 0.99f, 255, 255, 255, 255), vertex (10, 2, -0.5f, 0.99f, 255, 255, 255, 255),
+		};
+		r->setTarget (target);
+		r->setViewport (0, 0, W, H);
+		r->clear (true, false);
+		gfx::Mesh * mesh = r->createFrameMesh (quads, 8, indices, 12);
+		r->drawMesh (opaque, u, pageTex, mesh, 0, 6, 0);
+		r->drawMesh (opaque, u, pageTex, mesh, 6, 6, 4);
+		r->readPixels (0, 0, W, H, pixels);
+		for (int py = 0; py < 2; py ++) {
+			for (int px = 0; px < 4; px ++) {
+				const unsigned char * t = page + ((py * 2) * PW + px * 2) * 4;
+				expect (pixels, px, py, t[0], t[1], t[2], 255, "minified page, one texel a pixel");
+			}
+			for (int px = 8; px < 10; px ++) {
+				const unsigned char * t = page + ((py * 2) * PW) * 4;
+				expect (pixels, px, py, t[0], t[1], t[2], 255, "page clamped at its edge");
+			}
+		}
+		r->setTarget (NULL);
+		r->present ();
+		r->destroyTexture (pageTex);
+	}
+
 	delete [] pixels;
 	r->destroyTarget (target);
 	r->destroyTexture (color);

@@ -11,8 +11,8 @@ struct onScreenPerson;
 
 struct sprite {
 	int width, height, xhot, yhot;
-	// Where the sprite is: from (tex_x, 1) in texture texNum of its bank.
-	int tex_x;
+	// Where the sprite is: from (tex_x, tex_y) in texture texNum of its bank.
+	int tex_x, tex_y;
 	int texNum;
 	// The alpha of each pixel, width by height, for finding out which
 	// character the mouse is over. Empty in fonts.
@@ -50,6 +50,11 @@ struct spriteBank {
 
 	size_t gpuBytes () const;
 };
+
+namespace spritebank { struct Layout; struct Pages; }
+// Makes the textures of the pages of a bank.
+void uploadPages (gfx::Renderer & renderer, const spritebank::Layout & layout, const spritebank::Pages & pages,
+	bool isFont, gfx::Filter filter, std::vector<AtlasPage> & out);
 
 // Replaces what loadhere holds; on failure, calls fatal.
 bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont);
