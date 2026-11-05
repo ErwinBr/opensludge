@@ -123,6 +123,9 @@ bool loadCostume (persona * cossy, FILE * fp);
 // reference. The last release deletes the costume and its animations.
 void retainCostume (persona * cossy);
 void releaseCostume (persona * cossy);
+// The animations of a costume, all NULL, so that releaseCostume can free a
+// costume that is only partly filled.
+personaAnimation * * newAnimationArray (int n);
 
 // Holds a reference to a costume until it goes, for the built-in functions.
 class CostumeRef {

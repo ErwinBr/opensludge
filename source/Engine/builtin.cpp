@@ -944,7 +944,7 @@ builtIn(costume)
 		return BR_ERROR;
 	}
 	int iii;
-	newPersona -> animation = new personaAnimation * [numParams];
+	newPersona -> animation = newAnimationArray (numParams);
 	if (! checkNew (newPersona -> animation)) return BR_ERROR;
 	for (iii = numParams - 1; iii >= 0; iii --) {
 		newPersona -> animation[iii] = getAnimationFromVar (fun -> stack -> thisVar);

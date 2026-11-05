@@ -66,6 +66,12 @@ void retainCostume (persona * cossy) {
 	if (cossy) cossy -> timesUsed ++;
 }
 
+personaAnimation * * newAnimationArray (int n) {
+	personaAnimation * * array = new personaAnimation * [n];
+	for (int a = 0; a < n; a ++) array[a] = NULL;
+	return array;
+}
+
 void releaseCostume (persona * cossy) {
 	if (! cossy) return;
 	if (-- cossy -> timesUsed > 0) return;
@@ -91,6 +97,19 @@ static void deletePerson (onScreenPerson * p) {
 	releaseCostume (p -> myPersona);
 	delete p;
 }
+
+// Holds a character while loadPeople reads it, and deletes it, with what it
+// owns, if loading stops before the character is in allPeople.
+class PersonLoadGuard {
+public:
+	explicit PersonLoadGuard (onScreenPerson * p) : p (p) {}
+	~PersonLoadGuard () { if (p) deletePerson (p); }
+	onScreenPerson * release () { onScreenPerson * r = p; p = NULL; return r; }
+private:
+	onScreenPerson * p;
+	PersonLoadGuard (const PersonLoadGuard &);
+	PersonLoadGuard & operator= (const PersonLoadGuard &);
+};
 
 personaAnimation * createPersonaAnim (int num, variableStack * & stacky) {
 	personaAnimation * newP = new personaAnimation;
@@ -1027,7 +1046,7 @@ bool saveCostume (persona * cossy, FILE * fp) {
 bool loadCostume (persona * cossy, FILE * fp) {
 	int a;
 	cossy -> numDirections = get2bytes (fp);
-	cossy -> animation = new personaAnimation * [cossy -> numDirections * 3];
+	cossy -> animation = newAnimationArray (cossy -> numDirections * 3);
 	if (! checkNew (cossy -> animation)) return false;
 	for (a = 0; a < cossy -> numDirections * 3; a ++) {
 		cossy -> animation[a] = new personaAnimation;
@@ -1120,6 +1139,11 @@ bool loadPeople (FILE * fp) {
 	for (a = 0; a < countPeople; a ++) {
 		me = new onScreenPerson;
 		if (! checkNew (me)) return false;
+		// What deletePerson reads, before anything can fail.
+		me -> myPersona = NULL;
+		me -> myAnim = me -> ownAnim = me -> lastUsedAnim = NULL;
+		me -> continueAfterWalking = NULL;
+		PersonLoadGuard guard (me);
 
 		me -> myPersona = new persona;
 		if (! checkNew (me -> myPersona)) return false;
@@ -1194,7 +1218,7 @@ bool loadPeople (FILE * fp) {
 		}
 
 		me -> next = NULL;
-		* pointy = me;
+		* pointy = guard.release ();
 		pointy = & (me -> next);
 	}
 //	db ("End of loadPeople");
