@@ -5,3 +5,7 @@
 /build*/
 __pycache__/
 .DS_Store
+
+# What a failed view test writes where it runs
+/*-actual.png
+/*-difference.png
