@@ -494,6 +494,12 @@ bool initSludge (char * filename) {
 	
 	// Get user settings
 	readIniFile (filename);
+	{
+		// SLUDGE_SPRITEBANK_CACHE_MB overrides the .ini, for tests.
+		const char * mb = getenv ("SLUDGE_SPRITEBANK_CACHE_MB");
+		size_t budget = mb ? (size_t) atoi (mb) : gameSettings.spriteBankCacheBudgetMB;
+		setSpriteBankCacheBudget (budget * 1024 * 1024);
+	}
 	char * settingsFolder = getcwd (NULL, 0);
 	loadControllerMapping (gamePath, settingsFolder ? settingsFolder : ".");
 	free (settingsFolder);

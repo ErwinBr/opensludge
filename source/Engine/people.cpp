@@ -88,7 +88,7 @@ personaAnimation * makeNullAnim () {
 	if (! checkNew (newAnim)) return NULL;
 
 
-	newAnim -> theSprites		= NULL;
+	newAnim -> theSprites.reset ();
 	newAnim -> numFrames		= 0;
 	newAnim -> frames			= NULL;
 	return newAnim;
@@ -451,7 +451,7 @@ void drawPeople () {
 			}
 			if (m != 2) {
 				bool r = false;
-				r = scaleSprite (myAnim->theSprites->bank.sprites[fNum], myAnim -> theSprites -> bank.myPalette, thisPerson, m);
+				r = scaleSprite (myAnim->theSprites->bank.sprites[fNum], myAnim -> theSprites -> bank, thisPerson, m);
 				if (r) {
 					if (thisPerson -> thisType -> screenName[0]) {
 						if (personRegion.thisType != thisPerson -> thisType) lastRegion = NULL;
@@ -943,7 +943,7 @@ bool loadAnim (personaAnimation * p, FILE * fp) {
 			}
 		}
 	} else {
-		p -> theSprites = NULL;
+		p -> theSprites.reset ();
 		p -> frames = NULL;
 	}
 	return true;

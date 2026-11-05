@@ -4,6 +4,8 @@
 
 #include <stddef.h>
 
+#include <SDL3/SDL.h>
+
 #include "renderer.h"
 
 namespace gfx {
@@ -20,6 +22,31 @@ void logDebug (const char * format, ...) {
 	va_start (args, format);
 	logFunction (format, args);
 	va_end (args);
+}
+
+Renderer::Renderer ()
+	: framesInFlight (1), frame (0), ownerThread (SDL_GetCurrentThreadID ()) {
+}
+
+void Renderer::releaseTexture (Texture * t) {
+	if (! t) return;
+	SDL_assert (SDL_GetCurrentThreadID () == ownerThread);
+	Released r = { t, frame };
+	released.push_back (r);
+}
+
+void Renderer::destroyReleasedTextures (bool all) {
+	SDL_assert (SDL_GetCurrentThreadID () == ownerThread);
+	if (! all) frame ++;
+	size_t kept = 0;
+	for (size_t i = 0; i < released.size (); i ++) {
+		if (all || frame - released[i].frame >= (uint64_t) framesInFlight) {
+			destroyTexture (released[i].texture);
+		} else {
+			released[kept ++] = released[i];
+		}
+	}
+	released.resize (kept);
 }
 
 DrawUniforms::DrawUniforms ()

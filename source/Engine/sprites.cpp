@@ -1,5 +1,5 @@
+#include <string>
 #include <vector>
-#include <png.h>
 
 #include <string.h>
 #include <math.h>
@@ -21,6 +21,7 @@
 #include "objtypes.h"
 
 #include "shaders.h"
+#include "spritebankdecode.h"
 
 extern zBufferData zBuffer;
 
@@ -31,395 +32,102 @@ extern float cameraZoom;
 unsigned char currentBurnR = 0, currentBurnG = 0, currentBurnB = 0;
 
 
-void forgetSpriteBank (spriteBank & forgetme) {
-
-	for (int i = 0; i < forgetme.total; i ++) {
-		delete [] forgetme.sprites[i].alpha;
-	}
-
-	for (int i = 0; i < forgetme.myPalette.numTextures; i ++) {
-		gfx::renderer->destroyTexture (forgetme.myPalette.tex_names[i]);
-	}
-	if (forgetme.isFont) {
-		for (int i = 0; i < forgetme.myPalette.numTextures; i ++) {
-			gfx::renderer->destroyTexture (forgetme.myPalette.burnTex_names[i]);
-		}
-		delete [] forgetme.myPalette.burnTex_names;
-		forgetme.myPalette.burnTex_names = NULL;
-	}
-	
-	delete [] forgetme.myPalette.tex_names;
-	forgetme.myPalette.tex_names = NULL;
-	delete [] forgetme.myPalette.tex_w;
-	forgetme.myPalette.tex_w = NULL;
-	delete [] forgetme.myPalette.tex_h;
-	forgetme.myPalette.tex_h = NULL;
-	
-	if (forgetme.myPalette.pal) {
-		delete  [] forgetme.myPalette.pal;
-		forgetme.myPalette.pal = NULL;
-		delete  [] forgetme.myPalette.r;
-		forgetme.myPalette.r = NULL;
-		delete  [] forgetme.myPalette.g;
-		forgetme.myPalette.g = NULL;
-		delete  [] forgetme.myPalette.b;
-		forgetme.myPalette.b = NULL;
-	}
-
-	delete [] forgetme.sprites;
-	forgetme.sprites = NULL;
-    
-    
-    // TODO: also remove sprite bank from allLoadedBanks
-    // And add a function call for this function to the scripting language
-}
-
-bool reserveSpritePal (spritePalette & sP, int n) {
-	if (sP.pal) {
-		delete  [] sP.pal;
-		delete  [] sP.r;
-		delete  [] sP.g;
-		delete  [] sP.b;
-	}
-
-	sP.pal = new unsigned short int [n];
-	if (! checkNew (sP.pal)) return false;
-
-	sP.r = new unsigned char [n];
-	if (! checkNew (sP.r)) return false;
-	sP.g = new unsigned char [n];
-	if (! checkNew (sP.g)) return false;
-	sP.b = new unsigned char [n];
-	if (! checkNew (sP.b)) return false;
-	sP.total = n;
-	return (bool) (sP.pal != NULL) && (sP.r != NULL) && (sP.g != NULL) && (sP.b != NULL);
+size_t spriteBank::gpuBytes () const {
+	size_t n = 0;
+	for (size_t i = 0; i < pages.size (); i ++) n += pages[i].gpuBytes;
+	return n;
 }
 
 bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont) {
-	int i, tex_num, total, picwidth, picheight, spriteBankVersion = 0, howmany=0, startIndex=0;
-	int * totalwidth, * maxheight;
-	int numTextures = 0;
-	byte * data;
+	std::string error;
+	spritebank::DecodedBank decoded;
+	spritebank::Layout layout;
+	spritebank::Pages pages;
 
 	setResourceForFatal (fileNum);
-	if (! openFileFromNum (fileNum)) return fatal ("Can't open sprite bank / font");
+	unsigned int length = openFileFromNum (fileNum);
+	if (! length) return fatal ("Can't open sprite bank / font");
 
-	loadhere.isFont = isFont;
-
-	total = get2bytes (bigDataFile);
-	if (! total) {
-		spriteBankVersion = fgetc (bigDataFile);
-		if (spriteBankVersion == 1) {
-			total = 0;
+	bool ok;
+	{
+		// The whole resource, so that the decoder can check every offset.
+		std::vector<unsigned char> bytes (length);
+		ok = fread (bytes.data (), 1, length, bigDataFile) == length;
+		finishAccess ();
+		if (! ok) {
+			error = "Can't open sprite bank / font - the file ends too soon.";
 		} else {
-			total = get2bytes (bigDataFile);
+			spritebank::Reader reader (bytes.data (), bytes.size ());
+			ok = spritebank::decode (reader, isFont, decoded, error);
 		}
 	}
+	ok = ok && spritebank::layout (decoded, ! NPOT_textures, layout, error);
+	ok = ok && spritebank::makePages (decoded, layout, pages, error);
+	if (! ok) return fatal (error.c_str ());
 
-	if (total <= 0) return fatal ("No sprites in bank or invalid sprite bank file");
-	if (spriteBankVersion > 3) return fatal ("Unsupported sprite bank file format");
+	int total = (int) decoded.sprites.size ();
+	int numTextures = (int) layout.pageWidth.size ();
 
-	loadhere.total = total;
-	loadhere.sprites = new sprite [total];
-	if (! checkNew (loadhere.sprites)) return false;
-	byte ** spriteData = new byte * [total];
-	if (! checkNew (spriteData)) return false;
+	// Whatever the bank held before goes now.
+	spriteBank bank;
+	bank.isFont = isFont;
+	bank.total = total;
+	bank.paletteSize = decoded.paletteSize;
+	bank.sprites.resize (total);
 
-	totalwidth = new int[total];
-	if (! checkNew (totalwidth)) return false;
-
-	maxheight = new int[total];
-	if (! checkNew (maxheight)) return false;
-
-	loadhere.myPalette.tex_names = new gfx::Texture * [total];
-	if (! checkNew (loadhere.myPalette.tex_names)) return false;
-
-	if (isFont) {
-		loadhere.myPalette.burnTex_names = new gfx::Texture * [total];
-		if (! checkNew (loadhere.myPalette.burnTex_names)) return false;
-	}
-	loadhere.myPalette.tex_w = new int [total];
-	if (! checkNew (loadhere.myPalette.tex_w)) return false;
-	loadhere.myPalette.tex_h = new int [total];
-	if (! checkNew (loadhere.myPalette.tex_h)) return false;
-	
-	if (spriteBankVersion && spriteBankVersion < 3) {
-		howmany = fgetc (bigDataFile);
-		startIndex = 1;
-	}
-
-	totalwidth[0] = maxheight[0] = 1;
-
-	for (i = 0; i < total; i ++) {
-		switch (spriteBankVersion) {
-			case 3:
-			{
-				loadhere.sprites[i].xhot = getSigned (bigDataFile);
-				loadhere.sprites[i].yhot = getSigned (bigDataFile);
-
-				png_structp png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-				if (!png_ptr) {
-					return fatal ("Can't open sprite bank / font.");
-				}
-
-				png_infop info_ptr = png_create_info_struct(png_ptr);
-				if (!info_ptr) {
-					png_destroy_read_struct(&png_ptr, (png_infopp) NULL, (png_infopp) NULL);
-					return fatal ("Can't open sprite bank / font.");
-				}
-
-				png_infop end_info = png_create_info_struct(png_ptr);
-				if (!end_info) {
-					png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
-					return fatal ("Can't open sprite bank / font.");
-				}
-				png_init_io(png_ptr, bigDataFile);		// Tell libpng which file to read
-				png_set_sig_bytes(png_ptr, 8);			// No sig
-
-				png_read_info(png_ptr, info_ptr);
-
-				png_uint_32 width, height;
-				int bit_depth, color_type, interlace_type, compression_type, filter_method;
-				png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, &compression_type, &filter_method);
-
-				int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-
-				std::vector<unsigned char *> row_pointers (height);
-				spriteData[i] = new unsigned char [rowbytes*height];
-				if (! checkNew (spriteData[i])) return false;
-
-				for (unsigned int row = 0; row<height; row++)
-					row_pointers[row] = spriteData[i] + row*rowbytes;
-
-				png_read_image(png_ptr, (png_byte **) row_pointers.data ());
-				png_read_end(png_ptr, NULL);
-				png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-
-				picwidth = loadhere.sprites[i].width = width;
-				picheight = loadhere.sprites[i].height = height;
-				break;
-			}
-			case 2:
-			picwidth = get2bytes (bigDataFile);
-			picheight = get2bytes (bigDataFile);
-			loadhere.sprites[i].xhot = getSigned (bigDataFile);
-			loadhere.sprites[i].yhot = getSigned (bigDataFile);
-			break;
-
-			default:
-			picwidth = (byte) fgetc (bigDataFile);
-			picheight = (byte) fgetc (bigDataFile);
-			loadhere.sprites[i].xhot = fgetc (bigDataFile);
-			loadhere.sprites[i].yhot = fgetc (bigDataFile);
-			break;
+	for (int i = 0; i < total; i ++) {
+		spritebank::DecodedSprite & from = decoded.sprites[i];
+		sprite & sp = bank.sprites[i];
+		sp.width = from.width;
+		sp.height = from.height;
+		sp.xhot = from.xhot;
+		sp.yhot = from.yhot;
+		sp.tex_x = layout.tex_x[i];
+		sp.texNum = layout.texNum[i];
+		// We keep the alpha of the sprites, but not of fonts, to find out
+		// which character the mouse is over.
+		if (! isFont) {
+			size_t size = (size_t) sp.width * sp.height;
+			sp.alpha.resize (size);
+			for (size_t p = 0; p < size; p ++) sp.alpha[p] = from.rgba[p * 4 + 3];
 		}
-
-		if (((picwidth>511) && (totalwidth[numTextures] + picwidth < 2047)) || ((picwidth<511) && (totalwidth[numTextures] + picwidth < 511))) {
-			loadhere.sprites[i].tex_x = totalwidth[numTextures];
-			totalwidth[numTextures] += (loadhere.sprites[i].width = picwidth) + 1;
-			if ((loadhere.sprites[i].height = picheight)+2 > maxheight[numTextures]) maxheight[numTextures] = picheight+2;
-		} else {
-			numTextures++;
-			if (numTextures > 255) return fatal ("Can't open sprite bank / font - it's too big.");
-			loadhere.sprites[i].tex_x = 0;
-			totalwidth[numTextures] = (loadhere.sprites[i].width = picwidth);
-			maxheight[numTextures] = loadhere.sprites[i].height = picheight;
-		}
-		loadhere.sprites[i].texNum = numTextures;
-
-		if (spriteBankVersion < 3) {
-			data = (byte *) new byte [picwidth * (picheight + 1)];
-			if (! checkNew (data)) return false;
-			int ooo = picwidth * picheight;
-			for (int tt = 0; tt < picwidth; tt ++) {
-				data[ooo ++] = 0;
-			}
-			spriteData[i] = data;
-			switch (spriteBankVersion) {
-				case 2:			// RUN LENGTH COMPRESSED DATA
-				{
-					unsigned size = picwidth * picheight;
-					unsigned pip = 0;
-
-					while (pip < size) {
-						byte col = fgetc (bigDataFile);
-						int looper;
-
-						if (col > howmany) {
-							col -= howmany + 1;
-							looper = fgetc (bigDataFile) + 1;
-						} else looper = 1;
-
-						while (looper --) {
-							data[pip ++] = col;
-						}
-					}
-				}
-				break;
-
-				default:		// RAW DATA
-				size_t bytes_read = fread (data, picwidth, picheight, bigDataFile);
-				if (bytes_read != picwidth * picheight && ferror (bigDataFile)) {
-					debugOut("Reading error in loadSpriteBank.\n");
-				}
-				break;
-			}
-		}
-	}
-	numTextures++;
-
-
-	if (! spriteBankVersion) {
-		howmany = fgetc (bigDataFile);
-		startIndex = fgetc (bigDataFile);
-	}
-
-	if (spriteBankVersion < 3) {
-		if (! reserveSpritePal (loadhere.myPalette, howmany + startIndex)) return false;
-
-		for (i = 0; i < howmany; i ++) {
-			loadhere.myPalette.r[i + startIndex] = (byte) fgetc (bigDataFile);
-			loadhere.myPalette.g[i + startIndex] = (byte) fgetc (bigDataFile);
-			loadhere.myPalette.b[i + startIndex] = (byte) fgetc (bigDataFile);
-			loadhere.myPalette.pal[i + startIndex] = makeColour (loadhere.myPalette.r[i + startIndex], loadhere.myPalette.g[i + startIndex], loadhere.myPalette.b[i + startIndex]);
-		}
-	}
-
-	loadhere.myPalette.originalRed = loadhere.myPalette.originalGreen = loadhere.myPalette.originalBlue = 255;
-
-	loadhere.myPalette.numTextures = numTextures;
-	std::vector<GLubyte *> tmp (numTextures);
-	std::vector<GLubyte *> tmp2 (numTextures);
-	for (tex_num = 0; tex_num < numTextures; tex_num++) {
-		if (! NPOT_textures) {
-			totalwidth[tex_num] = getNextPOT(totalwidth[tex_num]);
-			maxheight[tex_num] = getNextPOT(maxheight[tex_num]);
-		}
-		tmp[tex_num] = new GLubyte [(maxheight[tex_num]+1)*totalwidth[tex_num]*4];
-		if (! checkNew (tmp[tex_num])) return false;
-		memset (tmp[tex_num], 0, maxheight[tex_num]*totalwidth[tex_num]*4);
-		if (isFont) {
-			tmp2[tex_num] = new GLubyte [(maxheight[tex_num]+1)*totalwidth[tex_num]*4];
-			if (! checkNew (tmp2[tex_num])) return false;
-			memset (tmp2[tex_num], 0, maxheight[tex_num]*totalwidth[tex_num]*4);
-		}
-		loadhere.myPalette.tex_w[tex_num] = totalwidth[tex_num];
-		loadhere.myPalette.tex_h[tex_num] = maxheight[tex_num];
-	}
-
-	int fromhere;
-	unsigned char s;
-
-	for (i = 0; i < total; i ++) {
-		fromhere = 0;
-
-		int transColour = -1;
-		if (spriteBankVersion < 3) {
-			int size = loadhere.sprites[i].height * loadhere.sprites[i].width;
-			while (fromhere < size) {
-				s = spriteData[i][fromhere++];
-				if (s) {
-					transColour = s;
-					break;
-				}
-			}
-			fromhere = 0;
-		}
-
-		for (int y = 1; y < 1 + loadhere.sprites[i].height; y ++) {
-			for (int x = loadhere.sprites[i].tex_x; x < loadhere.sprites[i].tex_x+loadhere.sprites[i].width; x ++) {
-				GLubyte * target = tmp[loadhere.sprites[i].texNum] + 4*totalwidth[loadhere.sprites[i].texNum]*y + x*4;
-				if (spriteBankVersion < 3) {
-					s = spriteData[i][fromhere++];
-					if (s) {
-						target[0] = (GLubyte) loadhere.myPalette.r[s];
-						target[1] = (GLubyte) loadhere.myPalette.g[s];
-						target[2] = (GLubyte) loadhere.myPalette.b[s];
-						target[3] = (GLubyte) 255;
-						transColour = s;
-					} else if (transColour >=0) {
-						target[0] = (GLubyte) loadhere.myPalette.r[transColour];
-						target[1] = (GLubyte) loadhere.myPalette.g[transColour];
-						target[2] = (GLubyte) loadhere.myPalette.b[transColour];
-						target[3] = (GLubyte) 0;
-					}
-					if (isFont) {
-						target = tmp2[loadhere.sprites[i].texNum] + 4*totalwidth[loadhere.sprites[i].texNum]*y + x*4;
-						target[0] = (GLubyte) 255;
-						target[1] = (GLubyte) 255;
-						target[2] = (GLubyte) 255;
-						if (s)
-							target[3] = (GLubyte) loadhere.myPalette.r[s];
-						/*else
-							target[3] = (GLubyte) 0;*/
-					}
-				} else {
-					target[0] = (GLubyte) spriteData[i][fromhere++];
-					target[1] = (GLubyte) spriteData[i][fromhere++];
-					target[2] = (GLubyte) spriteData[i][fromhere++];
-					target[3] = (GLubyte) spriteData[i][fromhere++];
-				}
-			}
-		}
-		delete[] spriteData[i];
-	}
-	delete[] spriteData;
-	spriteData = NULL;
-
-
-	// We keep the alpha of the sprites, but not of fonts, to find out which
-	// character the mouse is over. Each sprite starts in the second row of
-	// its texture.
-	for (i = 0; i < total; i ++) {
-		sprite & sp = loadhere.sprites[i];
-		sp.alpha = NULL;
-		if (isFont) continue;
-		sp.alpha = new unsigned char [sp.width * sp.height];
-		if (! checkNew (sp.alpha)) return false;
-		const GLubyte * pixels = tmp[sp.texNum];
-		int stride = totalwidth[sp.texNum];
-		for (int y = 0; y < sp.height; y ++) {
-			for (int x = 0; x < sp.width; x ++) {
-				sp.alpha[y * sp.width + x] = pixels[4 * (stride * (y + 1) + sp.tex_x + x) + 3];
-			}
-		}
+		std::vector<unsigned char> ().swap (from.rgba);
 	}
 
 	gfx::Filter filter = gameSettings.antiAlias < 0 ? gfx::FILTER_LINEAR : gfx::FILTER_NEAREST;
 
-	for (tex_num = 0; tex_num < numTextures; tex_num++) {
+	bank.pages.resize (numTextures);
+	for (int tex_num = 0; tex_num < numTextures; tex_num++) {
+		AtlasPage & page = bank.pages[tex_num];
+		page.w = layout.pageWidth[tex_num];
+		page.h = layout.pageHeight[tex_num];
+		page.gpuBytes = (size_t) page.w * page.h * 4 * (isFont ? 2 : 1);
 
-		gfx::Texture * t = gfx::renderer->createTexture (totalwidth[tex_num], maxheight[tex_num], gfx::TEX_RGBA8, tmp[tex_num]);
+		gfx::Texture * t = gfx::renderer->createTexture (page.w, page.h, gfx::TEX_RGBA8, pages.colour[tex_num].data ());
 		gfx::renderer->setTextureWrap (t, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
 		gfx::renderer->setTextureFilter (t, filter, filter);
-		loadhere.myPalette.tex_names[tex_num] = t;
-
-		delete[] tmp[tex_num];
-		tmp[tex_num] = NULL;
+		page.tex = gfx::UniqueTexture (gfx::renderer, t);
 
 		if (isFont) {
-			gfx::Texture * b = gfx::renderer->createTexture (totalwidth[tex_num], maxheight[tex_num], gfx::TEX_RGBA8, tmp2[tex_num]);
+			gfx::Texture * b = gfx::renderer->createTexture (page.w, page.h, gfx::TEX_RGBA8, pages.burn[tex_num].data ());
 			gfx::renderer->setTextureWrap (b, gfx::WRAP_CLAMP, gfx::WRAP_CLAMP);
 			gfx::renderer->setTextureFilter (b, filter, filter);
-			loadhere.myPalette.burnTex_names[tex_num] = b;
-
-			delete[] tmp2[tex_num];
-			tmp2[tex_num] = NULL;
+			page.burn = gfx::UniqueTexture (gfx::renderer, b);
 		}
 	}
 
-	finishAccess ();
+	loadhere = std::move (bank);
 	setResourceForFatal (-1);
 
 	return true;
 }
 
-void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette & fontPal) {
+void pasteSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
 
-	float tx1 = (float)(single.tex_x) / fontPal.tex_w[single.texNum];
+	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
 	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width) / fontPal.tex_w[single.texNum];
-	float ty2 = (float)(single.height)/fontPal.tex_h[single.texNum];
+	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
+	float ty2 = (float)(single.height)/bank.pages[single.texNum].h;
 
 	float btx1;
 	float btx2;
@@ -489,7 +197,7 @@ void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette
 				tx2, ty2
 			}; 
 
-			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], NULL, copy };
+			gfx::Texture * const textures[3] = { bank.pages[single.texNum].tex.get (), NULL, copy };
 			gfx::Quad quad = { vertices, { texCoords, NULL, btexCoords } };
 			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 
@@ -501,12 +209,12 @@ void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette
 	setPixelCoords (false);
 }
 
-void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette & fontPal) {
+void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank) {
 
-	float tx1 = (float)(single.tex_x - 0.5) / fontPal.tex_w[single.texNum];
+	float tx1 = (float)(single.tex_x - 0.5) / bank.pages[single.texNum].w;
 	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width + 0.5) / fontPal.tex_w[single.texNum];
-	float ty2 = (float)(single.height+2)/fontPal.tex_h[single.texNum];
+	float tx2 = (float)(single.tex_x + single.width + 0.5) / bank.pages[single.texNum].w;
+	float ty2 = (float)(single.height+2)/bank.pages[single.texNum].h;
 
 	const GLfloat spriteTexCoords[] = { 
 		tx1, ty1,
@@ -578,7 +286,7 @@ void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette 
 			gfx::draw (gfx::PipelineState (gfx::PROG_TEXTURE), engineUniforms (), copy, backdropVertices, backdropTexCoords2);
 
 //FIXME: Test this some more. Also pasting the backdrop again is not strictly necessary but allows using the paste shader.
-			gfx::Texture * const textures[3] = { fontPal.burnTex_names[single.texNum], NULL, copy };
+			gfx::Texture * const textures[3] = { bank.pages[single.texNum].burn.get (), NULL, copy };
 			gfx::Quad quad = { spriteVertices, { spriteTexCoords, NULL, backdropTexCoords } };
 			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE), engineUniforms (), textures, quad);
 
@@ -591,12 +299,12 @@ void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette 
 }
 
 
-void fontSprite (bool flip, int x, int y, sprite & single, const spritePalette & fontPal) {
+static void fontSprite (bool flip, int x, int y, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
 
-	float tx1 = (float)(single.tex_x-0.5) / fontPal.tex_w[single.texNum];
+	float tx1 = (float)(single.tex_x-0.5) / bank.pages[single.texNum].w;
 	float ty1 = 0.0;
-	float tx2 = (float)(single.tex_x + single.width+(flip ? 1.0 : 0.5)) / fontPal.tex_w[single.texNum];
-	float ty2 = (float)(single.height+2)/fontPal.tex_h[single.texNum];
+	float tx2 = (float)(single.tex_x + single.width+(flip ? 1.0 : 0.5)) / bank.pages[single.texNum].w;
+	float ty2 = (float)(single.height+2)/bank.pages[single.texNum].h;
 
 	float x1 = (float)x - (float)single.xhot/cameraZoom;
 	float y1 = (float)y - (float)single.yhot/cameraZoom;
@@ -628,15 +336,15 @@ void fontSprite (bool flip, int x, int y, sprite & single, const spritePalette &
 
 	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.antialias = gameSettings.antiAlias == 1;
-	gfx::draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA), uniforms, fontPal.tex_names[single.texNum], vertices, texCoords);
+	gfx::draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA), uniforms, bank.pages[single.texNum].tex.get (), vertices, texCoords);
 }
 
-void fontSprite (int x, int y, sprite & single, const spritePalette & fontPal) {
-	fontSprite (false, x, y, single, fontPal);
+void fontSprite (int x, int y, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
+	fontSprite (false, x, y, single, bank, fontPal);
 }
 
-void flipFontSprite (int x, int y, sprite & single, const spritePalette & fontPal) {
-	fontSprite (true, x, y, single, fontPal);
+void flipFontSprite (int x, int y, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
+	fontSprite (true, x, y, single, bank, fontPal);
 }
 
 
@@ -661,7 +369,7 @@ void setDrawMode (onScreenPerson * thisPerson) {
 // nearest filtering does. Characters on z-buffer panel `panel` are behind
 // the parts of the z-buffer of higher panels.
 static bool mouseOverSprite (const sprite & single, float x1, float y1, float x2, float y2, bool mirror, bool behindZBuffer, int panel) {
-	if (! single.alpha || x2 <= x1 || y2 <= y1) return false;
+	if (single.alpha.empty () || x2 <= x1 || y2 <= y1) return false;
 	int sx = (int) floorf ((input.mouseX + 0.5f - x1) / (x2 - x1) * single.width);
 	int sy = (int) floorf ((input.mouseY + 0.5f - y1) / (y2 - y1) * single.height);
 	if (sx < 0 || sy < 0 || sx >= single.width || sy >= single.height) return false;
@@ -675,7 +383,7 @@ static bool mouseOverSprite (const sprite & single, float x1, float y1, float x2
 	return true;
 }
 
-bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, bool mirror) {
+bool scaleSprite (const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, bool mirror) {
 
 	float x = thisPerson->x;
 	float y = thisPerson->y;
@@ -685,10 +393,10 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 
 	if (scale <= 0.05) return false;
 
-	float tx1 = (float)(single.tex_x) / fontPal.tex_w[single.texNum];
-	float ty1 = (float) 1.0/fontPal.tex_h[single.texNum];
-	float tx2 = (float)(single.tex_x + single.width) / fontPal.tex_w[single.texNum];
-	float ty2 = (float)(single.height+1)/fontPal.tex_h[single.texNum];
+	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
+	float ty1 = (float) 1.0/bank.pages[single.texNum].h;
+	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
+	float ty2 = (float)(single.height+1)/bank.pages[single.texNum].h;
 
 	int diffX = (int)(((float)single.width) * scale);
 	int diffY = (int)(((float)single.height) * scale);
@@ -806,7 +514,7 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 	}; 
 
 	// Characters are drawn with the depth test, behind the z-buffer.
-	gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], uniforms.useLightTexture ? lightMap.tex : NULL, NULL };
+	gfx::Texture * const textures[3] = { bank.pages[single.texNum].tex.get (), uniforms.useLightTexture ? lightMap.tex : NULL, NULL };
 	gfx::Quad quad = { vertices, { texCoords, ltexCoords, NULL } };
 	gfx::renderer->draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA, gfx::DEPTH_TEST), uniforms, textures, quad);
 
@@ -822,7 +530,7 @@ bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson
 }
 
 // Paste a scaled sprite onto the backdrop
-void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, int camX, int camY, bool mirror) {
+void fixScaleSprite (int x, int y, const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, int camX, int camY, bool mirror) {
 
 	float scale = thisPerson-> scale;
 	bool useZB = ! (thisPerson->extra & EXTRA_NOZB);
@@ -830,10 +538,10 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 
 	if (scale <= 0.05) return;
 
-	float tx1 = (float)(single.tex_x) / fontPal.tex_w[single.texNum];
-	float ty1 = (float) 1.0/fontPal.tex_h[single.texNum];//0.0;
-	float tx2 = (float)(single.tex_x + single.width) / fontPal.tex_w[single.texNum];
-	float ty2 = (float)(single.height+1)/fontPal.tex_h[single.texNum];
+	float tx1 = (float)(single.tex_x) / bank.pages[single.texNum].w;
+	float ty1 = (float) 1.0/bank.pages[single.texNum].h;//0.0;
+	float tx2 = (float)(single.tex_x + single.width) / bank.pages[single.texNum].w;
+	float ty2 = (float)(single.height+1)/bank.pages[single.texNum].h;
 
 	int diffX = (int)(((float)single.width) * scale);
 	int diffY = (int)(((float)single.height) * scale);
@@ -982,7 +690,7 @@ void fixScaleSprite (int x, int y, sprite & single, const spritePalette & fontPa
 
 			gfx::DrawUniforms uniforms = engineUniforms ();
 			uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
-			gfx::Texture * const textures[3] = { fontPal.tex_names[single.texNum], uniforms.useLightTexture ? lightMap.tex : NULL, copy };
+			gfx::Texture * const textures[3] = { bank.pages[single.texNum].tex.get (), uniforms.useLightTexture ? lightMap.tex : NULL, copy };
 			gfx::Quad quad = { vertices2, { texCoords2, ltexCoords, btexCoords } };
 			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE, gfx::BLEND_OFF, useZB ? gfx::DEPTH_TEST : gfx::DEPTH_OFF), uniforms, textures, quad);
 

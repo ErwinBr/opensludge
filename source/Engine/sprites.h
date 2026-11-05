@@ -4,64 +4,63 @@
 #include "sludge_gl.h"
 #include "renderer.h"
 
+#include <stddef.h>
+#include <vector>
+
 struct onScreenPerson;
 
 struct sprite {
 	int width, height, xhot, yhot;
+	// Where the sprite is: from (tex_x, 1) in texture texNum of its bank.
 	int tex_x;
 	int texNum;
 	// The alpha of each pixel, width by height, for finding out which
-	// character the mouse is over. NULL in fonts.
-	unsigned char * alpha;
+	// character the mouse is over. Empty in fonts.
+	std::vector<unsigned char> alpha;
 };
 
-class spritePalette {
-public:
-	unsigned short int * pal;
-	unsigned char * r;
-	unsigned char * g;
-	unsigned char * b;
-	gfx::Texture * * tex_names;
-	gfx::Texture * * burnTex_names;
-	int * tex_w, * tex_h;
-	int numTextures;
-	unsigned char originalRed, originalGreen, originalBlue, total;
-	
-	spritePalette(): pal(0), r(0), g(0), b(0), tex_names(0), burnTex_names(0)
-	, tex_w(0), tex_h(0), numTextures(0)
-	, total(0) {}
-	
-	~spritePalette() {
-		delete [] pal;
-		delete [] r;
-		delete [] g;
-		delete [] b;
-		delete [] tex_names;
-		delete [] burnTex_names;
-		delete [] tex_w;
-		delete [] tex_h;
-	}
+// The colour to draw a font with. Sprites draw in white.
+struct spritePalette {
+	unsigned char originalRed, originalGreen, originalBlue;
 };
 
+// A texture of a bank, and for fonts the texture to burn text with.
+struct AtlasPage {
+	gfx::UniqueTexture tex, burn;
+	int w, h;
+	size_t gpuBytes;	// Of both textures
+};
+
+// The sprites of a sprite bank or font, and the textures that hold them.
 struct spriteBank {
 	int total;
-	int type;
-	sprite * sprites;
+	std::vector<sprite> sprites;
+	std::vector<AtlasPage> pages;
 	spritePalette myPalette;
 	bool isFont;
+	int paletteSize;	// For banks with a palette, as the file says
+
+	spriteBank () : total (0), isFont (false), paletteSize (0) {
+		myPalette.originalRed = myPalette.originalGreen = myPalette.originalBlue = 255;
+	}
+	spriteBank (spriteBank && other) = default;
+	spriteBank & operator= (spriteBank && other) = default;
+	spriteBank (const spriteBank &) = delete;
+	spriteBank & operator= (const spriteBank &) = delete;
+
+	size_t gpuBytes () const;
 };
 
-void forgetSpriteBank (spriteBank & forgetme);
-bool loadSpriteBank (char * filename, spriteBank & loadhere);
+// Replaces what loadhere holds; on failure, calls fatal.
 bool loadSpriteBank (int fileNum, spriteBank & loadhere, bool isFont);
 
-void fontSprite		(int x1, int y1, sprite & single, const spritePalette & fontPal);
-void flipFontSprite	(int x1, int y1, sprite & single, const spritePalette & fontPal);
+// Fonts, and the mouse cursor, draw with the colour of fontPal.
+void fontSprite		(int x1, int y1, const sprite & single, const spriteBank & bank, const spritePalette & fontPal);
+void flipFontSprite	(int x1, int y1, const sprite & single, const spriteBank & bank, const spritePalette & fontPal);
+void pasteSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank, const spritePalette & fontPal);
+void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank);
 
-bool scaleSprite (sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, bool mirror);
-void pasteSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette & fontPal);
-bool reserveSpritePal (spritePalette & sP, int n);
-void fixScaleSprite (int x1, int y1, sprite & single, const spritePalette & fontPal, onScreenPerson * thisPerson, const int camX, const int camY, bool);
-void burnSpriteToBackDrop (int x1, int y1, sprite & single, const spritePalette & fontPal);
+bool scaleSprite (const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, bool mirror);
+void fixScaleSprite (int x1, int y1, const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, const int camX, const int camY, bool);
 
 #endif

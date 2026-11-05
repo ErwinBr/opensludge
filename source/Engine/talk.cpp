@@ -165,7 +165,6 @@ int wrapSpeech (char * theText, int objT, int sampleFile, bool animPerson) {
 void viewSpeech () {
 	int viewY = speech -> speechY;
 	speechLine * viewLine = speech -> allSpeech;
-	fixFont (speech -> talkCol);
 	while (viewLine) {
 		pasteString (viewLine -> textLine, viewLine -> x, viewY, speech -> talkCol);
 		viewY -= fontHeight / cameraZoom;

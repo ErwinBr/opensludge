@@ -42,7 +42,7 @@ void drawCursor (int x, int y) {
 	if (flipMe != 2) {
 		(flipMe ? flipFontSprite : fontSprite) (x, y,
 			mouseCursorAnim -> theSprites -> bank.sprites[spriteNum],
-			mouseCursorAnim -> theSprites -> bank.myPalette /* ( spritePalette&) NULL*/);
+			mouseCursorAnim -> theSprites -> bank, mouseCursorAnim -> theSprites -> bank.myPalette);
 	}
 }
 
@@ -61,5 +61,5 @@ void displayCursor () {
 void pasteCursor (int x, int y, personaAnimation * c) {
 	if (c -> numFrames) pasteSpriteToBackDrop (x, y,
 						  c -> theSprites -> bank.sprites[c -> frames[0].frameNum],
-						  c -> theSprites -> bank.myPalette);
+						  c -> theSprites -> bank, c -> theSprites -> bank.myPalette);
 }

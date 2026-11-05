@@ -429,6 +429,7 @@ int main(int argc, char *argv[]) try
 		if (! movieIsPlaying) walkAllPeople ();
 		handleInput ();
 		if (! movieIsPlaying || ! showMovieFrame ()) sludgeDisplay ();
+		trimSpriteBanks ();
 		// In a test run, we don't move the mouse pointer between frames.
 		Wait_Frame (captureIsDeterministic () ? NULL : movePointerBetweenFrames);
 		if (captureEndFrame ()) weAreDoneSoQuit = 1;

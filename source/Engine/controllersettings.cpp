@@ -303,8 +303,6 @@ static void preparePalettes () {
 	} else {
 		setFontColour (selectedPalette, litVerbLinePalette.originalRed, litVerbLinePalette.originalGreen, litVerbLinePalette.originalBlue);
 	}
-	fixFont (textPalette);
-	fixFont (selectedPalette);
 }
 
 // Draw a rectangle in window units, blended with the frame.

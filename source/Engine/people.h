@@ -1,3 +1,5 @@
+#include "sprbanks.h"
+
 struct animFrame {
 	int frameNum, howMany;
 	int noise;
@@ -13,7 +15,7 @@ struct animFrame {
 #define EXTRA_RECTANGULAR	64
 
 struct personaAnimation {
-	struct loadedSpriteBank * theSprites;
+	SpriteBankRef theSprites;
 	animFrame * frames;
 	int numFrames;
 };
@@ -89,7 +91,7 @@ bool setCharacterWalkSpeed (int f, int objNum);
 void animatePerson (int obj, personaAnimation *);
 void animatePerson (int obj, persona * per);
 personaAnimation * createPersonaAnim (int num, struct variableStack * & stacky);
-inline void setBankFile (personaAnimation * newP, loadedSpriteBank * sB) { newP -> theSprites = sB; }
+inline void setBankFile (personaAnimation * newP, const SpriteBankRef & sB) { newP -> theSprites = sB; }
 bool setPersonExtra (int f, int newSetting);
 int timeForAnim (personaAnimation * fram);
 personaAnimation * copyAnim (personaAnimation * orig);

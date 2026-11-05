@@ -900,7 +900,6 @@ builtIn(pasteString)
 	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (x == IN_THE_CENTRE) x = (winWidth - stringWidth (newText)) >> 1;
-	fixFont (pastePalette);
 	pasteStringToBackdrop (newText, x, y, pastePalette);
 	delete[] newText;
 	return BR_CONTINUE;
@@ -923,7 +922,7 @@ builtIn(anim)
 	trimStack (fun -> stack);
 
 	// Load the required sprite bank
-	loadedSpriteBank * sprBanky = loadBankForAnim (fileNumber);
+	SpriteBankRef sprBanky = loadBankForAnim (fileNumber);
 	if (! sprBanky) return BR_ERROR;	// File not found, fatal done already
 	setBankFile (ba, sprBanky);
 
@@ -1633,7 +1632,7 @@ builtIn(pasteCharacter)
 		}
 
 		int fNum = myAnim -> frames[thisPerson -> frameNum].frameNum;
-		fixScaleSprite (thisPerson -> x, thisPerson -> y, myAnim -> theSprites -> bank.sprites[abs (fNum)], myAnim -> theSprites -> bank.myPalette, thisPerson, 0, 0, fNum < 0);
+		fixScaleSprite (thisPerson -> x, thisPerson -> y, myAnim -> theSprites -> bank.sprites[abs (fNum)], myAnim -> theSprites -> bank, thisPerson, 0, 0, fNum < 0);
 		setVariable (fun -> reg, SVT_INT, 1);
 	} else {
 		setVariable (fun -> reg, SVT_INT, 0);
@@ -2243,8 +2242,7 @@ builtIn(burnString)
 	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (x == IN_THE_CENTRE) x = (winWidth - stringWidth (newText)) >> 1;
-	fixFont (pastePalette);
-	burnStringToBackdrop (newText, x, y, pastePalette);
+	burnStringToBackdrop (newText, x, y);
 	delete[] newText;
 	return BR_CONTINUE;
 }

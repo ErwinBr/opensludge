@@ -465,9 +465,12 @@ void GLRenderer::present () {
 	swapBuffers ();
 	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
 	frameMeshes.clear ();
+	// OpenGL waits itself for draws that use a deleted texture.
+	destroyReleasedTextures (false);
 }
 
 GLRenderer::~GLRenderer () {
+	destroyReleasedTextures (true);
 	for (size_t i = 0; i < frameMeshes.size (); i ++) delete frameMeshes[i];
 }
 

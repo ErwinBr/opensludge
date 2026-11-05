@@ -21,6 +21,9 @@
  */
 
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <vector>
 
 struct SDL_GPUDevice;
 struct SDL_Window;
@@ -119,7 +122,17 @@ struct Mesh;
 
 class Renderer {
 public:
+	Renderer ();
 	virtual ~Renderer () {}
+
+	// Destroy a texture once the GPU can no longer be using it: after the
+	// frames that may still be on their way to the screen. destroyTexture
+	// destroys it at once, which is only safe for a texture that no draw
+	// since the last present used. Call both from the thread that made the
+	// renderer.
+	void releaseTexture (Texture * t);
+	// How many released textures we haven't destroyed yet.
+	size_t texturesBeingReleased () const { return released.size (); }
 
 	// Textures. Pixels are tightly packed, 4 or 1 bytes each, and may be
 	// NULL for a texture whose contents we draw.
@@ -167,6 +180,61 @@ public:
 	virtual void drawMesh (const PipelineState & state, const DrawUniforms & uniforms, Texture * texture, Mesh * mesh, int firstIndex, int indexCount, int baseVertex) = 0;
 
 	virtual void present () = 0;
+
+protected:
+	// The renderers call this at the end of present, and with all = true in
+	// their destructor, once the GPU is idle.
+	void destroyReleasedTextures (bool all);
+	// How many presents after its release we destroy a texture.
+	int framesInFlight;
+
+private:
+	struct Released {
+		Texture * texture;
+		uint64_t frame;
+	};
+	std::vector<Released> released;
+	uint64_t frame;
+	uint64_t ownerThread;
+
+	Renderer (const Renderer &);
+	Renderer & operator= (const Renderer &);
+};
+
+// Owns a texture, and releases it with releaseTexture when it goes.
+class UniqueTexture {
+public:
+	UniqueTexture () : owner (NULL), texture (NULL) {}
+	UniqueTexture (Renderer * owner, Texture * texture) : owner (owner), texture (texture) {}
+	~UniqueTexture () { reset (); }
+	UniqueTexture (UniqueTexture && other) : owner (other.owner), texture (other.texture) {
+		other.owner = NULL;
+		other.texture = NULL;
+	}
+	UniqueTexture & operator= (UniqueTexture && other) {
+		if (this != &other) {
+			reset ();
+			owner = other.owner;
+			texture = other.texture;
+			other.owner = NULL;
+			other.texture = NULL;
+		}
+		return *this;
+	}
+
+	Texture * get () const { return texture; }
+	void reset () {
+		if (texture && owner) owner->releaseTexture (texture);
+		owner = NULL;
+		texture = NULL;
+	}
+
+private:
+	Renderer * owner;
+	Texture * texture;
+
+	UniqueTexture (const UniqueTexture &);
+	UniqueTexture & operator= (const UniqueTexture &);
 };
 
 // Make the OpenGL renderer for the current OpenGL context, which shows each

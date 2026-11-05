@@ -77,7 +77,7 @@ void pasteString (char * theText, int xOff, int y, spritePalette & thePal) {
 	while (theText[a]) {
         c = u8_nextchar(theText, &a);
 		mySprite = & theFont.sprites[fontInTable(c)];
-		fontSprite (xOff, y, * mySprite, thePal);
+		fontSprite (xOff, y, * mySprite, theFont, thePal);
 		xOff += (int)((double)(mySprite -> width + fontSpace) / cameraZoom);
 	}
 }
@@ -93,12 +93,12 @@ void pasteStringToBackdrop (char * theText, int xOff, int y, spritePalette & the
 	while (theText[a]) {
         c = u8_nextchar(theText, &a);
 		mySprite = & theFont.sprites[fontInTable(c)];
-		pasteSpriteToBackDrop (xOff, y, * mySprite, thePal);
+		pasteSpriteToBackDrop (xOff, y, * mySprite, theFont, thePal);
 		xOff += mySprite -> width + fontSpace;
 	}
 }
 
-void burnStringToBackdrop (char * theText, int xOff, int y, spritePalette & thePal) {
+void burnStringToBackdrop (char * theText, int xOff, int y) {
 	sprite * mySprite;
 	int a=0;
 	uint32_t c;
@@ -109,34 +109,8 @@ void burnStringToBackdrop (char * theText, int xOff, int y, spritePalette & theP
 	while (theText[a]) {
         c = u8_nextchar(theText, &a);
 		mySprite = & theFont.sprites[fontInTable(c)];
-		burnSpriteToBackDrop (xOff, y, * mySprite, thePal);
+		burnSpriteToBackDrop (xOff, y, * mySprite, theFont);
 		xOff += mySprite -> width + fontSpace;
-	}
-}
-
-void fixFont (spritePalette & spal) {
-
-	delete [] spal.tex_names;
-	delete [] spal.burnTex_names;
-	delete [] spal.tex_h;
-	delete [] spal.tex_w;
-	
-	spal.numTextures = theFont.myPalette.numTextures;
-
-	spal.tex_names = new gfx::Texture * [spal.numTextures];
-	if (! checkNew (spal.tex_names)) return;	
-	spal.burnTex_names = new gfx::Texture * [spal.numTextures];
-	if (! checkNew (spal.burnTex_names)) return;	
-	spal.tex_w = new int [spal.numTextures];
-	if (! checkNew (spal.tex_w)) return;	
-	spal.tex_h = new int [spal.numTextures];
-	if (! checkNew (spal.tex_h)) return;	
-	
-	for (int i = 0; i < theFont.myPalette.numTextures; i++) {
-		spal.tex_names[i] = theFont.myPalette.tex_names[i];
-		spal.burnTex_names[i] = theFont.myPalette.burnTex_names[i];
-		spal.tex_w[i] = theFont.myPalette.tex_w[i];
-		spal.tex_h[i] = theFont.myPalette.tex_h[i];
 	}
 }
 
@@ -153,7 +127,7 @@ bool loadFont (int filenum, const char * charOrder, int h) {
 	delete [] fontOrderString;
 	fontOrderString = copyString(charOrder);
 		
-	forgetSpriteBank (theFont);
+	theFont = spriteBank ();
 
 	loadedFontNum = filenum;
 	
@@ -185,7 +159,7 @@ bool loadFont (int filenum, const char * charOrder, int h) {
 		return false;
 	}
 
-	numFontColours = theFont.myPalette.total;
+	numFontColours = (unsigned char) theFont.paletteSize;
 	fontHeight = h;
 	return true;
 }

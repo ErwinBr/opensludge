@@ -12,6 +12,8 @@ struct settingsStruct
 	bool noStartWindow;
 	bool debugMode;
 	char renderer[8];	// auto, gpu or gl (see requestedRenderer)
+	// The GPU memory that sprite banks no animation uses may keep (see sprbanks.h)
+	unsigned int spriteBankCacheBudgetMB;
 };
 
 extern settingsStruct gameSettings;

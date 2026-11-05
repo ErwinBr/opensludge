@@ -200,6 +200,8 @@ GPURenderer::GPURenderer (SDL_GPUDevice * d, SDL_Window * w)
 	: device (d), window (w), shaderFormat (SDL_GPU_SHADERFORMAT_INVALID), vertexShader (NULL), meshVertexShader (NULL), blank (NULL),
 	  cmd (NULL), pass (NULL), current (NULL), windowTexture (NULL), windowTarget (NULL),
 	  scissorOn (false), antialiasScale (1.0f) {
+	// SDL_GPU lets the CPU run up to 3 frames ahead of the GPU.
+	framesInFlight = 3;
 	memset (fragmentShaders, 0, sizeof (fragmentShaders));
 	memset (samplers, 0, sizeof (samplers));
 	memset (viewport, 0, sizeof (viewport));
@@ -212,6 +214,7 @@ GPURenderer::~GPURenderer () {
 	endPass ();
 	if (cmd) SDL_SubmitGPUCommandBuffer (cmd);
 	SDL_WaitForGPUIdle (device);
+	destroyReleasedTextures (true);
 	for (std::map<Uint32, SDL_GPUGraphicsPipeline *>::iterator i = pipelines.begin (); i != pipelines.end (); ++ i) {
 		SDL_ReleaseGPUGraphicsPipeline (device, i->second);
 	}
@@ -930,6 +933,7 @@ void GPURenderer::present () {
 	for (size_t i = 0; i < retiredBuffers.size (); i ++) SDL_ReleaseGPUBuffer (device, retiredBuffers[i]);
 	retiredBuffers.clear ();
 	meshVertices.used = meshIndices.used = 0;
+	destroyReleasedTextures (false);
 }
 
 } // namespace
