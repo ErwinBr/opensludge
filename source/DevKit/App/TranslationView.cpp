@@ -7,6 +7,7 @@
 
 #include "Log.h"
 #include "Platform.h"
+#include "Properties.h"
 #include "TranslationView.h"
 #include "WorkspaceActions.h"
 
@@ -41,7 +42,7 @@ void TranslationView::loadStrings (const std::string & projectFile) {
 	}
 	char text[200];
 	if (! update.added && ! update.removed) {
-		snprintf (text, sizeof (text), "The translation has every string of %s.", fileNameOf (projectFile).c_str ());
+		snprintf (text, sizeof (text), "No new strings found in %s.", fileNameOf (projectFile).c_str ());
 	} else {
 		snprintf (text, sizeof (text), "%d new string%s, and %d that the project no longer has removed.",
 			update.added, update.added == 1 ? "" : "s", update.removed);
@@ -127,11 +128,16 @@ void TranslationView::drawTable (float height) {
 			ImGui::TableNextColumn ();
 			char number[16];
 			snprintf (number, sizeof (number), "%d", index);
-			if (ImGui::Selectable (number, selected == index, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
+			// As tall as the row, so that its fill covers all of it.
+			ImGuiSelectableFlags rowFlags = ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap;
+			ImGui::PushStyleVar (ImGuiStyleVar_SelectableTextAlign, ImVec2 (0.0f, 0.5f));
+			if (ImGui::Selectable (number, selected == index, rowFlags, ImVec2 (0, ImGui::GetFrameHeight ()))) {
 				selected = index;
 			}
+			ImGui::PopStyleVar ();
 
 			ImGui::TableNextColumn ();
+			ImGui::AlignTextToFramePadding ();
 			if (line.type == TranslationLine::NOT_NEEDED) ImGui::TextDisabled ("%s", line.original.c_str ());
 			else ImGui::TextUnformatted (line.original.c_str ());
 			if (ImGui::IsItemHovered () && ImGui::CalcTextSize (line.original.c_str ()).x > ImGui::GetColumnWidth ()) {
@@ -144,7 +150,6 @@ void TranslationView::drawTable (float height) {
 				translation->setNeedsTranslation (index, needs);
 				selected = index;
 			}
-			ImGui::SetItemTooltip (needs ? "The string needs a translation" : "The string needs no translation, such as a name");
 
 			ImGui::TableNextColumn ();
 			ImGui::SetNextItemWidth (-1);
@@ -185,16 +190,24 @@ void TranslationView::drawPreview () {
 		return;
 	}
 	const TranslationLine & line = translation->lines ()[selected];
-	if (ImGui::BeginTable ("preview", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
+	// Each text in a box of its own, filling the rest of the preview and
+	// scrolling when it doesn't fit.
+	if (ImGui::BeginTable ("preview", 2, ImGuiTableFlags_SizingStretchSame, ImGui::GetContentRegionAvail ())) {
 		ImGui::TableNextRow ();
 		ImGui::TableNextColumn ();
 		ImGui::TextDisabled ("Original");
-		ImGui::TextWrapped ("%s", line.original.c_str ());
+		if (ImGui::BeginChild ("original", ImVec2 (0, -FLT_MIN), ImGuiChildFlags_Borders)) {
+			ImGui::TextWrapped ("%s", line.original.c_str ());
+		}
+		ImGui::EndChild ();
 		ImGui::TableNextColumn ();
 		ImGui::TextDisabled ("Translation");
-		if (line.type == TranslationLine::NOT_NEEDED) ImGui::TextDisabled ("Needs none");
-		else if (line.type == TranslationLine::MISSING) ImGui::TextColored (ImVec4 (1.0f, 0.8f, 0.3f, 1.0f), "Not yet");
-		else ImGui::TextWrapped ("%s", line.translation.c_str ());
+		if (ImGui::BeginChild ("translation", ImVec2 (0, -FLT_MIN), ImGuiChildFlags_Borders)) {
+			if (line.type == TranslationLine::NOT_NEEDED) ImGui::TextDisabled ("Needs none");
+			else if (line.type == TranslationLine::MISSING) ImGui::TextColored (ImVec4 (1.0f, 0.8f, 0.3f, 1.0f), "Not yet");
+			else ImGui::TextWrapped ("%s", line.translation.c_str ());
+		}
+		ImGui::EndChild ();
 		ImGui::EndTable ();
 	}
 }
@@ -228,18 +241,20 @@ void TranslationView::draw () {
 }
 
 void TranslationView::drawInspector () {
-	ImGui::SeparatorText ("Language");
-	Language language = translation->language ();
-	int id = (int) language.id;
-	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 8);
-	if (ImGui::InputInt ("ID", &id)) {
-		language.id = id < 0 ? 0 : (unsigned int) id;
-		translation->setLanguage (language, ID_KEY);
+	if (beginProperties ("Language")) {
+		Language language = translation->language ();
+		int id = (int) language.id;
+		propertyRow ("ID");
+		if (ImGui::InputInt ("##id", &id)) {
+			language.id = id < 0 ? 0 : (unsigned int) id;
+			translation->setLanguage (language, ID_KEY);
+		}
+		if (ImGui::IsItemDeactivated ()) translation->commands ().stopMerging ();
+		propertyRow ("Name");
+		if (ImGui::InputText ("##name", &language.name)) translation->setLanguage (language, NAME_KEY);
+		if (ImGui::IsItemDeactivated ()) translation->commands ().stopMerging ();
+		ImGui::EndTable ();
 	}
-	if (ImGui::IsItemDeactivated ()) translation->commands ().stopMerging ();
-	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 12);
-	if (ImGui::InputText ("Name", &language.name)) translation->setLanguage (language, NAME_KEY);
-	if (ImGui::IsItemDeactivated ()) translation->commands ().stopMerging ();
 
 	ImGui::SeparatorText ("Strings");
 	ImGui::Text ("%d strings", (int) translation->lines ().size ());
@@ -250,7 +265,6 @@ void TranslationView::drawInspector () {
 	if (! project.empty ()) {
 		std::string label = "Load Strings from " + fileNameOf (project);
 		if (ImGui::Button (label.c_str ())) loadStrings (project);
-		if (ImGui::Button ("From Another Project...")) chooseProject ();
 	} else {
 		if (ImGui::Button ("Load Strings from a Project...")) chooseProject ();
 	}

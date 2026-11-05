@@ -31,7 +31,7 @@ up
 key ctrl+Z
 
 # The name of the language.
-move 1120 110
+move 1200 112
 down
 up
 key ctrl+A

@@ -6,6 +6,7 @@
 #include "Launch.h"
 #include "Platform.h"
 #include "ProjectDocument.h"
+#include "Properties.h"
 #include "ProjectView.h"
 #include "WorkspaceActions.h"
 
@@ -181,26 +182,6 @@ void ProjectView::draw () {
 	drawToolbar ();
 	drawFiles (ImGui::GetContentRegionAvail ().y * 0.6f);
 	drawResources ();
-}
-
-// A row of the property grid: the label on the left, and the field, as
-// wide as the rest, on the right.
-static void propertyRow (const char * label, const char * tooltip) {
-	ImGui::TableNextRow ();
-	ImGui::TableNextColumn ();
-	ImGui::AlignTextToFramePadding ();
-	ImGui::TextUnformatted (label);
-	if (tooltip) ImGui::SetItemTooltip ("%s", tooltip);
-	ImGui::TableNextColumn ();
-	ImGui::SetNextItemWidth (-FLT_MIN);
-}
-
-static bool beginProperties (const char * title) {
-	ImGui::SeparatorText (title);
-	if (! ImGui::BeginTable (title, 2, ImGuiTableFlags_SizingStretchProp)) return false;
-	ImGui::TableSetupColumn ("label", ImGuiTableColumnFlags_WidthStretch, 0.4f);
-	ImGui::TableSetupColumn ("field", ImGuiTableColumnFlags_WidthStretch, 0.6f);
-	return true;
 }
 
 // The settings, edited as a copy: each change becomes a command, and the
