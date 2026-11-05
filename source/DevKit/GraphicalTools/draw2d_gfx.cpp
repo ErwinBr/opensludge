@@ -11,7 +11,9 @@
  * columns of pixels would have both sides of its quad on the centres of
  * pixels, and drivers differ on which of them they then fill (the OpenGL
  * of the macOS arm64 runners fills neither), so we move it to the column left
- * of the edge, or the row below it on the screen.
+ * of the edge, or the row below it on the screen. We also cut lines down to
+ * the view first: a quad that reaches far past the view, such as the axes
+ * of the sprite bank view, lost its column or row on those runners even so.
  */
 
 #include <math.h>
@@ -33,7 +35,8 @@ const size_t MAX_BATCH_VERTICES = 65536 - 4;
 
 class GfxDraw2D : public Draw2D {
 public:
-	explicit GfxDraw2D (gfx::Renderer * r) : renderer (r), pixel (1.0f), originX (0.0f), originY (0.0f), down (-1.0f) {
+	explicit GfxDraw2D (gfx::Renderer * r) : renderer (r), pixel (1.0f), originX (0.0f), originY (0.0f), down (-1.0f),
+		viewLeft (-1e30f), viewRight (1e30f), viewBottom (-1e30f), viewTop (1e30f) {
 		colour[0] = colour[1] = colour[2] = colour[3] = 255;
 		gfx::DrawUniforms identity;
 		memcpy (matrix, identity.matrix, sizeof (matrix));
@@ -63,6 +66,9 @@ private:
 	void addVertex (float x, float y, float u, float v);
 	void addLine (float x1, float y1, float x2, float y2);
 	bool onPixelEdge (float at, float origin) const;
+	// Cut a line down to the view, with a pixel to spare; false if none of
+	// it is in the view.
+	bool clipToView (float & x1, float & y1, float & x2, float & y2) const;
 
 	gfx::Renderer * renderer;
 	float matrix[16];
@@ -73,6 +79,8 @@ private:
 	float originX, originY;
 	// Which way y goes down the screen: -1 or 1.
 	float down;
+	// What the view shows, lowest to highest.
+	float viewLeft, viewRight, viewBottom, viewTop;
 
 	struct Batch {
 		gfx::Texture * texture;
@@ -117,6 +125,10 @@ void GfxDraw2D::setProjection (float left, float right, float bottom, float top)
 	originX = left;
 	originY = bottom;
 	down = bottom < top ? -1.0f : 1.0f;
+	viewLeft = left < right ? left : right;
+	viewRight = left < right ? right : left;
+	viewBottom = bottom < top ? bottom : top;
+	viewTop = bottom < top ? top : bottom;
 	float m[16] = {
 		2.0f / (right - left), 0, 0, 0,
 		0, 2.0f / (top - bottom), 0, 0,
@@ -181,8 +193,40 @@ bool GfxDraw2D::onPixelEdge (float at, float origin) const {
 	return fabsf (pixels - floorf (pixels + 0.5f)) < 0.001f;
 }
 
+// Liang and Barsky's clipping: t goes from 0 at the start of the line to 1
+// at its end, and each side of the view may raise the start or lower the
+// end.
+bool GfxDraw2D::clipToView (float & x1, float & y1, float & x2, float & y2) const {
+	float spare = pixel * 2.0f;
+	float dx = x2 - x1, dy = y2 - y1;
+	const float p[4] = { -dx, dx, -dy, dy };
+	const float q[4] = { x1 - (viewLeft - spare), (viewRight + spare) - x1, y1 - (viewBottom - spare), (viewTop + spare) - y1 };
+	float t0 = 0.0f, t1 = 1.0f;
+	for (int i = 0; i < 4; i ++) {
+		if (p[i] == 0.0f) {
+			if (q[i] < 0.0f) return false;
+			continue;
+		}
+		float t = q[i] / p[i];
+		if (p[i] < 0.0f) {
+			if (t > t1) return false;
+			if (t > t0) t0 = t;
+		} else {
+			if (t < t0) return false;
+			if (t < t1) t1 = t;
+		}
+	}
+	float sx = x1, sy = y1;
+	x1 = sx + t0 * dx;
+	y1 = sy + t0 * dy;
+	x2 = sx + t1 * dx;
+	y2 = sy + t1 * dy;
+	return true;
+}
+
 // A line, as a quad one pixel of the view wide.
 void GfxDraw2D::addLine (float x1, float y1, float x2, float y2) {
+	if (! clipToView (x1, y1, x2, y2)) return;
 	float dx = x2 - x1, dy = y2 - y1;
 	float length = sqrtf (dx * dx + dy * dy);
 	if (length == 0.0f) return;
