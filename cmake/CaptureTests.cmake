@@ -211,8 +211,12 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 if(SLUDGE_OUT_OF_ORDER)
+	# Every 40th frame, and frames 180-200 too: on GitHub's macOS arm64
+	# runners, OpenGL rounds frame 190 (the hero raises his arm) a little
+	# differently in the second run. A frame without an image has only its
+	# CRC, which must match exactly; with its image, framediff allows that.
 	sludge_add_capture_test(out-of-order GAME ${SLUDGE_OUT_OF_ORDER}
-		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/out-of-order.input FRAMES 0-1200/40)
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/out-of-order.input FRAMES 0-1200/40,180-200)
 endif()
 
 # The meshes of the renderers, which the Dev Kit draws with.
