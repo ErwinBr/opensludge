@@ -468,7 +468,7 @@ bool layout (const DecodedBank & bank, bool powerOfTwo, Layout & out, std::strin
 // These are the formulas of the draw functions in sprites.cpp from before
 // sprites had a tex_y, with the row the sprite starts in (then always 1) as
 // tex_y. They must stay the same, float for float.
-TexRect texRect (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind) {
+TexRect texRectUnnudged (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind) {
 	TexRect r;
 	switch (kind) {
 		case TEXKIND_SCALE:
@@ -521,6 +521,16 @@ void extrudeGutter (std::vector<unsigned char> & page, int pw, int ph, int x0, i
 	}
 }
 
+}
+
+TexRect texRect (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind) {
+	TexRect r = texRectUnnudged (tex_x, tex_y, width, height, pageW, pageH, kind);
+	float du = texelNudge / pageW, dv = texelNudge / pageH;
+	r.u1 += du;
+	r.u2 += du;
+	r.v1 += dv;
+	r.v2 += dv;
+	return r;
 }
 
 bool makePages (const DecodedBank & bank, const Layout & layout, bool extrude, Pages & out, std::string & error) {

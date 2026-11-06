@@ -126,7 +126,17 @@ struct TexRect {
 	float u1, v1, u2, v2;
 };
 
+// Where nearest filtering samples exactly on the edge between two texels,
+// which texel it reads depends on rounding: on the GPU, the renderer, the
+// sprite's place in its page, and on some GPUs from one run to the next. So
+// texRect shifts each rectangle by texelNudge of a texel: far more than any
+// rounding, too little to change what filtering reads anywhere else.
+const float texelNudge = 1.0f / 256;
+
 TexRect texRect (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind);
+// The same without the nudge: the formulas of the draw functions before
+// sprites had a tex_y (for tests).
+TexRect texRectUnnudged (int tex_x, int tex_y, int width, int height, int pageW, int pageH, TexKind kind);
 
 int nextPowerOfTwo (int n);
 

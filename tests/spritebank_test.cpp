@@ -440,20 +440,20 @@ static void testTexRect () {
 		int w = 1 + (seed >> 9) % 200, h = 1 + (seed >> 22) % (H - 2);
 		int x = (seed >> 13) % W;
 		for (int k = 0; k < 5; k ++) {
-			TexRect a = texRect (x, 1, w, h, W, H, kinds[k]), b = oldTexRect (x, w, h, W, H, kinds[k]);
+			TexRect a = texRectUnnudged (x, 1, w, h, W, H, kinds[k]), b = oldTexRect (x, w, h, W, H, kinds[k]);
 			if (memcmp (&a, &b, sizeof (a))) bits = false;
 		}
 	}
-	CHECK (bits, "with the sprite in row 1, texRect is the old formulas, bit for bit");
+	CHECK (bits, "with the sprite in row 1, texRectUnnudged is the old formulas, bit for bit");
 
 	// Relative to the sprite, every kind reaches as far as before: scale
 	// exactly the sprite, paste from the row above, fonts half a texel either
 	// side and a row above and below.
 	const int W = 2048, H = 1531, x = 1237, y = 905, w = 37, h = 23;
-	TexRect sc = texRect (x, y, w, h, W, H, TEXKIND_SCALE);
-	TexRect pa = texRect (x, y, w, h, W, H, TEXKIND_PASTE);
-	TexRect fo = texRect (x, y, w, h, W, H, TEXKIND_FONT);
-	TexRect ff = texRect (x, y, w, h, W, H, TEXKIND_FONT_FLIP);
+	TexRect sc = texRectUnnudged (x, y, w, h, W, H, TEXKIND_SCALE);
+	TexRect pa = texRectUnnudged (x, y, w, h, W, H, TEXKIND_PASTE);
+	TexRect fo = texRectUnnudged (x, y, w, h, W, H, TEXKIND_FONT);
+	TexRect ff = texRectUnnudged (x, y, w, h, W, H, TEXKIND_FONT_FLIP);
 	const float e = 1e-3f;
 	CHECK (fabsf (sc.u1 * W - x) < e && fabsf (sc.u2 * W - (x + w)) < e && fabsf (sc.v1 * H - y) < e && fabsf (sc.v2 * H - (y + h)) < e, "scale: the sprite exactly");
 	CHECK (fabsf (pa.v1 * H - (y - 1)) < e && fabsf (pa.v2 * H - (y - 1 + h)) < e, "paste: from the row above");
@@ -470,11 +470,31 @@ static void testTexRect () {
 		for (int i = 0; i < n; i ++) {
 			float t = (i + 0.5f) / n;
 			float u = sc.u1 + (sc.u2 - sc.u1) * t;
-			float want = x + (i + 0.5f) * w / n;
+			float want = x + (i + 0.5f) * w / n;	// Without the nudge
 			if (fabsf (u * W - want) > e) centres = false;
 		}
 	}
 	CHECK (centres, "pixel centres sample texel centres at 1:1, 2x and 0.5x");
+
+	// texRect moves every rectangle by texelNudge, and so every sample away
+	// from the edges between texels: at scales where pixel centres used to
+	// land exactly on them (0.5x, 0.75x, 1.5x), every sample now keeps at
+	// least a fifth of the nudge between it and an edge, far more than the
+	// rounding of a float at a page of 2048.
+	TexRect nd = texRect (x, y, w, h, W, H, TEXKIND_SCALE);
+	CHECK (fabsf ((nd.u1 - sc.u1) * W - texelNudge) < 1e-4f && fabsf ((nd.v2 - sc.v2) * H - texelNudge) < 1e-4f, "texRect moves the rectangle by the nudge");
+	const float edgy[] = { 0.5f, 0.75f, 1.5f, 1.0f / 3, 2.0f };
+	bool clear = true;
+	for (int k = 0; k < 5; k ++) {
+		int n = (int) (w * edgy[k] + 0.5f);
+		for (int i = 0; i < n; i ++) {
+			float t = (i + 0.5f) / n;
+			float u = (nd.u1 + (nd.u2 - nd.u1) * t) * W;
+			float v = (nd.v1 + (nd.v2 - nd.v1) * t) * H;
+			if (fabsf (u - floorf (u + 0.5f)) < texelNudge / 5 || fabsf (v - floorf (v + 0.5f)) < texelNudge / 5) clear = false;
+		}
+	}
+	CHECK (clear, "no sample lands on the edge between two texels");
 }
 
 // Sample a page as nearest filtering with CLAMP_TO_EDGE does.
