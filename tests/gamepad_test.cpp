@@ -244,8 +244,8 @@ int main (int argc, char * argv[]) {
 	allScreenRegions = &left;
 	objectType personType;
 	SDL_zero (personType);
-	onScreenPerson person;
-	SDL_zero (person);
+	// Value-initialised: zeros, and no animation or playback.
+	onScreenPerson person = onScreenPerson ();
 	person.x = 300;
 	person.y = 400;
 	person.height = 100;

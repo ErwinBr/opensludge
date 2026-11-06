@@ -1,9 +1,7 @@
-#include "sprbanks.h"
+#include <memory>
+#include <vector>
 
-struct animFrame {
-	int frameNum, howMany;
-	int noise;
-};
+#include "animation.h"
 
 #define EXTRA_FRONT			1
 #define EXTRA_FIXEDSIZE		2
@@ -14,21 +12,16 @@ struct animFrame {
 #define EXTRA_NOREMOVE		32
 #define EXTRA_RECTANGULAR	64
 
-struct personaAnimation {
-	SpriteBankRef theSprites;
-	animFrame * frames;
-	int numFrames;
-};
-
-// A costume: 3 animations (stand, walk, talk) for each direction. The
-// costume owns them. Variables and characters share costumes, and count
-// them in timesUsed (see retainCostume and releaseCostume).
+// A costume: 3 animations (stand, walk, talk) for each direction, which it
+// owns. Variables and characters share costumes, and count them in timesUsed
+// (see retainCostume and releaseCostume): the script layer of ownership,
+// apart from the shared_ptr of animation definitions and sprite banks.
 struct persona {
-	personaAnimation * * animation;
+	std::vector<std::unique_ptr<personaAnimation> > animation;	// numDirections * 3
 	int numDirections;
 	int timesUsed;
 
-	persona () : animation (NULL), numDirections (0), timesUsed (0) {}
+	persona () : numDirections (0), timesUsed (0) {}
 };
 
 struct onScreenPerson {
@@ -40,14 +33,15 @@ struct onScreenPerson {
 	bool walking, spinning;
 	struct loadedFunction * continueAfterWalking;
 	// The animation the character shows: one of its costume, or ownAnim.
+	// Doesn't own it.
 	personaAnimation * myAnim;
-	// The animation the character drew last, to start again when myAnim
-	// changes. Only compared, never followed.
-	personaAnimation * lastUsedAnim;
 	// An animation the character owns (from animate or a saved game), or NULL.
-	personaAnimation * ownAnim;
+	std::unique_ptr<personaAnimation> ownAnim;
+	// Where it is in myAnim. updatePeopleAnimations moves it on; drawing
+	// only reads it.
+	AnimationPlayback playback;
 	persona * myPersona;
-	int frameNum, frameTick, angle, wantAngle, angleOffset;
+	int angle, wantAngle, angleOffset;
 	bool show;
 	int direction, directionWhenDoneWalking;
 	struct objectType * thisType;
@@ -60,7 +54,11 @@ struct onScreenPerson {
 bool initPeople ();
 bool addPerson (int x, int y, int objNum, persona * p);
 
-// Draw to screen and to backdrop
+// Move every character's animation on by ticks game ticks, firing frame
+// events, in the order in which they are drawn. Once a tick, before drawing.
+void updatePeopleAnimations (int ticks);
+
+// Draw to screen and to backdrop. Drawing doesn't change the animations.
 
 void drawPeople ();
 void freezePeople (int, int);
@@ -102,8 +100,8 @@ bool setCharacterWalkSpeed (int f, int objNum);
 // Takes ownership of the animation, and deletes it when there is no such character.
 void animatePerson (int obj, personaAnimation *);
 void animatePerson (int obj, persona * per);
-personaAnimation * createPersonaAnim (int num, struct variableStack * & stacky);
-inline void setBankFile (personaAnimation * newP, const SpriteBankRef & sB) { newP -> theSprites = sB; }
+// The frames of anim (), from the stack.
+std::vector<AnimationFrame> readAnimationFrames (int num, struct variableStack * & stacky);
 bool setPersonExtra (int f, int newSetting);
 int timeForAnim (personaAnimation * fram);
 personaAnimation * copyAnim (personaAnimation * orig);
@@ -112,7 +110,7 @@ void deleteAnim (personaAnimation * orig);
 
 // Loading and saving
 
-bool saveAnim (personaAnimation * p, FILE * fp);
+bool saveAnim (const personaAnimation * p, FILE * fp);
 bool loadAnim (personaAnimation * p, FILE * fp);
 bool savePeople (FILE * fp);
 bool loadPeople (FILE * fp);
@@ -123,9 +121,6 @@ bool loadCostume (persona * cossy, FILE * fp);
 // reference. The last release deletes the costume and its animations.
 void retainCostume (persona * cossy);
 void releaseCostume (persona * cossy);
-// The animations of a costume, all NULL, so that releaseCostume can free a
-// costume that is only partly filled.
-personaAnimation * * newAnimationArray (int n);
 
 // Holds a reference to a costume until it goes, for the built-in functions.
 class CostumeRef {

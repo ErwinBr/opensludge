@@ -108,14 +108,10 @@ persona * getCostumeFromVar (variable & thisVar) {
 		if (! checkNew (p)) return NULL;
 		p -> timesUsed = 1;		// The caller's reference
 		p -> numDirections = 1;
-		p -> animation = newAnimationArray (3);
-		if (! checkNew (p -> animation)) {
-			releaseCostume (p);
-			return NULL;
-		}
+		p -> animation.resize (3);
 
 		for (int iii = 0; iii < 3; iii ++)
-			p -> animation[iii] = copyAnim (thisVar.varData.animHandler);
+			p -> animation[iii].reset (copyAnim (thisVar.varData.animHandler));
 
 		break;
 

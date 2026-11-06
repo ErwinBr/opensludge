@@ -8,58 +8,75 @@
 #include "people.h"
 #include "sludger.h"
 
-personaAnimation * mouseCursorAnim;
-int mouseCursorFrameNum = 0;
-int mouseCursorCountUp = 0;
+// The mouse cursor's animation, which it owns, and where it is in it.
+static std::unique_ptr<personaAnimation> cursorAnim;
+static AnimationPlayback cursorPlayback;
 
 extern inputType input;
 
 void pickAnimCursor (personaAnimation * pp) {
-	deleteAnim (mouseCursorAnim);
-	mouseCursorAnim = pp;
-	mouseCursorFrameNum = 0;
-	mouseCursorCountUp = 0;
+	cursorAnim.reset (pp);
+	cursorPlayback = AnimationPlayback ();
+}
+
+personaAnimation * takeCursorAnim () {
+	return cursorAnim.release ();
+}
+
+void setCursorAnim (personaAnimation * pp, int frame) {
+	cursorAnim.reset (pp);
+	cursorPlayback.frame = frame;
+	cursorPlayback.displayFrame = frame;
+}
+
+const personaAnimation * cursorAnimation () {
+	return cursorAnim.get ();
+}
+
+int cursorFrame () {
+	return cursorPlayback.frame;
 }
 
 bool hasCursorSprite () {
-	return mouseCursorAnim && mouseCursorAnim -> numFrames;
+	return cursorAnim && cursorAnim -> numFrames ();
+}
+
+static void drawCursorFrame (int x, int y, int frame) {
+	if (! hasCursorSprite ()) return;
+	if (frame < 0 || frame >= cursorAnim -> numFrames ()) frame = 0;
+
+	int spriteNum = cursorAnim -> frame (frame).sprite;
+	int flipMe = 0;
+	const spriteBank & bank = cursorAnim -> sprites () -> bank;
+
+	if (spriteNum < 0) {
+		spriteNum = -spriteNum;
+		flipMe = 1;
+		if (spriteNum >= bank.total) spriteNum = 0;
+	} else {
+		if (spriteNum >= bank.total) flipMe = 2;
+	}
+
+	if (flipMe != 2) {
+		(flipMe ? flipFontSprite : fontSprite) (x, y, bank.sprites[spriteNum], bank, bank.myPalette);
+	}
 }
 
 void drawCursor (int x, int y) {
-	if (! hasCursorSprite ()) return;
+	drawCursorFrame (x, y, cursorPlayback.frame);
+}
 
-	int spriteNum = mouseCursorAnim -> frames[mouseCursorFrameNum].frameNum;
-	int flipMe = 0;
-
-	if (spriteNum < 0) {
-		spriteNum = -spriteNum; 
-		flipMe = 1;
-		if (spriteNum >= mouseCursorAnim -> theSprites -> bank.total) spriteNum = 0;
-	} else {
-		if (spriteNum >= mouseCursorAnim -> theSprites -> bank.total) flipMe = 2;
-	}
-	
-	if (flipMe != 2) {
-		(flipMe ? flipFontSprite : fontSprite) (x, y,
-			mouseCursorAnim -> theSprites -> bank.sprites[spriteNum],
-			mouseCursorAnim -> theSprites -> bank, mouseCursorAnim -> theSprites -> bank.myPalette);
-	}
+void updateMouseCursor (int ticks) {
+	updateCursorAnimation (cursorPlayback, cursorAnim.get (), ticks);
 }
 
 void displayCursor () {
-	if (! hasCursorSprite ()) return;
-
-	drawCursor (input.mouseX, input.mouseY);
-
-	if (++ mouseCursorCountUp >= mouseCursorAnim -> frames[mouseCursorFrameNum].howMany) {
-		mouseCursorCountUp = 0;
-		mouseCursorFrameNum ++;
-		mouseCursorFrameNum %= mouseCursorAnim -> numFrames;
-	}
+	drawCursorFrame (input.mouseX, input.mouseY, cursorPlayback.displayFrame);
 }
 
 void pasteCursor (int x, int y, personaAnimation * c) {
-	if (c -> numFrames) pasteSpriteToBackDrop (x, y,
-						  c -> theSprites -> bank.sprites[c -> frames[0].frameNum],
-						  c -> theSprites -> bank, c -> theSprites -> bank.myPalette);
+	if (c -> numFrames ()) {
+		const spriteBank & bank = c -> sprites () -> bank;
+		pasteSpriteToBackDrop (x, y, bank.sprites[c -> frame (0).sprite], bank, bank.myPalette);
+	}
 }

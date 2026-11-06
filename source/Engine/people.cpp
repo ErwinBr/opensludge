@@ -48,46 +48,36 @@ inline int TF_abs (int a) {
 }
 
 void setPersonAnim (onScreenPerson & m, personaAnimation * anim, bool owned) {
-	if (m.ownAnim && m.ownAnim != anim) {
-		// Another animation could take its address, so that lastUsedAnim
+	if (m.ownAnim && m.ownAnim.get () != anim) {
+		// Another animation could take its address, so that the playback
 		// wouldn't see the change. Before, the old animation was never freed.
-		if (m.lastUsedAnim == m.ownAnim) m.lastUsedAnim = NULL;
-		deleteAnim (m.ownAnim);
+		if (m.playback.playing == m.ownAnim.get ()) m.playback.playing = NULL;
+		m.ownAnim.reset ();
 	}
 	m.myAnim = anim;
-	m.ownAnim = owned ? anim : NULL;
+	if (owned && m.ownAnim.get () != anim) m.ownAnim.reset (anim);
 }
 
 void setFrames (onScreenPerson & m, int a) {
-	setPersonAnim (m, m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction], false);
+	setPersonAnim (m, m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction].get (), false);
 }
 
 void retainCostume (persona * cossy) {
 	if (cossy) cossy -> timesUsed ++;
 }
 
-personaAnimation * * newAnimationArray (int n) {
-	personaAnimation * * array = new personaAnimation * [n];
-	for (int a = 0; a < n; a ++) array[a] = NULL;
-	return array;
-}
-
 void releaseCostume (persona * cossy) {
 	if (! cossy) return;
 	if (-- cossy -> timesUsed > 0) return;
-	if (cossy -> animation) {
-		for (int a = 0; a < cossy -> numDirections * 3; a ++) deleteAnim (cossy -> animation[a]);
-		delete [] cossy -> animation;
-	}
-	delete cossy;
+	delete cossy;	// With its animations
 }
 
 // The character no longer uses old: forget the last animation if it was one
 // of old, as the animations of old may go.
 static void forgetCostume (onScreenPerson & m, persona * old) {
-	if (! old || ! old -> animation) return;
-	for (int a = 0; a < old -> numDirections * 3; a ++) {
-		if (m.lastUsedAnim == old -> animation[a]) m.lastUsedAnim = NULL;
+	if (! old) return;
+	for (size_t a = 0; a < old -> animation.size (); a ++) {
+		if (m.playback.playing == old -> animation[a].get ()) m.playback.playing = NULL;
 	}
 }
 
@@ -111,23 +101,21 @@ private:
 	PersonLoadGuard & operator= (const PersonLoadGuard &);
 };
 
-personaAnimation * createPersonaAnim (int num, variableStack * & stacky) {
-	personaAnimation * newP = new personaAnimation;
-	checkNew (newP);
+std::vector<AnimationFrame> readAnimationFrames (int num, variableStack * & stacky) {
+	std::vector<AnimationFrame> frames (num);
 
-	newP -> numFrames = num;
-	newP -> frames = new animFrame[num];
-	checkNew (newP -> frames);
-
-	int a = num, frameNum, howMany;
+	// A sound or a function is a frame too, which keeps the sprite and
+	// ticks of the frame after it (the stack has the frames backwards). It
+	// is passed when played, but its ticks count in timeForAnim.
+	int a = num, frameNum = 0, howMany = 0;
 
 	while (a) {
 		a --;
-		newP -> frames[a].noise = 0;
+		int noise = 0;
 		if (stacky -> thisVar.varType == SVT_FILE) {
-			newP -> frames[a].noise = stacky -> thisVar.varData.intValue;
+			noise = stacky -> thisVar.varData.intValue;
 		} else if (stacky -> thisVar.varType == SVT_FUNC) {
-			newP -> frames[a].noise = - stacky -> thisVar.varData.intValue;
+			noise = - stacky -> thisVar.varData.intValue;
 		} else if (stacky -> thisVar.varType == SVT_STACK) {
 			getValueType (frameNum, SVT_INT, stacky -> thisVar.varData.theStack -> first -> thisVar);
 			getValueType (howMany, SVT_INT, stacky -> thisVar.varData.theStack -> first -> next -> thisVar);
@@ -136,63 +124,28 @@ personaAnimation * createPersonaAnim (int num, variableStack * & stacky) {
 			howMany = 1;
 		}
 		trimStack (stacky);
-		newP -> frames[a].frameNum = frameNum;
-		newP -> frames[a].howMany = howMany;
+		frames[a].sprite = frameNum;
+		frames[a].ticks = howMany;
+		frames[a].event = FrameEvent::fromNoise (noise);
 	}
 
-	return newP;
+	return frames;
 }
 
 personaAnimation * makeNullAnim () {
-	personaAnimation * newAnim	= new personaAnimation;
-	if (! checkNew (newAnim)) return NULL;
-
-
-	newAnim -> theSprites.reset ();
-	newAnim -> numFrames		= 0;
-	newAnim -> frames			= NULL;
-	return newAnim;
+	// No definition: no frames.
+	return new personaAnimation;
 }
 
 personaAnimation * copyAnim (personaAnimation * orig) {
-	int num = orig -> numFrames;
-
-	personaAnimation * newAnim	= new personaAnimation;
-	if (! checkNew (newAnim)) return NULL;
-
-	// Copy the easy bits...
-	newAnim -> theSprites		= orig -> theSprites;
-	newAnim -> numFrames		= num;
-
-	if (num) {
-
-		// Argh! Frames! We need a whole NEW array of animFrame structures...
-
-		newAnim->frames = new animFrame[num];
-		if (! checkNew (newAnim->frames)) return NULL;
-
-		for (int a = 0; a < num; a ++) {
-			newAnim -> frames[a].frameNum = orig -> frames[a].frameNum;
-			newAnim -> frames[a].howMany = orig -> frames[a].howMany;
-			newAnim -> frames[a].noise = orig -> frames[a].noise;
-		}
-	} else {
-		newAnim -> frames = NULL;
-	}
-
+	// A new handle on the same definition: no frames are copied.
+	personaAnimation * newAnim = new personaAnimation;
+	newAnim -> definition = orig -> definition;
 	return newAnim;
 }
 
 void deleteAnim (personaAnimation * orig) {
-
-	if (orig)
-	{
-		if (orig -> numFrames) {
-			delete[] orig -> frames;
-		}
-		delete orig;
-		orig = NULL;
-	}
+	delete orig;
 }
 
 void turnMeAngle (onScreenPerson * thisPerson, int direc) {
@@ -476,70 +429,62 @@ void shufflePeople () {
 
 
 
-void drawPeople () {
-	shufflePeople ();
+namespace {
 
-	onScreenPerson * thisPerson = allPeople;
-	personaAnimation * myAnim = NULL;
+// Frame events start sounds and script functions, as drawPeople always did.
+class EngineFrameEvents : public FrameEventSink {
+public:
+	void frameEvent (const FrameEvent & e) {
+		if (e.kind == FrameEvent::SOUND) {
+			startSound (e.number, false);
+		} else if (e.kind == FrameEvent::FUNCTION) {
+			startNewFunctionNum (e.number, 0, NULL, noStack);
+		}
+	}
+};
+
+}
+
+void updatePeopleAnimations (int ticks) {
+	// One pass of the sort a tick, as before, so that characters update and
+	// fire their events in the order they are drawn in.
+	shufflePeople ();
+	EngineFrameEvents events;
+	for (onScreenPerson * p = allPeople; p; p = p -> next) {
+		updateAnimation (p -> playback, p -> myAnim, ticks, p -> show, events);
+	}
+}
+
+void drawPeople () {
 	overRegion = NULL;
 
-	while (thisPerson) {
-		if (thisPerson -> show) {
-			myAnim = thisPerson -> myAnim;
-			if (myAnim != thisPerson -> lastUsedAnim) {
-				thisPerson -> lastUsedAnim = myAnim;
-				thisPerson -> frameNum = 0;
-				thisPerson -> frameTick = myAnim -> frames[0].howMany;
-				if (myAnim -> frames[thisPerson -> frameNum].noise > 0) {
-					startSound(myAnim -> frames[thisPerson -> frameNum].noise, false);
-					thisPerson -> frameNum ++;
-					thisPerson -> frameNum %= thisPerson -> myAnim -> numFrames;
-					thisPerson -> frameTick = thisPerson -> myAnim -> frames[thisPerson -> frameNum].howMany;
-				} else if (myAnim -> frames[thisPerson -> frameNum].noise) {
-					startNewFunctionNum (- myAnim -> frames[thisPerson -> frameNum].noise, 0, NULL, noStack);
-					thisPerson -> frameNum ++;
-					thisPerson -> frameNum %= thisPerson -> myAnim -> numFrames;
-					thisPerson -> frameTick = thisPerson -> myAnim -> frames[thisPerson -> frameNum].howMany;
-				}
-			}
-			int fNumSign = myAnim -> frames[thisPerson -> frameNum].frameNum;
-			int m = fNumSign < 0;
-			int fNum = abs (fNumSign);
-			if (fNum >= myAnim -> theSprites -> bank.total) {
-				fNum = 0;
-				m = 2 - m;
-			}
-			if (m != 2) {
-				bool r = false;
-				r = scaleSprite (myAnim->theSprites->bank.sprites[fNum], myAnim -> theSprites -> bank, thisPerson, m);
-				if (r) {
-					if (thisPerson -> thisType -> screenName[0]) {
-						if (personRegion.thisType != thisPerson -> thisType) lastRegion = NULL;
-						personRegion.thisType = thisPerson -> thisType;
-						overRegion = & personRegion;
-					}
+	for (const onScreenPerson * thisPerson = allPeople; thisPerson; thisPerson = thisPerson -> next) {
+		const personaAnimation * myAnim = thisPerson -> myAnim;
+		if (! thisPerson -> show || ! myAnim || ! myAnim -> numFrames ()) continue;
+
+		// The frame that the last update chose. Until an update has started
+		// a new animation (as when freeze draws), its first frame.
+		int f = thisPerson -> playback.playing == myAnim ? thisPerson -> playback.displayFrame : 0;
+		if (f >= myAnim -> numFrames ()) f = 0;
+
+		int fNumSign = myAnim -> frame (f).sprite;
+		int m = fNumSign < 0;
+		int fNum = abs (fNumSign);
+		const spriteBank & bank = myAnim -> sprites () -> bank;
+		if (fNum >= bank.total) {
+			fNum = 0;
+			m = 2 - m;
+		}
+		if (m != 2) {
+			bool r = scaleSprite (bank.sprites[fNum], bank, thisPerson, m);
+			if (r) {
+				if (thisPerson -> thisType -> screenName[0]) {
+					if (personRegion.thisType != thisPerson -> thisType) lastRegion = NULL;
+					personRegion.thisType = thisPerson -> thisType;
+					overRegion = & personRegion;
 				}
 			}
 		}
-		if (! -- thisPerson -> frameTick) {
-			thisPerson -> frameNum ++;
-			thisPerson -> frameNum %= thisPerson -> myAnim -> numFrames;
-			thisPerson -> frameTick = thisPerson -> myAnim -> frames[thisPerson -> frameNum].howMany;
-			if (thisPerson -> show && myAnim && myAnim -> frames) {
-				if (myAnim -> frames[thisPerson -> frameNum].noise > 0) {
-					startSound(myAnim -> frames[thisPerson -> frameNum].noise, false);
-					thisPerson -> frameNum ++;
-					thisPerson -> frameNum %= thisPerson -> myAnim -> numFrames;
-					thisPerson -> frameTick = thisPerson -> myAnim -> frames[thisPerson -> frameNum].howMany;
-				} else if (myAnim -> frames[thisPerson -> frameNum].noise) {
-					startNewFunctionNum (- myAnim -> frames[thisPerson -> frameNum].noise, 0, NULL, noStack);
-					thisPerson -> frameNum ++;
-					thisPerson -> frameNum %= thisPerson -> myAnim -> numFrames;
-					thisPerson -> frameTick = thisPerson -> myAnim -> frames[thisPerson -> frameNum].howMany;
-				}
-			}
-		}
-		thisPerson = thisPerson -> next;
 	}
 }
 
@@ -830,7 +775,6 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	newPerson -> extra = 0;
 	newPerson -> continueAfterWalking = NULL;
 	moveAndScale (* newPerson, x, y);
-	newPerson -> frameNum = 0;
 	newPerson -> walkToX = x;
 	newPerson -> walkToY = y;
 	newPerson -> walking = false;
@@ -843,8 +787,6 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	newPerson -> floaty = 0;
 	newPerson -> walkSpeed = newPerson -> thisType -> walkSpeed;
 	newPerson -> myAnim = NULL;
-	newPerson -> lastUsedAnim = NULL;
-	newPerson -> ownAnim = NULL;
 	newPerson -> spinSpeed = newPerson -> thisType -> spinSpeed;
 	newPerson -> r = 0;
 	newPerson -> g = 0;
@@ -857,16 +799,18 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	setFrames (* newPerson, ANI_STAND);
 
 	// HEIGHT (BASED ON 1st FRAME OF 1st ANIMATION... INC. SPECIAL CASES)
-	int fNumSigned = p -> animation[0] -> frames[0].frameNum;
+	const personaAnimation & first = * p -> animation[0];
+	int fNumSigned = first.frame (0).sprite;
 	int fNum = abs (fNumSigned);
-	if (fNum >= p -> animation[0] -> theSprites -> bank.total) {
+	const spriteBank & bank = first.sprites () -> bank;
+	if (fNum >= bank.total) {
 		if (fNumSigned < 0) {
 			newPerson -> height = 5;
 		} else {
-			newPerson -> height = p -> animation[0] -> theSprites -> bank.sprites[0].yhot + 5;
+			newPerson -> height = bank.sprites[0].yhot + 5;
 		}
 	} else {
-		newPerson -> height = p -> animation[0] -> theSprites -> bank.sprites[fNum].yhot + 5;
+		newPerson -> height = bank.sprites[fNum].yhot + 5;
 	}
 
 	// NOW ADD IT IN THE RIGHT PLACE
@@ -883,8 +827,8 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 
 int timeForAnim (personaAnimation * fram) {
 	int total = 0;
-	for (int a = 0; a < fram -> numFrames; a ++) {
-		total += fram -> frames[a].howMany;
+	for (int a = 0; a < fram -> numFrames (); a ++) {
+		total += fram -> frame (a).ticks;
 	}
 	return total;
 }
@@ -980,41 +924,37 @@ void removeOneCharacter (int i) {
 	}
 }
 
-bool saveAnim (personaAnimation * p, FILE * fp) {
-	put2bytes (p -> numFrames, fp);
-	if (p -> numFrames) {
-		put4bytes (p -> theSprites -> ID, fp);
+bool saveAnim (const personaAnimation * p, FILE * fp) {
+	int n = p -> numFrames ();
+	put2bytes (n, fp);
+	if (n) {
+		put4bytes (p -> sprites () -> ID, fp);
 
-		for (int a = 0; a < p -> numFrames; a ++) {
-			put4bytes (p -> frames[a].frameNum, fp);
-			put4bytes (p -> frames[a].howMany, fp);
-			put4bytes (p -> frames[a].noise, fp);
+		for (int a = 0; a < n; a ++) {
+			const AnimationFrame & f = p -> frame (a);
+			put4bytes (f.sprite, fp);
+			put4bytes (f.ticks, fp);
+			put4bytes (f.event.toNoise (), fp);
 		}
 	}
 	return true;
 }
 
 bool loadAnim (personaAnimation * p, FILE * fp) {
-	p -> numFrames = get2bytes (fp);
+	int n = get2bytes (fp);
 
-	if (p -> numFrames) {
-		int a = get4bytes (fp);
-		p -> frames = new animFrame[p -> numFrames];
-		if (! checkNew (p -> frames)) return false;
-		p -> theSprites = loadBankForAnim (a);
+	if (n) {
+		std::vector<AnimationFrame> frames (n);
+		SpriteBankRef bank = loadBankForAnim (get4bytes (fp));
 
-		for (a = 0; a < p -> numFrames; a ++) {
-			p -> frames[a].frameNum = get4bytes (fp);
-			p -> frames[a].howMany = get4bytes (fp);
-			if (ssgVersion >= VERSION(2,0)) {
-				p -> frames[a].noise = get4bytes (fp);
-			} else {
-				p -> frames[a].noise = 0;
-			}
+		for (int a = 0; a < n; a ++) {
+			frames[a].sprite = get4bytes (fp);
+			frames[a].ticks = get4bytes (fp);
+			frames[a].event = FrameEvent::fromNoise (ssgVersion >= VERSION(2,0) ? get4bytes (fp) : 0);
 		}
+		p -> definition = makeAnimation (bank, frames);
 	} else {
-		p -> theSprites.reset ();
-		p -> frames = NULL;
+		p -> definition.reset ();
 	}
 	return true;
 }
@@ -1037,7 +977,7 @@ bool saveCostume (persona * cossy, FILE * fp) {
 	int a;
 	put2bytes (cossy -> numDirections, fp);
 	for (a = 0; a < cossy -> numDirections * 3; a ++) {
-		if (! saveAnim (cossy -> animation[a], fp)) return false;
+		if (! saveAnim (cossy -> animation[a].get (), fp)) return false;
 	}
 //	debugCostume ("Saved", cossy);
 	return true;
@@ -1046,13 +986,11 @@ bool saveCostume (persona * cossy, FILE * fp) {
 bool loadCostume (persona * cossy, FILE * fp) {
 	int a;
 	cossy -> numDirections = get2bytes (fp);
-	cossy -> animation = newAnimationArray (cossy -> numDirections * 3);
-	if (! checkNew (cossy -> animation)) return false;
+	cossy -> animation.clear ();
+	cossy -> animation.resize (cossy -> numDirections * 3);
 	for (a = 0; a < cossy -> numDirections * 3; a ++) {
-		cossy -> animation[a] = new personaAnimation;
-		if (! checkNew (cossy -> animation[a])) return false;
-
-		if (! loadAnim (cossy -> animation[a], fp)) return false;
+		cossy -> animation[a].reset (new personaAnimation);
+		if (! loadAnim (cossy -> animation[a].get (), fp)) return false;
 	}
 //	debugCostume ("Loaded", cossy);
 	return true;
@@ -1080,7 +1018,7 @@ bool savePeople (FILE * fp) {
 
 		saveCostume (me -> myPersona, fp);
 		saveAnim (me -> myAnim, fp);
-		fputc (me -> myAnim == me -> lastUsedAnim, fp);
+		fputc (me -> myAnim == me -> playback.playing, fp);
 
 		putFloat (me -> scale, fp);
 
@@ -1090,8 +1028,8 @@ bool savePeople (FILE * fp) {
 		put2bytes (me -> walkToY, fp);
 		put2bytes (me -> thisStepX, fp);
 		put2bytes (me -> thisStepY, fp);
-		put2bytes (me -> frameNum, fp);
-		put2bytes (me -> frameTick, fp);
+		put2bytes (me -> playback.frame, fp);
+		put2bytes (me -> playback.ticksLeft, fp);
 		put2bytes (me -> walkSpeed, fp);
 		put2bytes (me -> spinSpeed, fp);
 		putSigned (me -> floaty, fp);
@@ -1141,7 +1079,7 @@ bool loadPeople (FILE * fp) {
 		if (! checkNew (me)) return false;
 		// What deletePerson reads, before anything can fail.
 		me -> myPersona = NULL;
-		me -> myAnim = me -> ownAnim = me -> lastUsedAnim = NULL;
+		me -> myAnim = NULL;
 		me -> continueAfterWalking = NULL;
 		PersonLoadGuard guard (me);
 
@@ -1152,7 +1090,7 @@ bool loadPeople (FILE * fp) {
 		// A copy of its own, even when it was an animation of the costume.
 		me -> myAnim = new personaAnimation;
 		if (! checkNew (me -> myAnim)) return false;
-		me -> ownAnim = me -> myAnim;
+		me -> ownAnim.reset (me -> myAnim);
 
 		me -> x = getFloat (fp);
 		me -> y = getFloat (fp);
@@ -1160,7 +1098,7 @@ bool loadPeople (FILE * fp) {
 		loadCostume (me -> myPersona, fp);
 		loadAnim (me -> myAnim, fp);
 
-		me -> lastUsedAnim = fgetc (fp) ? me -> myAnim : NULL;
+		me -> playback.playing = fgetc (fp) ? me -> myAnim : NULL;
 
 		me -> scale = getFloat (fp);
 
@@ -1170,8 +1108,9 @@ bool loadPeople (FILE * fp) {
 		me -> walkToY = get2bytes (fp);
 		me -> thisStepX = get2bytes (fp);
 		me -> thisStepY = get2bytes (fp);
-		me -> frameNum = get2bytes (fp);
-		me -> frameTick = get2bytes (fp);
+		me -> playback.frame = get2bytes (fp);
+		me -> playback.ticksLeft = get2bytes (fp);
+		me -> playback.displayFrame = me -> playback.frame;
 		me -> walkSpeed = get2bytes (fp);
 		me -> spinSpeed = get2bytes (fp);
 		me -> floaty = getSigned (fp);

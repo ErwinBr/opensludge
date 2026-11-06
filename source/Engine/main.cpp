@@ -32,6 +32,7 @@
 #include "language.h"
 #include "newfatal.h"
 #include "people.h"
+#include "cursors.h"
 #include "floor.h"
 #include "objtypes.h"
 #include "talk.h"
@@ -441,7 +442,12 @@ int main(int argc, char *argv[]) try
 		// movie instead of the game, at the frame rate of the movie.
 		if (! movieIsPlaying) walkAllPeople ();
 		handleInput ();
-		if (! movieIsPlaying || ! showMovieFrame ()) sludgeDisplay ();
+		if (! movieIsPlaying || ! showMovieFrame ()) {
+			// A game tick: the animations move on, then we draw them.
+			updatePeopleAnimations (1);
+			updateMouseCursor (1);
+			sludgeDisplay ();
+		}
 		trimSpriteBanks ();
 		printRenderStats ();
 		// In a test run, we don't move the mouse pointer between frames.

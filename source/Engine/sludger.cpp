@@ -52,7 +52,6 @@
 #include "debug.h"
 
 
-extern personaAnimation * mouseCursorAnim;
 extern spritePalette pastePalette;
 extern int dialogValue;
 extern unsigned int sceneWidth, sceneHeight;
@@ -172,7 +171,7 @@ FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er
 
 bool initSludge (char * filename) {
 	int a = 0;
-	mouseCursorAnim = makeNullAnim ();
+	pickAnimCursor (makeNullAnim ());
 
 	FILE * fp = openAndVerify (filename, 'G', 'E', ERROR_BAD_HEADER, gameVersion);
 	if (! fp) return false;
@@ -207,6 +206,7 @@ bool initSludge (char * filename) {
 	specialSettings = fgetc (fp);
 
 	desiredfps = 1000/fgetc (fp);
+	setGameTickRate (desiredfps);
 
 	delete[] readString (fp); // Unused - was used for registration purposes.
 

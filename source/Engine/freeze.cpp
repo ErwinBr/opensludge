@@ -16,6 +16,7 @@
 #include "fonttext.h"
 #include "statusba.h"
 #include "freeze.h"
+#include "cursors.h"
 #include "zbuffer.h"
 
 extern onScreenPerson * allPeople;
@@ -26,8 +27,6 @@ extern inputType input;
 extern parallaxLayer * parallaxStuff;
 extern int lightMapNumber, zBufferNumber;
 extern eventHandlers * currentEvents;
-extern personaAnimation * mouseCursorAnim;
-extern int mouseCursorFrameNum;
 extern int cameraX, cameraY;
 extern unsigned int sceneWidth, sceneHeight;
 extern float cameraZoom;
@@ -100,6 +99,10 @@ void freezeGraphics() {
 
 			drawBackDrop ();				// Draw the room
 			drawZBuffer(cameraX, cameraY);
+			// Legacy: freezing has always moved the characters' animations on
+			// by a tick (firing their frame events) for each tile it draws,
+			// because drawing did. Games time on it, so we keep it.
+			updatePeopleAnimations (1);
 			drawPeople ();					// Then add any moving characters...
 			
 			y += h;
@@ -199,10 +202,9 @@ bool freeze () {
 	allScreenRegions = NULL;
 	overRegion = NULL;
 
-	newFreezer -> mouseCursorAnim = mouseCursorAnim;
-	newFreezer -> mouseCursorFrameNum = mouseCursorFrameNum;
-	mouseCursorAnim = makeNullAnim ();
-	mouseCursorFrameNum = 0;
+	newFreezer -> mouseCursorFrameNum = cursorFrame ();
+	newFreezer -> mouseCursorAnim.reset (takeCursorAnim ());
+	setCursorAnim (makeNullAnim (), 0);
 
 	newFreezer -> speech = speech;
 	initSpeech ();
@@ -293,9 +295,7 @@ void unfreeze (bool killImage) {
 		setBackdropTexture (t);
 	}
 
-	deleteAnim (mouseCursorAnim);
-	mouseCursorAnim = frozenStuff -> mouseCursorAnim;
-	mouseCursorFrameNum = frozenStuff -> mouseCursorFrameNum;
+	setCursorAnim (frozenStuff -> mouseCursorAnim.release (), frozenStuff -> mouseCursorFrameNum);
 
 	restoreBarStuff (frozenStuff -> frozenStatus);
 

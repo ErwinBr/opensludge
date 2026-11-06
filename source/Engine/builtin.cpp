@@ -915,7 +915,7 @@ builtIn(anim)
 	}
 
 	// First store the frame numbers and take 'em off the stack
-	personaAnimation * ba = createPersonaAnim (numParams - 1, fun -> stack);
+	std::vector<AnimationFrame> frames = readAnimationFrames (numParams - 1, fun -> stack);
 
 	// Only remaining paramter is the file number
 	int fileNumber;
@@ -925,7 +925,8 @@ builtIn(anim)
 	// Load the required sprite bank
 	SpriteBankRef sprBanky = loadBankForAnim (fileNumber);
 	if (! sprBanky) return BR_ERROR;	// File not found, fatal done already
-	setBankFile (ba, sprBanky);
+	personaAnimation * ba = new personaAnimation;
+	ba -> definition = makeAnimation (sprBanky, frames);
 
 	// Return value
 	newAnimationVariable (fun -> reg, ba);
@@ -944,10 +945,9 @@ builtIn(costume)
 		return BR_ERROR;
 	}
 	int iii;
-	newPersona -> animation = newAnimationArray (numParams);
-	if (! checkNew (newPersona -> animation)) return BR_ERROR;
+	newPersona -> animation.resize (numParams);
 	for (iii = numParams - 1; iii >= 0; iii --) {
-		newPersona -> animation[iii] = getAnimationFromVar (fun -> stack -> thisVar);
+		newPersona -> animation[iii].reset (getAnimationFromVar (fun -> stack -> thisVar));
 		trimStack (fun -> stack);
 	}
 
@@ -1626,14 +1626,12 @@ builtIn(pasteCharacter)
 	if (thisPerson) {
 		personaAnimation * myAnim;
 		myAnim = thisPerson -> myAnim;
-		if (myAnim != thisPerson -> lastUsedAnim) {
-			thisPerson -> lastUsedAnim = myAnim;
-			thisPerson -> frameNum = 0;
-			thisPerson -> frameTick = myAnim -> frames[0].howMany;
-		}
+		// As before, a new animation starts again here, without its events.
+		if (myAnim != thisPerson -> playback.playing) restartAnimationQuietly (thisPerson -> playback, myAnim);
 
-		int fNum = myAnim -> frames[thisPerson -> frameNum].frameNum;
-		fixScaleSprite (thisPerson -> x, thisPerson -> y, myAnim -> theSprites -> bank.sprites[abs (fNum)], myAnim -> theSprites -> bank, thisPerson, 0, 0, fNum < 0);
+		int fNum = myAnim -> frame (thisPerson -> playback.frame).sprite;
+		const spriteBank & bank = myAnim -> sprites () -> bank;
+		fixScaleSprite (thisPerson -> x, thisPerson -> y, bank.sprites[abs (fNum)], bank, thisPerson, 0, 0, fNum < 0);
 		setVariable (fun -> reg, SVT_INT, 1);
 	} else {
 		setVariable (fun -> reg, SVT_INT, 0);
@@ -2141,7 +2139,7 @@ builtIn(normalCharacter)
 	onScreenPerson * thisPerson = findPerson (objectNumber);
 	if (thisPerson)
 	{
-		setPersonAnim (* thisPerson, thisPerson -> myPersona -> animation[thisPerson -> direction], false);
+		setPersonAnim (* thisPerson, thisPerson -> myPersona -> animation[thisPerson -> direction].get (), false);
 		setVariable (fun -> reg, SVT_INT, 1);
 	} else {
 		setVariable (fun -> reg, SVT_INT, 0);

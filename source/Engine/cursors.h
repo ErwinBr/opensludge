@@ -1,9 +1,19 @@
+// The mouse cursor owns its animation (from setCursor), and plays it.
 void pickAnimCursor (struct personaAnimation * pp);
-// Draw the current frame of the mouse cursor at its position, and move its
-// animation on to the next frame.
+// For freezing, loading and saving: take the cursor's animation away (it is
+// then the caller's), give it one with a frame, or look at it.
+struct personaAnimation * takeCursorAnim ();
+void setCursorAnim (struct personaAnimation * pp, int frame);
+const struct personaAnimation * cursorAnimation ();
+int cursorFrame ();
+// Move the cursor's animation on by ticks game ticks. Once a tick, before
+// drawing.
+void updateMouseCursor (int ticks);
+// Draw the frame of the mouse cursor that the last update chose, at its
+// position. Drawing doesn't move the animation on.
 void displayCursor ();
 // Draw the current frame of the mouse cursor at a position in game
-// coordinates, without moving its animation on.
+// coordinates (between game frames, and in the controller settings).
 void drawCursor (int x, int y);
 bool hasCursorSprite ();
 void pasteCursor (int x, int y, struct personaAnimation * c);

@@ -371,7 +371,7 @@ void flipFontSprite (int x, int y, const sprite & single, const spriteBank & ban
 
 unsigned char curLight[3];
 
-void setDrawMode (onScreenPerson * thisPerson) {
+void setDrawMode (const onScreenPerson * thisPerson) {
 	if (thisPerson->colourmix) {
 		//glEnable(GL_COLOR_SUM); FIXME: replace line?
 		setSecondaryColor(curLight[0]*thisPerson->r*thisPerson->colourmix/65025/255.f, curLight[1]*thisPerson->g*thisPerson->colourmix/65025/255.f, curLight[2]*thisPerson->b*thisPerson->colourmix/65025/255.f, 1.0f);
@@ -402,7 +402,7 @@ static bool mouseOverSprite (const sprite & single, float x1, float y1, float x2
 	return true;
 }
 
-bool scaleSprite (const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, bool mirror) {
+bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreenPerson * thisPerson, bool mirror) {
 
 	float x = thisPerson->x;
 	float y = thisPerson->y;

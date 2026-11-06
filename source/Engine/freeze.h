@@ -13,7 +13,7 @@ struct frozenStuffStruct {
 	speechStruct * speech;
 	statusStuff * frozenStatus;
 	eventHandlers * currentEvents;
-	personaAnimation * mouseCursorAnim;
+	std::unique_ptr<personaAnimation> mouseCursorAnim;	// The cursor's, while frozen
 	int mouseCursorFrameNum;
 	int cameraX, cameraY, sceneWidth, sceneHeight;
 	float cameraZoom;

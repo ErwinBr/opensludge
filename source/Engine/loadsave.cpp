@@ -33,8 +33,6 @@ extern variable * globalVars;						// In sludger.cpp
 extern flor * currentFloor;							// In floor.cpp
 extern zBufferData zBuffer;							// In zbuffer.cpp
 extern speechStruct * speech;						// In talk.cpp
-extern personaAnimation * mouseCursorAnim;			// In cursor.cpp
-extern int mouseCursorFrameNum;						// "	"	"
 extern int loadedFontNum, fontHeight, fontTableSize;	// In fonttext.cpp
 extern int numFontColours;							// "	"	"
 extern char * fontOrderString;						// "	"	"
@@ -423,8 +421,8 @@ bool saveGame (char * fname) {
 	// Save regions
 	saveRegions (fp);
 
-	saveAnim (mouseCursorAnim, fp);
-	put2bytes (mouseCursorFrameNum, fp);
+	saveAnim (cursorAnimation (), fp);
+	put2bytes (cursorFrame (), fp);
 
 	// Save functions
 	loadedFunction * thisFunction = allRunningFunctions;
@@ -572,10 +570,14 @@ bool loadGame (char * fname) {
 	loadHandlers (fp);
 	loadRegions (fp);
 
-	mouseCursorAnim = new personaAnimation;
-	if (! checkNew (mouseCursorAnim)) return false;
-	if (! loadAnim (mouseCursorAnim, fp)) return false;
-	mouseCursorFrameNum = get2bytes (fp);
+	{
+		personaAnimation * cursor = new personaAnimation;
+		if (! loadAnim (cursor, fp)) {
+			delete cursor;
+			return false;
+		}
+		setCursorAnim (cursor, get2bytes (fp));
+	}
 
 	loadedFunction * rFunc;
 	loadedFunction * * buildList = & allRunningFunctions;

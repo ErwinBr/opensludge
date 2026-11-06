@@ -137,6 +137,10 @@ bool snapshot () {
 	drawBackDrop ();				// Draw the room
 	drawZBuffer(cameraX, cameraY);
 
+	// Legacy: a snapshot has always moved the characters' animations on by a
+	// tick (firing their frame events), because drawing did. Games time on
+	// it, so we keep it.
+	updatePeopleAnimations (1);
 	drawPeople ();					// Then add any moving characters...
 	viewSpeech ();					// ...and anything being said
 	drawStatusBar ();
