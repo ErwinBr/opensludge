@@ -55,7 +55,7 @@ void unlinkVar (variable & thisVar) {
 		break;
 
 		case SVT_ANIM:
-		deleteAnim (thisVar.varData.animHandler);
+		thisVar.varData.animHandler.release ();	// Frees it
 		break;
 
 		case SVT_COSTUME:
@@ -74,21 +74,21 @@ void setVariable (variable & thisVar, variableType vT, int value) {
 	thisVar.varData.intValue = value;
 }
 
-void newAnimationVariable (variable & thisVar, personaAnimation * i) {
+void newAnimationVariable (variable & thisVar, AnimationHandle i) {
 	unlinkVar (thisVar);
 	thisVar.varType = SVT_ANIM;
-	thisVar.varData.animHandler = i;
+	thisVar.varData.animHandler.adopt (std::move (i));
 }
 
-personaAnimation * getAnimationFromVar (variable & thisVar) {
+AnimationHandle getAnimationFromVar (variable & thisVar) {
 	if (thisVar.varType == SVT_ANIM)
-		return copyAnim (thisVar.varData.animHandler);
+		return copyAnim (thisVar.varData.animHandler.get ());
 
 	if (thisVar.varType == SVT_INT && thisVar.varData.intValue == 0)
 		return makeNullAnim();
 
 	fatal ("Expecting an animation variable; found variable of type", typeName[thisVar.varType]);
-	return NULL;
+	return AnimationHandle ();
 }
 
 void newCostumeVariable (variable & thisVar, persona * i) {
@@ -111,7 +111,7 @@ persona * getCostumeFromVar (variable & thisVar) {
 		p -> animation.resize (3);
 
 		for (int iii = 0; iii < 3; iii ++)
-			p -> animation[iii].reset (copyAnim (thisVar.varData.animHandler));
+			p -> animation[iii] = copyAnim (thisVar.varData.animHandler.get ());
 
 		break;
 
@@ -288,7 +288,7 @@ int compareVars (const variable & var1, const variable & var2) {
 			break;
 
 			case SVT_ANIM:
-			re = (var1.varData.animHandler == var2.varData.animHandler);
+			re = (var1.varData.animHandler.get () == var2.varData.animHandler.get ());
 			break;
 
 			case SVT_STRING:
@@ -393,7 +393,7 @@ char * getTextFromAnyVar (const variable & from) {
 		{
 			char * buff = new char[20];
 			if (! checkNew (buff)) return NULL;
-			snprintf (buff, 20, "%p", from.varData.animHandler);
+			snprintf (buff, 20, "%p", from.varData.animHandler.get ());
 			return buff;
 		}*/
 
@@ -464,7 +464,7 @@ bool copyMain (const variable & from, variable & to) {
 		return true;
 
 		case SVT_ANIM:
-		to.varData.animHandler = copyAnim (from.varData.animHandler);
+		to.varData.animHandler.adopt (copyAnim (from.varData.animHandler.get ()));
 		return true;
 
 		case SVT_NULL:

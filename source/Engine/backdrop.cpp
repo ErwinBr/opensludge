@@ -1,5 +1,8 @@
 #include <vector>
+#include <string.h>
 #include <png.h>
+#include <setjmp.h>
+#include <memory>
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -177,6 +180,11 @@ bool restoreSnapshot (FILE * fp) {
 		t1 = 0;
 		while (t1 < winWidth) {
 			c = (unsigned short) get2bytes (fp);
+			// A cut-off save ends here; a run of 0 would never move on.
+			if (feof (fp)) {
+				delete [] snapshotTexture;
+				return false;
+			}
 			if (c & 32) {
 				n = fgetc (fp) + 1;
 				c -= 32;
@@ -877,6 +885,80 @@ bool loadParallax (unsigned short v, unsigned short fracX, unsigned short fracY)
 extern int viewportOffsetX, viewportOffsetY;
 
 
+namespace {
+
+// A PNG image as loadHSI reads it: 8-bit RGBA, rows of width * 4 bytes.
+struct PngImage {
+	unsigned char * rgba;	// malloc'd
+	png_uint_32 width, height;
+};
+
+void quietPngError (png_structp png, png_const_charp message) {
+	debugOut ("PNG error: %s\n", message);
+	png_longjmp (png, 1);
+}
+
+// Read a PNG from fp, whose 8 signature bytes we have read, as loadHSI always
+// has. libpng reports errors with longjmp, which mustn't jump over C++
+// objects with destructors, so this frame holds only plain C data. A
+// damaged or cut-off PNG returns false.
+bool readPngImage (FILE * fp, PngImage * out) {
+	png_structp png = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, quietPngError, NULL);
+	if (! png) return false;
+	png_infop info = png_create_info_struct (png);
+	if (! info) {
+		png_destroy_read_struct (&png, NULL, NULL);
+		return false;
+	}
+
+	// Changed after setjmp, so volatile.
+	unsigned char * volatile pixels = NULL;
+	png_bytep * volatile rows = NULL;
+	if (setjmp (png_jmpbuf (png))) {
+		free (pixels);
+		free (rows);
+		png_destroy_read_struct (&png, &info, NULL);
+		return false;
+	}
+
+	png_init_io (png, fp);
+	png_set_sig_bytes (png, 8);	// 8 bytes already read
+	png_set_user_limits (png, 16384, 16384);
+	png_read_info (png, info);
+
+	png_uint_32 width, height;
+	int bit_depth, color_type, interlace_type, compression_type, filter_method;
+	png_get_IHDR (png, info, &width, &height, &bit_depth, &color_type, &interlace_type, &compression_type, &filter_method);
+
+	if (bit_depth < 8) png_set_packing (png);
+	png_set_expand (png);
+	if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) png_set_gray_to_rgb (png);
+	if (bit_depth == 16) png_set_strip_16 (png);
+	png_set_add_alpha (png, 0xff, PNG_FILLER_AFTER);
+	png_read_update_info (png, info);
+	if (png_get_rowbytes (png, info) != (png_size_t) width * 4) png_error (png, "Not RGBA");
+
+	pixels = (unsigned char *) malloc ((size_t) width * height * 4);
+	rows = (png_bytep *) malloc (sizeof (png_bytep) * height);
+	if (! pixels || ! rows) png_error (png, "Out of memory");
+	for (png_uint_32 i = 0; i < height; i ++) rows[i] = pixels + (size_t) i * width * 4;
+	png_read_image (png, rows);
+	png_read_end (png, NULL);
+
+	free (rows);
+	png_destroy_read_struct (&png, &info, NULL);
+	out -> rgba = pixels;
+	out -> width = width;
+	out -> height = height;
+	return true;
+}
+
+struct FreeDeleter {
+	void operator() (unsigned char * p) const { free (p); }
+};
+
+}
+
 bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 
 	int t1, t2, n;
@@ -888,9 +970,7 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 	int realPicWidth, realPicHeight;
 	long file_pointer = ftell (fp);
 
-	png_structp png_ptr;
-	png_infop info_ptr, end_info;
-
+	std::unique_ptr<unsigned char, FreeDeleter> pngPixels;
 
 	int fileIsPNG = true;
 
@@ -909,48 +989,13 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 		picWidth = realPicWidth = get2bytes (fp);
 		picHeight = realPicHeight = get2bytes (fp);
 	} else {
-		// Read the PNG header
-
-		png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-		if (!png_ptr) {
-			return false;
-		}
-
-		info_ptr = png_create_info_struct(png_ptr);
-		if (!info_ptr) {
-			png_destroy_read_struct(&png_ptr, (png_infopp) NULL, (png_infopp) NULL);
-			return false;
-		}
-
-		end_info = png_create_info_struct(png_ptr);
-		if (!end_info) {
-			png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
-			return false;
-		}
-		png_init_io(png_ptr, fp);		// Tell libpng which file to read
-		png_set_sig_bytes(png_ptr, 8);	// 8 bytes already read
-
-		png_read_info(png_ptr, info_ptr);
-
-		png_uint_32 width, height;
-		int bit_depth, color_type, interlace_type, compression_type, filter_method;
-		png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, &compression_type, &filter_method);
-
-		picWidth = realPicWidth = width;
-		picHeight = realPicHeight = height;
-
-		if (bit_depth < 8) png_set_packing(png_ptr);
-		png_set_expand(png_ptr);
-		if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) png_set_gray_to_rgb(png_ptr);
-		if (bit_depth == 16) png_set_strip_16(png_ptr);
-
-		png_set_add_alpha(png_ptr, 0xff, PNG_FILLER_AFTER);
-
-		png_read_update_info(png_ptr, info_ptr);
-		png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, &compression_type, &filter_method);
-
-		//int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-
+		// The whole image, before anything else, so that a damaged one
+		// changes nothing.
+		PngImage image;
+		if (! readPngImage (fp, &image)) return false;
+		pngPixels.reset (image.rgba);
+		picWidth = realPicWidth = image.width;
+		picHeight = realPicHeight = image.height;
 	}
 
 
@@ -972,13 +1017,9 @@ bool loadHSI (FILE * fp, int x, int y, bool reserve) {
 	if (x < 0 || x + realPicWidth > sceneWidth || y < 0 || y + realPicHeight > sceneHeight) return false;
 
 	if (fileIsPNG) {
-		std::vector<unsigned char *> row_pointers (realPicHeight);
-		for (int i = 0; i<realPicHeight; i++)
-			row_pointers[i] = backdropTexture + 4*i*picWidth;
-
-		png_read_image(png_ptr, (png_byte **) row_pointers.data ());
-		png_read_end(png_ptr, NULL);
-		png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
+		for (int i = 0; i < realPicHeight; i ++) {
+			memcpy (backdropTexture + 4 * i * picWidth, pngPixels.get () + (size_t) 4 * i * realPicWidth, (size_t) 4 * realPicWidth);
+		}
 	} else {
 		for (t2 = 0; t2 < realPicHeight; t2 ++) {
 			t1 = 0;

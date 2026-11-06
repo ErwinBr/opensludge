@@ -457,6 +457,7 @@ int main(int argc, char *argv[]) try
 	}
 
 	captureFinish ();
+	logLifetimes ("at quit");
 
 	debugOut( "Bye!\n\n");
 

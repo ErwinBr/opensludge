@@ -47,19 +47,28 @@ inline int TF_abs (int a) {
 	return (a > 0) ? a : -a;
 }
 
-void setPersonAnim (onScreenPerson & m, personaAnimation * anim, bool owned) {
-	if (m.ownAnim && m.ownAnim.get () != anim) {
-		// Another animation could take its address, so that the playback
-		// wouldn't see the change. Before, the old animation was never freed.
-		if (m.playback.playing == m.ownAnim.get ()) m.playback.playing = NULL;
-		m.ownAnim.reset ();
-	}
+// Free the animation the character owned, unless it is keep.
+static void dropOwnAnim (onScreenPerson & m, const personaAnimation * keep) {
+	if (! m.ownAnim || m.ownAnim.get () == keep) return;
+	// Another animation could take its address, so that the playback
+	// wouldn't see the change. Before, the old animation was never freed.
+	if (m.playback.playing == m.ownAnim.get ()) m.playback.playing = NULL;
+	m.ownAnim.reset ();
+}
+
+void setPersonAnim (onScreenPerson & m, personaAnimation * anim) {
+	dropOwnAnim (m, anim);
 	m.myAnim = anim;
-	if (owned && m.ownAnim.get () != anim) m.ownAnim.reset (anim);
+}
+
+void givePersonAnim (onScreenPerson & m, AnimationHandle anim) {
+	dropOwnAnim (m, anim.get ());
+	m.myAnim = anim.get ();
+	m.ownAnim = std::move (anim);
 }
 
 void setFrames (onScreenPerson & m, int a) {
-	setPersonAnim (m, m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction].get (), false);
+	setPersonAnim (m, m.myPersona -> animation[(a * m.myPersona -> numDirections) + m.direction].get ());
 }
 
 void retainCostume (persona * cossy) {
@@ -82,7 +91,7 @@ static void forgetCostume (onScreenPerson & m, persona * old) {
 }
 
 static void deletePerson (onScreenPerson * p) {
-	setPersonAnim (* p, NULL, false);
+	setPersonAnim (* p, NULL);
 	forgetCostume (* p, p -> myPersona);
 	releaseCostume (p -> myPersona);
 	delete p;
@@ -132,20 +141,15 @@ std::vector<AnimationFrame> readAnimationFrames (int num, variableStack * & stac
 	return frames;
 }
 
-personaAnimation * makeNullAnim () {
+AnimationHandle makeNullAnim () {
 	// No definition: no frames.
-	return new personaAnimation;
+	return AnimationHandle (new personaAnimation);
 }
 
-personaAnimation * copyAnim (personaAnimation * orig) {
-	// A new handle on the same definition: no frames are copied.
-	personaAnimation * newAnim = new personaAnimation;
+AnimationHandle copyAnim (const personaAnimation * orig) {
+	AnimationHandle newAnim (new personaAnimation);
 	newAnim -> definition = orig -> definition;
 	return newAnim;
-}
-
-void deleteAnim (personaAnimation * orig) {
-	delete orig;
 }
 
 void turnMeAngle (onScreenPerson * thisPerson, int direc) {
@@ -443,6 +447,15 @@ public:
 	}
 };
 
+}
+
+void logLifetimes (const char * when) {
+	static int on = -1;
+	if (on < 0) on = getenv ("SLUDGE_LIFETIME_LOG") != NULL;
+	if (! on) return;
+	fprintf (stderr, "Lifetimes %s: %d handles, %d definitions, %d costumes, %d characters, %d banks\n", when,
+		LifetimeCounter<personaAnimation>::live (), LifetimeCounter<AnimationDefinition>::live (),
+		LifetimeCounter<persona>::live (), LifetimeCounter<onScreenPerson>::live (), spriteBankStats ().loaded);
 }
 
 void updatePeopleAnimations (int ticks) {
@@ -825,7 +838,7 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 	return (bool) (newPerson -> thisType != NULL);
 }
 
-int timeForAnim (personaAnimation * fram) {
+int timeForAnim (const personaAnimation * fram) {
 	int total = 0;
 	for (int a = 0; a < fram -> numFrames (); a ++) {
 		total += fram -> frame (a).ticks;
@@ -833,17 +846,16 @@ int timeForAnim (personaAnimation * fram) {
 	return total;
 }
 
-void animatePerson (int obj, personaAnimation * fram) {	// Set a new SINGLE animation
+void animatePerson (int obj, AnimationHandle fram) {	// Set a new SINGLE animation
 	onScreenPerson * moveMe = findPerson (obj);
 	if (moveMe) {
 		if (moveMe -> continueAfterWalking) abortFunction (moveMe -> continueAfterWalking);
 		moveMe -> continueAfterWalking = NULL;
 		moveMe -> walking = false;
 		moveMe -> spinning = false;
-		setPersonAnim (* moveMe, fram, true);
-	} else {
-		deleteAnim (fram);
+		givePersonAnim (* moveMe, std::move (fram));
 	}
+	// Without such a character, fram goes here.
 }
 
 void animatePerson (int obj, persona * per) {			// Set a new costume
@@ -942,17 +954,21 @@ bool saveAnim (const personaAnimation * p, FILE * fp) {
 
 bool loadAnim (personaAnimation * p, FILE * fp) {
 	int n = get2bytes (fp);
+	// At the end of a cut-off save, get2bytes gives -257.
+	if (n < 0 || feof (fp)) return false;
 
 	if (n) {
 		std::vector<AnimationFrame> frames (n);
-		SpriteBankRef bank = loadBankForAnim (get4bytes (fp));
+		int bankFile = get4bytes (fp);
 
 		for (int a = 0; a < n; a ++) {
 			frames[a].sprite = get4bytes (fp);
 			frames[a].ticks = get4bytes (fp);
 			frames[a].event = FrameEvent::fromNoise (ssgVersion >= VERSION(2,0) ? get4bytes (fp) : 0);
 		}
-		p -> definition = makeAnimation (bank, frames);
+		// Not a bank of a number read past the end of a cut-off save.
+		if (feof (fp)) return false;
+		p -> definition = makeAnimation (loadBankForAnim (bankFile), frames);
 	} else {
 		p -> definition.reset ();
 	}
@@ -985,7 +1001,10 @@ bool saveCostume (persona * cossy, FILE * fp) {
 
 bool loadCostume (persona * cossy, FILE * fp) {
 	int a;
-	cossy -> numDirections = get2bytes (fp);
+	int directions = get2bytes (fp);
+	// At the end of a cut-off save, get2bytes gives -257.
+	if (directions < 0 || feof (fp)) return false;
+	cossy -> numDirections = directions;
 	cossy -> animation.clear ();
 	cossy -> animation.resize (cossy -> numDirections * 3);
 	for (a = 0; a < cossy -> numDirections * 3; a ++) {
@@ -1088,15 +1107,13 @@ bool loadPeople (FILE * fp) {
 		me -> myPersona -> timesUsed = 1;
 
 		// A copy of its own, even when it was an animation of the costume.
-		me -> myAnim = new personaAnimation;
-		if (! checkNew (me -> myAnim)) return false;
-		me -> ownAnim.reset (me -> myAnim);
+		givePersonAnim (* me, AnimationHandle (new personaAnimation));
 
 		me -> x = getFloat (fp);
 		me -> y = getFloat (fp);
 
-		loadCostume (me -> myPersona, fp);
-		loadAnim (me -> myAnim, fp);
+		if (! loadCostume (me -> myPersona, fp)) return false;
+		if (! loadAnim (me -> myAnim, fp)) return false;
 
 		me -> playback.playing = fgetc (fp) ? me -> myAnim : NULL;
 
@@ -1117,7 +1134,7 @@ bool loadPeople (FILE * fp) {
 		me -> show = fgetc (fp);
 		me -> walking = fgetc (fp);
 		me -> spinning = fgetc (fp);
-		if (fgetc (fp)) {
+		if (getFlag (fp)) {
 			me -> continueAfterWalking = loadFunction (fp);
 			if (! me -> continueAfterWalking) return false;
 		} else {

@@ -44,6 +44,9 @@ void writeString (char * s, FILE * fp) {
 char * readString (FILE * fp) {
 
 	int a, len = get2bytes (fp);
+	// At the end of a file (a cut-off save), get2bytes gives -257: an empty
+	// string, and loadGame finds the file cut off.
+	if (len < 0) len = 0;
 	//debugOut ("MOREIO: readString - len %i\n", len);
 	char * s = new char[len + 1];
 	if (! checkNew (s)) {

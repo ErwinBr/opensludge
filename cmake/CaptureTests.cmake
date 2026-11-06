@@ -156,7 +156,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			inside/room.tga outside/duck.duc outside/room.flo outside/room.tga outside/room.zbu)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
-	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu big.png hole.png light.png sky.png movie.webm)
+	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
@@ -188,6 +188,24 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DREQUIRE=unloaded [0-9]+; 0 loaded, 0 in use"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
 	set_tests_properties(capture-unload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Freezing and snapshots move animations on by a tick, as they always
+	# did, at every level of freezing. Every frame is kept, with the number
+	# of frame events in the status line, so that any difference in timing
+	# leaves an image.
+	sludge_compile_game(FreezeTest ${render_project}/FreezeTest.slp)
+	sludge_add_capture_test(freeze GAME ${CMAKE_BINARY_DIR}/games/FreezeTest.slg FRAMES 0-260)
+
+	# What lives after saving and loading, and after loads that fail.
+	sludge_compile_game(LoadTest ${render_project}/LoadTest.slp)
+	add_test(NAME capture-lifetimes
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/LoadTest.slg
+			-DUNLOAD_GAME=${CMAKE_BINARY_DIR}/games/UnloadTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/lifetimes
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/lifetimes.cmake)
+	set_tests_properties(capture-lifetimes PROPERTIES LABELS capture TIMEOUT 900)
 
 	# Extruding the edges of sprites into their gutters (SPRITEEDGES, or the
 	# project's "Clean edges") changes only what filtering reads beside a

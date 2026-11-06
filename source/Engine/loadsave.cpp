@@ -1,3 +1,6 @@
+#include <string>
+#include <stdlib.h>
+
 #include "allfiles.h"
 #include "sprites.h"
 #include "fonttext.h"
@@ -161,7 +164,7 @@ stackHandler * getStackFromLibrary (int n) {
 stackHandler * loadStackRef (FILE * fp) {
 	stackHandler * nsh;
 
-	if (fgetc (fp)) {	// It's one we've loaded already...
+	if (getFlag (fp)) {	// It's one we've loaded already...
 		stackDebug((stackfp, "loadStackRef (duplicate, get from library)\n"));
 
 		nsh = getStackFromLibrary (get2bytes (fp));
@@ -231,7 +234,7 @@ bool saveVariable (variable * from, FILE * fp)
 		return false;
 
 		case SVT_ANIM:
-		saveAnim (from -> varData.animHandler, fp);
+		saveAnim (from -> varData.animHandler.get (), fp);
 		return false;
 
 		case SVT_NULL:
@@ -247,7 +250,13 @@ bool saveVariable (variable * from, FILE * fp)
 }
 
 bool loadVariable (variable * to, FILE * fp) {
-	to -> varType = (variableType) fgetc (fp);
+	// Past the end of a cut-off save, fgetc gives EOF, which is no type.
+	int type = fgetc (fp);
+	if (type < 0 || type >= SVT_NUM_TYPES) {
+		to -> varType = SVT_NULL;
+		return false;
+	}
+	to -> varType = (variableType) type;
 	switch (to -> varType) {
 		case SVT_INT:
 		case SVT_FUNC:
@@ -276,13 +285,15 @@ bool loadVariable (variable * to, FILE * fp) {
 		to -> varData.costumeHandler = new persona;
 		if (! checkNew (to -> varData.costumeHandler)) return false;
 		to -> varData.costumeHandler -> timesUsed = 1;
-		loadCostume (to -> varData.costumeHandler, fp);
-		return true;
+		return loadCostume (to -> varData.costumeHandler, fp);
 
 		case SVT_ANIM:
-		to -> varData.animHandler = new personaAnimation;
-		if (! checkNew (to -> varData.animHandler)) return false;
-		loadAnim (to -> varData.animHandler, fp);
+		{
+			AnimationHandle anim (new personaAnimation);
+			bool loaded = loadAnim (anim.get (), fp);
+			to -> varData.animHandler.adopt (std::move (anim));
+			return loaded;
+		}
 		return true;
 
 		default:
@@ -485,6 +496,7 @@ bool saveGame (char * fname) {
 
 	fclose (fp);
 	clearStackLib ();
+	logLifetimes ("after saving");
 	return true;
 }
 
@@ -494,6 +506,25 @@ bool saveGame (char * fname) {
 
 int ssgVersion;
 
+// For tests: with SLUDGE_TEST_CUT_SAVE=<bytes>, we load only the first bytes
+// of a saved game, as if the file had been cut off, through a copy of them
+// next to it (tests/capture/lifetimes.cmake).
+static std::string cutSaveForTest (const char * fname) {
+	const char * cut = getenv ("SLUDGE_TEST_CUT_SAVE");
+	if (! cut) return fname;
+	long bytes = atol (cut);
+	std::string copy = std::string (fname) + ".cut";
+	FILE * in = fopen (fname, "rb");
+	FILE * out = fopen (copy.c_str (), "wb");
+	if (in && out) {
+		int c;
+		for (long n = 0; n < bytes && (c = fgetc (in)) != EOF; n ++) fputc (c, out);
+	}
+	if (in) fclose (in);
+	if (out) fclose (out);
+	return in && out ? copy : std::string (fname);
+}
+
 bool loadGame (char * fname) {
 	FILE * fp;
 	FILETIME savedGameTime;
@@ -501,7 +532,8 @@ bool loadGame (char * fname) {
 
 	while (allRunningFunctions) finishFunction (allRunningFunctions);
 
-	fp = openAndVerify (fname, 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion);
+	std::string file = cutSaveForTest (fname);
+	fp = openAndVerify (& file[0], 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion);
 	if (fp == NULL) return false;
 
 	if (ssgVersion >= VERSION(1,4)) {
@@ -547,8 +579,14 @@ bool loadGame (char * fname) {
 			charOrder = readString(fp);
 		}		
 	}
-	loadFont (fontNum, charOrder, fontHeight);
-	delete [] charOrder;
+	// A game saved without a font has none (before, we loaded a font from
+	// whatever fontNum and charOrder held).
+	if (fontLoaded) {
+		loadFont (fontNum, charOrder, fontHeight);
+		delete [] charOrder;
+	} else {
+		forgetFont ();
+	}
 	
 	fontSpace = getSigned (fp);
 
@@ -566,17 +604,14 @@ bool loadGame (char * fname) {
 
 	brightnessLevel = fgetc (fp);
 
-	loadHSI (fp, 0, 0, true);
+	if (! loadHSI (fp, 0, 0, true)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	loadHandlers (fp);
 	loadRegions (fp);
 
 	{
-		personaAnimation * cursor = new personaAnimation;
-		if (! loadAnim (cursor, fp)) {
-			delete cursor;
-			return false;
-		}
-		setCursorAnim (cursor, get2bytes (fp));
+		AnimationHandle cursor (new personaAnimation);
+		if (! loadAnim (cursor.get (), fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
+		setCursorAnim (std::move (cursor), get2bytes (fp));
 	}
 
 	loadedFunction * rFunc;
@@ -584,7 +619,7 @@ bool loadGame (char * fname) {
 
 
 	int countFunctions = get2bytes (fp);
-	while (countFunctions --) {
+	while (countFunctions -- > 0) {
 		rFunc = loadFunction (fp);
 		if (! rFunc) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 		rFunc -> next = NULL;
@@ -594,22 +629,25 @@ bool loadGame (char * fname) {
 
 	for (a = 0; a < numGlobals; a ++) {
 		unlinkVar (globalVars[a]);
-		loadVariable (& globalVars[a], fp);
+		if (! loadVariable (& globalVars[a], fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	}
 
 	if (! loadPeople (fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 
 
-	if (fgetc (fp)) {
-		if (! setFloor (get2bytes (fp))) return false;
+	if (getFlag (fp)) {
+		int floorFile = get2bytes (fp);
+		if (feof (fp) || ! setFloor (floorFile)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	} else setFloorNull ();
 
-	if (fgetc (fp)) {
-		if (! setZBuffer (get2bytes (fp))) return false;
+	if (getFlag (fp)) {
+		int zBufferFile = get2bytes (fp);
+		if (feof (fp) || ! setZBuffer (zBufferFile)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	}
 
-	if (fgetc (fp)) {
-		if (! loadLightMap (get2bytes (fp))) return false;
+	if (getFlag (fp)) {
+		int lightMapFile = get2bytes (fp);
+		if (feof (fp) || ! loadLightMap (lightMapFile)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	}
 
 	if (ssgVersion >= VERSION(1,4)) {
@@ -633,7 +671,7 @@ bool loadGame (char * fname) {
 			getFloat (fp);
 		}
 
-		blur_loadSettings(fp);
+		if (! blur_loadSettings (fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	}
 
 	if (ssgVersion >= VERSION(1,3)) {
@@ -643,12 +681,12 @@ bool loadGame (char * fname) {
 		currentBurnB = fgetc (fp);
 
 		// Read parallax layers
-		while (fgetc (fp)) {
+		while (getFlag (fp)) {
 			int im = get2bytes (fp);
 			int fx = get2bytes (fp);
 			int fy = get2bytes (fp);
 
-			if (! loadParallax (im, fx, fy)) return false;
+			if (feof (fp) || ! loadParallax (im, fx, fy)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 		}
 
 		int selectedLanguage = fgetc (fp);
@@ -661,13 +699,18 @@ bool loadGame (char * fname) {
 
 	nosnapshot ();
 	if (ssgVersion >= VERSION(1,4)) {
-		if (fgetc (fp)) {
-			if (! restoreSnapshot (fp)) return false;
+		if (getFlag (fp)) {
+			if (! restoreSnapshot (fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 		}
 	}
 
+	// Parts that don't check what they read still read past the end of a
+	// cut-off save: then it is corrupted too.
+	bool cutOff = feof (fp) || ferror (fp);
 	fclose (fp);
 	clearStackLib ();
+	if (cutOff) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
+	logLifetimes ("after loading");
 
 	cameraX = camerX;
 	cameraY = camerY;

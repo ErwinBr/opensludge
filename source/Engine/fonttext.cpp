@@ -120,6 +120,16 @@ void setFontColour (spritePalette & sP, byte r, byte g, byte b) {
 	sP.originalBlue = b;
 }
 
+void forgetFont () {
+	delete [] fontOrderString;
+	fontOrderString = NULL;
+	theFont = spriteBank ();
+	delete [] fontTable;
+	fontTable = NULL;
+	fontTableSize = 0;
+	fontHeight = 0;
+}
+
 bool loadFont (int filenum, const char * charOrder, int h) {
 	int a=0;
 	uint32_t c;

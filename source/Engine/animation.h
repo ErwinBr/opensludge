@@ -28,6 +28,18 @@
 #include <vector>
 
 #include "sprbanks.h"
+#include "ownedanimation.h"
+
+// Counts how many objects of a kind are alive, as a member of them, for the
+// lifetime log (SLUDGE_LIFETIME_LOG, see logLifetimes in people.h).
+template <class Tag> class LifetimeCounter {
+public:
+	LifetimeCounter () { ++ live (); }
+	LifetimeCounter (const LifetimeCounter &) { ++ live (); }
+	LifetimeCounter & operator= (const LifetimeCounter &) { return * this; }
+	~LifetimeCounter () { -- live (); }
+	static int & live () { static int n = 0; return n; }
+};
 
 // What happens when an animation enters a frame (the noise of SLUDGE's
 // animation frames: a sound file, or a script function).
@@ -52,6 +64,7 @@ struct AnimationFrame {
 struct AnimationDefinition {
 	SpriteBankRef spriteBank;
 	std::vector<AnimationFrame> frames;
+	LifetimeCounter<AnimationDefinition> counted;
 };
 
 typedef std::shared_ptr<const AnimationDefinition> AnimationDefinitionRef;
@@ -63,6 +76,7 @@ AnimationDefinitionRef makeAnimation (const SpriteBankRef & bank, const std::vec
 // handle, even of the same definition, as SLUDGE has always done.
 struct personaAnimation {
 	AnimationDefinitionRef definition;
+	LifetimeCounter<personaAnimation> counted;
 
 	int numFrames () const { return definition ? (int) definition -> frames.size () : 0; }
 	const AnimationFrame & frame (int i) const { return definition -> frames[i]; }

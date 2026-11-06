@@ -219,7 +219,7 @@ bool loadSpeech (speechStruct * sS, FILE * fp) {
 	// Read which character's talking
 	sS -> lookWhosTalking = get2bytes (fp);
 
-	if (fgetc (fp)) {
+	if (getFlag (fp)) {
 		sS -> currentTalker = findPerson (get2bytes (fp));
 	} else {
 		sS -> currentTalker = NULL;
@@ -229,7 +229,7 @@ bool loadSpeech (speechStruct * sS, FILE * fp) {
 	speechLine * * viewLine = & sS -> allSpeech;
 	speechLine * newOne;
 	speech -> lastFile = -1;
-	while (fgetc (fp)) {
+	while (getFlag (fp)) {
 		newOne = new speechLine;
 		if (! checkNew (newOne)) return false;
 		newOne -> textLine = readString (fp);

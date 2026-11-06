@@ -1,6 +1,8 @@
 #ifndef VAR_HEADER
 #define VAR_HEADER
 
+#include "ownedanimation.h"
+
 enum variableType {SVT_NULL, SVT_INT, SVT_FUNC, SVT_STRING,
 				   SVT_BUILT, SVT_FILE, SVT_STACK,
 				   SVT_OBJTYPE, SVT_ANIM, SVT_COSTUME,
@@ -22,7 +24,7 @@ union variableData {
 	signed int					intValue;
 	char *						theString;
 	stackHandler *				theStack;
-	struct personaAnimation *	animHandler;
+	OwnedAnimation				animHandler;	// Owns its handle (see ownedanimation.h)
 	struct persona *    		costumeHandler;
 	fastArrayHandler *			fastArray;
 };
@@ -46,7 +48,7 @@ struct variableStack {
 void setVariable (variable & thisVar, variableType vT, int value);
 bool copyVariable (const variable & from, variable & to);
 bool loadStringToVar (variable & thisVar, int value);
-void newAnimationVariable (variable & thisVar, struct personaAnimation * i);
+void newAnimationVariable (variable & thisVar, AnimationHandle i);
 void newCostumeVariable (variable & thisVar, struct persona * i);
 void makeTextVar (variable & thisVar, const char * txt);
 void addVariablesInSecond (variable & var1, variable & var2);
@@ -58,7 +60,8 @@ void unlinkVar (variable & thisVar);
 char * getNumberedString (int value);
 char * getTextFromAnyVar (const variable & from);
 struct persona * getCostumeFromVar (variable & thisVar);
-struct personaAnimation * getAnimationFromVar (variable & thisVar);
+// A new handle on the animation of thisVar (0 for none), which the caller owns.
+AnimationHandle getAnimationFromVar (variable & thisVar);
 bool getBoolean (const variable & from);
 bool getValueType (int & toHere, variableType vT, const variable & v);
 

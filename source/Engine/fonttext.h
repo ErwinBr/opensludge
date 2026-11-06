@@ -1,6 +1,8 @@
 #include <stdint.h>
 
 bool loadFont (int filenum, const char * charOrder, int);
+// No font, as when a saved game had none.
+void forgetFont ();
 void pasteString (char * theText, int, int, spritePalette &);
 void setFontColour (spritePalette & sP, byte r, byte g, byte b);
 int stringWidth (char * theText);

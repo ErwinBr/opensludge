@@ -210,8 +210,7 @@ builtIn(howFrozen)
 builtIn(setCursor)
 {
 	UNUSEDALL
-	personaAnimation * aa = getAnimationFromVar (fun -> stack -> thisVar);
-	pickAnimCursor (aa);
+	pickAnimCursor (getAnimationFromVar (fun -> stack -> thisVar));
 	trimStack (fun -> stack);
 	return BR_CONTINUE;
 }
@@ -419,12 +418,11 @@ builtIn(pasteImage)
 	trimStack (fun -> stack);
 	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	personaAnimation * pp = getAnimationFromVar (fun -> stack -> thisVar);
+	AnimationHandle pp = getAnimationFromVar (fun -> stack -> thisVar);
 	trimStack (fun -> stack);
-	if (pp == NULL) return BR_CONTINUE;
+	if (! pp) return BR_CONTINUE;
 
-	pasteCursor (x, y, pp);
-	deleteAnim (pp);
+	pasteCursor (x, y, * pp);
 	return BR_CONTINUE;
 }
 
@@ -925,11 +923,11 @@ builtIn(anim)
 	// Load the required sprite bank
 	SpriteBankRef sprBanky = loadBankForAnim (fileNumber);
 	if (! sprBanky) return BR_ERROR;	// File not found, fatal done already
-	personaAnimation * ba = new personaAnimation;
+	AnimationHandle ba (new personaAnimation);
 	ba -> definition = makeAnimation (sprBanky, frames);
 
 	// Return value
-	newAnimationVariable (fun -> reg, ba);
+	newAnimationVariable (fun -> reg, std::move (ba));
 
 	return BR_CONTINUE;
 }
@@ -947,7 +945,7 @@ builtIn(costume)
 	int iii;
 	newPersona -> animation.resize (numParams);
 	for (iii = numParams - 1; iii >= 0; iii --) {
-		newPersona -> animation[iii].reset (getAnimationFromVar (fun -> stack -> thisVar));
+		newPersona -> animation[iii] = getAnimationFromVar (fun -> stack -> thisVar);
 		trimStack (fun -> stack);
 	}
 
@@ -1643,14 +1641,14 @@ builtIn(animate)
 {
 	UNUSEDALL
 	int obj;
-	personaAnimation * pp = getAnimationFromVar (fun -> stack -> thisVar);
-	if (pp == NULL) return BR_ERROR;
+	AnimationHandle pp = getAnimationFromVar (fun -> stack -> thisVar);
+	if (! pp) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	// animatePerson takes the animation, and may delete it.
-	int time = timeForAnim (pp);
-	animatePerson (obj, pp);
+	// animatePerson takes the animation, and may free it.
+	int time = timeForAnim (pp.get ());
+	animatePerson (obj, std::move (pp));
 	setVariable (fun -> reg, SVT_INT, time);
 	return BR_CONTINUE;
 }
@@ -2139,7 +2137,7 @@ builtIn(normalCharacter)
 	onScreenPerson * thisPerson = findPerson (objectNumber);
 	if (thisPerson)
 	{
-		setPersonAnim (* thisPerson, thisPerson -> myPersona -> animation[thisPerson -> direction].get (), false);
+		setPersonAnim (* thisPerson, thisPerson -> myPersona -> animation[thisPerson -> direction].get ());
 		setVariable (fun -> reg, SVT_INT, 1);
 	} else {
 		setVariable (fun -> reg, SVT_INT, 0);

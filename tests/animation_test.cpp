@@ -23,7 +23,8 @@ public:
 	void frameEvent (const FrameEvent & e) { events.push_back (e.toNoise ()); }
 };
 
-// The engine before, as drawPeople had it, for one character.
+// The engine before, as drawPeople had it, for one character. This is the
+// reference for the timing of old games: never change it to match new code.
 struct LegacyPerson {
 	const personaAnimation * myAnim;
 	const personaAnimation * lastUsedAnim;
@@ -127,8 +128,17 @@ static void testAgainstLegacy () {
 			}
 			old.myAnim = current;
 
-			legacyFrame (old, oldEvents);
-			updateAnimation (now, current, 1, old.show, recorder);
+			// Sometimes the game freezes or grabs a snapshot first: each tile
+			// that it draws was a frame of drawPeople, and is an update now.
+			int extra = rnd (25) ? 0 : 1 + rnd (3);
+			for (int e = 0; e <= extra; e ++) {
+				legacyFrame (old, oldEvents);
+				updateAnimation (now, current, 1, old.show, recorder);
+				if (e < extra && old.show && old.drawn != now.displayFrame) {
+					fprintf (stderr, "Run %d, tick %d, freeze tile %d: drawn %d/%d\n", run, t, e, old.drawn, now.displayFrame);
+					same = false;
+				}
+			}
 
 			ticksCompared ++;
 			if (old.frameNum != now.frame || old.frameTick != now.ticksLeft || old.lastUsedAnim != now.playing

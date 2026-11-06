@@ -95,9 +95,17 @@ objectType * loadObjectType (int i) {
 }
 
 objectType * loadObjectRef (FILE * fp) {
-	objectType * r = loadObjectType (get2bytes (fp));
+	int num = get2bytes (fp);
+	// Not an object type of a number read past the end of a cut-off save.
+	if (feof (fp)) return NULL;
+	objectType * r = loadObjectType (num);
+	char * name = readString (fp);
+	if (! r) {
+		delete [] name;
+		return NULL;
+	}
 	delete [] r -> screenName;
-	r -> screenName = readString (fp);
+	r -> screenName = name;
 	return r;
 }
 

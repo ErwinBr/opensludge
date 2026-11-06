@@ -1,0 +1,76 @@
+# FreezeTest: the timing of animations through freezes and snapshots. Since
+# the engine first had them, freeze () and snapshotGrab () have moved every
+# character's animation on by a tick, firing its frame events, because they
+# drew the characters. Games time on it. The characters here call onFrame
+# from their animations, and the status line shows how often, so that every
+# frame tells how far the animations went (see cmake/CaptureTests.cmake).
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+objectType box ("box") {
+}
+
+var events = 0;
+
+sub onFrame () {
+	events = events + 1;
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', wait (4, 3), onFrame, wait (11, 2)),
+		anim ('ego/alien.duc', 0, 1, onFrame, 2, 3),
+		anim ('ego/alien.duc', 6, onFrame, 4, 5));
+}
+
+sub duckAnim () {
+	return anim ('outside/duck.duc', 0, onFrame, 1, 2, wait (3, 2));
+}
+
+# Show the name of the scene and the events so far, for 20 frames.
+sub scene (name) {
+	for (var i = 0; i < 20; i ++) {
+		statusText (name + ": " + events + " events");
+		pause (1);
+	}
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	addOverlay ('outside/room.tga', 0, 0);
+	addCharacter (ego, 420, 400, egoCostume ());
+	addCharacter (duck, 200, 350, duckAnim ());
+	scene ("playing");
+
+	# Two levels of freezing, with a character added at each.
+	freeze ();
+	addCharacter (duck, 250, 380, duckAnim ());
+	scene ("frozen once");
+	freeze ();
+	addCharacter (box, 300, 300, duckAnim ());
+	scene ("frozen twice");
+
+	# A snapshot at the second level.
+	snapshotGrab ();
+	scene ("snapshot, frozen twice");
+	snapshotClear ();
+
+	unfreeze ();
+	scene ("back to once");
+	unfreeze ();
+	scene ("not frozen");
+
+	# A snapshot while the first characters play.
+	snapshotGrab ();
+	scene ("snapshot");
+	snapshotClear ();
+	freeze ();
+	unfreeze ();
+	scene ("frozen and back");
+	quitGame ();
+}

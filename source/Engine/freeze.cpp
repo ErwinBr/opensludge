@@ -203,7 +203,7 @@ bool freeze () {
 	overRegion = NULL;
 
 	newFreezer -> mouseCursorFrameNum = cursorFrame ();
-	newFreezer -> mouseCursorAnim.reset (takeCursorAnim ());
+	newFreezer -> mouseCursorAnim = takeCursorAnim ();
 	setCursorAnim (makeNullAnim (), 0);
 
 	newFreezer -> speech = speech;
@@ -295,7 +295,7 @@ void unfreeze (bool killImage) {
 		setBackdropTexture (t);
 	}
 
-	setCursorAnim (frozenStuff -> mouseCursorAnim.release (), frozenStuff -> mouseCursorFrameNum);
+	setCursorAnim (std::move (frozenStuff -> mouseCursorAnim), frozenStuff -> mouseCursorFrameNum);
 
 	restoreBarStuff (frozenStuff -> frozenStatus);
 

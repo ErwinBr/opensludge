@@ -192,7 +192,7 @@ bool loadStatusBars (FILE * fp) {
 	// Read what's being said
 	statusBar * * viewLine = & (nowStatus -> firstStatusBar);
 	statusBar * newOne;
-	while (fgetc (fp)) {
+	while (getFlag (fp)) {
 		newOne = new statusBar;
 		if (! checkNew (newOne)) return false;
 		newOne -> text = readString (fp);

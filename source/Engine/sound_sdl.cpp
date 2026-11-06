@@ -728,7 +728,7 @@ void saveSounds (FILE * fp) {
 void loadSounds (FILE * fp) {
 	for (int i = 0; i < MAX_SAMPLES; i ++) freeSound (i);
 
-	while (fgetc (fp)) {
+	while (getFlag (fp)) {
 		int fileLoaded = get2bytes (fp);
 		defSoundVol = get2bytes (fp);
 		startSound (fileLoaded, 1);

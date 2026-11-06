@@ -21,6 +21,8 @@ struct persona {
 	int numDirections;
 	int timesUsed;
 
+	LifetimeCounter<persona> counted;
+
 	persona () : numDirections (0), timesUsed (0) {}
 };
 
@@ -47,6 +49,7 @@ struct onScreenPerson {
 	struct objectType * thisType;
 	int extra, spinSpeed;
 	unsigned char r,g,b,colourmix,transparency;
+	LifetimeCounter<onScreenPerson> counted;
 };
 
 // Initialisation and creation
@@ -98,15 +101,16 @@ bool setCharacterWalkSpeed (int f, int objNum);
 // Animating 'em
 
 // Takes ownership of the animation, and deletes it when there is no such character.
-void animatePerson (int obj, personaAnimation *);
+void animatePerson (int obj, AnimationHandle anim);
 void animatePerson (int obj, persona * per);
 // The frames of anim (), from the stack.
 std::vector<AnimationFrame> readAnimationFrames (int num, struct variableStack * & stacky);
 bool setPersonExtra (int f, int newSetting);
-int timeForAnim (personaAnimation * fram);
-personaAnimation * copyAnim (personaAnimation * orig);
-personaAnimation * makeNullAnim ();
-void deleteAnim (personaAnimation * orig);
+int timeForAnim (const personaAnimation * fram);
+// A new handle on the same definition: no frames are copied.
+AnimationHandle copyAnim (const personaAnimation * orig);
+// A handle on no animation (anim 0 in scripts).
+AnimationHandle makeNullAnim ();
 
 // Loading and saving
 
@@ -134,6 +138,11 @@ private:
 	CostumeRef & operator= (const CostumeRef &);
 };
 
-// Show anim on a character: an animation of its costume, or (owned) one that
-// the character now owns. Frees the animation it owned before.
-void setPersonAnim (onScreenPerson & person, personaAnimation * anim, bool owned);
+// With SLUDGE_LIFETIME_LOG set, write how many animation handles,
+// definitions, costumes, characters and sprite banks are alive, on stderr.
+void logLifetimes (const char * when);
+
+// Show an animation of the character's costume (which it doesn't own), or
+// give it an animation of its own. Either frees the one it owned before.
+void setPersonAnim (onScreenPerson & person, personaAnimation * anim);
+void givePersonAnim (onScreenPerson & person, AnimationHandle anim);

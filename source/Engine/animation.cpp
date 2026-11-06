@@ -1,4 +1,15 @@
 #include "animation.h"
+#include "ownedanimation.h"
+
+void OwnedAnimation::adopt (AnimationHandle h) {
+	handle = h.release ();
+}
+
+AnimationHandle OwnedAnimation::release () {
+	AnimationHandle h (handle);
+	handle = NULL;
+	return h;
+}
 
 FrameEvent FrameEvent::fromNoise (int noise) {
 	FrameEvent e;

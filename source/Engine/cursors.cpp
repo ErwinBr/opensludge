@@ -9,22 +9,22 @@
 #include "sludger.h"
 
 // The mouse cursor's animation, which it owns, and where it is in it.
-static std::unique_ptr<personaAnimation> cursorAnim;
+static AnimationHandle cursorAnim;
 static AnimationPlayback cursorPlayback;
 
 extern inputType input;
 
-void pickAnimCursor (personaAnimation * pp) {
-	cursorAnim.reset (pp);
+void pickAnimCursor (AnimationHandle pp) {
+	cursorAnim = std::move (pp);
 	cursorPlayback = AnimationPlayback ();
 }
 
-personaAnimation * takeCursorAnim () {
-	return cursorAnim.release ();
+AnimationHandle takeCursorAnim () {
+	return std::move (cursorAnim);
 }
 
-void setCursorAnim (personaAnimation * pp, int frame) {
-	cursorAnim.reset (pp);
+void setCursorAnim (AnimationHandle pp, int frame) {
+	cursorAnim = std::move (pp);
 	cursorPlayback.frame = frame;
 	cursorPlayback.displayFrame = frame;
 }
@@ -74,9 +74,9 @@ void displayCursor () {
 	drawCursorFrame (input.mouseX, input.mouseY, cursorPlayback.displayFrame);
 }
 
-void pasteCursor (int x, int y, personaAnimation * c) {
-	if (c -> numFrames ()) {
-		const spriteBank & bank = c -> sprites () -> bank;
-		pasteSpriteToBackDrop (x, y, bank.sprites[c -> frame (0).sprite], bank, bank.myPalette);
+void pasteCursor (int x, int y, const personaAnimation & c) {
+	if (c.numFrames ()) {
+		const spriteBank & bank = c.sprites () -> bank;
+		pasteSpriteToBackDrop (x, y, bank.sprites[c.frame (0).sprite], bank, bank.myPalette);
 	}
 }

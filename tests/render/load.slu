@@ -1,0 +1,40 @@
+# LoadTest: characters, costumes and animations, saved and loaded twice. With
+# SLUDGE_LIFETIME_LOG, what lives after the second load must be what lived
+# after the first, so that loading frees what it replaces (see
+# tests/capture/lifetimes.cmake). The same save, cut short, tests failed loads.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 4),
+		anim ('ego/alien.duc', 11),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 7, 8, 9, 10),
+		anim ('ego/alien.duc', 6, 4, 5),
+		anim ('ego/alien.duc', 11));
+}
+
+sub init () {
+	var c = egoCostume ();
+	var a = anim ('outside/duck.duc', 0, 1, 2);
+	addCharacter (ego, 320, 400, c);
+	addCharacter (duck, 200, 350, a);
+	animate (duck, anim ('outside/duck.duc', 3, 2));
+	setCursor (anim ('iface/mouse.duc', 0));
+	pause (2);
+	# After loading, saveGame returns 0, so each load happens once.
+	if (saveGame ("first.sav")) {
+		loadGame ("first.sav");
+	}
+	pause (2);
+	if (saveGame ("second.sav")) {
+		loadGame ("second.sav");
+	}
+	pause (2);
+	quitGame ();
+}

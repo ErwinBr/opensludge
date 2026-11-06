@@ -1,9 +1,11 @@
 // The mouse cursor owns its animation (from setCursor), and plays it.
-void pickAnimCursor (struct personaAnimation * pp);
+#include "ownedanimation.h"
+
+void pickAnimCursor (AnimationHandle pp);
 // For freezing, loading and saving: take the cursor's animation away (it is
 // then the caller's), give it one with a frame, or look at it.
-struct personaAnimation * takeCursorAnim ();
-void setCursorAnim (struct personaAnimation * pp, int frame);
+AnimationHandle takeCursorAnim ();
+void setCursorAnim (AnimationHandle pp, int frame);
 const struct personaAnimation * cursorAnimation ();
 int cursorFrame ();
 // Move the cursor's animation on by ticks game ticks. Once a tick, before
@@ -16,4 +18,4 @@ void displayCursor ();
 // coordinates (between game frames, and in the controller settings).
 void drawCursor (int x, int y);
 bool hasCursorSprite ();
-void pasteCursor (int x, int y, struct personaAnimation * c);
+void pasteCursor (int x, int y, const struct personaAnimation & c);

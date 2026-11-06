@@ -122,12 +122,18 @@ static int * blur_allocateMemoryForEffect ()
 	return s_matrixEffectData;
 }
 
-void blur_loadSettings (FILE * fp)
+bool blur_loadSettings (FILE * fp)
 {
 	s_matrixEffectDivide = get4bytes(fp);
 	s_matrixEffectWidth = get4bytes(fp);
 	s_matrixEffectHeight = get4bytes(fp);
 	s_matrixEffectBase = get4bytes(fp);
+
+	// A cut-off save gives -1 for each, at the end of the file.
+	if (feof (fp) || s_matrixEffectWidth < 0 || s_matrixEffectHeight < 0) {
+		s_matrixEffectWidth = s_matrixEffectHeight = 0;
+		return false;
+	}
 
 	if (blur_allocateMemoryForEffect())
 	{
@@ -140,6 +146,7 @@ void blur_loadSettings (FILE * fp)
 	{
 		fseek (fp, sizeof (int) * s_matrixEffectWidth * s_matrixEffectHeight, SEEK_CUR);
 	}
+	return true;
 }
 
 bool blur_createSettings (int numParams, variableStack * & stack)

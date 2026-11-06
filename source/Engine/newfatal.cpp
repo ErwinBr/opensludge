@@ -1,3 +1,4 @@
+#include "people.h"
 #include <SDL3/SDL.h>
 
 #include "platform-dependent.h"
@@ -26,7 +27,8 @@ int resourceForFatal = -1;
 const char * resourceNameFromNum (int i) {
 	if (i == -1) return NULL;
 	if (numResourceNames == 0) return "RESOURCE";
-	if (i < numResourceNames) return allResourceNames[i];
+	// A number from a damaged save can be anything.
+	if (i >= 0 && i < numResourceNames) return allResourceNames[i];
 	return "Unknown resource";
 }
 
@@ -65,6 +67,7 @@ int inFatal (const char * str) {
 
 	fatalMessage = copyString (str);
 	if (fatalMessage == NULL) fatalMessage = copyString ("Out of memory");
+	logLifetimes ("at a fatal error");
 
 	killSoundStuff ();
 	// We show the message while SDL and the game window still exist, so

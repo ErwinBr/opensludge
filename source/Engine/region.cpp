@@ -70,7 +70,8 @@ void loadRegions (FILE * fp) {
 	screenRegion * newRegion;
 	screenRegion * * pointy = & allScreenRegions;
 
-	while (numRegions --) {
+	// A cut-off save gives -257, at the end of the file.
+	while (numRegions -- > 0 && ! feof (fp)) {
 		newRegion = new screenRegion;
 		* pointy = newRegion;
 		pointy = & (newRegion -> next);
