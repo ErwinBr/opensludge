@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 
 #include "debug.h"
 
@@ -55,7 +56,7 @@ void unlinkVar (variable & thisVar) {
 		break;
 
 		case SVT_ANIM:
-		thisVar.varData.animHandler.release ();	// Frees it
+		freeAnimation (thisVar);
 		break;
 
 		case SVT_COSTUME:
@@ -74,15 +75,29 @@ void setVariable (variable & thisVar, variableType vT, int value) {
 	thisVar.varData.intValue = value;
 }
 
+const personaAnimation * animationOf (const variable & v) {
+	assert (v.varType == SVT_ANIM);
+	return v.varData.animHandler.handle;
+}
+
+void setAnimation (variable & v, AnimationHandle h) {
+	v.varType = SVT_ANIM;
+	v.varData.animHandler.adopt (std::move (h));
+}
+
+void freeAnimation (variable & v) {
+	assert (v.varType == SVT_ANIM);
+	v.varData.animHandler.release ();	// The handle goes with the temporary
+}
+
 void newAnimationVariable (variable & thisVar, AnimationHandle i) {
 	unlinkVar (thisVar);
-	thisVar.varType = SVT_ANIM;
-	thisVar.varData.animHandler.adopt (std::move (i));
+	setAnimation (thisVar, std::move (i));
 }
 
 AnimationHandle getAnimationFromVar (variable & thisVar) {
 	if (thisVar.varType == SVT_ANIM)
-		return copyAnim (thisVar.varData.animHandler.get ());
+		return copyAnim (animationOf (thisVar));
 
 	if (thisVar.varType == SVT_INT && thisVar.varData.intValue == 0)
 		return makeNullAnim();
@@ -111,7 +126,7 @@ persona * getCostumeFromVar (variable & thisVar) {
 		p -> animation.resize (3);
 
 		for (int iii = 0; iii < 3; iii ++)
-			p -> animation[iii] = copyAnim (thisVar.varData.animHandler.get ());
+			p -> animation[iii] = copyAnim (animationOf (thisVar));
 
 		break;
 
@@ -288,7 +303,7 @@ int compareVars (const variable & var1, const variable & var2) {
 			break;
 
 			case SVT_ANIM:
-			re = (var1.varData.animHandler.get () == var2.varData.animHandler.get ());
+			re = (animationOf (var1) == animationOf (var2));
 			break;
 
 			case SVT_STRING:
@@ -393,7 +408,7 @@ char * getTextFromAnyVar (const variable & from) {
 		{
 			char * buff = new char[20];
 			if (! checkNew (buff)) return NULL;
-			snprintf (buff, 20, "%p", from.varData.animHandler.get ());
+			snprintf (buff, 20, "%p", animationOf (from));
 			return buff;
 		}*/
 
@@ -464,7 +479,8 @@ bool copyMain (const variable & from, variable & to) {
 		return true;
 
 		case SVT_ANIM:
-		to.varData.animHandler.adopt (copyAnim (from.varData.animHandler.get ()));
+		// to holds nothing to free: copyVariable unlinked it, or it is new.
+		setAnimation (to, copyAnim (animationOf (from)));
 		return true;
 
 		case SVT_NULL:

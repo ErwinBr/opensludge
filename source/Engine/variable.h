@@ -49,6 +49,12 @@ void setVariable (variable & thisVar, variableType vT, int value);
 bool copyVariable (const variable & from, variable & to);
 bool loadStringToVar (variable & thisVar, int value);
 void newAnimationVariable (variable & thisVar, AnimationHandle i);
+// The only ways to the handle of an animation variable (see ownedanimation.h):
+// read it from an SVT_ANIM variable; make a variable that holds nothing to
+// free an animation with handle h; free it (for unlinkVar).
+const struct personaAnimation * animationOf (const variable & v);
+void setAnimation (variable & v, AnimationHandle h);
+void freeAnimation (variable & v);
 void newCostumeVariable (variable & thisVar, struct persona * i);
 void makeTextVar (variable & thisVar, const char * txt);
 void addVariablesInSecond (variable & var1, variable & var2);

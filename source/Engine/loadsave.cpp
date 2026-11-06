@@ -234,7 +234,7 @@ bool saveVariable (variable * from, FILE * fp)
 		return false;
 
 		case SVT_ANIM:
-		saveAnim (from -> varData.animHandler.get (), fp);
+		saveAnim (animationOf (* from), fp);
 		return false;
 
 		case SVT_NULL:
@@ -291,7 +291,8 @@ bool loadVariable (variable * to, FILE * fp) {
 		{
 			AnimationHandle anim (new personaAnimation);
 			bool loaded = loadAnim (anim.get (), fp);
-			to -> varData.animHandler.adopt (std::move (anim));
+			// to holds nothing to free: its caller unlinked it, or it is new.
+			setAnimation (* to, std::move (anim));
 			return loaded;
 		}
 		return true;
