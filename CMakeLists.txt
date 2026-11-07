@@ -234,7 +234,8 @@ if(SLUDGE_ENGINE)
 		target_link_libraries(animation_test PRIVATE sludge-renderer)
 		add_test(NAME animation COMMAND animation_test)
 
-		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animmodel.cpp ${ENGINE_DIR}/animformat.cpp)
+		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animmodel.cpp ${ENGINE_DIR}/animformat.cpp
+			${ENGINE_DIR}/animation.cpp)
 		target_include_directories(animmodel_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
 		target_link_libraries(animmodel_test PRIVATE sludge-renderer)
 		add_test(NAME animmodel COMMAND animmodel_test)

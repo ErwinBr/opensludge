@@ -92,6 +92,19 @@ void restartAnimationQuietly (AnimationPlayback & playback, const personaAnimati
 // frame's ticks, so a frame shows for at least one tick; no events.
 void updateCursorAnimation (AnimationPlayback & playback, const personaAnimation * anim, int ticks);
 
+// clipFrames: the frames of a legacy animation as a SPRITE track of part in
+// a TIMELINE clip, with their events, over the clip's length. It plays the
+// animation with the legacy stepper (shown, from its start) and keys what
+// that shows at each tick, so the clip shows and fires exactly what the
+// animation would over its first length ticks: frames with an event take no
+// time and aren't drawn; only the first of a chain of them fires; a frame
+// of 0 ticks holds to the end of the clip; the animation loops as anim ()
+// does. Events that would fire at length are of the next pass, and dropped.
+// It replaces the keys of the part's SPRITE track (keeping its ID) and adds
+// the events. Clips longer than maxLegacyFramesTicks fail.
+const int maxLegacyFramesTicks = 1 << 20;
+bool addLegacyFrames (ClipDefinition & clip, const std::string & part, const personaAnimation & anim, std::string & why);
+
 // The game's tick rate, from its header.
 void setGameTickRate (int ticksPerSecond);
 int gameTickRate ();

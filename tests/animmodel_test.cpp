@@ -2,7 +2,9 @@
  * Tests of the animation model (source/Engine/animmodel.cpp) and its file
  * format (animformat.cpp): legacy animations as LEGACY clips, building rigs
  * and clips, their rules, and files that round-trip, while every cut-off or
- * damaged file fails cleanly.
+ * damaged file fails cleanly. Then evaluating clips: easing, the ends of
+ * clips, events over any steps and across loops, and clipFrames against the
+ * legacy stepper.
  */
 
 #include <limits.h>
@@ -12,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "animation.h"
 #include "animformat.h"
 #include "animmodel.h"
 
@@ -414,6 +417,266 @@ static void testFormat () {
 	CHECK (! decodeBytes (huge, back), "a count beyond the bytes");
 }
 
+
+static bool approx (float a, float b) {
+	return fabsf (a - b) < 1e-4f;
+}
+
+// The sample of a track at time, or NULL.
+static const TrackSample * sampleOf (const TrackSamples & s, const std::string & part, Channel c) {
+	for (size_t i = 0; i < s.size (); i ++) {
+		if (s[i].track -> part == part && s[i].track -> channel == c) return & s[i];
+	}
+	return NULL;
+}
+
+static float valueAt (const ClipDefinition & c, const std::string & part, Channel ch, AnimationTime t) {
+	TrackSamples s;
+	evaluateClip (c, t, s);
+	const TrackSample * x = sampleOf (s, part, ch);
+	return x ? x -> value : NAN;
+}
+
+static void testEvaluation () {
+	ClipDefinition c;
+	c.length = 20;
+	setKey (c, "a", CHANNEL_X, key (4, 10, EASING_LINEAR), why);
+	setKey (c, "a", CHANNEL_X, key (8, 30, EASING_INOUT), why);
+	setKey (c, "a", CHANNEL_X, key (12, 70, EASING_STEP), why);
+	setKey (c, "a", CHANNEL_X, key (16, 0, EASING_LINEAR), why);
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, 0), 10), "before the first key, its value");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (4)), 10), "at a key, its value");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (6)), 20), "LINEAR halfway");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (5)), 15), "LINEAR a quarter of the way");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (4) + 128), 12.5f), "between ticks: sub-ticks");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (10)), 50), "INOUT halfway is halfway");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (9)), 30 + 40 * 0.15625f), "INOUT a quarter of the way: smoothstep");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (15) + 255), 70), "STEP holds until the next key");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (16)), 0), "and then has its value");
+	CHECK (approx (valueAt (c, "a", CHANNEL_X, ticksToTime (20)), 0), "after the last key, its value");
+
+	// Discrete channels step, whatever is between.
+	setKey (c, "a", CHANNEL_DEPTH, key (0, 1, EASING_STEP), why);
+	setKey (c, "a", CHANNEL_DEPTH, key (10, 5, EASING_STEP), why);
+	CHECK (approx (valueAt (c, "a", CHANNEL_DEPTH, ticksToTime (9) + 255), 1) && approx (valueAt (c, "a", CHANNEL_DEPTH, ticksToTime (10)), 5),
+		"depth steps");
+	ClipDefinition d = c;
+	d.tracks[1].keys[0].easing = EASING_LINEAR;	// Against the rules: still steps
+	CHECK (approx (valueAt (d, "a", CHANNEL_DEPTH, ticksToTime (5)), 1), "a discrete channel never eases");
+
+	// Sprites.
+	setKey (c, "a", CHANNEL_SPRITE, spriteKey (2, sprite (1, 4)), why);
+	setKey (c, "a", CHANNEL_SPRITE, spriteKey (6, SpriteRef::none ()), why);
+	TrackSamples s;
+	evaluateClip (c, 0, s);
+	const TrackSample * sp = sampleOf (s, "a", CHANNEL_SPRITE);
+	CHECK (sp && sp -> sprite -> kind == SpriteRef::SPRITE && sp -> sprite -> number == 4, "a sprite before its first key");
+	evaluateClip (c, ticksToTime (7), s);
+	sp = sampleOf (s, "a", CHANNEL_SPRITE);
+	CHECK (sp && sp -> sprite -> kind == SpriteRef::NONE, "an empty frame");
+	CHECK (s.size () == 3, "a sample per track with keys");
+
+	ClipDefinition empty;
+	empty.tracks.push_back (Track ());
+	evaluateClip (empty, 0, s);
+	CHECK (s.empty (), "a track without keys has no sample");
+
+	// The closing key of a loop: the last stretch eases towards it.
+	ClipDefinition loop = walkClip ();
+	CHECK (approx (valueAt (loop, "leftArm", CHANNEL_ROTATION, ticksToTime (12)), 0), "towards the closing key");
+	CHECK (approx (valueAt (loop, "leftArm", CHANNEL_ROTATION, clipTime (loop, ticksToTime (16))), 20), "the loop wraps to 0");
+}
+
+static void testClipTime () {
+	ClipDefinition loop;
+	loop.length = 10;
+	loop.loop = true;
+	CHECK (clipTime (loop, ticksToTime (25)) == ticksToTime (5), "a loop wraps");
+	CHECK (clipTime (loop, ticksToTime (10)) == 0, "time runs over [0, length)");
+	CHECK (! clipFinished (loop, ticksToTime (1000)), "a loop never finishes");
+	ClipDefinition once = loop;
+	once.loop = false;
+	CHECK (clipTime (once, ticksToTime (25)) == ticksToTime (10), "a clip that doesn't loop stops at length");
+	CHECK (! clipFinished (once, ticksToTime (10) - 1) && clipFinished (once, ticksToTime (10)), "and is finished there");
+	ClipDefinition still;
+	still.loop = true;
+	CHECK (! clipLoops (still) && clipTime (still, 99) == 0 && clipFinished (still, 0), "length 0 holds, even if it loops");
+	CHECK (clipTime (loop, -5) == 0, "no time before the start");
+}
+
+static std::vector<EventId> ids (const std::vector<CrossedEvent> & v) {
+	std::vector<EventId> r;
+	for (size_t i = 0; i < v.size (); i ++) r.push_back (v[i].event -> id);
+	return r;
+}
+
+static unsigned seed = 12345;
+static int rnd (int n) {
+	seed = seed * 1103515245 + 12345;
+	return (int) ((seed >> 8) % (unsigned) n);
+}
+
+static void testEvents () {
+	ClipDefinition c;
+	c.length = 10;
+	c.loop = true;
+	addEvent (c, 0, FrameEvent::fromNoise (1), why);	// id 1
+	addEvent (c, 5, FrameEvent::fromNoise (2), why);	// id 2
+	addEvent (c, 5, FrameEvent::fromNoise (3), why);	// id 3
+	addEvent (c, 9, FrameEvent::fromNoise (4), why);	// id 4
+
+	std::vector<CrossedEvent> v;
+	eventsAtStart (c, v);
+	CHECK (v.size () == 1 && v[0].event -> id == 1 && v[0].position == 0, "starting fires the events at 0");
+	v.clear ();
+	eventsCrossed (c, 0, ticksToTime (5), v);
+	CHECK (v.size () == 2 && v[0].event -> id == 2 && v[1].event -> id == 3, "(from, to]: at 5, in ID order");
+	v.clear ();
+	eventsCrossed (c, ticksToTime (5), ticksToTime (10), v);
+	CHECK (v.size () == 2 && v[0].event -> id == 4 && v[1].event -> id == 1 && v[1].position == ticksToTime (10),
+		"wrapping fires the events at 0 again");
+	v.clear ();
+	eventsCrossed (c, ticksToTime (3), ticksToTime (33), v);
+	CHECK (v.size () == 12, "three passes, each event once a pass");
+	bool ordered = true;
+	for (size_t i = 1; i < v.size (); i ++) ordered = ordered && v[i - 1].position <= v[i].position;
+	CHECK (ordered, "in order of position");
+	v.clear ();
+	eventsCrossed (c, ticksToTime (4), ticksToTime (4), v);
+	CHECK (v.empty (), "no move, no events");
+
+	ClipDefinition once = c;
+	once.loop = false;
+	v.clear ();
+	eventsCrossed (once, 0, ticksToTime (100), v);
+	CHECK (v.size () == 3, "a clip that doesn't loop fires each event once");
+	v.clear ();
+	eventsCrossed (once, ticksToTime (10), ticksToTime (100), v);
+	CHECK (v.empty (), "and none once it is finished");
+
+	// Moving in steps of any size fires exactly what one move fires.
+	for (int round = 0; round < 2000; round ++) {
+		ClipDefinition r;
+		r.length = rnd (12);
+		r.loop = rnd (3) > 0;
+		int n = rnd (5);
+		for (int e = 0; e < n; e ++) addEvent (r, r.length ? rnd (r.length) : 0, FrameEvent::fromNoise (1 + e), why);
+		AnimationTime end = rnd (5000);
+		std::vector<CrossedEvent> whole, steps;
+		eventsCrossed (r, 0, end, whole);
+		AnimationTime at = 0;
+		while (at < end) {
+			AnimationTime next = at + 1 + rnd (700);
+			if (next > end) next = end;
+			eventsCrossed (r, at, next, steps);
+			at = next;
+		}
+		if (ids (whole) != ids (steps)) {
+			CHECK (false, "steps fire what one move fires");
+			break;
+		}
+		// And each event once per pass it starts.
+		if (clipLoops (r)) {
+			AnimationTime period = ticksToTime (r.length);
+			size_t expected = 0;
+			for (size_t e = 0; e < r.events.size (); e ++) {
+				AnimationTime p = ticksToTime (r.events[e].time);
+				if (p == 0) p = period;
+				if (p <= end) expected += 1 + (size_t) ((end - p) / period);
+			}
+			if (whole.size () != expected) {
+				CHECK (false, "each event once a pass");
+				break;
+			}
+		}
+	}
+}
+
+// What the legacy stepper does, update by update, against clipFrames.
+static ClipDefinitionRef randomLegacy () {
+	std::vector<AnimationFrame> frames (1 + rnd (6));
+	for (size_t f = 0; f < frames.size (); f ++) {
+		frames[f].sprite = rnd (10) - 3;
+		frames[f].ticks = rnd (10) ? 1 + rnd (4) : rnd (2) ? 0 : -2;
+		int e = rnd (5);
+		frames[f].event = FrameEvent::fromNoise (e == 0 ? 1 + rnd (50) : e == 1 ? - (1 + rnd (50)) : 0);
+	}
+	return makeLegacyClip (SpriteBankRef (), frames);
+}
+
+class Recorder : public FrameEventSink {
+public:
+	std::vector<int> events;
+	void frameEvent (const FrameEvent & e) { events.push_back (e.toNoise ()); }
+};
+
+static void testLegacyFrames () {
+	int compared = 0;
+	for (int round = 0; round < 3000; round ++) {
+		personaAnimation anim;
+		anim.definition = randomLegacy ();
+		ClipDefinition c;
+		c.length = rnd (60);
+		c.loop = rnd (2) == 0;
+		if (! addLegacyFrames (c, "body", anim, why)) {
+			CHECK (false, "clipFrames converts");
+			break;
+		}
+		if (! validClip (c, why)) {
+			CHECK (false, "into a valid clip");
+			break;
+		}
+		AnimationPlayback p;
+		Recorder legacy;
+		bool same = true;
+		for (int k = 1; k <= c.length + 1 && same; k ++) {
+			legacy.events.clear ();
+			updateAnimation (p, & anim, 1, true, legacy);
+			// Update k shows time k - 1.
+			TrackSamples s;
+			evaluateClip (c, ticksToTime (k - 1), s);
+			const TrackSample * x = sampleOf (s, "body", CHANNEL_SPRITE);
+			int shown = anim.frame (p.displayFrame).sprite;
+			same = x && x -> sprite -> number == (shown < 0 ? - shown : shown) && x -> sprite -> mirror == (shown < 0);
+			// And fires what the timeline does from k - 1 to k (and at the start).
+			if (k <= c.length - 1) {
+				std::vector<CrossedEvent> v;
+				if (k == 1) eventsAtStart (c, v);
+				eventsCrossed (c, ticksToTime (k - 1), ticksToTime (k), v);
+				std::vector<int> noise;
+				for (size_t i = 0; i < v.size (); i ++) noise.push_back (v[i].event -> what.toNoise ());
+				same = same && noise == legacy.events;
+			}
+			compared ++;
+		}
+		if (! same) {
+			CHECK (false, "clipFrames shows and fires what the legacy stepper does");
+			break;
+		}
+	}
+	printf ("Compared %d ticks of clipFrames with the legacy stepper\n", compared);
+
+	// Replacing: the track keeps its ID, and its old keys go.
+	ClipDefinition c;
+	c.length = 8;
+	setKey (c, "body", CHANNEL_SPRITE, spriteKey (3, SpriteRef::none ()), why);
+	TrackId id = c.tracks[0].id;
+	std::vector<AnimationFrame> frames (1, frame (2, 8));
+	personaAnimation anim;
+	anim.definition = makeLegacyClip (SpriteBankRef (), frames);
+	CHECK (addLegacyFrames (c, "body", anim, why), "frames over a track");
+	CHECK (c.tracks.size () == 1 && c.tracks[0].id == id && c.tracks[0].keys.size () == 1
+		&& c.tracks[0].keys[0].sprite.number == 2, "replace its keys, and keep its ID");
+
+	ClipDefinition legacyClip = * anim.definition;
+	CHECK (! addLegacyFrames (legacyClip, "body", anim, why), "not into an animation of anim ()");
+	ClipDefinition tooLong;
+	tooLong.length = maxLegacyFramesTicks + 1;
+	CHECK (! addLegacyFrames (tooLong, "body", anim, why), "not into an enormous clip");
+	personaAnimation none;
+	CHECK (! addLegacyFrames (c, "body", none, why), "not from an animation without frames");
+}
+
 static void testLifetimes () {
 	int rigs = LifetimeCounter<RigDefinition>::live (), clips = LifetimeCounter<ClipDefinition>::live ();
 	{
@@ -432,6 +695,10 @@ int main () {
 	testClips ();
 	testResolve ();
 	testFormat ();
+	testEvaluation ();
+	testClipTime ();
+	testEvents ();
+	testLegacyFrames ();
 	testLifetimes ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);

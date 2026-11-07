@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <math.h>
+#include <algorithm>
 #include <set>
 #include <utility>
 
@@ -191,8 +192,8 @@ bool setKey (ClipDefinition & clip, const std::string & part, Channel channel, c
 	Key k = key;
 	if (channel != CHANNEL_SPRITE) k.sprite = SpriteRef ();
 	else k.value = 0;
-	std::vector<Key>::iterator i = t -> keys.begin ();
-	while (i != t -> keys.end () && i -> time < k.time) ++ i;
+	std::vector<Key>::iterator i = std::lower_bound (t -> keys.begin (), t -> keys.end (), k,
+		[] (const Key & a, const Key & b) { return a.time < b.time; });
 	if (i != t -> keys.end () && i -> time == k.time) * i = k;
 	else t -> keys.insert (i, k);
 	return true;
@@ -299,4 +300,105 @@ bool resolveBanks (ClipDefinition & clip, BankLoader load) {
 		}
 	}
 	return true;
+}
+
+bool clipLoops (const ClipDefinition & clip) {
+	return clip.loop && clip.length > 0;
+}
+
+AnimationTime clipTime (const ClipDefinition & clip, AnimationTime position) {
+	if (position < 0) position = 0;
+	AnimationTime end = ticksToTime (clip.length);
+	if (clipLoops (clip)) return position % end;
+	return position < end ? position : end;
+}
+
+bool clipFinished (const ClipDefinition & clip, AnimationTime position) {
+	return ! clipLoops (clip) && position >= ticksToTime (clip.length);
+}
+
+namespace {
+
+// Where time falls among the keys: the last key at or before it, or -1.
+int keyAt (const std::vector<Key> & keys, AnimationTime time) {
+	int lo = 0, hi = (int) keys.size ();	// The first key after time is in [lo, hi]
+	while (lo < hi) {
+		int mid = (lo + hi) / 2;
+		if (ticksToTime (keys[mid].time) <= time) lo = mid + 1;
+		else hi = mid;
+	}
+	return lo - 1;
+}
+
+float ease (Easing e, float from, float to, double u) {
+	switch (e) {
+		case EASING_LINEAR: break;
+		case EASING_INOUT: u = u * u * (3 - 2 * u); break;
+		default: return from;
+	}
+	return (float) (from + (to - from) * u);
+}
+
+}
+
+void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples & out) {
+	out.clear ();
+	for (size_t t = 0; t < clip.tracks.size (); t ++) {
+		const Track & track = clip.tracks[t];
+		const std::vector<Key> & keys = track.keys;
+		if (keys.empty ()) continue;
+		TrackSample s;
+		s.track = & track;
+		int k = keyAt (keys, time);
+		if (k < 0) k = 0;
+		s.sprite = & keys[k].sprite;
+		s.value = keys[k].value;
+		if (! isDiscrete (track.channel) && k + 1 < (int) keys.size ()) {
+			AnimationTime t0 = ticksToTime (keys[k].time), t1 = ticksToTime (keys[k + 1].time);
+			if (time > t0 && t1 > t0) {
+				s.value = ease (keys[k].easing, keys[k].value, keys[k + 1].value, (double) (time - t0) / (double) (t1 - t0));
+			}
+		}
+		out.push_back (s);
+	}
+}
+
+namespace {
+
+bool earlier (const CrossedEvent & a, const CrossedEvent & b) {
+	if (a.position != b.position) return a.position < b.position;
+	return a.event -> id < b.event -> id;
+}
+
+}
+
+void eventsAtStart (const ClipDefinition & clip, std::vector<CrossedEvent> & out) {
+	size_t first = out.size ();
+	for (size_t e = 0; e < clip.events.size (); e ++) {
+		if (clip.events[e].time != 0) continue;
+		CrossedEvent c = { 0, & clip.events[e] };
+		out.push_back (c);
+	}
+	std::sort (out.begin () + first, out.end (), earlier);
+}
+
+void eventsCrossed (const ClipDefinition & clip, AnimationTime from, AnimationTime to, std::vector<CrossedEvent> & out) {
+	if (from < 0) from = 0;
+	if (to <= from) return;
+	size_t first = out.size ();
+	bool loops = clipLoops (clip);
+	AnimationTime period = ticksToTime (clip.length);
+	if (! loops && to > period) to = period;
+	for (size_t e = 0; e < clip.events.size (); e ++) {
+		AnimationTime p = ticksToTime (clip.events[e].time);
+		if (loops && p <= from) p += ((from - p) / period + 1) * period;	// The first pass after from
+		for (; p <= to; p += period) {
+			if (p > from) {
+				CrossedEvent c = { p, & clip.events[e] };
+				out.push_back (c);
+			}
+			if (! loops) break;
+		}
+	}
+	std::sort (out.begin () + first, out.end (), earlier);
 }

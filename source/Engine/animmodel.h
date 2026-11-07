@@ -239,4 +239,61 @@ typedef SpriteBankRef (* BankLoader) (int bankFile);
 bool resolveBanks (RigDefinition & rig, BankLoader load);
 bool resolveBanks (ClipDefinition & clip, BankLoader load);
 
+/*
+ * Evaluating a TIMELINE clip. Pure functions: no state, no events fired,
+ * no rig. The player uses them, and so will the editor to scrub.
+ *
+ * AnimationTime counts sub-ticks: timeSubTicks to a game tick, so that time
+ * moves at any speed without drifting. A playback's position is the time
+ * since the clip started, unwrapped: it grows past length as a loop goes
+ * round. clipTime turns it into the time within the clip.
+ */
+
+typedef int64_t AnimationTime;
+const int timeSubTicks = 256;
+
+inline AnimationTime ticksToTime (int ticks) { return (AnimationTime) ticks * timeSubTicks; }
+
+// The time within the clip of a position: a loop wraps over [0, length);
+// any other clip stops at length, where it is finished. A loop of length 0
+// doesn't go round: it is a clip that holds its first pose.
+AnimationTime clipTime (const ClipDefinition & clip, AnimationTime position);
+bool clipLoops (const ClipDefinition & clip);
+bool clipFinished (const ClipDefinition & clip, AnimationTime position);
+
+// The value of one track at a time. track, and sprite, point into the clip,
+// and are valid while it is.
+struct TrackSample {
+	const Track * track;
+	float value;				// For all channels but SPRITE
+	const SpriteRef * sprite;	// For SPRITE
+};
+
+typedef std::vector<TrackSample> TrackSamples;
+
+// The value of every track with keys at time (within the clip, see
+// clipTime), in the order of the tracks. Before its first key a track has
+// the first key's value, and after its last key the last's. Between keys,
+// the easing of the earlier key: STEP holds its value; LINEAR goes
+// straight to the next key's; INOUT eases in and out (smoothstep).
+// Discrete channels always step.
+void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples & out);
+
+// An event that a playback passed, at its position.
+struct CrossedEvent {
+	AnimationTime position;
+	const ClipEvent * event;	// Into the clip
+};
+
+// The events that fire when a clip starts: those at 0.
+void eventsAtStart (const ClipDefinition & clip, std::vector<CrossedEvent> & out);
+
+// The events that fire as a playback moves from position from to position
+// to (from <= to), however far: each event at a position p (its time, plus
+// a whole number of lengths in a loop) with from < p <= to, in order of
+// position, then of ID. So moving in steps fires exactly what one move
+// fires, and a loop fires each event once a pass, those at 0 as it wraps.
+// A clip that doesn't loop fires none past its length. Appends to out.
+void eventsCrossed (const ClipDefinition & clip, AnimationTime from, AnimationTime to, std::vector<CrossedEvent> & out);
+
 #endif
