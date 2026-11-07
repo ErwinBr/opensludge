@@ -143,7 +143,7 @@ if(SLUDGE_ENGINE)
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
-		animation.cpp animformat.cpp animmodel.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
+		animation.cpp animformat.cpp animmodel.cpp animpose.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
@@ -235,7 +235,7 @@ if(SLUDGE_ENGINE)
 		add_test(NAME animation COMMAND animation_test)
 
 		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animmodel.cpp ${ENGINE_DIR}/animformat.cpp
-			${ENGINE_DIR}/animation.cpp)
+			${ENGINE_DIR}/animation.cpp ${ENGINE_DIR}/animpose.cpp)
 		target_include_directories(animmodel_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
 		target_link_libraries(animmodel_test PRIVATE sludge-renderer)
 		add_test(NAME animmodel COMMAND animmodel_test)

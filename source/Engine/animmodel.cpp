@@ -2,6 +2,8 @@
 
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <algorithm>
 #include <set>
 #include <utility>
@@ -411,4 +413,20 @@ void eventsCrossed (const ClipDefinition & clip, AnimationTime from, AnimationTi
 		}
 	}
 	std::sort (out.begin () + first, out.end (), earlier);
+}
+
+static AnimDiagnosticHandler diagnosticHandler = NULL;
+
+void animDiagnostic (const std::string & what) {
+	if (diagnosticHandler) {
+		diagnosticHandler (what);
+		return;
+	}
+	static int log = -1;
+	if (log < 0) log = getenv ("SLUDGE_ANIM_LOG") != NULL;
+	if (log) fprintf (stderr, "Animation: %s\n", what.c_str ());
+}
+
+void setAnimDiagnosticHandler (AnimDiagnosticHandler handler) {
+	diagnosticHandler = handler;
 }

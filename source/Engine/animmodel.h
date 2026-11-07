@@ -245,6 +245,13 @@ bool validClip (const ClipDefinition & clip, std::string & why);
 // Fill in the banks of every SpriteRef from its file number. load gives the
 // bank of a file, or NULL; then this returns false.
 typedef SpriteBankRef (* BankLoader) (int bankFile);
+
+// Reports of the animation model, as a track for a part that a rig lacks,
+// or a sprite that its bank lacks. With SLUDGE_ANIM_LOG set, they go to
+// stderr; a handler (for tests) takes them instead, NULL for the default.
+void animDiagnostic (const std::string & what);
+typedef void (* AnimDiagnosticHandler) (const std::string & what);
+void setAnimDiagnosticHandler (AnimDiagnosticHandler handler);
 bool resolveBanks (RigDefinition & rig, BankLoader load);
 bool resolveBanks (ClipDefinition & clip, BankLoader load);
 

@@ -16,6 +16,7 @@
 
 #include "animation.h"
 #include "animformat.h"
+#include "animpose.h"
 #include "animmodel.h"
 
 static int failures = 0;
@@ -810,6 +811,202 @@ static void testTimelinePlayer () {
 	CHECK (editableClip (& l, w) == NULL, "nor an animation of anim ()");
 }
 
+// Poses (animpose.cpp).
+
+static std::vector<std::string> diagnostics;
+static void recordDiagnostic (const std::string & what) { diagnostics.push_back (what); }
+
+static bool near2 (float x, float y, float ex, float ey) {
+	return fabsf (x - ex) < 1e-3f && fabsf (y - ey) < 1e-3f;
+}
+
+// Where a point of a part's own space is in the world.
+static void worldOf (const Pose & p, int part, float x, float y, float & wx, float & wy) {
+	p.parts[part].world.apply (x, y, wx, wy);
+}
+
+// A bank of 4 sprites, file 7.
+static SpriteBankRef bankOf4 () {
+	static SpriteBankRef b;
+	if (! b) {
+		b = std::make_shared<loadedSpriteBank> ();
+		b -> ID = 7;
+		b -> bank.total = 4;
+		b -> bank.sprites.resize (4);
+	}
+	return b;
+}
+
+static SpriteRef realSprite (int n, bool mirror = false) {
+	return SpriteRef::sprite (bankOf4 (), 7, n, mirror);
+}
+
+static void testTransforms () {
+	float x, y;
+	Transform2D r = Transform2D::rotation (90);
+	r.apply (1, 0, x, y);
+	CHECK (near2 (x, y, 0, 1), "90 degrees turns right to down: clockwise on screen");
+	(Transform2D::translation (5, 6) * Transform2D::scaling (2)).apply (1, 1, x, y);
+	CHECK (near2 (x, y, 7, 8), "scale, then move");
+	Transform2D::flipX ().apply (3, 4, x, y);
+	CHECK (near2 (x, y, -3, 4), "a flip mirrors X");
+	CHECK (Transform2D::flipX ().mirrors () && ! Transform2D::rotation (30).mirrors (), "mirroring is told by the determinant");
+	Transform2D t = Transform2D::translation (10, -3) * Transform2D::rotation (37) * Transform2D::scaling (1.5f) * Transform2D::flipX (), inv;
+	CHECK (t.inverse (inv), "an inverse");
+	float bx, by;
+	t.apply (2, 5, x, y);
+	inv.apply (x, y, bx, by);
+	CHECK (near2 (bx, by, 2, 5), "which undoes it");
+	CHECK (! Transform2D::scaling (0).inverse (inv), "no inverse when scaled to nothing");
+
+	PartPose p;
+	p.x = 3;
+	p.y = 4;
+	p.rotation = 90;
+	p.scale = 2;
+	p.flip = true;
+	localTransform (p).apply (1, 0, x, y);
+	CHECK (near2 (x, y, 3, 2), "local: flip, scale, turn, then move");
+}
+
+static void testPoses () {
+	diagnostics.clear ();
+	setAnimDiagnosticHandler (recordDiagnostic);
+	forgetPoseReports ();
+
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> ();
+	addPart (* rig, "torso", "", at (0, 0), realSprite (0), why);
+	addPart (* rig, "head", "torso", at (0, -70), realSprite (1), why);
+	addPart (* rig, "eyes", "head", at (0, -14), realSprite (2), why);
+	addPart (* rig, "hand", "torso", at (20, -40), SpriteRef (), why);	// A joint
+	addPart (* rig, "glove", "hand", at (5, 0), realSprite (3), why);
+	int torso = rig -> findPart ("torso"), head = rig -> findPart ("head"), eyes = rig -> findPart ("eyes"),
+		hand = rig -> findPart ("hand"), glove = rig -> findPart ("glove");
+	RigDefinitionRef r = rig;
+	PoseBinding binding;
+	Pose pose;
+	float x, y;
+
+	// At rest, where the character is.
+	evaluatePose (r, ClipDefinitionRef (), TrackSamples (), Transform2D::translation (100, 200), binding, pose);
+	CHECK (pose.parts.size () == rig -> parts.size (), "a posed part per part");
+	worldOf (pose, eyes, 0, 0, x, y);
+	CHECK (near2 (x, y, 100, 116), "parts are placed from their parents' origins");
+	CHECK (pose.parts[hand].sprite.kind == SpriteRef::NONE && pose.parts[0].sprite.kind == SpriteRef::NONE, "a joint and the root show nothing");
+	worldOf (pose, glove, 0, 0, x, y);
+	CHECK (near2 (x, y, 125, 160), "a joint still places what is attached to it");
+	CHECK (pose.drawOrder.size () == 4, "four parts to draw");
+
+	// The convention: a child at (0, -70) of a part turned 90 degrees.
+	std::shared_ptr<ClipDefinition> c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "torso", CHANNEL_ROTATION, key (0, 90), why);
+	TrackSamples s;
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	worldOf (pose, head, 0, 0, x, y);
+	CHECK (near2 (x, y, 70, 0), "a child at (0, -70) of a part turned 90 degrees lies at (70, 0)");
+	worldOf (pose, eyes, 0, 0, x, y);
+	CHECK (near2 (x, y, 84, 0), "and its children turn with it");
+
+	// Scale and flip, inherited.
+	c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "torso", CHANNEL_SCALE, key (0, 2), why);
+	setKey (* c, "head", CHANNEL_FLIP, key (0, 1, EASING_STEP), why);
+	setKey (* c, "eyes", CHANNEL_X, key (0, 3), why);
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	worldOf (pose, head, 0, 0, x, y);
+	CHECK (near2 (x, y, 0, -140), "a part's scale scales what is attached");
+	worldOf (pose, eyes, 0, 0, x, y);
+	CHECK (near2 (x, y, -6, -168), "a flipped part mirrors what is attached, scaled");
+	CHECK (pose.parts[eyes].world.mirrors () && ! pose.parts[torso].world.mirrors (), "and mirrors it, but not its parent");
+	worldOf (pose, glove, 0, 0, x, y);
+	CHECK (near2 (x, y, 50, -80), "the other arm is scaled only");
+
+	// The character's flip, scale and place.
+	Transform2D character = Transform2D::translation (300, 400) * Transform2D::scaling (0.5f) * Transform2D::flipX ();
+	evaluatePose (r, ClipDefinitionRef (), TrackSamples (), character, binding, pose);
+	worldOf (pose, glove, 0, 0, x, y);
+	CHECK (near2 (x, y, 300 - 12.5f, 380), "the character's transform is the root's parent");
+
+	// Visibility, and empty frames.
+	c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "head", CHANNEL_VISIBLE, key (0, 0, EASING_STEP), why);
+	setKey (* c, "torso", CHANNEL_SPRITE, spriteKey (0, SpriteRef::none ()), why);
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	CHECK (! pose.parts[head].shown && ! pose.parts[eyes].shown, "VISIBLE 0 hides the part and what is attached");
+	CHECK (pose.parts[torso].shown && pose.parts[torso].sprite.kind == SpriteRef::NONE, "NONE: the part shows nothing");
+	CHECK (pose.parts[glove].shown, "but what is attached still does");
+	CHECK (pose.drawOrder.size () == 1 && pose.drawOrder[0] == glove, "only the glove to draw");
+
+	// Sprites: from a key, DEFAULT, and missing ones.
+	diagnostics.clear ();
+	c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "head", CHANNEL_SPRITE, spriteKey (0, realSprite (3, true)), why);
+	setKey (* c, "eyes", CHANNEL_SPRITE, spriteKey (0, realSprite (9)), why);	// Its bank has 4
+	setKey (* c, "glove", CHANNEL_SPRITE, spriteKey (0, SpriteRef ()), why);
+	setKey (* c, "hand", CHANNEL_SPRITE, spriteKey (0, SpriteRef ()), why);
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	CHECK (pose.parts[head].sprite.number == 3 && pose.parts[head].sprite.mirror, "a key's sprite, mirror image and all");
+	CHECK (pose.parts[eyes].sprite.kind == SpriteRef::SPRITE && pose.parts[eyes].sprite.number == 2, "a missing sprite: the part's own");
+	CHECK (diagnostics.size () == 1 && diagnostics[0].find ("sprite 9 of bank 7") != std::string::npos, "reported");
+	CHECK (pose.parts[glove].sprite.number == 3, "DEFAULT: the part's own sprite");
+	CHECK (pose.parts[hand].sprite.kind == SpriteRef::NONE, "DEFAULT of a joint: nothing");
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	CHECK (diagnostics.size () == 1, "reported once");
+
+	// Parts the rig doesn't have: left out, reported once for the clip and rig.
+	diagnostics.clear ();
+	c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "tail", CHANNEL_ROTATION, key (0, 45), why);
+	setKey (* c, "head", CHANNEL_Y, key (0, -80), why);
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	worldOf (pose, head, 0, 0, x, y);
+	CHECK (near2 (x, y, 0, -80), "the tracks of parts it has play");
+	CHECK (diagnostics.size () == 1 && diagnostics[0].find ("\"tail\"") != std::string::npos, "a missing part is reported");
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	PoseBinding other;
+	evaluatePose (r, c, s, Transform2D (), other, pose);
+	CHECK (diagnostics.size () == 1, "once for its clip and rig");
+
+	// The binding follows the clip and rig.
+	std::shared_ptr<RigDefinition> rig2 = std::make_shared<RigDefinition> ();
+	addPart (* rig2, "tail", "", at (0, 0), realSprite (0), why);
+	addPart (* rig2, "head", "tail", at (1, 1), realSprite (1), why);
+	RigDefinitionRef r2 = rig2;
+	evaluatePose (r2, c, s, Transform2D (), binding, pose);
+	CHECK (pose.parts.size () == 3 && pose.parts[1].local.rotation == 45, "another rig: the tail is there now");
+	worldOf (pose, 2, 0, 0, x, y);
+	float tx, ty;
+	pose.parts[1].world.apply (1, -80, tx, ty);	// Its x of the rig, its y of the clip
+	CHECK (near2 (x, y, tx, ty) && ! near2 (x, y, 1, -79), "and the head follows the tail's turn");
+
+	// Depth: back to front, then in rig order.
+	c = std::make_shared<ClipDefinition> ();
+	c -> length = 10;
+	setKey (* c, "eyes", CHANNEL_DEPTH, key (0, -1, EASING_STEP), why);
+	evaluateClip (* c, 0, s);
+	evaluatePose (r, c, s, Transform2D (), binding, pose);
+	CHECK (pose.drawOrder.size () == 4 && pose.drawOrder[0] == eyes && pose.drawOrder[1] == torso && pose.drawOrder[2] == head
+		&& pose.drawOrder[3] == glove, "by depth, then rig order");
+
+	// A clip of a single part (as anim () on a rig): the root's sprite.
+	ClipDefinitionRef legacy = makeLegacyClip (bankOf4 (), std::vector<AnimationFrame> (1, frame (1, 3)));
+	evaluateClip (* legacy, 0, s);
+	evaluatePose (r, legacy, s, Transform2D (), binding, pose);
+	CHECK (pose.parts[0].sprite.kind == SpriteRef::SPRITE && pose.parts[0].sprite.number == 1, "an animation of anim () shows on the root");
+
+	setAnimDiagnosticHandler (NULL);
+}
+
 static void testLifetimes () {
 	int rigs = LifetimeCounter<RigDefinition>::live (), clips = LifetimeCounter<ClipDefinition>::live ();
 	{
@@ -833,6 +1030,8 @@ int main () {
 	testEvents ();
 	testLegacyFrames ();
 	testTimelinePlayer ();
+	testTransforms ();
+	testPoses ();
 	testLifetimes ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);
