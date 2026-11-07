@@ -150,6 +150,9 @@ struct RigPart {
 struct RigDefinition {
 	std::vector<RigPart> parts;		// The root first; parents before children
 	PartId nextPartId;
+	// Not part of the definition: whether a script may still change it, as
+	// for clips (ClipDefinition::sealed): setCharacterRig seals it.
+	mutable bool sealed;
 	LifetimeCounter<RigDefinition> counted;
 
 	// A rig of the root only.

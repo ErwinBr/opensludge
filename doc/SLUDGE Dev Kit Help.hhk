@@ -56,6 +56,11 @@
 		<param name="Local" value="SLUDGEDevKitHelp\Variable_Operations.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="addPart">
+		<param name="Name" value="addPart (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\addPart.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="Animation clips">
 		<param name="Name" value="clips">
 		<param name="Local" value="SLUDGEDevKitHelp\Animation_Clips.html">
@@ -71,9 +76,20 @@
 		<param name="Local" value="SLUDGEDevKitHelp\clipFrames.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="clipKey">
+		<param name="Name" value="clipKey (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\clipKey.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="clipSprite">
 		<param name="Name" value="clipSprite (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\clipSprite.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="Composite characters">
+		<param name="Name" value="rigs">
+		<param name="Name" value="parts of characters">
+		<param name="Local" value="SLUDGEDevKitHelp\Composite_Characters.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="isClipPlaying">
@@ -86,9 +102,24 @@
 		<param name="Local" value="SLUDGEDevKitHelp\newClip.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="newRig">
+		<param name="Name" value="newRig (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\newRig.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCharacterRig">
+		<param name="Name" value="setCharacterRig (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterRig.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setClipSpeed">
 		<param name="Name" value="setClipSpeed (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setClipSpeed.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setPartDepth">
+		<param name="Name" value="setPartDepth (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setPartDepth.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="||">

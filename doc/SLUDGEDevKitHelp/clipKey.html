@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>clipKey</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>clipKey</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">clipKey (<i>clip, part, property, tick, value</i>);
+clipKey (<i>clip, part, property, tick, value, easing</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+From <i>tick</i> on, the <i>property</i> of <i>part</i> moves towards <i>value</i>, which it reaches at the next key:
+</P>
+
+<UL>
+<LI><b>PART_X</b>, <b>PART_Y</b>: where the part's origin is, in pixels from its parent's</LI>
+<LI><b>PART_ROTATION</b>: how far it is turned, in degrees, clockwise</LI>
+<LI><b>PART_SCALE</b>: its size, in percent, and that of all attached to it</LI>
+<LI><b>PART_DEPTH</b>: the order of drawing (see <a href="setPartDepth.html">setPartDepth</a>)</LI>
+<LI><b>PART_VISIBLE</b>: TRUE or FALSE; FALSE hides the part and all attached to it</LI>
+<LI><b>PART_FLIP</b>: TRUE mirrors the part and all attached to it</LI>
+</UL>
+
+<P>
+The <i>easing</i> says how it moves towards the next key: <b>EASE_LINEAR</b> (straight there, if none is given), <b>EASE_INOUT</b> (easing in and out) or <b>EASE_STEP</b> (it keeps its value until the next key). Depth, visibility and flipping always step. Before its first key a part has the value of its first key; after its last key, the value of its last. A key at the length of a clip closes a loop: the last stretch moves towards it.
+</P>
+
+<P>
+<pre>var bob = newClip (48, TRUE);
+clipKey (bob, "torso", PART_Y, 0, -250);
+clipKey (bob, "torso", PART_Y, 24, -262, EASE_INOUT);
+clipKey (bob, "torso", PART_Y, 48, -250, EASE_INOUT);</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+None.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="newRig.html">newRig</a>
+</P>
+
+<P>
+<a href="addPart.html">addPart</a>
+</P>
+
+<P>
+<a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="setCharacterRig.html">setCharacterRig</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

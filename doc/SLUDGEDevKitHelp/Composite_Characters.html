@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>Composite Characters</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>Composite Characters</h2>
+<HR>
+
+<P>
+A character can be made of <b>parts</b>, each with a sprite of its own: legs, a torso, a head with its eyes, two arms. A <b>rig</b>, made with <a href="newRig.html">newRig</a>, says what is attached to what; <a href="Animation_Clips.html">clips</a> say how the parts move. A clip names the parts it moves, so it plays on any rig with parts of those names.
+</P>
+
+<pre>sub heroRig () {
+	var r = newRig ();
+	addPart (r, "legs", "", 0, 0, 'hero_legs.duc', 0);
+	addPart (r, "torso", "", 0, -250, 'hero_torso.duc', 0);
+	addPart (r, "head", "torso", 3, -213, 'hero_head.duc', 0);
+	addPart (r, "eyes", "head", 0, 0, 'hero_head.duc', 6);
+	addPart (r, "arm", "torso", 70, -160, 'hero_arm.duc', 0);
+	setPartDepth (r, "arm", -1);		# behind the torso
+	return r;
+}
+
+sub wave () {
+	var c = newClip (72);
+	clipKey (c, "arm", PART_ROTATION, 0, 0);
+	clipKey (c, "arm", PART_ROTATION, 24, -150, EASE_INOUT);
+	clipKey (c, "arm", PART_ROTATION, 72, 0, EASE_INOUT);
+	return c;
+}
+
+addCharacter (hero, 320, 400, heroCostume ());
+setCharacterRig (hero, heroRig ());
+pause (animate (hero, wave ()));</pre>
+
+<H3>Where parts are</H3>
+
+<P>
+X is to the right and Y down, in pixels; angles are in degrees, clockwise. A part's <b>origin</b> is its sprite's hotspot, as the Sprite Bank Editor sets it: the part turns, scales and flips about it. Its x and y are where its origin sits, from the origin of the part it is attached to, which turns, scales and flips it too, so that a head turns with its torso and the eyes with the head. The character itself is the part called <b>""</b>, at its place, at its scale.
+</P>
+
+<H3>What clips do to parts</H3>
+
+<P>
+<a href="clipKey.html">clipKey</a> moves (PART_X, PART_Y), turns (PART_ROTATION), scales (PART_SCALE), flips (PART_FLIP), hides (PART_VISIBLE) and orders (PART_DEPTH) a part; <a href="clipSprite.html">clipSprite</a> changes its sprite. Hiding a part hides what is attached to it; an empty frame (NOSPRITE) hides only the part's own sprite. Parts of a lower depth are drawn first, and parts of the same depth in the order they were added. Flipping the character's part, "", mirrors the whole character: a costume can face west with the clips that face east.
+</P>
+
+<P>
+A clip may name parts that a rig doesn't have: those parts are left out. A sprite that its bank doesn't have shows the part's own sprite instead.
+</P>
+
+<H3>Costumes</H3>
+
+<P>
+<a href="costume.html">Costumes</a> of clips work as ever: standing, walking and talking, in each direction. Their clips can place the parts of each direction differently.
+</P>
+
+<P>
+Characters of parts can't be pointed at with the mouse, or pasted with <a href="pasteCharacter.html">pasteCharacter</a>, yet.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="newRig.html">newRig</a>
+</P>
+
+<P>
+<a href="addPart.html">addPart</a>
+</P>
+
+<P>
+<a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="setCharacterRig.html">setCharacterRig</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

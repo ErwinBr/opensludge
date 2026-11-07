@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>addPart</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>addPart</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">addPart (<i>rig, name, parent, x, y</i>);
+addPart (<i>rig, name, parent, x, y, spriteBank, sprite</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Adds a part called <i>name</i> to <i>rig</i>, attached to the part called <i>parent</i> ("" for the character itself), with its origin (its sprite's hotspot) at <i>x</i>, <i>y</i> from its parent's origin. The part shows <i>sprite</i> of <i>spriteBank</i> until a clip gives it another; a negative <i>sprite</i> shows its mirror image.
+</P>
+
+<P>
+Without a sprite, the part is a joint: it shows nothing, but places what is attached to it, as a hand that holds things.
+</P>
+
+<P>
+<pre>addPart (r, "head", "torso", 3, -213, 'hero_head.duc', 0);
+addPart (r, "hand", "arm", -30, 222);</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+None.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="newRig.html">newRig</a>
+</P>
+
+<P>
+<a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="setCharacterRig.html">setCharacterRig</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

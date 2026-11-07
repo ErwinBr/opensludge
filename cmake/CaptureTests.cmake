@@ -25,6 +25,8 @@ set(SLUDGE_OUT_OF_ORDER "" CACHE PATH
 	"The gamedata file of Out Of Order, for its capture test (see packaging/get-out-of-order.sh)")
 set(SLUDGE_CAPTURE_REFERENCE_ENGINE "" CACHE FILEPATH
 	"An engine to compare the frames of the capture tests with")
+set(SLUDGE_EGO_SPRITES "" CACHE PATH
+	"The folder of the sprite sheets (Ego_*.png) of CompositeTest, which aren't in this repository (see tests/render/make-ego-banks.py)")
 # The SDL_GPU renderer needs Metal, Vulkan or Direct3D 12. Every Mac has
 # Metal, and Windows has Direct3D 12, at least through WARP, its software
 # driver; on Linux, turn the tests on where Vulkan works, as our Linux CI
@@ -159,7 +161,8 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
-			TimelineTest.slp timeline.slu SealTest.slp seal.slu big.png hole.png light.png sky.png movie.webm)
+			TimelineTest.slp timeline.slu SealTest.slp seal.slu CompositeTest.slp composite.slu
+			big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
@@ -225,6 +228,46 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-seal PROPERTIES LABELS capture TIMEOUT 300)
 
+	# A character of parts, of HD sprites (about 750 pixels high, drawn at
+	# half that), from sheets outside this repository: with
+	# SLUDGE_EGO_SPRITES, we make its banks, and it walks, talks, stands in
+	# every direction, turns, scales, flips and hides parts, behind the
+	# z-buffer and under the light map. Saving and loading must restore it.
+	set(composite_lifetimes "")
+	if(SLUDGE_EGO_SPRITES)
+		find_package(Python3 COMPONENTS Interpreter)
+		if(Python3_FOUND)
+			set(ego_script ${CMAKE_CURRENT_SOURCE_DIR}/tests/render/make-ego-banks.py)
+			set(ego_sheets "")
+			set(ego_banks "")
+			foreach(part Legs_SOUTH Torso_SOUTH Head_SOUTH Arm1_SOUTH Arm2_SOUTH Legs_EAST Torso_EAST Head_EAST
+					Arm1_EAST Arm2_EAST Legs_NORTH Torso_NORTH Head_NORTH Arms_NORTH)
+				string(TOLOWER ${part} bank)
+				list(APPEND ego_sheets ${SLUDGE_EGO_SPRITES}/Ego_${part}.png)
+				list(APPEND ego_banks ${render_project}/hd-ego/${bank}.duc)
+			endforeach()
+			add_custom_command(
+				OUTPUT ${ego_banks}
+				COMMAND ${Python3_EXECUTABLE} ${ego_script} ${SLUDGE_EGO_SPRITES} ${render_project}/hd-ego
+				DEPENDS ${ego_script} ${ego_sheets}
+				COMMENT "Making the sprite banks of CompositeTest"
+				VERBATIM)
+			sludge_compile_game(CompositeTest ${render_project}/CompositeTest.slp DEPENDS ${ego_banks})
+			sludge_add_capture_test(composite GAME ${CMAKE_BINARY_DIR}/games/CompositeTest.slg FRAMES 0-1500/10 NO_REFERENCE)
+			add_test(NAME capture-composite-saveload
+				COMMAND ${CMAKE_COMMAND}
+					-DENGINE=$<TARGET_FILE:sludge-engine>
+					-DGAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg
+					-DOUT=${CMAKE_BINARY_DIR}/capture/composite-saveload
+					"-DENGINE_ARGS=--renderer=gl"
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+			set_tests_properties(capture-composite-saveload PROPERTIES LABELS capture TIMEOUT 300)
+			set(composite_lifetimes -DCOMPOSITE_GAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg)
+		else()
+			message(WARNING "SLUDGE_EGO_SPRITES is set, but there is no Python 3 to make CompositeTest's banks with")
+		endif()
+	endif()
+
 	# What lives after saving and loading, and after loads that fail.
 	sludge_compile_game(LoadTest ${render_project}/LoadTest.slp)
 	add_test(NAME capture-lifetimes
@@ -233,6 +276,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			-DGAME=${CMAKE_BINARY_DIR}/games/LoadTest.slg
 			-DUNLOAD_GAME=${CMAKE_BINARY_DIR}/games/UnloadTest.slg
 			-DTIMELINE_GAME=${CMAKE_BINARY_DIR}/games/TimelineTest.slg
+			${composite_lifetimes}
 			-DOUT=${CMAKE_BINARY_DIR}/capture/lifetimes
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/lifetimes.cmake)
 	set_tests_properties(capture-lifetimes PROPERTIES LABELS capture TIMEOUT 900)

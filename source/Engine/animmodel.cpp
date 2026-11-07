@@ -54,7 +54,7 @@ bool SpriteRef::operator== (const SpriteRef & o) const {
 	return bankFile == o.bankFile && number == o.number && mirror == o.mirror;
 }
 
-RigDefinition::RigDefinition () : nextPartId (1) {
+RigDefinition::RigDefinition () : nextPartId (1), sealed (false) {
 	parts.resize (1);
 	parts[0].id = 0;
 	parts[0].parent = -1;

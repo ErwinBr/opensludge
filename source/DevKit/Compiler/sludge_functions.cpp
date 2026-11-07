@@ -892,6 +892,19 @@ void initBuiltInFunc ()
 	// clipSprite, in place of a sprite bank and sprite (see builtin.cpp)
 	addToStringArray (typeDefFrom, "NOSPRITE");		addToStringArray (typeDefTo, "-1");
 	addToStringArray (typeDefFrom, "PART_DEFAULT");	addToStringArray (typeDefTo, "-2");
+
+	// clipKey: the properties of parts, and easings (the Channel and Easing
+	// of source/Engine/animmodel.h)
+	addToStringArray (typeDefFrom, "PART_X");		addToStringArray (typeDefTo, "0");
+	addToStringArray (typeDefFrom, "PART_Y");		addToStringArray (typeDefTo, "1");
+	addToStringArray (typeDefFrom, "PART_ROTATION");	addToStringArray (typeDefTo, "2");
+	addToStringArray (typeDefFrom, "PART_SCALE");	addToStringArray (typeDefTo, "3");
+	addToStringArray (typeDefFrom, "PART_VISIBLE");	addToStringArray (typeDefTo, "5");
+	addToStringArray (typeDefFrom, "PART_DEPTH");	addToStringArray (typeDefTo, "6");
+	addToStringArray (typeDefFrom, "PART_FLIP");		addToStringArray (typeDefTo, "7");
+	addToStringArray (typeDefFrom, "EASE_STEP");		addToStringArray (typeDefTo, "0");
+	addToStringArray (typeDefFrom, "EASE_LINEAR");	addToStringArray (typeDefTo, "1");
+	addToStringArray (typeDefFrom, "EASE_INOUT");	addToStringArray (typeDefTo, "2");
 }
 
 void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {

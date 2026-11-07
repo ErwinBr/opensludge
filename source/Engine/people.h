@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "animation.h"
+#include "animpose.h"
 
 #define EXTRA_FRONT			1
 #define EXTRA_FIXEDSIZE		2
@@ -53,6 +54,12 @@ struct onScreenPerson {
 	// TIMELINE clips: the order of drawing never decides when or whether an
 	// event fires. Saved games keep it.
 	unsigned sequence;
+	// A rig, for a character of parts (setCharacterRig), or NULL for one
+	// sprite. Its pose, worked out in the update from its animation, is what
+	// drawing reads.
+	RigDefinitionRef rig;
+	PoseBinding poseBinding;
+	Pose pose;
 	LifetimeCounter<onScreenPerson> counted;
 };
 
@@ -128,6 +135,10 @@ AnimationHandle makeNullAnim ();
 
 bool saveAnim (const personaAnimation * p, FILE * fp);
 bool loadAnim (personaAnimation * p, FILE * fp);
+// The record of a rig (since saves of 2.3): whether it is sealed, then the
+// size and bytes of a file of animformat.h. NULL when it can't be loaded.
+bool saveRigRecord (const RigDefinitionRef & rig, FILE * fp);
+RigDefinitionRef loadRigRecord (FILE * fp);
 bool savePeople (FILE * fp);
 bool loadPeople (FILE * fp);
 bool saveCostume (persona * cossy, FILE * fp);
@@ -157,4 +168,8 @@ void logLifetimes (const char * when);
 // Show an animation of the character's costume (which it doesn't own), or
 // give it an animation of its own. Either frees the one it owned before.
 void setPersonAnim (onScreenPerson & person, personaAnimation * anim);
+
+// Give the character a rig, sealing it, or take its rig away (NULL). Its
+// height follows the rig's parts at rest.
+bool setPersonRig (int obj, const RigDefinitionRef & rig);
 void givePersonAnim (onScreenPerson & person, AnimationHandle anim);

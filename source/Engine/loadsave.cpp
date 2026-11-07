@@ -31,6 +31,7 @@
 
 extern loadedFunction * allRunningFunctions;		// In sludger.cpp
 extern char * typeName[];							// In variable.cpp
+extern int ssgVersion;								// Below, of the save loading
 extern int numGlobals;								// In sludger.cpp
 extern variable * globalVars;						// In sludger.cpp
 extern flor * currentFloor;							// In floor.cpp
@@ -237,6 +238,10 @@ bool saveVariable (variable * from, FILE * fp)
 		saveAnim (animationOf (* from), fp);
 		return false;
 
+		case SVT_RIG:
+		saveRigRecord (rigOf (* from), fp);
+		return false;
+
 		case SVT_NULL:
 		return false;
 
@@ -252,7 +257,8 @@ bool saveVariable (variable * from, FILE * fp)
 bool loadVariable (variable * to, FILE * fp) {
 	// Past the end of a cut-off save, fgetc gives EOF, which is no type.
 	int type = fgetc (fp);
-	if (type < 0 || type >= SVT_NUM_TYPES) {
+	// Rigs came with saves of 2.3.
+	if (type < 0 || type >= SVT_NUM_TYPES || (type == SVT_RIG && ssgVersion < VERSION (2, 3))) {
 		to -> varType = SVT_NULL;
 		return false;
 	}
@@ -296,6 +302,13 @@ bool loadVariable (variable * to, FILE * fp) {
 			return loaded;
 		}
 		return true;
+
+		case SVT_RIG:
+		{
+			RigDefinitionRef rig = loadRigRecord (fp);
+			setRig (* to, rig);
+			return rig != NULL;
+		}
 
 		default:
 		break;

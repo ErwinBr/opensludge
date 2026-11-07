@@ -1,13 +1,15 @@
-# sludge_compile_game(<name> <project.slp>)
+# sludge_compile_game(<name> <project.slp> [DEPENDS <files>...])
 #
 # Compile a SLUDGE project with sludge-compiler when we build, into
 # ${CMAKE_BINARY_DIR}/games/<name>.slg, with a target named game-<name>.
 #
 # The compiler writes the game file next to the project file, so we compile
 # a copy of the project folder in the build folder, and leave the source
-# folder as it is.
+# folder as it is. DEPENDS: files that the build makes into the project
+# folder, which it must make first.
 
 function(sludge_compile_game name project)
+	cmake_parse_arguments(PARSE_ARGV 2 arg "" "" "DEPENDS")
 	# We find the script next to this file, so that the function works in
 	# every folder of the project.
 	set(run_compiler ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/RunSludgeCompiler.cmake)
@@ -27,7 +29,7 @@ function(sludge_compile_game name project)
 			-DWORK_DIR=${games_dir}/${name}.project
 			-DOUTPUT=${output}
 			-P ${run_compiler}
-		DEPENDS sludge-compiler ${project_files} ${run_compiler}
+		DEPENDS sludge-compiler ${project_files} ${run_compiler} ${arg_DEPENDS}
 		COMMENT "Compiling the SLUDGE game ${name}"
 		VERBATIM)
 	add_custom_target(game-${name} ALL DEPENDS ${output})

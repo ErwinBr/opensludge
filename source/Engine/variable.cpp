@@ -22,7 +22,8 @@
 
 const char * typeName[] = {"undefined", "number", "user function", "string",
 							"built-in function", "file", "stack",
-							"object type", "animation", "costume"};
+							"object type", "animation", "costume",
+							"fast array", "rig"};
 
 extern char * outputDir;
 
@@ -64,6 +65,10 @@ void unlinkVar (variable & thisVar) {
 		thisVar.varData.costumeHandler = NULL;
 		break;
 
+		case SVT_RIG:
+		freeRig (thisVar);
+		break;
+
 		default:
 		break;
 	}
@@ -88,6 +93,27 @@ void setAnimation (variable & v, AnimationHandle h) {
 void freeAnimation (variable & v) {
 	assert (v.varType == SVT_ANIM);
 	v.varData.animHandler.release ();	// The handle goes with the temporary
+}
+
+const RigDefinitionRef & rigOf (const variable & v) {
+	assert (v.varType == SVT_RIG);
+	return * v.varData.rigHandler.box;
+}
+
+void setRig (variable & v, const RigDefinitionRef & rig) {
+	v.varType = SVT_RIG;
+	v.varData.rigHandler.box = new RigDefinitionRef (rig);
+}
+
+void freeRig (variable & v) {
+	assert (v.varType == SVT_RIG);
+	delete v.varData.rigHandler.box;
+	v.varData.rigHandler.box = NULL;
+}
+
+void newRigVariable (variable & thisVar, const RigDefinitionRef & rig) {
+	unlinkVar (thisVar);
+	setRig (thisVar, rig);
 }
 
 void newAnimationVariable (variable & thisVar, AnimationHandle i) {
@@ -311,6 +337,10 @@ int compareVars (const variable & var1, const variable & var2) {
 			re = (animationOf (var1) == animationOf (var2));
 			break;
 
+			case SVT_RIG:
+			re = (rigOf (var1) == rigOf (var2));
+			break;
+
 			case SVT_STRING:
 
 			re = (strcmp (var1.varData.theString, var2.varData.theString) == 0);
@@ -486,6 +516,10 @@ bool copyMain (const variable & from, variable & to) {
 		case SVT_ANIM:
 		// to holds nothing to free: copyVariable unlinked it, or it is new.
 		setAnimation (to, copyAnim (animationOf (from)));
+		return true;
+
+		case SVT_RIG:
+		setRig (to, rigOf (from));
 		return true;
 
 		case SVT_NULL:

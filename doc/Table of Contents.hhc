@@ -52,6 +52,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\addOverlay.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="addPart">
+					<param name="Local" value="SLUDGEDevKitHelp\addPart.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="addScreenRegion">
 					<param name="Local" value="SLUDGEDevKitHelp\addScreenRegion.html">
 					</OBJECT>
@@ -114,6 +118,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="clipFrames">
 					<param name="Local" value="SLUDGEDevKitHelp\clipFrames.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="clipKey">
+					<param name="Local" value="SLUDGEDevKitHelp\clipKey.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="clipSprite">
@@ -296,6 +304,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\newClip.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="newRig">
+					<param name="Local" value="SLUDGEDevKitHelp\newRig.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="newStack">
 					<param name="Local" value="SLUDGEDevKitHelp\newStack.html">
 					</OBJECT>
@@ -464,6 +476,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterExtra.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCharacterRig">
+					<param name="Local" value="SLUDGEDevKitHelp\setCharacterRig.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCharacterSpinSpeed">
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterSpinSpeed.html">
 					</OBJECT>
@@ -526,6 +542,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setMusicVolume">
 					<param name="Local" value="SLUDGEDevKitHelp\setMusicVolume.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setPartDepth">
+					<param name="Local" value="SLUDGEDevKitHelp\setPartDepth.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setPasteColour (setPasteColor)">
@@ -710,6 +730,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="Animation Clips">
 					<param name="Local" value="SLUDGEDevKitHelp\Animation_Clips.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="Composite Characters">
+					<param name="Local" value="SLUDGEDevKitHelp\Composite_Characters.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="Object Types as Screen Regions">

@@ -143,7 +143,7 @@ if(SLUDGE_ENGINE)
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
-		animation.cpp animformat.cpp animmodel.cpp animpose.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
+		animation.cpp animformat.cpp animmodel.cpp animpose.cpp composite.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)

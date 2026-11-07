@@ -2,11 +2,12 @@
 #define VAR_HEADER
 
 #include "ownedanimation.h"
+#include "ownedrig.h"
 
 enum variableType {SVT_NULL, SVT_INT, SVT_FUNC, SVT_STRING,
 				   SVT_BUILT, SVT_FILE, SVT_STACK,
 				   SVT_OBJTYPE, SVT_ANIM, SVT_COSTUME,
-				   SVT_FASTARRAY, SVT_NUM_TYPES};
+				   SVT_FASTARRAY, SVT_RIG, SVT_NUM_TYPES};
 
 struct fastArrayHandler {
 	struct variable *			fastVariables;
@@ -25,6 +26,7 @@ union variableData {
 	char *						theString;
 	stackHandler *				theStack;
 	OwnedAnimation				animHandler;	// Owns its handle (see ownedanimation.h)
+	OwnedRig					rigHandler;		// Owns a box of its rig (see ownedrig.h)
 	struct persona *    		costumeHandler;
 	fastArrayHandler *			fastArray;
 };
@@ -56,6 +58,12 @@ const struct personaAnimation * animationOf (const variable & v);
 void setAnimation (variable & v, AnimationHandle h);
 void freeAnimation (variable & v);
 void newCostumeVariable (variable & thisVar, struct persona * i);
+// The only ways to the rig of a rig variable (see ownedrig.h), as for
+// animations above.
+const RigDefinitionRef & rigOf (const variable & v);
+void setRig (variable & v, const RigDefinitionRef & rig);
+void freeRig (variable & v);
+void newRigVariable (variable & thisVar, const RigDefinitionRef & rig);
 void makeTextVar (variable & thisVar, const char * txt);
 void addVariablesInSecond (variable & var1, variable & var2);
 void compareVariablesInSecond (const variable & var1, variable & var2);

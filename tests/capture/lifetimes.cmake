@@ -11,7 +11,8 @@
 #    what lived after the first, and after the second save, so that loading
 #    frees what it replaces.
 # 3. Failed loads: LoadTest again, with its save cut short at 64 places
-#    (SLUDGE_TEST_CUT_SAVE), and TimelineTest, whose save has clips, at 32.
+#    (SLUDGE_TEST_CUT_SAVE), and TimelineTest, whose save has clips, at 32,
+#    and CompositeTest (-DCOMPOSITE_GAME), whose save has rigs, at 16.
 #    Each must end in "This saved game appears to be corrupted", without a
 #    crash. With the sanitisers, no error, and no leak of what the loaders
 #    made.
@@ -130,4 +131,13 @@ if(DEFINED TIMELINE_GAME)
 		message(FATAL_ERROR "TimelineTest stopped with ${timeline_result}:\n${timeline_log}")
 	endif()
 	cut_saves(TimelineTest "${TIMELINE_GAME}" timeline timeline.sav 32)
+endif()
+
+# CompositeTest's save has rigs too, where its sprites are (SLUDGE_EGO_SPRITES).
+if(DEFINED COMPOSITE_GAME)
+	run_game(composite "${COMPOSITE_GAME}")
+	if(NOT composite_result EQUAL 0)
+		message(FATAL_ERROR "CompositeTest stopped with ${composite_result}:\n${composite_log}")
+	endif()
+	cut_saves(CompositeTest "${COMPOSITE_GAME}" composite composite.sav 16)
 endif()

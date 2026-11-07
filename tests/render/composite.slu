@@ -1,0 +1,315 @@
+# CompositeTest: a character of parts (see source/Engine/animpose.h and
+# composite.cpp), from the sprite sheets and Godot scenes of a game in the
+# making: the sheets stay outside this repository, and
+# tests/render/make-ego-banks.py makes the banks of hd-ego/ from them.
+#
+# The rig follows the Godot scenes: the legs and the torso hang from the
+# character, the head and both arms from the torso, the eyes from the head,
+# and a joint at each hand. Its rest pose is the one of the south; the clips
+# of the other directions place and order the parts as their scenes do,
+# rounded to whole pixels. The game runs at 48 ticks a second, so a frame of
+# Godot's 24 a second is 2 ticks.
+#
+# The depths follow Godot's z_index and tree order: south, the arms behind
+# (-1), then legs (0), torso (1), head and eyes (2), and an arm in front (3)
+# as the walk swings it; east, the far arm behind, legs, torso, the near
+# arm (3), head and eyes (4); north, the arms behind, legs, head (1), the
+# torso over it (2).
+
+objectType ego ("ego") {
+}
+
+var south = 0;
+var west = 1;
+var north = 2;
+var east = 3;
+
+sub egoRig () {
+	var r = newRig ();
+	addPart (r, "legs", "", -4, -1, 'hd-ego/legs_south.duc', 0);
+	addPart (r, "torso", "", -3, -258, 'hd-ego/torso_south.duc', 0);
+	addPart (r, "head", "torso", 3, -213, 'hd-ego/head_south.duc', 0);
+	addPart (r, "eyes", "head", 0, 0, 'hd-ego/head_south.duc', 6);
+	addPart (r, "arm1", "torso", -79, -153, 'hd-ego/arm1_south.duc', 0);
+	addPart (r, "hand1", "arm1", -30, 222);
+	addPart (r, "arm2", "torso", 70, -159, 'hd-ego/arm2_south.duc', 0);
+	addPart (r, "hand2", "arm2", -9, 213);
+	setPartDepth (r, "torso", 1);
+	setPartDepth (r, "head", 2);
+	setPartDepth (r, "eyes", 2);
+	setPartDepth (r, "arm1", -1);
+	setPartDepth (r, "arm2", -1);
+	return r;
+}
+
+# The places, depths and first sprites of a direction, at tick 0.
+sub keyPart (c, part, x, y, depth) {
+	clipKey (c, part, PART_X, 0, x, EASE_STEP);
+	clipKey (c, part, PART_Y, 0, y, EASE_STEP);
+	clipKey (c, part, PART_DEPTH, 0, depth);
+}
+
+sub pose (c, dir) {
+	if (dir == south) {
+		keyPart (c, "legs", -4, -1, 0);
+		keyPart (c, "torso", -3, -258, 1);
+		keyPart (c, "head", 3, -213, 2);
+		keyPart (c, "eyes", 0, 0, 2);
+		keyPart (c, "arm1", -79, -153, -1);
+		keyPart (c, "arm2", 70, -159, -1);
+		clipSprite (c, "legs", 0, 'hd-ego/legs_south.duc', 0);
+		clipSprite (c, "torso", 0, 'hd-ego/torso_south.duc', 0);
+		clipSprite (c, "head", 0, 'hd-ego/head_south.duc', 0);
+		clipSprite (c, "eyes", 0, 'hd-ego/head_south.duc', 6);
+		clipSprite (c, "arm1", 0, 'hd-ego/arm1_south.duc', 0);
+		clipSprite (c, "arm2", 0, 'hd-ego/arm2_south.duc', 0);
+		clipKey (c, "eyes", PART_VISIBLE, 0, TRUE);
+	} else if (dir == north) {
+		keyPart (c, "legs", 0, 0, 0);
+		keyPart (c, "torso", 1, -280, 2);
+		keyPart (c, "head", -1, -181, 1);
+		keyPart (c, "arm1", -72, -133, -1);
+		keyPart (c, "arm2", 75, -137, -1);
+		clipSprite (c, "legs", 0, 'hd-ego/legs_north.duc', 0);
+		clipSprite (c, "torso", 0, 'hd-ego/torso_north.duc', 0);
+		clipSprite (c, "head", 0, 'hd-ego/head_north.duc', 0);
+		clipSprite (c, "arm1", 0, 'hd-ego/arms_north.duc', 0);
+		clipSprite (c, "arm2", 0, 'hd-ego/arms_north.duc', 14);
+		clipKey (c, "eyes", PART_VISIBLE, 0, FALSE);
+	} else {
+		# East, and west, its mirror image.
+		keyPart (c, "legs", 9, -1, 0);
+		keyPart (c, "torso", -21, -246, 1);
+		keyPart (c, "head", -7, -226, 4);
+		keyPart (c, "eyes", 0, 0, 4);
+		if (dir == west) {
+			keyPart (c, "arm1", 53, -161, -1);
+		} else {
+			keyPart (c, "arm1", 53, -177, -1);
+		}
+		keyPart (c, "arm2", -49, -160, 3);
+		clipSprite (c, "legs", 0, 'hd-ego/legs_east.duc', 0);
+		clipSprite (c, "torso", 0, 'hd-ego/torso_east.duc', 0);
+		clipSprite (c, "head", 0, 'hd-ego/head_east.duc', 0);
+		clipSprite (c, "eyes", 0, 'hd-ego/head_east.duc', 7);
+		clipSprite (c, "arm1", 0, 'hd-ego/arm1_east.duc', 0);
+		clipSprite (c, "arm2", 0, 'hd-ego/arm2_east.duc', 0);
+		clipKey (c, "eyes", PART_VISIBLE, 0, TRUE);
+		clipKey (c, "", PART_FLIP, 0, dir == west);
+	}
+}
+
+# Sprites of a bank every step ticks from tick 0, from a stack of numbers.
+sub keyFrames (c, part, bank, step, frames) {
+	var t = 0;
+	while (stackSize (frames)) {
+		clipSprite (c, part, t, bank, popFromStack (frames));
+		t = t + step;
+	}
+}
+
+# Sprites at ticks, from two stacks.
+sub keyFramesAt (c, part, bank, ticks, frames) {
+	while (stackSize (frames)) {
+		clipSprite (c, part, popFromStack (ticks), bank, popFromStack (frames));
+	}
+}
+
+sub countFrames (first, last) {
+	var s = newStack ();
+	for (var i = first; i <= last; i ++) enqueue (s, i);
+	return s;
+}
+
+# Up from first to top, and back down to first + 1: the swing of an arm.
+sub swingFrames (first, top) {
+	var s = countFrames (first, top);
+	for (var i = top - 1; i > first; i --) enqueue (s, i);
+	return s;
+}
+
+# The bob and sway of the torso over a step of the walk: up and down twice
+# a second, as Godot keys it from 1/8 of a second, so that it closes the
+# loop halfway between its ends.
+sub bob (c, high, low, lean) {
+	var middle = (high + low) / 2;
+	clipKey (c, "torso", PART_Y, 0, middle);
+	clipKey (c, "torso", PART_Y, 6, high);
+	clipKey (c, "torso", PART_Y, 18, low);
+	clipKey (c, "torso", PART_Y, 30, high);
+	clipKey (c, "torso", PART_Y, 42, low);
+	clipKey (c, "torso", PART_Y, 48, middle);
+	clipKey (c, "torso", PART_ROTATION, 0, lean);
+	clipKey (c, "torso", PART_ROTATION, 24, 0 - lean);
+	clipKey (c, "torso", PART_ROTATION, 48, lean);
+}
+
+sub standClip (dir) {
+	var c = newClip (0);
+	pose (c, dir);
+	return c;
+}
+
+sub walkClip (dir) {
+	var c = newClip (48, TRUE);
+	pose (c, dir);
+	if (dir == south) {
+		keyFrames (c, "legs", 'hd-ego/legs_south.duc', 2, countFrames (1, 24));
+		keyFrames (c, "torso", 'hd-ego/torso_south.duc', 2, countFrames (1, 24));
+		keyFrames (c, "arm1", 'hd-ego/arm1_south.duc', 2, swingFrames (1, 13));
+		keyFrames (c, "arm2", 'hd-ego/arm2_south.duc', 2, swingFrames (1, 13));
+		clipKey (c, "arm1", PART_DEPTH, 0, 3);
+		clipKey (c, "arm1", PART_DEPTH, 14, -1);
+		clipKey (c, "arm1", PART_DEPTH, 36, 3);
+		clipKey (c, "arm2", PART_DEPTH, 12, 3);
+		clipKey (c, "arm2", PART_DEPTH, 38, -1);
+		bob (c, -245, -273, 2);
+	} else if (dir == north) {
+		keyFrames (c, "legs", 'hd-ego/legs_north.duc', 2, countFrames (1, 24));
+		keyFrames (c, "torso", 'hd-ego/torso_north.duc', 2, countFrames (1, 24));
+		keyFrames (c, "arm1", 'hd-ego/arms_north.duc', 2, swingFrames (1, 13));
+		keyFrames (c, "arm2", 'hd-ego/arms_north.duc', 2, swingFrames (15, 27));
+		clipKey (c, "arm1", PART_DEPTH, 14, 3);
+		clipKey (c, "arm1", PART_DEPTH, 36, -1);
+		clipKey (c, "arm2", PART_DEPTH, 0, 3);
+		clipKey (c, "arm2", PART_DEPTH, 12, -1);
+		clipKey (c, "arm2", PART_DEPTH, 38, 3);
+		bob (c, -270, -295, -2);
+	} else {
+		keyFrames (c, "legs", 'hd-ego/legs_east.duc', 2, countFrames (2, 25));
+		keyFrames (c, "torso", 'hd-ego/torso_east.duc', 2, countFrames (2, 25));
+		keyFrames (c, "arm1", 'hd-ego/arm1_east.duc', 2, countFrames (2, 25));
+		keyFrames (c, "arm2", 'hd-ego/arm2_east.duc', 2, countFrames (2, 25));
+		# Walking, the head looks ahead, with its own eyes.
+		clipSprite (c, "head", 0, 'hd-ego/head_east.duc', 1);
+		clipKey (c, "eyes", PART_VISIBLE, 0, FALSE);
+		bob (c, -230, -266, -2);
+	}
+	return c;
+}
+
+# Talking: the mouth, and a nod of the head, over 4 seconds.
+sub nod (c, part, property, first, second, third) {
+	clipKey (c, part, property, 0, first);
+	clipKey (c, part, property, 40, first);
+	clipKey (c, part, property, 48, second);
+	clipKey (c, part, property, 88, second);
+	clipKey (c, part, property, 96, third);
+	clipKey (c, part, property, 180, third);
+	clipKey (c, part, property, 188, first);
+}
+
+sub talkClip (dir) {
+	var c = newClip (192, TRUE);
+	pose (c, dir);
+	if (dir == south) {
+		keyFrames (c, "head", 'hd-ego/head_south.duc', 4, newStack (1, 2, 3, 4, 5, 3, 1, 3, 2, 5, 2, 4, 3, 1, 2, 1, 3, 5, 3, 4, 5, 2, 4, 3,
+			5, 1, 2, 3, 4, 5, 3, 1, 3, 2, 5, 2, 4, 3, 1, 2, 1, 3, 5, 3, 4, 5, 2, 4));
+		nod (c, "head", PART_Y, -213, -210, -205);
+	} else if (dir == north) {
+		keyFramesAt (c, "head", 'hd-ego/head_north.duc',
+			newStack (0, 4, 8, 20, 24, 28, 32, 40, 44, 48, 52, 68, 84, 88, 92, 96, 100, 104, 116, 120, 124, 128, 136, 140, 144, 148, 164, 180, 184, 188),
+			newStack (0, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 1, 0, 1, 2, 0, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 1, 0, 1, 2));
+		nod (c, "head", PART_Y, -181, -178, -175);
+	} else {
+		keyFramesAt (c, "head", 'hd-ego/head_east.duc',
+			newStack (0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116,
+				120, 124, 128, 132, 136, 140, 144, 148, 152, 156, 160, 164, 168, 172, 180, 184, 188),
+			newStack (2, 3, 4, 5, 6, 2, 3, 4, 5, 6, 4, 2, 3, 5, 6, 0, 5, 2, 6, 0, 6, 5, 6, 3, 2, 3, 4, 5, 6, 2, 3, 4, 5, 6, 4, 2, 3, 5, 6, 0,
+				5, 2, 6, 0, 5, 6, 3));
+		nod (c, "head", PART_ROTATION, 0, -3, -5);
+	}
+	return c;
+}
+
+sub egoCostume () {
+	return costume (
+		standClip (south), standClip (west), standClip (north), standClip (east),
+		walkClip (south), walkClip (west), walkClip (north), walkClip (east),
+		talkClip (south), talkClip (west), talkClip (north), talkClip (east));
+}
+
+# Turning, scaling, flipping, hiding and reordering parts, standing south.
+sub showOffClip () {
+	var c = newClip (96);
+	pose (c, south);
+	clipKey (c, "arm2", PART_ROTATION, 0, 0);
+	clipKey (c, "arm2", PART_ROTATION, 24, -150, EASE_INOUT);
+	clipKey (c, "arm2", PART_ROTATION, 48, -150, EASE_INOUT);
+	clipKey (c, "arm2", PART_ROTATION, 72, 0, EASE_INOUT);
+	clipKey (c, "arm2", PART_DEPTH, 12, 3);
+	clipKey (c, "head", PART_SCALE, 0, 100);
+	clipKey (c, "head", PART_SCALE, 30, 140, EASE_INOUT);
+	clipKey (c, "head", PART_SCALE, 60, 100, EASE_INOUT);
+	clipKey (c, "head", PART_FLIP, 40, TRUE);
+	clipKey (c, "head", PART_FLIP, 70, FALSE);
+	clipKey (c, "arm1", PART_VISIBLE, 50, FALSE);
+	clipKey (c, "arm1", PART_VISIBLE, 80, TRUE);
+	clipSprite (c, "torso", 84, NOSPRITE);
+	clipKey (c, "torso", PART_ROTATION, 84, 0);
+	clipKey (c, "torso", PART_ROTATION, 96, 20);
+	return c;
+}
+
+sub scene (name, frames) {
+	for (var i = 0; i < frames; i ++) {
+		statusText (name);
+		pause (1);
+	}
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	addOverlay ('outside/room.tga', 0, 0);
+	setFloor ('outside/room.flo');
+	setZBuffer ('outside/room.zbu');
+	# Half its size at the front, smaller further back.
+	setScale (-400, 1600);
+
+	addCharacter (ego, 420, 400, egoCostume ());
+	setCharacterRig (ego, egoRig ());
+	scene ("standing south", 10);
+	turnCharacter (ego, 270);
+	scene ("standing west", 10);
+	turnCharacter (ego, 0);
+	scene ("standing north", 10);
+	turnCharacter (ego, 90);
+	scene ("standing east", 10);
+	turnCharacter (ego, 180);
+
+	# Walking, behind the walls of the tunnel at the end.
+	moveCharacter (ego, 300, 420);
+	moveCharacter (ego, 300, 330);
+	moveCharacter (ego, 420, 400);
+	moveCharacter (ego, 83, 344);
+	forceCharacter (ego, 34, 346);
+	scene ("behind the z-buffer", 10);
+	jumpCharacter (ego, 320, 420);
+	turnCharacter (ego, 180);
+
+	say (ego, "A character of parts.");
+	turnCharacter (ego, 90);
+	say (ego, "Facing east.");
+
+	pause (animate (ego, showOffClip ()));
+	scene ("turned, scaled, flipped, hidden", 10);
+	normalCharacter (ego);
+
+	setLightMap ('light.png', PERPIXEL);
+	scene ("light map per pixel", 10);
+	setLightMap ('light.png', HOTSPOT);
+	scene ("light map at the hotspot", 10);
+	setLightMap (NULL);
+	setCharacterTransparency (ego, 128);
+	setCharacterColourise (ego, 255, 0, 0, 128);
+	scene ("transparency and colourise", 10);
+	setCharacterDrawMode (ego, NORMAL);
+
+	# Save, walk on the spot, load, and walk the same again.
+	animate (ego, walkClip (south));
+	var saved = saveGame ("composite.sav");
+	scene ("after saving", 40);
+	if (saved) loadGame ("composite.sav");
+	quitGame ();
+}

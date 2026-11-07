@@ -188,3 +188,33 @@ void evaluatePose (const RigDefinitionRef & rig, const ClipDefinitionRef & clip,
 	std::stable_sort (out.drawOrder.begin (), out.drawOrder.end (),
 		[&out] (int x, int y) { return out.parts[x].depth < out.parts[y].depth; });
 }
+
+void spriteCorners (const Transform2D & m, int w, int h, int xhot, int yhot, bool mirror, float out[8]) {
+	Transform2D t = mirror ? m * Transform2D::flipX () : m;
+	const float xs[2] = { (float) - xhot, (float) (w - xhot) };
+	const float ys[2] = { (float) - yhot, (float) (h - yhot) };
+	for (int i = 0; i < 4; i ++) t.apply (xs[i & 1], ys[i >> 1], out[i * 2], out[i * 2 + 1]);
+}
+
+bool poseBounds (const Pose & pose, float & x1, float & y1, float & x2, float & y2) {
+	bool any = false;
+	for (size_t i = 0; i < pose.drawOrder.size (); i ++) {
+		const PosedPart & p = pose.parts[pose.drawOrder[i]];
+		const sprite & s = p.sprite.bank -> bank.sprites[p.sprite.number];
+		float c[8];
+		spriteCorners (p.world, s.width, s.height, s.xhot, s.yhot, p.sprite.mirror, c);
+		for (int k = 0; k < 4; k ++) {
+			float x = c[k * 2], y = c[k * 2 + 1];
+			if (! any) {
+				x1 = x2 = x;
+				y1 = y2 = y;
+				any = true;
+			}
+			x1 = std::min (x1, x);
+			x2 = std::max (x2, x);
+			y1 = std::min (y1, y);
+			y2 = std::max (y2, y);
+		}
+	}
+	return any;
+}

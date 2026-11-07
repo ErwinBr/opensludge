@@ -462,6 +462,7 @@ void logLifetimes (const char * when) {
 }
 
 static unsigned nextSequence = 1;
+static void computePoses ();
 
 namespace {
 
@@ -514,10 +515,63 @@ void updatePeopleAnimations (int ticks) {
 		std::sort (pending.begin (), pending.end (), firesBefore);
 		for (size_t i = pending.size (); i -- > 0;) events.frameEvent (pending[i].e.what);
 	}
+	computePoses ();
+}
+
+// The pose of a character of parts, from what its animation shows now: a
+// TIMELINE clip at its display position, or an animation of anim () at its
+// display frame, on the root.
+static void computePose (onScreenPerson & p) {
+	if (! p.rig) {
+		p.pose = Pose ();
+		return;
+	}
+	const personaAnimation * a = p.myAnim;
+	ClipDefinitionRef clip;
+	TrackSamples samples;
+	if (isTimeline (a)) {
+		clip = a -> definition;
+		evaluateClip (* clip, shownTime (p.playback, a), samples);
+	} else if (a && a -> numFrames () && ! a -> definition -> tracks.empty ()) {
+		clip = a -> definition;
+		const Track & t = clip -> tracks[0];
+		int f = p.playback.playing == a ? p.playback.displayFrame : 0;
+		if (f < 0 || f >= (int) t.keys.size ()) f = 0;
+		TrackSample s = { & t, 0, & t.keys[f].sprite };
+		samples.push_back (s);
+	}
+	evaluatePose (p.rig, clip, samples, Transform2D (), p.poseBinding, p.pose);
+}
+
+static void computePoses () {
+	for (onScreenPerson * p = allPeople; p; p = p -> next) computePose (* p);
 }
 
 void stepLegacyAnimations () {
 	legacyPass (1);
+	computePoses ();
+}
+
+static int heightOf (const personaAnimation & first);
+
+bool setPersonRig (int obj, const RigDefinitionRef & rig) {
+	onScreenPerson * p = findPerson (obj);
+	if (! p) return false;
+	if (rig) rig -> sealed = true;
+	p -> rig = rig;
+	p -> poseBinding = PoseBinding ();
+	computePose (* p);
+	if (rig) {
+		// As high as its parts reach at rest, as a sprite's hotspot sets it.
+		Pose rest;
+		PoseBinding none;
+		evaluatePose (rig, ClipDefinitionRef (), TrackSamples (), Transform2D (), none, rest);
+		float x1, y1, x2, y2;
+		p -> height = poseBounds (rest, x1, y1, x2, y2) ? (int) (- y1) + 5 : 5;
+	} else {
+		p -> height = heightOf (* p -> myPersona -> animation[0]);
+	}
+	return true;
 }
 
 // The mouse is over the character.
@@ -534,7 +588,14 @@ void drawPeople () {
 
 	for (const onScreenPerson * thisPerson = allPeople; thisPerson; thisPerson = thisPerson -> next) {
 		const personaAnimation * myAnim = thisPerson -> myAnim;
-		if (! thisPerson -> show || ! myAnim) continue;
+		if (! thisPerson -> show) continue;
+
+		// A character of parts draws its pose, whatever its animation.
+		if (thisPerson -> rig) {
+			if (drawRiggedPerson (thisPerson)) pointAtPerson (thisPerson);
+			continue;
+		}
+		if (! myAnim) continue;
 
 		// A TIMELINE clip shows the sprite of its root's track.
 		if (isTimeline (myAnim)) {
@@ -1064,6 +1125,36 @@ static bool loadTimelineClip (personaAnimation * p, FILE * fp) {
 	return true;
 }
 
+bool saveRigRecord (const RigDefinitionRef & rig, FILE * fp) {
+	animformat::Document doc;
+	doc.rigs.push_back (* rig);
+	animformat::Bytes bytes;
+	std::string why;
+	if (! animformat::encode (doc, bytes, why)) {
+		fatal ("Can't save a rig:", why.c_str ());
+		return false;
+	}
+	fputc (rig -> sealed ? 1 : 0, fp);
+	put4bytes ((uint32_t) bytes.size (), fp);
+	fwrite (bytes.data (), 1, bytes.size (), fp);
+	return true;
+}
+
+RigDefinitionRef loadRigRecord (FILE * fp) {
+	int sealed = fgetc (fp);
+	int32_t size = get4bytes (fp);
+	if (sealed < 0 || sealed > 1 || size < 0 || size > maxClipRecord || feof (fp)) return RigDefinitionRef ();
+	animformat::Bytes bytes (size);
+	if (size && fread (bytes.data (), 1, size, fp) != (size_t) size) return RigDefinitionRef ();
+	animformat::Document doc;
+	std::string why;
+	if (! animformat::decode (bytes.data (), bytes.size (), doc, why) || doc.rigs.size () != 1 || ! doc.clips.empty ()) return RigDefinitionRef ();
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> (doc.rigs[0]);
+	if (! resolveBanks (* rig, loadBankForAnim)) return RigDefinitionRef ();
+	rig -> sealed = sealed == 1;
+	return rig;
+}
+
 bool loadAnim (personaAnimation * p, FILE * fp) {
 	if (ssgVersion >= VERSION (2, 3)) {
 		int kind = fgetc (fp);
@@ -1200,6 +1291,9 @@ bool savePeople (FILE * fp) {
 		put4bytes (me -> playback.subTicks, fp);
 		put8bytes (me -> playback.position, fp);
 		put8bytes (me -> playback.displayPosition, fp);
+		// And its rig, if it has one.
+		fputc (me -> rig ? 1 : 0, fp);
+		if (me -> rig) saveRigRecord (me -> rig, fp);
 
 		me = me -> next;
 	}
@@ -1299,6 +1393,12 @@ bool loadPeople (FILE * fp) {
 				if (me -> playback.position < 0 || me -> playback.position > end
 					|| me -> playback.displayPosition < 0 || me -> playback.displayPosition > end) return false;
 			}
+			int hasRig = fgetc (fp);
+			if (hasRig < 0 || hasRig > 1) return false;
+			if (hasRig) {
+				me -> rig = loadRigRecord (fp);
+				if (! me -> rig) return false;
+			}
 		} else {
 			me -> sequence = a + 1;
 		}
@@ -1320,5 +1420,6 @@ bool loadPeople (FILE * fp) {
 		pointy = & (me -> next);
 	}
 //	db ("End of loadPeople");
+	computePoses ();
 	return true;
 }

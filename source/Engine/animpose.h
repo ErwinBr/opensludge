@@ -97,6 +97,15 @@ private:
 void evaluatePose (const RigDefinitionRef & rig, const ClipDefinitionRef & clip, const TrackSamples & samples,
 	const Transform2D & character, PoseBinding & binding, Pose & out);
 
+// The corners of a sprite of width w and height h, with its hotspot at the
+// origin of transform m, mirrored (its own mirror image, about its hotspot)
+// or not: top left, top right, bottom left, bottom right, as x, y pairs.
+void spriteCorners (const Transform2D & m, int w, int h, int xhot, int yhot, bool mirror, float out[8]);
+
+// The box around the sprites that a pose draws, in the space of its
+// character's transform. False when it draws none.
+bool poseBounds (const Pose & pose, float & x1, float & y1, float & x2, float & y2);
+
 // Forget what evaluatePose has reported, so that it reports it again (for
 // tests; see animDiagnostic in animmodel.h).
 void forgetPoseReports ();

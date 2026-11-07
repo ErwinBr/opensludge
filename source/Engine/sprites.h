@@ -66,6 +66,9 @@ void pasteSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteB
 void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBank & bank);
 
 bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreenPerson * thisPerson, bool mirror);
+// A character of parts, from its pose (composite.cpp). Whether the mouse is
+// over it.
+bool drawRiggedPerson (const onScreenPerson * thisPerson);
 void fixScaleSprite (int x1, int y1, const sprite & single, const spriteBank & bank, onScreenPerson * thisPerson, const int camX, const int camY, bool);
 
 #endif

@@ -1007,6 +1007,38 @@ static void testPoses () {
 	setAnimDiagnosticHandler (NULL);
 }
 
+// The quads of sprites: corners about the hotspot, and the box of a pose.
+static void testSpriteCorners () {
+	float c[8];
+	spriteCorners (Transform2D::translation (100, 50), 10, 20, 4, 15, false, c);
+	CHECK (near2 (c[0], c[1], 96, 35) && near2 (c[2], c[3], 106, 35) && near2 (c[4], c[5], 96, 55) && near2 (c[6], c[7], 106, 55),
+		"the hotspot at the origin: top left, top right, bottom left, bottom right");
+	spriteCorners (Transform2D::translation (100, 50), 10, 20, 4, 15, true, c);
+	CHECK (near2 (c[0], c[1], 104, 35) && near2 (c[2], c[3], 94, 35), "a mirror image turns about the hotspot");
+	spriteCorners (Transform2D::rotation (90) * Transform2D::scaling (2), 10, 20, 0, 0, false, c);
+	CHECK (near2 (c[2], c[3], 0, 20) && near2 (c[4], c[5], -40, 0), "turned and scaled");
+
+	// A pose's box: a sprite of 10 by 20 with its hotspot at the bottom middle.
+	SpriteBankRef b = std::make_shared<loadedSpriteBank> ();
+	b -> bank.total = 1;
+	b -> bank.sprites.resize (1);
+	b -> bank.sprites[0].width = 10;
+	b -> bank.sprites[0].height = 20;
+	b -> bank.sprites[0].xhot = 5;
+	b -> bank.sprites[0].yhot = 20;
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> ();
+	addPart (* rig, "body", "", at (0, 0), SpriteRef::sprite (b, 1, 0, false), why);
+	addPart (* rig, "hat", "body", at (0, -20), SpriteRef::sprite (b, 1, 0, false), why);
+	Pose pose;
+	PoseBinding binding;
+	evaluatePose (rig, ClipDefinitionRef (), TrackSamples (), Transform2D (), binding, pose);
+	float x1, y1, x2, y2;
+	CHECK (poseBounds (pose, x1, y1, x2, y2) && near2 (x1, y1, -5, -40) && near2 (x2, y2, 5, 0), "the box of a pose");
+	std::shared_ptr<RigDefinition> empty = std::make_shared<RigDefinition> ();
+	evaluatePose (empty, ClipDefinitionRef (), TrackSamples (), Transform2D (), binding, pose);
+	CHECK (! poseBounds (pose, x1, y1, x2, y2), "a pose that draws nothing has no box");
+}
+
 static void testLifetimes () {
 	int rigs = LifetimeCounter<RigDefinition>::live (), clips = LifetimeCounter<ClipDefinition>::live ();
 	{
@@ -1032,6 +1064,7 @@ int main () {
 	testTimelinePlayer ();
 	testTransforms ();
 	testPoses ();
+	testSpriteCorners ();
 	testLifetimes ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);

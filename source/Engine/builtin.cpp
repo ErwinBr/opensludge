@@ -103,7 +103,8 @@ int paramNum[] = {-1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, 8, -1,		// SAY -> MOVEM
 	2, 5,										// setCharacterTransparency, setCharacterColourise
 	1,											// zoomCamera
 	1, 0, 0,									// playMovie, stopMovie, pauseMovie
-	-1, -1, 3, 3, 3, 2							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
+	-1, -1, 3, 3, 3, 2,							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
+	0, -1, 3, 2, -1								// newRig, addPart, setPartDepth, setCharacterRig, clipKey
 };
 
 bool failSecurityCheck (char * fn) {
@@ -2874,6 +2875,182 @@ builtIn(isClipPlaying)
 		else playing = p -> myAnim -> numFrames () > 0;
 	}
 	setVariable (fun -> reg, SVT_INT, playing);
+	return BR_CONTINUE;
+}
+
+
+#pragma mark -
+#pragma mark Rigs: characters of parts (animmodel.h, animpose.h)
+
+// The rig of a variable that a script builds, to change; NULL after fatal.
+// Like clips, a rig can change until something uses it (setCharacterRig).
+static RigDefinition * rigToChange (variable & v) {
+	if (v.varType != SVT_RIG) {
+		fatal ("Expecting a rig of newRig (); found variable of type", typeName[v.varType]);
+		return NULL;
+	}
+	const RigDefinitionRef & rig = rigOf (v);
+	if (! rig) {
+		fatal ("This rig is empty.");
+		return NULL;
+	}
+	if (rig -> sealed) {
+		fatal ("This rig is already used by a character, so it can't change; make another with newRig ()");
+		return NULL;
+	}
+	return const_cast<RigDefinition *> (rig.get ());
+}
+
+// newRig (): a rig of nothing but its root, the character itself ("").
+builtIn(newRig)
+{
+	UNUSEDALL
+	newRigVariable (fun -> reg, std::make_shared<RigDefinition> ());
+	return BR_CONTINUE;
+}
+
+// addPart (rig, name, parent, x, y [, file, sprite]): a part called name,
+// attached to the part called parent ("" for the character) with its
+// hotspot at (x, y) from the parent's. Without a sprite, it is a joint: it
+// draws nothing, and places what is attached to it.
+builtIn(addPart)
+{
+	UNUSEDALL
+	if (numParams != 5 && numParams != 7) {
+		fatal ("Built-in function addPart() must have 5 or 7 parameters.");
+		return BR_ERROR;
+	}
+	SpriteRef sprite;
+	if (numParams == 7) {
+		int number, file;
+		if (! getValueType (number, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (! getValueType (file, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		SpriteBankRef bank = loadBankForAnim (file);
+		if (! bank) return BR_ERROR;	// fatal done already
+		sprite = SpriteRef::sprite (bank, file, number >= 0 ? number : number == INT_MIN ? INT_MAX : - number, number < 0);
+	}
+	PartPose rest;
+	int x, y;
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	rest.x = (float) x;
+	rest.y = (float) y;
+	std::string name, parent;
+	if (! getPartName (fun -> stack -> thisVar, parent)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getPartName (fun -> stack -> thisVar, name)) return BR_ERROR;
+	trimStack (fun -> stack);
+	RigDefinition * rig = rigToChange (fun -> stack -> thisVar);
+	if (! rig) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string why;
+	if (! addPart (* rig, name, parent, rest, sprite, why)) {
+		fatal (why.c_str ());
+		return BR_ERROR;
+	}
+	return BR_CONTINUE;
+}
+
+// setPartDepth (rig, name, depth): the order of drawing within the
+// character: deeper (lower) first; parts of the same depth in the order
+// they were added.
+builtIn(setPartDepth)
+{
+	UNUSEDALL
+	int depth;
+	if (! getValueType (depth, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string name;
+	if (! getPartName (fun -> stack -> thisVar, name)) return BR_ERROR;
+	trimStack (fun -> stack);
+	RigDefinition * rig = rigToChange (fun -> stack -> thisVar);
+	if (! rig) return BR_ERROR;
+	trimStack (fun -> stack);
+	int part = rig -> findPart (name);
+	if (part < 0) {
+		fatal ("There is no part of that name in this rig:", name.c_str ());
+		return BR_ERROR;
+	}
+	rig -> parts[part].depth = depth;
+	return BR_CONTINUE;
+}
+
+// setCharacterRig (character, rig): the character is of the rig's parts,
+// and its animations move them; 0 makes it a character of one sprite again.
+builtIn(setCharacterRig)
+{
+	UNUSEDALL
+	RigDefinitionRef rig;
+	variable & v = fun -> stack -> thisVar;
+	if (v.varType == SVT_RIG) {
+		rig = rigOf (v);
+	} else if (! (v.varType == SVT_INT && v.varData.intValue == 0)) {
+		fatal ("Expecting a rig of newRig (), or 0; found variable of type", typeName[v.varType]);
+		return BR_ERROR;
+	}
+	trimStack (fun -> stack);
+	int obj;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, setPersonRig (obj, rig));
+	return BR_CONTINUE;
+}
+
+// clipKey (clip, part, property, tick, value [, easing]): from tick on, the
+// part's property moves towards value: PART_X and PART_Y in pixels,
+// PART_ROTATION in degrees (clockwise), PART_SCALE in percent, PART_DEPTH,
+// and PART_VISIBLE and PART_FLIP as TRUE or FALSE. The easing (towards the
+// next key) is EASE_LINEAR unless given: EASE_STEP holds the value until
+// the next key, EASE_INOUT eases in and out. Depth, visibility and
+// flipping always step.
+builtIn(clipKey)
+{
+	UNUSEDALL
+	if (numParams != 5 && numParams != 6) {
+		fatal ("Built-in function clipKey() must have 5 or 6 parameters.");
+		return BR_ERROR;
+	}
+	int easing = EASING_LINEAR;
+	if (numParams == 6) {
+		if (! getValueType (easing, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (easing < 0 || easing >= NUM_EASINGS) {
+			fatal ("Not an easing: use EASE_STEP, EASE_LINEAR or EASE_INOUT.");
+			return BR_ERROR;
+		}
+	}
+	int value, tick, property;
+	if (! getValueType (value, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (tick, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (property, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (property < 0 || property >= NUM_CHANNELS || property == CHANNEL_SPRITE) {
+		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_DEPTH, PART_VISIBLE or PART_FLIP (and clipSprite for sprites).");
+		return BR_ERROR;
+	}
+	std::string part;
+	if (! getPartName (fun -> stack -> thisVar, part)) return BR_ERROR;
+	trimStack (fun -> stack);
+	ClipDefinition * clip = clipToChange (fun -> stack -> thisVar);
+	if (! clip) return BR_ERROR;
+	trimStack (fun -> stack);
+	Channel channel = (Channel) property;
+	Key key;
+	key.time = tick;
+	key.value = channel == CHANNEL_SCALE ? value / 100.0f : (float) value;
+	if (channel == CHANNEL_VISIBLE || channel == CHANNEL_FLIP) key.value = value ? 1.0f : 0.0f;
+	key.easing = isDiscrete (channel) ? EASING_STEP : (Easing) easing;
+	std::string why;
+	if (! setKey (* clip, part, channel, key, why)) {
+		fatal (why.c_str ());
+		return BR_ERROR;
+	}
 	return BR_CONTINUE;
 }
 
