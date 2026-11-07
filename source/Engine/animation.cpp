@@ -113,15 +113,19 @@ bool timelineFinished (const AnimationPlayback & p, const personaAnimation * ani
 	return p.playing == anim && ! clipLoops (* anim -> definition) && p.position >= ticksToTime (anim -> definition -> length);
 }
 
+// The missing sprites that resolveSprite has reported. Not a static of the
+// function: one that needs constructing gets a thread-safe guard, which
+// MinGW's libstdc++ makes of condition variables, which Windows XP lacks.
+static std::set<std::pair<int, int> > reportedMissingSprites;
+
 const sprite * resolveSprite (const SpriteRef * r, const spriteBank * & bank) {
 	bank = NULL;
 	if (! r || r -> kind != SpriteRef::SPRITE || ! r -> bank) return NULL;
 	const spriteBank & b = r -> bank -> bank;
 	if (r -> number < 0 || r -> number >= b.total) {
-		static std::set<std::pair<int, int> > reported;
 		static int log = -1;
 		if (log < 0) log = getenv ("SLUDGE_ANIM_LOG") != NULL;
-		if (log && reported.insert (std::make_pair (r -> bankFile, r -> number)).second) {
+		if (log && reportedMissingSprites.insert (std::make_pair (r -> bankFile, r -> number)).second) {
 			fprintf (stderr, "Animation: sprite %d of bank %d doesn't exist; drawing nothing\n", r -> number, r -> bankFile);
 		}
 		return NULL;
