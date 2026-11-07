@@ -453,9 +453,10 @@ void logLifetimes (const char * when) {
 	static int on = -1;
 	if (on < 0) on = getenv ("SLUDGE_LIFETIME_LOG") != NULL;
 	if (! on) return;
-	fprintf (stderr, "Lifetimes %s: %d handles, %d definitions, %d costumes, %d characters, %d banks\n", when,
+	fprintf (stderr, "Lifetimes %s: %d handles, %d definitions, %d costumes, %d characters, %d banks, %d rigs\n", when,
 		LifetimeCounter<personaAnimation>::live (), LifetimeCounter<AnimationDefinition>::live (),
-		LifetimeCounter<persona>::live (), LifetimeCounter<onScreenPerson>::live (), spriteBankStats ().loaded);
+		LifetimeCounter<persona>::live (), LifetimeCounter<onScreenPerson>::live (), spriteBankStats ().loaded,
+		LifetimeCounter<RigDefinition>::live ());
 }
 
 void updatePeopleAnimations (int ticks) {

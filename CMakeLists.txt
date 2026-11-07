@@ -143,7 +143,7 @@ if(SLUDGE_ENGINE)
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
-		animation.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
+		animation.cpp animformat.cpp animmodel.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
@@ -229,10 +229,15 @@ if(SLUDGE_ENGINE)
 		target_link_libraries(spritebank_cache_test PRIVATE sludge-renderer sludge::png)
 		add_test(NAME spritebank_cache COMMAND spritebank_cache_test)
 
-		add_executable(animation_test tests/animation_test.cpp ${ENGINE_DIR}/animation.cpp)
+		add_executable(animation_test tests/animation_test.cpp ${ENGINE_DIR}/animation.cpp ${ENGINE_DIR}/animmodel.cpp)
 		target_include_directories(animation_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
 		target_link_libraries(animation_test PRIVATE sludge-renderer)
 		add_test(NAME animation COMMAND animation_test)
+
+		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animmodel.cpp ${ENGINE_DIR}/animformat.cpp)
+		target_include_directories(animmodel_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
+		target_link_libraries(animmodel_test PRIVATE sludge-renderer)
+		add_test(NAME animmodel COMMAND animmodel_test)
 
 		include(cmake/CaptureTests.cmake)
 	endif()

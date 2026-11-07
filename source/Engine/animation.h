@@ -2,11 +2,16 @@
 #define ANIMATION_H
 
 /*
- * Animations: what an animation is (AnimationDefinition, shared and never
- * changed), the handles that variables, costumes, characters and the mouse
- * cursor own (personaAnimation), and the playback of one (AnimationPlayback),
- * which updateAnimation advances, a game tick at a time, apart from drawing.
- * Drawing only reads a playback, and never fires its frame events.
+ * Animations: what an animation is (its definition, a clip of animmodel.h,
+ * shared and never changed), the handles that variables, costumes,
+ * characters and the mouse cursor own (personaAnimation), and the playback
+ * of one (AnimationPlayback), which updateAnimation advances, a game tick at
+ * a time, apart from drawing. Drawing only reads a playback, and never fires
+ * its frame events.
+ *
+ * The stepper here plays LEGACY clips, from their frames: numFrames (),
+ * frame () and sprites () are of those. A clip of another stepping has no
+ * frames, so the stepper and drawing pass it by.
  *
  * Time is in game ticks: the frame time of the game (desiredfps, from its
  * header), at which the main loop runs. ticksForSeconds converts with that
@@ -15,7 +20,7 @@
  * Ownership:
  *  - A handle shares its definition (shared_ptr<const>): copying an
  *    animation copies no frames.
- *  - A definition holds its sprite bank (SpriteBankRef, see sprbanks.h).
+ *  - A definition holds its sprite banks (SpriteBankRef, see sprbanks.h).
  *  - Each handle has one owner: a variable (raw pointer in the union of
  *    variable.h, freed by unlinkVar), a costume (unique_ptr), a character's
  *    ownAnim (unique_ptr) or the mouse cursor (unique_ptr).
@@ -27,48 +32,15 @@
 #include <memory>
 #include <vector>
 
-#include "sprbanks.h"
+#include "animmodel.h"
 #include "ownedanimation.h"
 
-// Counts how many objects of a kind are alive, as a member of them, for the
-// lifetime log (SLUDGE_LIFETIME_LOG, see logLifetimes in people.h).
-template <class Tag> class LifetimeCounter {
-public:
-	LifetimeCounter () { ++ live (); }
-	LifetimeCounter (const LifetimeCounter &) { ++ live (); }
-	LifetimeCounter & operator= (const LifetimeCounter &) { return * this; }
-	~LifetimeCounter () { -- live (); }
-	static int & live () { static int n = 0; return n; }
-};
+// The definition of an animation is a clip (animmodel.h). Animations of
+// anim () and of saved games are LEGACY clips, which play as below.
+typedef ClipDefinition AnimationDefinition;
+typedef ClipDefinitionRef AnimationDefinitionRef;
 
-// What happens when an animation enters a frame (the noise of SLUDGE's
-// animation frames: a sound file, or a script function).
-struct FrameEvent {
-	enum Kind { NONE, SOUND, FUNCTION };
-	Kind kind;
-	int number;		// The file, or the function
-
-	FrameEvent () : kind (NONE), number (0) {}
-	// From and to the noise of saved games and scripts: > 0 a sound file,
-	// < 0 minus a function.
-	static FrameEvent fromNoise (int noise);
-	int toNoise () const;
-};
-
-struct AnimationFrame {
-	int sprite;		// The sprite of the bank; negative for the mirror image
-	int ticks;		// How many game ticks it shows (howMany); 0 holds it for good
-	FrameEvent event;
-};
-
-struct AnimationDefinition {
-	SpriteBankRef spriteBank;
-	std::vector<AnimationFrame> frames;
-	LifetimeCounter<AnimationDefinition> counted;
-};
-
-typedef std::shared_ptr<const AnimationDefinition> AnimationDefinitionRef;
-
+// A LEGACY clip of anim ()'s frames (makeLegacyClip).
 AnimationDefinitionRef makeAnimation (const SpriteBankRef & bank, const std::vector<AnimationFrame> & frames);
 
 // A handle on an animation, owned by one holder. Each handle is also an

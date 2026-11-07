@@ -11,31 +11,8 @@ AnimationHandle OwnedAnimation::release () {
 	return h;
 }
 
-FrameEvent FrameEvent::fromNoise (int noise) {
-	FrameEvent e;
-	if (noise > 0) {
-		e.kind = SOUND;
-		e.number = noise;
-	} else if (noise < 0) {
-		e.kind = FUNCTION;
-		e.number = - noise;
-	}
-	return e;
-}
-
-int FrameEvent::toNoise () const {
-	switch (kind) {
-		case SOUND: return number;
-		case FUNCTION: return - number;
-		default: return 0;
-	}
-}
-
 AnimationDefinitionRef makeAnimation (const SpriteBankRef & bank, const std::vector<AnimationFrame> & frames) {
-	std::shared_ptr<AnimationDefinition> d = std::make_shared<AnimationDefinition> ();
-	d -> spriteBank = bank;
-	d -> frames = frames;
-	return d;
+	return makeLegacyClip (bank, frames);
 }
 
 namespace {
