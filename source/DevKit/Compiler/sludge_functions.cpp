@@ -905,6 +905,10 @@ void initBuiltInFunc ()
 	addToStringArray (typeDefFrom, "EASE_STEP");		addToStringArray (typeDefTo, "0");
 	addToStringArray (typeDefFrom, "EASE_LINEAR");	addToStringArray (typeDefTo, "1");
 	addToStringArray (typeDefFrom, "EASE_INOUT");	addToStringArray (typeDefTo, "2");
+
+	// playClip: how a layer blends (LayerBlend of source/Engine/animpose.h)
+	addToStringArray (typeDefFrom, "LAYER_OVERRIDE");	addToStringArray (typeDefTo, "0");
+	addToStringArray (typeDefFrom, "LAYER_ADD");		addToStringArray (typeDefTo, "1");
 }
 
 void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {

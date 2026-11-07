@@ -108,6 +108,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\captureAllKeys.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="clearPartProperty">
+					<param name="Local" value="SLUDGEDevKitHelp\clearPartProperty.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="clearStatus">
 					<param name="Local" value="SLUDGEDevKitHelp\clearStatus.html">
 					</OBJECT>
@@ -292,6 +296,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\loopSound.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="mirrorClip">
+					<param name="Local" value="SLUDGEDevKitHelp\mirrorClip.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="mixOverlay">
 					<param name="Local" value="SLUDGEDevKitHelp\mixOverlay.html">
 					</OBJECT>
@@ -374,6 +382,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="pickOne">
 					<param name="Local" value="SLUDGEDevKitHelp\pickOne.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="playClip">
+					<param name="Local" value="SLUDGEDevKitHelp\playClip.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="playMovie">
@@ -548,6 +560,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setPartDepth.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setPartProperty">
+					<param name="Local" value="SLUDGEDevKitHelp\setPartProperty.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setPasteColour (setPasteColor)">
 					<param name="Local" value="SLUDGEDevKitHelp\setPasteColour_(setPasteColor).html">
 					</OBJECT>
@@ -638,6 +654,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="stopCharacter">
 					<param name="Local" value="SLUDGEDevKitHelp\stopCharacter.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="stopClip">
+					<param name="Local" value="SLUDGEDevKitHelp\stopClip.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="stopMovie">

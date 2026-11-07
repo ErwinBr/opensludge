@@ -508,6 +508,15 @@ void updatePeopleAnimations (int ticks) {
 				PendingEvent e = { p -> sequence, 0, crossed[i] };
 				pending.push_back (e);
 			}
+			for (size_t l = 0; l < p -> layers.size (); l ++) {
+				ClipLayer & layer = p -> layers[l];
+				crossed.clear ();
+				updateTimeline (layer.playback, layer.anim.get (), crossed);
+				for (size_t i = 0; i < crossed.size (); i ++) {
+					PendingEvent e = { p -> sequence, layer.number, crossed[i] };
+					pending.push_back (e);
+				}
+			}
 		}
 		// The engine runs the function it started last first (see
 		// restartFunction), so we start them the other way round, for their
@@ -529,19 +538,31 @@ void computePose (onScreenPerson & p, bool current) {
 	}
 	const personaAnimation * a = p.myAnim;
 	ClipDefinitionRef clip;
-	TrackSamples samples;
+	// Layer 0, then the others: their samples stay put while we pose.
+	std::vector<TrackSamples> samples (1 + p.layers.size ());
 	if (isTimeline (a)) {
 		clip = a -> definition;
-		evaluateClip (* clip, current ? currentTime (p.playback, a) : shownTime (p.playback, a), samples);
+		evaluateClip (* clip, current ? currentTime (p.playback, a) : shownTime (p.playback, a), samples[0]);
 	} else if (a && a -> numFrames () && ! a -> definition -> tracks.empty ()) {
 		clip = a -> definition;
 		const Track & t = clip -> tracks[0];
 		int f = p.playback.playing == a ? (current ? p.playback.frame : p.playback.displayFrame) : 0;
 		if (f < 0 || f >= (int) t.keys.size ()) f = 0;
 		TrackSample s = { & t, 0, & t.keys[f].sprite };
-		samples.push_back (s);
+		samples[0].push_back (s);
 	}
-	evaluatePose (p.rig, clip, samples, Transform2D (), p.poseBinding, p.pose);
+	std::vector<LayerSamples> layers;
+	LayerSamples base = { clip, & samples[0], LAYER_BLEND_OVERRIDE, & p.poseBinding };
+	layers.push_back (base);
+	for (size_t l = 0; l < p.layers.size (); l ++) {
+		ClipLayer & layer = p.layers[l];
+		const personaAnimation * la = layer.anim.get ();
+		if (! isTimeline (la)) continue;
+		evaluateClip (* la -> definition, current ? currentTime (layer.playback, la) : shownTime (layer.playback, la), samples[l + 1]);
+		LayerSamples s = { la -> definition, & samples[l + 1], layer.blend, & layer.binding };
+		layers.push_back (s);
+	}
+	evaluatePose (p.rig, layers, p.overrides, Transform2D (), p.pose);
 }
 
 static void computePoses () {
@@ -554,6 +575,79 @@ void stepLegacyAnimations () {
 }
 
 static int heightOf (const personaAnimation & first);
+
+ClipLayer * personLayer (onScreenPerson & p, int layer) {
+	for (size_t l = 0; l < p.layers.size (); l ++) {
+		if (p.layers[l].number == layer) return & p.layers[l];
+	}
+	return NULL;
+}
+
+bool playPersonLayer (int obj, int layer, AnimationHandle clip, LayerBlend blend) {
+	onScreenPerson * p = findPerson (obj);
+	if (! p) return false;
+	// A new handle starts from its start, with its events at 0, in the
+	// update to come.
+	ClipLayer * l = personLayer (* p, layer);
+	if (! l) {
+		std::vector<ClipLayer>::iterator at = p -> layers.begin ();
+		while (at != p -> layers.end () && at -> number < layer) ++ at;
+		at = p -> layers.insert (at, ClipLayer ());
+		l = & * at;
+		l -> number = layer;
+	}
+	l -> anim = std::move (clip);
+	l -> playback = AnimationPlayback ();
+	l -> blend = blend;
+	computePose (* p);
+	return true;
+}
+
+bool stopPersonLayer (int obj, int layer) {
+	onScreenPerson * p = findPerson (obj);
+	if (! p) return false;
+	for (size_t l = 0; l < p -> layers.size (); l ++) {
+		if (p -> layers[l].number == layer) {
+			p -> layers.erase (p -> layers.begin () + l);
+			computePose (* p);
+			return true;
+		}
+	}
+	return true;
+}
+
+bool setPersonOverride (int obj, const std::string & part, Channel channel, float value) {
+	onScreenPerson * p = findPerson (obj);
+	if (! p) return false;
+	for (size_t o = 0; o < p -> overrides.size (); o ++) {
+		if (p -> overrides[o].part == part && p -> overrides[o].channel == channel) {
+			p -> overrides[o].value = value;
+			computePose (* p);
+			return true;
+		}
+	}
+	if ((int) p -> overrides.size () >= maxPartOverrides) {
+		fatal ("A character can't have more properties of parts set than this");
+		return false;
+	}
+	PartOverride o = { part, channel, value };
+	p -> overrides.push_back (o);
+	computePose (* p);
+	return true;
+}
+
+bool clearPersonOverride (int obj, const std::string & part, Channel channel) {
+	onScreenPerson * p = findPerson (obj);
+	if (! p) return false;
+	for (size_t o = 0; o < p -> overrides.size (); o ++) {
+		if (p -> overrides[o].part == part && p -> overrides[o].channel == channel) {
+			p -> overrides.erase (p -> overrides.begin () + o);
+			break;
+		}
+	}
+	computePose (* p);
+	return true;
+}
 
 bool setPersonRig (int obj, const RigDefinitionRef & rig) {
 	onScreenPerson * p = findPerson (obj);
@@ -575,6 +669,17 @@ bool setPersonRig (int obj, const RigDefinitionRef & rig) {
 	return true;
 }
 
+const SpriteRef * layeredSprite (const onScreenPerson * p, bool current) {
+	for (size_t l = p -> layers.size (); l -- > 0;) {
+		const personaAnimation * a = p -> layers[l].anim.get ();
+		if (! isTimeline (a)) continue;
+		const AnimationPlayback & pb = p -> layers[l].playback;
+		const SpriteRef * r = sampleSprite (* a -> definition, "", current ? currentTime (pb, a) : shownTime (pb, a));
+		if (r) return r;
+	}
+	return NULL;
+}
+
 // The mouse is over the character.
 static void pointAtPerson (const onScreenPerson * thisPerson) {
 	if (thisPerson -> thisType -> screenName[0]) {
@@ -594,6 +699,14 @@ void drawPeople () {
 		// A character of parts draws its pose, whatever its animation.
 		if (thisPerson -> rig) {
 			if (drawRiggedPerson (thisPerson)) pointAtPerson (thisPerson);
+			continue;
+		}
+		// A layer above 0 with a sprite for the character shows it, over
+		// layer 0.
+		if (const SpriteRef * r = layeredSprite (thisPerson, false)) {
+			const spriteBank * bank;
+			const sprite * s = resolveSprite (r, bank);
+			if (s && scaleSprite (* s, * bank, thisPerson, r -> mirror)) pointAtPerson (thisPerson);
 			continue;
 		}
 		if (! myAnim) continue;
@@ -1296,7 +1409,71 @@ bool savePeople (FILE * fp) {
 		fputc (me -> rig ? 1 : 0, fp);
 		if (me -> rig) saveRigRecord (me -> rig, fp);
 
+		// Its layers above 0, and the properties of parts its script set.
+		put4bytes ((uint32_t) me -> layers.size (), fp);
+		for (size_t l = 0; l < me -> layers.size (); l ++) {
+			const ClipLayer & layer = me -> layers[l];
+			put4bytes (layer.number, fp);
+			fputc (layer.blend, fp);
+			saveAnim (layer.anim.get (), fp);
+			fputc (layer.playback.playing == layer.anim.get (), fp);
+			put4bytes (layer.playback.speed, fp);
+			put4bytes (layer.playback.subTicks, fp);
+			put8bytes (layer.playback.position, fp);
+			put8bytes (layer.playback.displayPosition, fp);
+		}
+		put4bytes ((uint32_t) me -> overrides.size (), fp);
+		for (size_t o = 0; o < me -> overrides.size (); o ++) {
+			const PartOverride & po = me -> overrides[o];
+			put2bytes ((int) po.part.size (), fp);
+			fwrite (po.part.data (), 1, po.part.size (), fp);
+			fputc (po.channel, fp);
+			putFloat (po.value, fp);
+		}
+
 		me = me -> next;
+	}
+	return true;
+}
+
+// The layers and overrides of a character, as savePeople saves them.
+static bool loadLayers (onScreenPerson & me, FILE * fp) {
+	int32_t count = get4bytes (fp);
+	if (count < 0 || count > maxClipLayer || feof (fp)) return false;
+	for (int i = 0; i < count; i ++) {
+		ClipLayer layer;
+		layer.number = get4bytes (fp);
+		int blend = fgetc (fp);
+		if (layer.number < 1 || layer.number > maxClipLayer || (! me.layers.empty () && layer.number <= me.layers.back ().number)
+			|| blend < 0 || blend >= NUM_LAYER_BLENDS) return false;
+		layer.blend = (LayerBlend) blend;
+		layer.anim.reset (new personaAnimation);
+		if (! loadAnim (layer.anim.get (), fp) || ! isTimeline (layer.anim.get ())) return false;
+		layer.playback.playing = getFlag (fp) ? layer.anim.get () : NULL;
+		layer.playback.speed = get4bytes (fp);
+		layer.playback.subTicks = get4bytes (fp);
+		layer.playback.position = get8bytes (fp);
+		layer.playback.displayPosition = get8bytes (fp);
+		AnimationTime end = ticksToTime (layer.anim -> definition -> length);
+		if (layer.playback.speed < 0 || layer.playback.speed > maxPlaybackSpeed
+			|| layer.playback.subTicks < 0 || layer.playback.subTicks >= subTicksPerTick
+			|| layer.playback.position < 0 || layer.playback.position > end
+			|| layer.playback.displayPosition < 0 || layer.playback.displayPosition > end || feof (fp)) return false;
+		me.layers.push_back (std::move (layer));
+	}
+	count = get4bytes (fp);
+	if (count < 0 || count > maxPartOverrides || feof (fp)) return false;
+	for (int i = 0; i < count; i ++) {
+		PartOverride po;
+		int n = get2bytes (fp);
+		if (n < 0 || feof (fp)) return false;
+		po.part.resize (n);
+		if (n && fread (& po.part[0], 1, n, fp) != (size_t) n) return false;
+		int channel = fgetc (fp);
+		po.value = getFloat (fp);
+		if (channel < 0 || channel >= NUM_CHANNELS || channel == CHANNEL_SPRITE || ! isfinite (po.value) || feof (fp)) return false;
+		po.channel = (Channel) channel;
+		me.overrides.push_back (po);
 	}
 	return true;
 }
@@ -1400,6 +1577,7 @@ bool loadPeople (FILE * fp) {
 				me -> rig = loadRigRecord (fp);
 				if (! me -> rig) return false;
 			}
+			if (! loadLayers (* me, fp)) return false;
 		} else {
 			me -> sequence = a + 1;
 		}

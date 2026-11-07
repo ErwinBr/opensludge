@@ -31,7 +31,21 @@
  * Tracks are bound to parts by name. A track whose part the rig lacks is
  * left out, and reported once for its clip and rig.
  *
- * This milestone poses one clip; layers come later.
+ * Layers: a character plays clips on layers, 0 (its costume's, or
+ * animate's) and up, which apply in ascending order over the rig's rest
+ * pose, then the script's overrides (setPartProperty) over all. Per
+ * channel:
+ *
+ *                   override layer   additive layer
+ *     X, Y          replace          add
+ *     ROTATION      replace          add
+ *     SCALE         replace          multiply
+ *     SPRITE, VISIBLE, DEPTH, FLIP
+ *                   replace          replace
+ *
+ * Discrete channels have no meaning to add, so every layer replaces them:
+ * where two layers give a part a sprite, the higher layer's shows. Script
+ * overrides replace.
  */
 
 #include <memory>
@@ -91,9 +105,31 @@ private:
 	std::vector<int> partOfTrack;
 };
 
-// The pose of rig at the samples of clip (evaluateClip of clip; clip may be
-// NULL, with no samples, for the rig's rest pose), with the character's
-// transform as the root's parent.
+enum LayerBlend { LAYER_BLEND_OVERRIDE, LAYER_BLEND_ADD, NUM_LAYER_BLENDS };
+
+// A layer to pose: the samples of its clip (evaluateClip), how it blends,
+// and the binding of its tracks to the rig's parts, which it keeps.
+struct LayerSamples {
+	ClipDefinitionRef clip;
+	const TrackSamples * samples;
+	LayerBlend blend;
+	PoseBinding * binding;
+};
+
+// A property of a part that a script sets, over every layer.
+struct PartOverride {
+	std::string part;
+	Channel channel;	// Not SPRITE
+	float value;
+};
+
+// The pose of rig with layers, in ascending order, then overrides, with the
+// character's transform as the root's parent.
+void evaluatePose (const RigDefinitionRef & rig, const std::vector<LayerSamples> & layers,
+	const std::vector<PartOverride> & overrides, const Transform2D & character, Pose & out);
+
+// One clip (evaluateClip of clip; clip may be NULL, with no samples, for the
+// rig's rest pose), as an override layer, and no overrides.
 void evaluatePose (const RigDefinitionRef & rig, const ClipDefinitionRef & clip, const TrackSamples & samples,
 	const Transform2D & character, PoseBinding & binding, Pose & out);
 

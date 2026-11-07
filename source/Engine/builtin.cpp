@@ -104,7 +104,8 @@ int paramNum[] = {-1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, 8, -1,		// SAY -> MOVEM
 	1,											// zoomCamera
 	1, 0, 0,									// playMovie, stopMovie, pauseMovie
 	-1, -1, 3, 3, 3, 2,							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
-	0, -1, 3, 2, -1								// newRig, addPart, setPartDepth, setCharacterRig, clipKey
+	0, -1, 3, 2, -1,							// newRig, addPart, setPartDepth, setCharacterRig, clipKey
+	-1, 2, 4, 3, 1								// playClip, stopClip, setPartProperty, clearPartProperty, mirrorClip
 };
 
 bool failSecurityCheck (char * fn) {
@@ -1642,8 +1643,9 @@ builtIn(pasteCharacter)
 			return BR_CONTINUE;
 		}
 
-		if (isTimeline (myAnim)) {
-			const SpriteRef * r = sampleSprite (* myAnim -> definition, "", currentTime (thisPerson -> playback, myAnim));
+		const SpriteRef * layered = layeredSprite (thisPerson, true);
+		if (layered || isTimeline (myAnim)) {
+			const SpriteRef * r = layered ? layered : sampleSprite (* myAnim -> definition, "", currentTime (thisPerson -> playback, myAnim));
 			const spriteBank * bank;
 			const sprite * s = resolveSprite (r, bank);
 			if (s) fixScaleSprite (thisPerson -> x, thisPerson -> y, * s, * bank, thisPerson, 0, 0, r -> mirror);
@@ -2836,16 +2838,15 @@ builtIn(clipEvent)
 	return BR_CONTINUE;
 }
 
-// The character and layer of setClipSpeed and isClipPlaying, from the
-// stack. Characters have one layer for now: 0, their costume's.
-static bool getCharacterLayer (loadedFunction * fun, int & obj) {
-	int layer;
+// The character and layer of the functions of layers, from the stack:
+// layer 0 is the costume's (and animate's), 1 to maxClipLayer playClip's.
+static bool getCharacterLayer (loadedFunction * fun, int & obj, int & layer) {
 	if (! getValueType (layer, SVT_INT, fun -> stack -> thisVar)) return false;
 	trimStack (fun -> stack);
 	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return false;
 	trimStack (fun -> stack);
-	if (layer != 0) {
-		fatal ("Characters play clips on layer 0 only, for now.");
+	if (layer < 0 || layer > maxClipLayer) {
+		fatal ("Layers of clips are numbered from 0 to 99.");
 		return false;
 	}
 	return true;
@@ -2856,17 +2857,26 @@ static bool getCharacterLayer (loadedFunction * fun, int & obj) {
 builtIn(setClipSpeed)
 {
 	UNUSEDALL
-	int percent, obj;
+	int percent, obj, layer;
 	if (! getValueType (percent, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	if (! getCharacterLayer (fun, obj)) return BR_ERROR;
+	if (! getCharacterLayer (fun, obj, layer)) return BR_ERROR;
 	if (percent < 0 || percent > 100000) {
 		fatal ("The speed of a clip is a percentage from 0 to 100000.");
 		return BR_ERROR;
 	}
+	int speed = std::min (maxPlaybackSpeed, (int) (((long long) percent * subTicksPerTick + 50) / 100));
 	onScreenPerson * p = findPerson (obj);
-	if (p) p -> playback.speed = std::min (maxPlaybackSpeed, (int) (((long long) percent * subTicksPerTick + 50) / 100));
-	setVariable (fun -> reg, SVT_INT, p != NULL);
+	bool done = false;
+	if (p && layer == 0) {
+		p -> playback.speed = speed;
+		done = true;
+	} else if (p) {
+		ClipLayer * l = personLayer (* p, layer);
+		if (l) l -> playback.speed = speed;
+		done = l != NULL;
+	}
+	setVariable (fun -> reg, SVT_INT, done);
 	return BR_CONTINUE;
 }
 
@@ -2875,13 +2885,16 @@ builtIn(setClipSpeed)
 builtIn(isClipPlaying)
 {
 	UNUSEDALL
-	int obj;
-	if (! getCharacterLayer (fun, obj)) return BR_ERROR;
+	int obj, layer;
+	if (! getCharacterLayer (fun, obj, layer)) return BR_ERROR;
 	onScreenPerson * p = findPerson (obj);
 	bool playing = false;
-	if (p && p -> myAnim) {
+	if (p && layer == 0 && p -> myAnim) {
 		if (isTimeline (p -> myAnim)) playing = ! timelineFinished (p -> playback, p -> myAnim);
 		else playing = p -> myAnim -> numFrames () > 0;
+	} else if (p && layer > 0) {
+		ClipLayer * l = personLayer (* p, layer);
+		playing = l && ! timelineFinished (l -> playback, l -> anim.get ());
 	}
 	setVariable (fun -> reg, SVT_INT, playing);
 	return BR_CONTINUE;
@@ -3060,6 +3073,148 @@ builtIn(clipKey)
 		fatal (why.c_str ());
 		return BR_ERROR;
 	}
+	return BR_CONTINUE;
+}
+
+#pragma mark -
+#pragma mark Layers and overrides
+
+// playClip (character, layer, clip [, LAYER_OVERRIDE or LAYER_ADD]): play a
+// clip on a layer of its own (1 to 99), over the costume's layer (0) and
+// the layers below it, from its start. An override layer sets what its
+// clip keys; an additive one adds to places and angles, and multiplies
+// scales. Returns the clip's length, as animate does.
+builtIn(playClip)
+{
+	UNUSEDALL
+	if (numParams != 3 && numParams != 4) {
+		fatal ("Built-in function playClip() must have 3 or 4 parameters.");
+		return BR_ERROR;
+	}
+	int blend = LAYER_BLEND_OVERRIDE;
+	if (numParams == 4) {
+		if (! getValueType (blend, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (blend < 0 || blend >= NUM_LAYER_BLENDS) {
+			fatal ("A layer is LAYER_OVERRIDE or LAYER_ADD.");
+			return BR_ERROR;
+		}
+	}
+	AnimationHandle clip = getAnimationFromVar (fun -> stack -> thisVar);
+	if (! clip) return BR_ERROR;
+	trimStack (fun -> stack);
+	int obj, layer;
+	if (! getCharacterLayer (fun, obj, layer)) return BR_ERROR;
+	if (layer == 0) {
+		fatal ("Layer 0 is the costume's: play a clip there with animate ().");
+		return BR_ERROR;
+	}
+	if (! isTimeline (clip.get ())) {
+		fatal ("playClip() plays clips of newClip (); make one of anim () with clipFrames ().");
+		return BR_ERROR;
+	}
+	int length = timeForAnim (clip.get ());
+	playPersonLayer (obj, layer, std::move (clip), (LayerBlend) blend);
+	setVariable (fun -> reg, SVT_INT, length);
+	return BR_CONTINUE;
+}
+
+// stopClip (character, layer): the layer goes, and what it did with it.
+builtIn(stopClip)
+{
+	UNUSEDALL
+	int obj, layer;
+	if (! getCharacterLayer (fun, obj, layer)) return BR_ERROR;
+	if (layer == 0) {
+		fatal ("Layer 0 is the costume's: it can't stop.");
+		return BR_ERROR;
+	}
+	setVariable (fun -> reg, SVT_INT, stopPersonLayer (obj, layer));
+	return BR_CONTINUE;
+}
+
+// The part and property of setPartProperty and clearPartProperty.
+static bool getPartProperty (loadedFunction * fun, std::string & part, Channel & channel) {
+	int property;
+	if (! getValueType (property, SVT_INT, fun -> stack -> thisVar)) return false;
+	trimStack (fun -> stack);
+	if (property < 0 || property >= NUM_CHANNELS || property == CHANNEL_SPRITE) {
+		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_DEPTH, PART_VISIBLE or PART_FLIP.");
+		return false;
+	}
+	channel = (Channel) property;
+	if (! getPartName (fun -> stack -> thisVar, part)) return false;
+	trimStack (fun -> stack);
+	return true;
+}
+
+// setPartProperty (character, part, property, value): the property of the
+// part has value, over every layer, until clearPartProperty: in the units
+// of clipKey.
+builtIn(setPartProperty)
+{
+	UNUSEDALL
+	int value, obj;
+	if (! getValueType (value, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string part;
+	Channel channel;
+	if (! getPartProperty (fun, part, channel)) return BR_ERROR;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	float v = channel == CHANNEL_SCALE ? value / 100.0f : (float) value;
+	if (channel == CHANNEL_VISIBLE || channel == CHANNEL_FLIP) v = value ? 1.0f : 0.0f;
+	setVariable (fun -> reg, SVT_INT, setPersonOverride (obj, part, channel, v));
+	return BR_CONTINUE;
+}
+
+// clearPartProperty (character, part, property): the layers decide it again.
+builtIn(clearPartProperty)
+{
+	UNUSEDALL
+	int obj;
+	std::string part;
+	Channel channel;
+	if (! getPartProperty (fun, part, channel)) return BR_ERROR;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, clearPersonOverride (obj, part, channel));
+	return BR_CONTINUE;
+}
+
+// mirrorClip (clip): a new clip, the mirror image of clip: the character
+// ("") flips, where clip had it flip or not. It can change, as a clip of
+// newClip can.
+builtIn(mirrorClip)
+{
+	UNUSEDALL
+	variable & v = fun -> stack -> thisVar;
+	if (v.varType != SVT_ANIM || ! isTimeline (animationOf (v))) {
+		fatal ("mirrorClip() takes a clip of newClip ().");
+		return BR_ERROR;
+	}
+	std::shared_ptr<ClipDefinition> mirrored = std::make_shared<ClipDefinition> (* animationOf (v) -> definition);
+	trimStack (fun -> stack);
+	mirrored -> sealed = false;
+	Track * flip = NULL;
+	for (size_t t = 0; t < mirrored -> tracks.size (); t ++) {
+		if (mirrored -> tracks[t].part.empty () && mirrored -> tracks[t].channel == CHANNEL_FLIP) flip = & mirrored -> tracks[t];
+	}
+	if (flip) {
+		for (size_t k = 0; k < flip -> keys.size (); k ++) flip -> keys[k].value = flip -> keys[k].value != 0 ? 0.0f : 1.0f;
+	} else {
+		Key key;
+		key.value = 1;
+		key.easing = EASING_STEP;
+		std::string why;
+		if (! setKey (* mirrored, "", CHANNEL_FLIP, key, why)) {
+			fatal (why.c_str ());
+			return BR_ERROR;
+		}
+	}
+	AnimationHandle h (new personaAnimation);
+	h -> definition = mirrored;
+	newAnimationVariable (fun -> reg, std::move (h));
 	return BR_CONTINUE;
 }
 

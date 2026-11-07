@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setPartProperty</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setPartProperty</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setPartProperty (<i>character, part, property, value</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets a <i>property</i> of a <i>part</i> of <i>character</i> to <i>value</i>, over every layer, until <a href="clearPartProperty.html">clearPartProperty</a>: a head that looks at the mouse, an arm that holds something up. The properties and their units are those of <a href="clipKey.html">clipKey</a>: PART_X, PART_Y, PART_ROTATION, PART_SCALE (in percent), PART_DEPTH, PART_VISIBLE and PART_FLIP.
+</P>
+
+<P>
+<pre>setPartProperty (hero, "head", PART_ROTATION, -15);</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if there is such a character, FALSE if not.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P>
+<a href="stopClip.html">stopClip</a>
+</P>
+
+<P>
+<a href="clearPartProperty.html">clearPartProperty</a>
+</P>
+
+<P>
+<a href="mirrorClip.html">mirrorClip</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

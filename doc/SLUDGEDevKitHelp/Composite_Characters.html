@@ -46,11 +46,17 @@ X is to the right and Y down, in pixels; angles are in degrees, clockwise. A par
 <H3>What clips do to parts</H3>
 
 <P>
-<a href="clipKey.html">clipKey</a> moves (PART_X, PART_Y), turns (PART_ROTATION), scales (PART_SCALE), flips (PART_FLIP), hides (PART_VISIBLE) and orders (PART_DEPTH) a part; <a href="clipSprite.html">clipSprite</a> changes its sprite. Hiding a part hides what is attached to it; an empty frame (NOSPRITE) hides only the part's own sprite. Parts of a lower depth are drawn first, and parts of the same depth in the order they were added. Flipping the character's part, "", mirrors the whole character: a costume can face west with the clips that face east.
+<a href="clipKey.html">clipKey</a> moves (PART_X, PART_Y), turns (PART_ROTATION), scales (PART_SCALE), flips (PART_FLIP), hides (PART_VISIBLE) and orders (PART_DEPTH) a part; <a href="clipSprite.html">clipSprite</a> changes its sprite. Hiding a part hides what is attached to it; an empty frame (NOSPRITE) hides only the part's own sprite. Parts of a lower depth are drawn first, and parts of the same depth in the order they were added. Flipping the character's part, "", mirrors the whole character: a costume can face west with the clips that face east (see <a href="mirrorClip.html">mirrorClip</a>).
 </P>
 
 <P>
 A clip may name parts that a rig doesn't have: those parts are left out. A sprite that its bank doesn't have shows the part's own sprite instead.
+</P>
+
+<H3>Layers</H3>
+
+<P>
+A character can play clips on layers of their own, over the animation of its costume, with <a href="playClip.html">playClip</a>: eyes that blink, whatever the body does; a mouth that talks while the legs walk; breathing that adds to standing. A layer either sets what its clip keys, or adds to it. Over all layers, <a href="setPartProperty.html">setPartProperty</a> sets a part's property from the script, as a head that follows the mouse. A clip with nothing but an event, on a layer, is a timer: its event can play a blink at random times.
 </P>
 
 <H3>Costumes</H3>

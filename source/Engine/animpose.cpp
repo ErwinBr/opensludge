@@ -130,16 +130,17 @@ SpriteRef shown (const SpriteRef & s, const SpriteRef & own) {
 	return SpriteRef::none ();
 }
 
-void apply (PosedPart & p, const SpriteRef & own, Channel channel, const TrackSample & s) {
+// A value of a channel onto a part: added (multiplied for SCALE) by an
+// additive layer to X, Y, ROTATION and SCALE; replaced otherwise.
+void apply (PosedPart & p, Channel channel, float value, bool add) {
 	switch (channel) {
-		case CHANNEL_X: p.local.x = s.value; break;
-		case CHANNEL_Y: p.local.y = s.value; break;
-		case CHANNEL_ROTATION: p.local.rotation = s.value; break;
-		case CHANNEL_SCALE: p.local.scale = s.value; break;
-		case CHANNEL_SPRITE: p.sprite = shown (* s.sprite, own); break;
-		case CHANNEL_VISIBLE: p.local.visible = s.value != 0; break;
-		case CHANNEL_DEPTH: p.depth = (int) lrintf (s.value); break;
-		case CHANNEL_FLIP: p.local.flip = s.value != 0; break;
+		case CHANNEL_X: p.local.x = add ? p.local.x + value : value; break;
+		case CHANNEL_Y: p.local.y = add ? p.local.y + value : value; break;
+		case CHANNEL_ROTATION: p.local.rotation = add ? p.local.rotation + value : value; break;
+		case CHANNEL_SCALE: p.local.scale = add ? p.local.scale * value : value; break;
+		case CHANNEL_VISIBLE: p.local.visible = value != 0; break;
+		case CHANNEL_DEPTH: p.depth = (int) lrintf (value); break;
+		case CHANNEL_FLIP: p.local.flip = value != 0; break;
 		default: break;
 	}
 }
@@ -153,6 +154,16 @@ void forgetPoseReports () {
 
 void evaluatePose (const RigDefinitionRef & rig, const ClipDefinitionRef & clip, const TrackSamples & samples,
 	const Transform2D & character, PoseBinding & binding, Pose & out) {
+	std::vector<LayerSamples> layers;
+	if (clip) {
+		LayerSamples l = { clip, & samples, LAYER_BLEND_OVERRIDE, & binding };
+		layers.push_back (l);
+	}
+	evaluatePose (rig, layers, std::vector<PartOverride> (), character, out);
+}
+
+void evaluatePose (const RigDefinitionRef & rig, const std::vector<LayerSamples> & layers,
+	const std::vector<PartOverride> & overrides, const Transform2D & character, Pose & out) {
 	out.parts.clear ();
 	out.drawOrder.clear ();
 	if (! rig) return;
@@ -165,15 +176,25 @@ void evaluatePose (const RigDefinitionRef & rig, const ClipDefinitionRef & clip,
 		p.sprite = shown (SpriteRef (), parts[i].sprite);
 	}
 
-	if (clip) {
-		const std::vector<int> & partOf = binding.bind (clip, rig);
+	for (size_t l = 0; l < layers.size (); l ++) {
+		const ClipDefinitionRef & clip = layers[l].clip;
+		if (! clip || ! layers[l].samples) continue;
+		const TrackSamples & samples = * layers[l].samples;
+		bool add = layers[l].blend == LAYER_BLEND_ADD;
+		const std::vector<int> & partOf = layers[l].binding -> bind (clip, rig);
 		for (size_t s = 0; s < samples.size (); s ++) {
 			const Track * t = samples[s].track;
 			if (t < clip -> tracks.data () || t >= clip -> tracks.data () + clip -> tracks.size ()) continue;
 			int part = partOf[t - clip -> tracks.data ()];
 			if (part < 0) continue;
-			apply (out.parts[part], parts[part].sprite, t -> channel, samples[s]);
+			if (t -> channel == CHANNEL_SPRITE) out.parts[part].sprite = shown (* samples[s].sprite, parts[part].sprite);
+			else apply (out.parts[part], t -> channel, samples[s].value, add);
 		}
+	}
+	for (size_t o = 0; o < overrides.size (); o ++) {
+		int part = rig -> findPart (overrides[o].part);
+		if (part < 0 || overrides[o].channel == CHANNEL_SPRITE) continue;
+		apply (out.parts[part], overrides[o].channel, overrides[o].value, false);
 	}
 
 	// Parents come before their children.

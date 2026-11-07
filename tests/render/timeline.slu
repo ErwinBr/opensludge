@@ -148,6 +148,29 @@ sub pairClip (f) {
 }
 
 # Shorter than the window: the engine can't centre a wider status line.
+# Layers on a character of one sprite: the highest layer with a sprite
+# shows it; the events of one tick fire by layer, lower first.
+var layerTurn = 0;
+var layerPairs = 0;
+
+sub onLayer1 () {
+	check (layerTurn == 0, "layer 1's events fire before layer 2's");
+	layerTurn = 1;
+}
+
+sub onLayer2 () {
+	check (layerTurn == 1, "layer 2's events fire after layer 1's");
+	layerTurn = 0;
+	layerPairs ++;
+}
+
+sub layerClip (f, sprite) {
+	var c = newClip (6, TRUE);
+	clipSprite (c, "", 0, 'outside/duck.duc', sprite);
+	clipEvent (c, 2, f);
+	return c;
+}
+
 sub status (name) {
 	statusText (name + ": q " + legacyQuacks + "/" + timelineQuacks + " t " + seenTicks + "/" + hiddenTicks + "/" + farTicks
 		+ " s " + steps + " p " + pairs);
@@ -232,6 +255,15 @@ sub init () {
 	pasteCharacter (timelineDuck);
 	pasteCharacter (once);
 	scene ("pasted", 10);
+
+	# Two layers over the costume of the seen duck.
+	playClip (seen, 2, layerClip (onLayer2, 3));
+	playClip (seen, 1, layerClip (onLayer1, 1));
+	scene ("layers", 20);
+	check (layerPairs >= 2, "both layers fire, in pairs");
+	check (isClipPlaying (seen, 1) && isClipPlaying (seen, 2) && ! isClipPlaying (seen, 3), "layers play, and others don't");
+	stopClip (seen, 2);
+	stopClip (seen, 1);
 
 	# Save, play, load, and play the same again.
 	var saved = saveGame ("timeline.sav");

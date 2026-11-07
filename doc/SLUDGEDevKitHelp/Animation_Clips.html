@@ -53,6 +53,12 @@ Events that fire in the same frame of the game run in the order the characters w
 The second parameter of <a href="clipSprite.html">clipSprite</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipKey.html">clipKey</a> names a part of a character. A character of one sprite has one part, the character itself, named <b>""</b>. See <a href="Composite_Characters.html">Composite Characters</a> for characters of several parts.
 </P>
 
+<H3>Layers</H3>
+
+<P>
+A character plays its costume's clip, or animate's, on layer 0, and can play more on layers of their own, 1 to 99, with <a href="playClip.html">playClip</a>, each with its own time, speed and events. Events of the same frame of the game run by character, then by layer, lower first. On a character of one sprite, the highest layer whose clip has a sprite for it shows that sprite.
+</P>
+
 <H3>Changing clips</H3>
 
 <P>

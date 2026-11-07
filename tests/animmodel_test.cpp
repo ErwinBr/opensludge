@@ -1039,6 +1039,80 @@ static void testSpriteCorners () {
 	CHECK (! poseBounds (pose, x1, y1, x2, y2), "a pose that draws nothing has no box");
 }
 
+// Layers and overrides: every cell of the table of animpose.h.
+static void testBlending () {
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> ();
+	addPart (* rig, "body", "", at (10, 20), realSprite (0), why);
+	rig -> parts[1].rest.rotation = 30;
+	rig -> parts[1].rest.scale = 2;
+	rig -> parts[1].depth = 1;
+	RigDefinitionRef r = rig;
+	const PosedPart * body;
+
+	// A clip that keys every channel.
+	std::shared_ptr<ClipDefinition> keys = std::make_shared<ClipDefinition> ();
+	keys -> length = 10;
+	setKey (* keys, "body", CHANNEL_X, key (0, 5), why);
+	setKey (* keys, "body", CHANNEL_Y, key (0, -7), why);
+	setKey (* keys, "body", CHANNEL_ROTATION, key (0, 15), why);
+	setKey (* keys, "body", CHANNEL_SCALE, key (0, 1.5f), why);
+	setKey (* keys, "body", CHANNEL_SPRITE, spriteKey (0, realSprite (2)), why);
+	setKey (* keys, "body", CHANNEL_VISIBLE, key (0, 0, EASING_STEP), why);
+	setKey (* keys, "body", CHANNEL_DEPTH, key (0, 4, EASING_STEP), why);
+	setKey (* keys, "body", CHANNEL_FLIP, key (0, 1, EASING_STEP), why);
+	TrackSamples ks;
+	evaluateClip (* keys, 0, ks);
+
+	PoseBinding b0, b1, b2;
+	Pose pose;
+	for (int blend = 0; blend < NUM_LAYER_BLENDS; blend ++) {
+		std::vector<LayerSamples> layers;
+		LayerSamples l = { keys, & ks, (LayerBlend) blend, & b1 };
+		layers.push_back (l);
+		evaluatePose (r, layers, std::vector<PartOverride> (), Transform2D (), pose);
+		body = & pose.parts[1];
+		bool add = blend == LAYER_BLEND_ADD;
+		CHECK (body -> local.x == (add ? 15 : 5) && body -> local.y == (add ? 13 : -7), add ? "an additive layer adds to X and Y" : "an override layer replaces X and Y");
+		CHECK (body -> local.rotation == (add ? 45 : 15), add ? "adds to ROTATION" : "replaces ROTATION");
+		CHECK (body -> local.scale == (add ? 3 : 1.5f), add ? "multiplies SCALE" : "replaces SCALE");
+		CHECK (body -> sprite.number == 2, "either replaces SPRITE");
+		CHECK (! body -> local.visible && body -> depth == 4 && body -> local.flip, "either replaces VISIBLE, DEPTH and FLIP");
+	}
+
+	// The higher layer's sprite shows; layers apply in order.
+	std::shared_ptr<ClipDefinition> top = std::make_shared<ClipDefinition> ();
+	top -> length = 10;
+	setKey (* top, "body", CHANNEL_SPRITE, spriteKey (0, realSprite (3)), why);
+	setKey (* top, "body", CHANNEL_X, key (0, 1), why);
+	TrackSamples ts;
+	evaluateClip (* top, 0, ts);
+	std::vector<LayerSamples> layers;
+	LayerSamples l1 = { keys, & ks, LAYER_BLEND_OVERRIDE, & b1 };
+	LayerSamples l2 = { top, & ts, LAYER_BLEND_ADD, & b2 };
+	layers.push_back (l1);
+	layers.push_back (l2);
+	evaluatePose (r, layers, std::vector<PartOverride> (), Transform2D (), pose);
+	CHECK (pose.parts[1].sprite.number == 3, "an additive layer above replaces the sprite of the one below");
+	CHECK (pose.parts[1].local.x == 6, "and adds to what the one below set");
+
+	// Overrides come last, and replace.
+	std::vector<PartOverride> overrides;
+	PartOverride o1 = { "body", CHANNEL_ROTATION, -10 };
+	PartOverride o2 = { "nobody", CHANNEL_X, 99 };
+	PartOverride o3 = { "body", CHANNEL_VISIBLE, 1 };
+	overrides.push_back (o1);
+	overrides.push_back (o2);
+	overrides.push_back (o3);
+	evaluatePose (r, layers, overrides, Transform2D (), pose);
+	CHECK (pose.parts[1].local.rotation == -10 && pose.parts[1].local.visible, "overrides replace, over every layer");
+	CHECK (pose.parts[1].local.x == 6, "an override of a part the rig lacks does nothing");
+
+	// No layers: the rest pose.
+	evaluatePose (r, std::vector<LayerSamples> (), std::vector<PartOverride> (), Transform2D (), pose);
+	CHECK (pose.parts[1].local.x == 10 && pose.parts[1].local.rotation == 30 && pose.parts[1].local.scale == 2, "the rest pose");
+	(void) b0;
+}
+
 static void testLifetimes () {
 	int rigs = LifetimeCounter<RigDefinition>::live (), clips = LifetimeCounter<ClipDefinition>::live ();
 	{
@@ -1065,6 +1139,7 @@ int main () {
 	testTransforms ();
 	testPoses ();
 	testSpriteCorners ();
+	testBlending ();
 	testLifetimes ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);

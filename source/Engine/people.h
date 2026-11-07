@@ -27,6 +27,19 @@ struct persona {
 	persona () : numDirections (0), timesUsed (0) {}
 };
 
+// A clip that a character plays on a layer of its own (playClip), over
+// layer 0, the animation of its costume or of animate. It owns its handle.
+struct ClipLayer {
+	int number;				// 1 to maxClipLayer
+	AnimationHandle anim;	// A TIMELINE clip
+	AnimationPlayback playback;
+	LayerBlend blend;
+	PoseBinding binding;
+};
+
+const int maxClipLayer = 99;
+const int maxPartOverrides = 1024;
+
 struct onScreenPerson {
 	float x, y;
 	int height, floaty, walkSpeed;
@@ -60,6 +73,10 @@ struct onScreenPerson {
 	RigDefinitionRef rig;
 	PoseBinding poseBinding;
 	Pose pose;
+	// Its layers above 0, by number, and the properties of parts that its
+	// script sets (setPartProperty), over all of them.
+	std::vector<ClipLayer> layers;
+	std::vector<PartOverride> overrides;
 	LifetimeCounter<onScreenPerson> counted;
 };
 
@@ -175,4 +192,18 @@ bool setPersonRig (int obj, const RigDefinitionRef & rig);
 // Work out the pose of a character of parts from what its animation shows,
 // or (current) from where it is now, as pasting takes it.
 void computePose (onScreenPerson & person, bool current = false);
+
+// For a character of one sprite: the sprite of its highest layer above 0
+// whose clip has a sprite for the character (""), or NULL; current as for
+// computePose.
+const SpriteRef * layeredSprite (const onScreenPerson * person, bool current);
+
+// Layers: play a TIMELINE clip on layer (1 and up), from its start, or stop
+// it. The layer of a number, or NULL.
+bool playPersonLayer (int obj, int layer, AnimationHandle clip, LayerBlend blend);
+bool stopPersonLayer (int obj, int layer);
+ClipLayer * personLayer (onScreenPerson & person, int layer);
+// A property of a part, over every layer; clear takes it away.
+bool setPersonOverride (int obj, const std::string & part, Channel channel, float value);
+bool clearPersonOverride (int obj, const std::string & part, Channel channel);
 void givePersonAnim (onScreenPerson & person, AnimationHandle anim);

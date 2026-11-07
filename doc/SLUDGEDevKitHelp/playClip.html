@@ -1,0 +1,86 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>playClip</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>playClip</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">playClip (<i>character, layer, clip</i>);
+playClip (<i>character, layer, clip</i>, LAYER_ADD);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Plays <i>clip</i>, from its start, on a <i>layer</i> of <i>character</i> of its own, from 1 to 99, over the animation of its costume (layer 0, which <a href="animate.html">animate</a>, walking and talking change) and over the layers below it. Each layer plays on its own: its time, its speed (<a href="setClipSpeed.html">setClipSpeed</a>) and its events. A layer that plays another clip starts again.
+</P>
+
+<P>
+A layer <b>overrides</b> (LAYER_OVERRIDE, if none is given) what its clip keys: the eyes of a blink, whatever the costume does with them. With <b>LAYER_ADD</b>, it adds to places (PART_X, PART_Y) and angles (PART_ROTATION), and multiplies sizes (PART_SCALE, where 100 leaves a part as it is): breathing, over standing, walking or talking. Sprites, visibility, depth and flipping have nothing to add: any layer sets them, and where two layers set a part's sprite, the higher layer's shows.
+</P>
+
+<P>
+A clip that doesn't loop holds its end until <a href="stopClip.html">stopClip</a>.
+</P>
+
+<P>
+<pre>playClip (hero, 1, breathe (), LAYER_ADD);
+playClip (hero, 2, blink ());
+pause (playClip (hero, 3, wave ()));
+stopClip (hero, 3);</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+The length of the clip, in ticks, as <a href="animate.html">animate</a> gives.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="stopClip.html">stopClip</a>
+</P>
+
+<P>
+<a href="setPartProperty.html">setPartProperty</a>
+</P>
+
+<P>
+<a href="clearPartProperty.html">clearPartProperty</a>
+</P>
+
+<P>
+<a href="mirrorClip.html">mirrorClip</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

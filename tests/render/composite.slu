@@ -225,7 +225,7 @@ sub talkClip (dir) {
 sub egoCostume () {
 	return costume (
 		standClip (south), standClip (west), standClip (north), standClip (east),
-		walkClip (south), walkClip (west), walkClip (north), walkClip (east),
+		walkClip (south), mirrorClip (walkClip (east)), walkClip (north), walkClip (east),
 		talkClip (south), talkClip (west), talkClip (north), talkClip (east));
 }
 
@@ -298,6 +298,54 @@ sub pointPoseClip () {
 	clipKey (c, "arm2", PART_DEPTH, 0, 3);
 	clipKey (c, "head", PART_SCALE, 0, 140);
 	clipKey (c, "arm1", PART_VISIBLE, 0, FALSE);
+	return c;
+}
+
+# Layers. Breathing adds to the torso's place, whatever the layers below
+# it do. The eyes blink on a layer of their own, at random times, as the
+# game's AnimateEyes does: a clip with nothing but an event, on a layer, is
+# a timer. The mouth talks on a layer of its own while the ego walks.
+sub breatheClip () {
+	var c = newClip (96, TRUE);
+	clipKey (c, "torso", PART_Y, 0, 0);
+	clipKey (c, "torso", PART_Y, 48, -6, EASE_INOUT);
+	clipKey (c, "torso", PART_Y, 96, 0, EASE_INOUT);
+	return c;
+}
+
+var blinks = 0;
+
+sub blinkClip () {
+	var c = newClip (20);
+	keyFrames (c, "eyes", 'hd-ego/head_south.duc', 4, newStack (6, 7, 8, 7, 6));
+	return c;
+}
+
+# A blink every 1 to 3 seconds, as long as layer 9 plays the timer.
+sub maybeBlink () {
+	if (random (2) == 0) {
+		playClip (ego, 2, blinkClip ());
+		blinks ++;
+	}
+}
+
+sub blinkTimerClip () {
+	var c = newClip (48, TRUE);
+	clipEvent (c, 0, maybeBlink);
+	return c;
+}
+
+# A blink every 1.5 seconds, the same each time, for saving and loading.
+sub steadyBlinkClip () {
+	var c = newClip (72, TRUE);
+	keyFrames (c, "eyes", 'hd-ego/head_south.duc', 4, newStack (6, 7, 8, 7, 6));
+	return c;
+}
+
+sub mouthClip () {
+	var c = newClip (192, TRUE);
+	keyFrames (c, "head", 'hd-ego/head_south.duc', 4, newStack (1, 2, 3, 4, 5, 3, 1, 3, 2, 5, 2, 4, 3, 1, 2, 1, 3, 5, 3, 4, 5, 2, 4, 3,
+		5, 1, 2, 3, 4, 5, 3, 1, 3, 2, 5, 2, 4, 3, 1, 2, 1, 3, 5, 3, 4, 5, 2, 4));
 	return c;
 }
 
@@ -391,6 +439,34 @@ sub init () {
 	zoomCamera (100);
 	setCharacterExtra (ego, 0);
 
+	# Layers over the costume, and the script's own pose.
+	jumpCharacter (ego, 320, 420);
+	turnCharacter (ego, 180);
+	playClip (ego, 1, breatheClip (), LAYER_ADD);
+	playClip (ego, 9, blinkTimerClip ());
+	scene ("breathing and blinking", 150);
+	check (blinks > 0, "the eyes blink");
+	check (isClipPlaying (ego, 1) && isClipPlaying (ego, 9), "loops play on");
+	playClip (ego, 2, blinkClip ());
+	scene ("a blink", 24);
+	check (! isClipPlaying (ego, 2), "a blink finishes");
+	stopClip (ego, 9);
+	stopClip (ego, 2);
+	jumpCharacter (ego, 320, 330);
+	playClip (ego, 3, mouthClip ());
+	moveCharacter (ego, 320, 420);
+	scene ("talking while walking", 10);
+	stopClip (ego, 3);
+	setPartProperty (ego, "head", PART_ROTATION, -15);
+	setPartProperty (ego, "arm2", PART_SCALE, 120);
+	scene ("the script's own pose", 20);
+	clearPartProperty (ego, "head", PART_ROTATION);
+	clearPartProperty (ego, "arm2", PART_SCALE);
+	turnCharacter (ego, 270);
+	scene ("west, mirrored", 10);
+	turnCharacter (ego, 180);
+	stopClip (ego, 1);
+
 	setLightMap ('light.png', PERPIXEL);
 	scene ("light map per pixel", 10);
 	setLightMap ('light.png', HOTSPOT);
@@ -401,8 +477,12 @@ sub init () {
 	scene ("transparency and colourise", 10);
 	setCharacterDrawMode (ego, NORMAL);
 
-	# Save, walk on the spot, load, and walk the same again.
+	# Save, walk on the spot, breathing and blinking, load, and do the same
+	# again: the layers come back as they were.
 	animate (ego, walkClip (south));
+	playClip (ego, 1, breatheClip (), LAYER_ADD);
+	playClip (ego, 2, steadyBlinkClip ());
+	setPartProperty (ego, "head", PART_ROTATION, 5);
 	var saved = saveGame ("composite.sav");
 	scene ("after saving", 40);
 	if (saved) loadGame ("composite.sav");
