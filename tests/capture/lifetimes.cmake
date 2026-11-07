@@ -2,7 +2,8 @@
 # handles, definitions, costumes, characters and sprite banks.
 #
 # cmake -DENGINE=<sludge-engine> -DGAME=<LoadTest.slg>
-#       -DUNLOAD_GAME=<UnloadTest.slg> -DOUT=<folder> -P lifetimes.cmake
+#       -DUNLOAD_GAME=<UnloadTest.slg> [-DTIMELINE_GAME=<TimelineTest.slg>]
+#       -DOUT=<folder> -P lifetimes.cmake
 #
 # 1. UnloadTest lets every costume, animation and character go: at its end,
 #    only the mouse cursor's handle lives.
@@ -10,9 +11,10 @@
 #    what lived after the first, and after the second save, so that loading
 #    frees what it replaces.
 # 3. Failed loads: LoadTest again, with its save cut short at 64 places
-#    (SLUDGE_TEST_CUT_SAVE). Each must end in "This saved game appears to be
-#    corrupted", without a crash. With the sanitisers, no error, and no leak
-#    of what the loaders made.
+#    (SLUDGE_TEST_CUT_SAVE), and TimelineTest, whose save has clips, at 32.
+#    Each must end in "This saved game appears to be corrupted", without a
+#    crash. With the sanitisers, no error, and no leak of what the loaders
+#    made.
 
 file(REMOVE_RECURSE "${OUT}")
 file(MAKE_DIRECTORY "${OUT}")
@@ -81,38 +83,51 @@ if(NOT firstLoad STREQUAL secondSave OR NOT firstLoad STREQUAL secondLoad)
 endif()
 message(STATUS "LoadTest after each load: ${firstLoad}")
 
-# 3. Loads that fail
-file(GLOB_RECURSE saves "${OUT}/load/*first.sav")
-list(LENGTH saves found)
-if(NOT found EQUAL 1)
-	message(FATAL_ERROR "Can't find LoadTest's first.sav in ${OUT}/load")
+# 3. Loads that fail: the save that a game loads, found in OUT/<run> after a
+# whole run, cut at <cuts> places.
+function(cut_saves label game run saveName cuts)
+	file(GLOB_RECURSE saves "${OUT}/${run}/*${saveName}")
+	list(LENGTH saves found)
+	if(NOT found EQUAL 1)
+		message(FATAL_ERROR "Can't find ${label}'s ${saveName} in ${OUT}/${run}")
+	endif()
+	file(SIZE "${saves}" size)
+	set(fatalCounts "")
+	foreach(k RANGE 1 ${cuts})
+		math(EXPR bytes "${size} * ${k} / (${cuts} + 1)")
+		run_game(cut-${k} "${game}" SLUDGE_TEST_CUT_SAVE=${bytes})
+		set(log "${cut-${k}_log}")
+		if(NOT "${cut-${k}_result}" EQUAL 1 OR NOT log MATCHES "This saved game appears to be corrupted")
+			message(FATAL_ERROR "${label} with its save cut at ${bytes} of ${size} bytes stopped with ${cut-${k}_result}, not as a corrupted save:\n${log}")
+		endif()
+		# LeakSanitizer (Linux): nothing that the loaders made may leak. Each
+		# report is a "Direct leak" or "Indirect leak" line and its stack; one
+		# with a loader in its stack is ours. (Others, as of fontconfig, aren't.)
+		if(log MATCHES "ERROR: LeakSanitizer")
+			string(REGEX MATCHALL "(Direct|Indirect) leak of[^\n]*\n([ \t]+#[^\n]*\n)*" leaks "${log}")
+			foreach(leak ${leaks})
+				if(leak MATCHES " in (loadGame|loadPeople|loadCostume|loadAnim|loadTimelineClip|loadVariable|loadFunction|loadStack|loadStackRef|loadHSI|loadRegions|loadObjectRef|loadHandlers|loadSpeech|loadStatusBars|loadSounds|restoreSnapshot|blur_loadSettings)\\(")
+					message(FATAL_ERROR "${label} with its save cut at ${bytes} of ${size} bytes leaks what it loaded:\n${leak}")
+				endif()
+			endforeach()
+		endif()
+		lifetimes("${log}" "at a fatal error" atFatal)
+		list(APPEND fatalCounts "${bytes}: ${atFatal}")
+		file(REMOVE_RECURSE "${OUT}/cut-${k}")
+	endforeach()
+	message(STATUS "All ${cuts} cuts of the ${size} bytes of ${label}'s save failed as corrupted saves. What lived then:")
+	foreach(line ${fatalCounts})
+		message(STATUS "  ${line}")
+	endforeach()
+endfunction()
+
+cut_saves(LoadTest "${GAME}" load first.sav 64)
+
+# TimelineTest's save has clips and their playback (saves of 2.3).
+if(DEFINED TIMELINE_GAME)
+	run_game(timeline "${TIMELINE_GAME}")
+	if(NOT timeline_result EQUAL 0)
+		message(FATAL_ERROR "TimelineTest stopped with ${timeline_result}:\n${timeline_log}")
+	endif()
+	cut_saves(TimelineTest "${TIMELINE_GAME}" timeline timeline.sav 32)
 endif()
-file(SIZE "${saves}" size)
-set(cuts 64)
-set(fatalCounts "")
-foreach(k RANGE 1 ${cuts})
-	math(EXPR bytes "${size} * ${k} / (${cuts} + 1)")
-	run_game(cut-${k} "${GAME}" SLUDGE_TEST_CUT_SAVE=${bytes})
-	set(log "${cut-${k}_log}")
-	if(NOT "${cut-${k}_result}" EQUAL 1 OR NOT log MATCHES "This saved game appears to be corrupted")
-		message(FATAL_ERROR "LoadTest with its save cut at ${bytes} of ${size} bytes stopped with ${cut-${k}_result}, not as a corrupted save:\n${log}")
-	endif()
-	# LeakSanitizer (Linux): nothing that the loaders made may leak. Each
-	# report is a "Direct leak" or "Indirect leak" line and its stack; one
-	# with a loader in its stack is ours. (Others, as of fontconfig, aren't.)
-	if(log MATCHES "ERROR: LeakSanitizer")
-		string(REGEX MATCHALL "(Direct|Indirect) leak of[^\n]*\n([ \t]+#[^\n]*\n)*" leaks "${log}")
-		foreach(leak ${leaks})
-			if(leak MATCHES " in (loadGame|loadPeople|loadCostume|loadAnim|loadVariable|loadFunction|loadStack|loadStackRef|loadHSI|loadRegions|loadObjectRef|loadHandlers|loadSpeech|loadStatusBars|loadSounds|restoreSnapshot|blur_loadSettings)\\(")
-				message(FATAL_ERROR "LoadTest with its save cut at ${bytes} of ${size} bytes leaks what it loaded:\n${leak}")
-			endif()
-		endforeach()
-	endif()
-	lifetimes("${log}" "at a fatal error" atFatal)
-	list(APPEND fatalCounts "${bytes}: ${atFatal}")
-	file(REMOVE_RECURSE "${OUT}/cut-${k}")
-endforeach()
-message(STATUS "All ${cuts} cuts of the ${size} bytes of the save failed as corrupted saves. What lived then:")
-foreach(line ${fatalCounts})
-	message(STATUS "  ${line}")
-endforeach()

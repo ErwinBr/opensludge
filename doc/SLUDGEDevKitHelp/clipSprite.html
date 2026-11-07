@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>clipSprite</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>clipSprite</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">clipSprite (<i>clip, part, tick, spriteBank, sprite</i>);
+clipSprite (<i>clip, part, tick</i>, NOSPRITE);
+clipSprite (<i>clip, part, tick</i>, PART_DEFAULT);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+From <i>tick</i> on, until its next key, the <i>part</i> of the character shows <i>sprite</i> of the sprite bank <i>spriteBank</i>. A negative <i>sprite</i> shows its mirror image, as with <a href="anim.html">anim</a>. A key at the same tick as another replaces it.
+</P>
+
+<P>
+With NOSPRITE, the part shows nothing from <i>tick</i> on: an empty frame. With PART_DEFAULT, it shows its own sprite (a character of one part has none, and shows nothing too).
+</P>
+
+<P>
+Characters have one part for now: the character itself, named <b>""</b>. The <i>tick</i> lies from 0 to the length of the clip. Before its first key, a part shows the sprite of its first key.
+</P>
+
+<P>
+<pre>var c = newClip (40, TRUE);
+clipSprite (c, "", 0, 'ego.duc', 4);
+clipSprite (c, "", 36, 'ego.duc', 5);	# blinks for 4 ticks
+clipSprite (c, "", 38, NOSPRITE);</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+None.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="clipFrames.html">clipFrames</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

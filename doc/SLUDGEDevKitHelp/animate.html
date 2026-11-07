@@ -19,7 +19,7 @@
 <H3>Purpose:</H3>
 
 <P>
-Makes the specified <i>character</i> perform the selected <i>animation</i> which must be created with the <a href="anim.html">anim</a> function. The character will continue performing the animation until told to move, change direction or speak.
+Makes the specified <i>character</i> perform the selected <i>animation</i> which must be created with the <a href="anim.html">anim</a> function, or be a <a href="Animation_Clips.html">clip</a> of <a href="newClip.html">newClip</a>. The character will continue performing the animation until told to move, change direction or speak.
 </P>
 
 <P>
@@ -52,6 +52,10 @@ normalCharacter (ego);</pre>
 In the above example, the return value of the animate function is 8... 1 + 4 + 1 + 1 + 1. So, the <a href="pause.html">pause</a> function stops the function for 8 frames: just long enough for the animation to run.
 </P>
 
+<P>
+For a <a href="Animation_Clips.html">clip</a>, the return value is its length.
+</P>
+
 <H3>See also:</H3>
 
 <P>
@@ -60,6 +64,10 @@ In the above example, the return value of the animate function is 8... 1 + 4 + 1
 
 <P>
 <a href="normalCharacter.html">normalCharacter</a>
+</P>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

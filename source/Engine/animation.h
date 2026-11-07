@@ -64,6 +64,8 @@ public:
 };
 
 const int subTicksPerTick = 256;
+// The fastest a playback goes (setClipSpeed: 100000%).
+const int maxPlaybackSpeed = 1000 * subTicksPerTick;
 
 struct AnimationPlayback {
 	const personaAnimation * playing;	// The handle it plays; compared only, never followed
@@ -72,8 +74,13 @@ struct AnimationPlayback {
 	int displayFrame;				// The frame to draw this tick
 	int subTicks;					// Fractions of a tick, of subTicksPerTick
 	int speed;						// subTicksPerTick is normal speed, 0 pauses
+	// TIMELINE clips: the position (see animmodel.h) now, after this tick's
+	// advance, wrapped into the clip, and the position to draw this tick.
+	AnimationTime position;
+	AnimationTime displayPosition;
 
-	AnimationPlayback () : playing (NULL), frame (0), ticksLeft (0), displayFrame (0), subTicks (0), speed (subTicksPerTick) {}
+	AnimationPlayback () : playing (NULL), frame (0), ticksLeft (0), displayFrame (0), subTicks (0), speed (subTicksPerTick),
+		position (0), displayPosition (0) {}
 };
 
 // A character's playback, for ticks game ticks. At normal speed and one
@@ -84,12 +91,50 @@ struct AnimationPlayback {
 // is passed at once.
 void updateAnimation (AnimationPlayback & playback, const personaAnimation * anim, int ticks, bool shown, FrameEventSink & events);
 
+// TIMELINE clips: whether anim is one, and the events it fires as it plays.
+bool isTimeline (const personaAnimation * anim);
+
+struct TimelineEvent {
+	AnimationTime position;
+	EventId id;
+	FrameEvent what;
+};
+
+// A TIMELINE clip's playback, for one game tick, shown or not: when given
+// another handle, start it again (firing its events at 0); remember the
+// position to draw; move on by the speed, adding the events it passes to
+// out (see eventsCrossed). A clip that doesn't loop stops at its end. As
+// with the legacy stepper, an update shows where the clip is, then moves it
+// on, so a clip of clipFrames shows what its animation would.
+void updateTimeline (AnimationPlayback & playback, const personaAnimation * anim, std::vector<TimelineEvent> & out);
+
+// The time within its clip to draw of a playback of anim: its display
+// position, or 0 until it plays anim. And the time now (for pasting).
+AnimationTime shownTime (const AnimationPlayback & playback, const personaAnimation * anim);
+AnimationTime currentTime (const AnimationPlayback & playback, const personaAnimation * anim);
+
+// Whether a TIMELINE playback of anim has finished: a clip that doesn't
+// loop, at its end.
+bool timelineFinished (const AnimationPlayback & playback, const personaAnimation * anim);
+
+// The sprite of a bank that r refers to, and its bank: NULL for NONE, for
+// DEFAULT (only a rig's parts have one of their own), and for a sprite its
+// bank lacks, which SLUDGE_ANIM_LOG reports once.
+const struct sprite * resolveSprite (const SpriteRef * r, const struct spriteBank * & bank);
+
+// Scripts build TIMELINE clips in place, until they are sealed (see
+// animmodel.h): the definition to change, or NULL, with why.
+ClipDefinition * editableClip (const personaAnimation * anim, std::string & why);
+// The first use of a clip, by a character, costume or cursor, seals it.
+void sealClip (const personaAnimation * anim);
+
 // Start anim from its first frame without its events, as pasteCharacter does.
 void restartAnimationQuietly (AnimationPlayback & playback, const personaAnimation * anim);
 
 // The mouse cursor's rule, as it has always been: it remembers the frame to
 // draw, then counts up (in ticksLeft) and moves on when the count reaches the
-// frame's ticks, so a frame shows for at least one tick; no events.
+// frame's ticks, so a frame shows for at least one tick; no events. A
+// TIMELINE clip plays as updateTimeline has it, without its events.
 void updateCursorAnimation (AnimationPlayback & playback, const personaAnimation * anim, int ticks);
 
 // clipFrames: the frames of a legacy animation as a SPRITE track of part in
@@ -99,7 +144,7 @@ void updateCursorAnimation (AnimationPlayback & playback, const personaAnimation
 // animation would over its first length ticks: frames with an event take no
 // time and aren't drawn; only the first of a chain of them fires; a frame
 // of 0 ticks holds to the end of the clip; the animation loops as anim ()
-// does. Events that would fire at length are of the next pass, and dropped.
+// does, an event at the end of a pass at length.
 // It replaces the keys of the part's SPRITE track (keeping its ID) and adds
 // the events. Clips longer than maxLegacyFramesTicks fail.
 const int maxLegacyFramesTicks = 1 << 20;

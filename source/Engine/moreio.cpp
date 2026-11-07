@@ -246,3 +246,15 @@ char * decodeFilename (char * nameIn) {
 		return copyString (nameIn);
 	}
 }
+
+void put8bytes (int64_t f, FILE * fp) {
+	uint64_t u = (uint64_t) f;
+	put4bytes ((uint32_t) (u & 0xFFFFFFFFu), fp);
+	put4bytes ((uint32_t) (u >> 32), fp);
+}
+
+int64_t get8bytes (FILE * fp) {
+	uint64_t lo = (uint32_t) get4bytes (fp);
+	uint64_t hi = (uint32_t) get4bytes (fp);
+	return (int64_t) (lo | (hi << 32));
+}

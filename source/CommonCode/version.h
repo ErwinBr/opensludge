@@ -10,4 +10,11 @@
 
 #define VERSION(a,b)	(a * 256 + b)
 
+// Saved games have a version of their own, so that games keep the version
+// above, and run on the engines they ran on, while saves change. 2.3 adds
+// TIMELINE clips (newClip) and the playback of characters' clips.
+#define SAVE_MAJOR_VERSION 2
+#define SAVE_MINOR_VERSION 3
+#define SAVE_VERSION	VERSION (SAVE_MAJOR_VERSION, SAVE_MINOR_VERSION)
+
 extern int gameVersion;

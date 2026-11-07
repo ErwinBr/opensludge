@@ -30,8 +30,10 @@
  *    keyed by frame.
  *  - TIMELINE: clips with tracks and events at times, of length ticks. Time
  *    runs over [0, length); keys lie in [0, length], so that a key at length
- *    closes a loop or ends a clip that doesn't loop; events lie in
- *    [0, length), or at 0 when length is 0.
+ *    closes a loop or ends a clip that doesn't loop. Events lie in
+ *    [0, length] too: those at 0 fire as the clip starts, and again each
+ *    time a loop goes round; those at length fire as each pass ends (as a
+ *    clip that doesn't loop finishes), before the next pass's at 0.
  *
  * Parts, tracks and events have IDs that are unique within their
  * definition and never used again, so that an editor can refer to them
@@ -202,6 +204,13 @@ struct ClipDefinition {
 	SpriteBankRef spriteBank;
 	std::vector<AnimationFrame> frames;
 
+	// Not part of the definition: whether a script may still change it.
+	// Scripts build a clip in place (newClip, then clipSprite and so on) on
+	// a definition that the copies of the clip's variables share; the first
+	// use of the clip (by a character, costume or cursor) seals it, so that
+	// nothing ever changes under what plays it.
+	mutable bool sealed;
+
 	LifetimeCounter<ClipDefinition> counted;
 
 	// An empty TIMELINE clip.
@@ -279,6 +288,10 @@ typedef std::vector<TrackSample> TrackSamples;
 // Discrete channels always step.
 void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples & out);
 
+// The sprite of one track at time, as evaluateClip has it: NULL when the
+// clip has no SPRITE track of that part, or it has no keys.
+const SpriteRef * sampleSprite (const ClipDefinition & clip, const std::string & part, AnimationTime time);
+
 // An event that a playback passed, at its position.
 struct CrossedEvent {
 	AnimationTime position;
@@ -291,9 +304,10 @@ void eventsAtStart (const ClipDefinition & clip, std::vector<CrossedEvent> & out
 // The events that fire as a playback moves from position from to position
 // to (from <= to), however far: each event at a position p (its time, plus
 // a whole number of lengths in a loop) with from < p <= to, in order of
-// position, then of ID. So moving in steps fires exactly what one move
-// fires, and a loop fires each event once a pass, those at 0 as it wraps.
-// A clip that doesn't loop fires none past its length. Appends to out.
+// position (where a pass ends and the next starts, the end's first), then
+// of ID. So moving in steps fires exactly what one move fires, and a loop
+// fires each event once a pass: as it wraps, those at length, then those
+// at 0. A clip that doesn't loop fires none past its length. Appends to out.
 void eventsCrossed (const ClipDefinition & clip, AnimationTime from, AnimationTime to, std::vector<CrossedEvent> & out);
 
 #endif

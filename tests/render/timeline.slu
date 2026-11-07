@@ -1,0 +1,241 @@
+# TimelineTest: clips of newClip (), played on characters (see
+# source/Engine/animmodel.h and people.h). The game checks itself, and stops
+# with an error when something is wrong; the capture tests compare its
+# frames (see cmake/CaptureTests.cmake):
+#
+#  - A clip of clipFrames shows and fires what its animation of anim () does:
+#    two ducks, one of each, quack together.
+#  - The events of clips fire whether a character is shown or not, and on
+#    screen or not, while hidden legacy animations fire nothing.
+#  - Events of the same tick fire in the order characters were added, not in
+#    the order they are drawn.
+#  - Clips that don't loop finish and hold their last sprite; speed 0 pauses.
+#  - A costume of clips stands and walks; the cursor plays a clip.
+#  - After saving, the game plays a while, loads the save, and plays the same
+#    again: tests/capture/saveload.cmake finds the two the same, frame by
+#    frame.
+
+objectType ego ("ego") {
+}
+
+objectType legacyDuck ("legacy duck") {
+}
+
+objectType timelineDuck ("timeline duck") {
+}
+
+objectType seen ("seen") {
+}
+
+objectType hidden ("hidden") {
+}
+
+objectType far ("far") {
+}
+
+objectType once ("once") {
+}
+
+objectType early ("early") {
+}
+
+objectType late ("late") {
+}
+
+var legacyQuacks = 0;
+var timelineQuacks = 0;
+var seenTicks = 0;
+var hiddenTicks = 0;
+var farTicks = 0;
+var steps = 0;
+var turn = 0;
+var pairs = 0;
+
+# What each frame of a scene checks.
+var checkDucks = FALSE;
+var checkTicks = FALSE;
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("TimelineTest: " + what);
+}
+
+sub onLegacyQuack () { legacyQuacks ++; }
+sub onTimelineQuack () { timelineQuacks ++; }
+sub onSeen () { seenTicks ++; }
+sub onHidden () { hiddenTicks ++; }
+sub onFar () { farTicks ++; }
+sub onStep () { steps ++; }
+
+# early was added before late, and is drawn after it: its events come first.
+sub onEarly () {
+	check (turn == 0, "the events of a tick fire in the order characters were added");
+	turn = 1;
+}
+
+sub onLate () {
+	check (turn == 1, "the events of a tick fire in the order characters were added");
+	turn = 0;
+	pairs ++;
+}
+
+sub quackAnim (f) {
+	return anim ('outside/duck.duc', 0, f, 1, 2, wait (3, 2));
+}
+
+# The animation above plays 5 ticks a pass: twice in a clip of 10.
+sub quackClip (f) {
+	var c = newClip (10, TRUE);
+	clipFrames (c, "", quackAnim (f));
+	return c;
+}
+
+sub tickClip (f) {
+	var c = newClip (5, TRUE);
+	clipSprite (c, "", 0, 'outside/duck.duc', 0);
+	clipSprite (c, "", 2, 'outside/duck.duc', -1);
+	clipEvent (c, 0, f);
+	return c;
+}
+
+sub standClip () {
+	var c = newClip (40, TRUE);
+	clipSprite (c, "", 0, 'ego/alien.duc', 4);
+	clipSprite (c, "", 34, 'ego/alien.duc', 5);
+	return c;
+}
+
+sub walkClip () {
+	var c = newClip (16, TRUE);
+	clipSprite (c, "", 0, 'ego/alien.duc', 0);
+	clipSprite (c, "", 4, 'ego/alien.duc', 1);
+	clipSprite (c, "", 8, 'ego/alien.duc', 2);
+	clipSprite (c, "", 12, 'ego/alien.duc', 3);
+	clipEvent (c, 0, onStep);
+	clipEvent (c, 8, onStep);
+	return c;
+}
+
+sub talkClip () {
+	var c = newClip (6, TRUE);
+	clipSprite (c, "", 0, 'ego/alien.duc', 6);
+	clipSprite (c, "", 3, 'ego/alien.duc', 4);
+	return c;
+}
+
+# Shown, then nothing, then the part's own sprite (none), then a mirror
+# image, which it holds at its end.
+sub onceClip () {
+	var c = newClip (30);
+	clipSprite (c, "", 0, 'ego/alien.duc', 6);
+	clipSprite (c, "", 10, NOSPRITE);
+	clipSprite (c, "", 15, PART_DEFAULT);
+	clipSprite (c, "", 20, 'ego/alien.duc', -6);
+	return c;
+}
+
+sub cursorClip () {
+	var c = newClip (20, TRUE);
+	clipSprite (c, "", 0, 'iface/mouse.duc', 0);
+	clipSprite (c, "", 15, NOSPRITE);
+	return c;
+}
+
+sub pairClip (f) {
+	var c = newClip (7, TRUE);
+	clipSprite (c, "", 0, 'outside/duck.duc', 2);
+	clipEvent (c, 3, f);
+	return c;
+}
+
+# Shorter than the window: the engine can't centre a wider status line.
+sub status (name) {
+	statusText (name + ": q " + legacyQuacks + "/" + timelineQuacks + " t " + seenTicks + "/" + hiddenTicks + "/" + farTicks
+		+ " s " + steps + " p " + pairs);
+}
+
+# Show the scene for some frames, checking what it checks each frame.
+sub scene (name, frames) {
+	for (var i = 0; i < frames; i ++) {
+		status (name);
+		if (checkDucks) check (legacyQuacks == timelineQuacks, "clipFrames fires what anim () fires");
+		if (checkTicks) check (seenTicks == hiddenTicks && seenTicks == farTicks, "hidden and far characters fire their events");
+		pause (1);
+	}
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	addOverlay ('outside/room.tga', 0, 0);
+	setFloor ('outside/room.flo');
+	setCursor (cursorClip ());
+
+	# A legacy animation and its clip, side by side.
+	addCharacter (legacyDuck, 150, 300, quackAnim (onLegacyQuack));
+	addCharacter (timelineDuck, 250, 300, quackClip (onTimelineQuack));
+	checkDucks = TRUE;
+	scene ("ducks", 40);
+
+	# The same clips, shown, hidden and far away.
+	addCharacter (seen, 350, 300, tickClip (onSeen));
+	addCharacter (hidden, 400, 300, tickClip (onHidden));
+	addCharacter (far, -400, 300, tickClip (onFar));
+	hideCharacter (hidden);
+	checkTicks = TRUE;
+	scene ("seen, hidden, far", 40);
+
+	# Hidden, the legacy duck fires nothing; its clip goes on.
+	hideCharacter (legacyDuck);
+	hideCharacter (timelineDuck);
+	checkDucks = FALSE;
+	var legacyBefore = legacyQuacks;
+	var timelineBefore = timelineQuacks;
+	scene ("hidden ducks", 20);
+	check (legacyQuacks == legacyBefore, "a hidden legacy animation fires nothing");
+	check (timelineQuacks > timelineBefore, "a hidden clip fires its events");
+	showCharacter (legacyDuck);
+	showCharacter (timelineDuck);
+
+	# Late is higher up the screen, so drawn first, but added after early.
+	addCharacter (early, 300, 420, pairClip (onEarly));
+	addCharacter (late, 300, 380, pairClip (onLate));
+	scene ("order", 30);
+	check (pairs >= 4, "both characters fire, in pairs");
+
+	# A clip that doesn't loop.
+	addCharacter (once, 500, 420, onceClip ());
+	check (isClipPlaying (once, 0), "a new clip plays");
+	scene ("once", 35);
+	check (! isClipPlaying (once, 0), "a clip that doesn't loop finishes");
+	check (isClipPlaying (seen, 0), "a loop never finishes");
+
+	# A costume of clips: standing, walking, talking.
+	addCharacter (ego, 420, 400, costume (standClip (), walkClip (), talkClip ()));
+	scene ("standing", 20);
+	moveCharacter (ego, 300, 400);
+	check (steps >= 2, "walking fires the walk clip's events");
+	scene ("arrived", 10);
+
+	# Speeds: half, double, paused, normal.
+	setClipSpeed (timelineDuck, 0, 50);
+	setClipSpeed (legacyDuck, 0, 200);
+	scene ("half and double", 20);
+	setClipSpeed (far, 0, 0);
+	checkTicks = FALSE;
+	var farBefore = farTicks;
+	scene ("paused", 15);
+	check (farTicks == farBefore, "a paused clip fires nothing");
+	setClipSpeed (far, 0, 100);
+	setClipSpeed (timelineDuck, 0, 100);
+	setClipSpeed (legacyDuck, 0, 100);
+
+	pasteCharacter (timelineDuck);
+	pasteCharacter (once);
+	scene ("pasted", 10);
+
+	# Save, play, load, and play the same again.
+	var saved = saveGame ("timeline.sav");
+	scene ("after saving", 40);
+	if (saved) loadGame ("timeline.sav");
+	quitGame ();
+}

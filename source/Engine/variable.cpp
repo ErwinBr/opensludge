@@ -96,8 +96,12 @@ void newAnimationVariable (variable & thisVar, AnimationHandle i) {
 }
 
 AnimationHandle getAnimationFromVar (variable & thisVar) {
-	if (thisVar.varType == SVT_ANIM)
+	// What takes an animation from a variable uses it: a clip that a script
+	// built can't change after that (see sealClip).
+	if (thisVar.varType == SVT_ANIM) {
+		sealClip (animationOf (thisVar));
 		return copyAnim (animationOf (thisVar));
+	}
 
 	if (thisVar.varType == SVT_INT && thisVar.varData.intValue == 0)
 		return makeNullAnim();
@@ -124,6 +128,7 @@ persona * getCostumeFromVar (variable & thisVar) {
 		p -> timesUsed = 1;		// The caller's reference
 		p -> numDirections = 1;
 		p -> animation.resize (3);
+		sealClip (animationOf (thisVar));
 
 		for (int iii = 0; iii < 3; iii ++)
 			p -> animation[iii] = copyAnim (animationOf (thisVar));

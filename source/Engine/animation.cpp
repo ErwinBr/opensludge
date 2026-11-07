@@ -1,4 +1,10 @@
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <algorithm>
+#include <set>
+#include <utility>
+
 #include "animation.h"
 #include "ownedanimation.h"
 
@@ -66,9 +72,87 @@ void restartAnimationQuietly (AnimationPlayback & p, const personaAnimation * an
 	p.frame = 0;
 	p.ticksLeft = anim && anim -> numFrames () ? anim -> frame (0).ticks : 0;
 	p.displayFrame = 0;
+	p.position = 0;
+	p.displayPosition = 0;
+}
+
+bool isTimeline (const personaAnimation * anim) {
+	return anim && anim -> definition && anim -> definition -> stepping == STEPPING_TIMELINE;
+}
+
+void updateTimeline (AnimationPlayback & p, const personaAnimation * anim, std::vector<TimelineEvent> & out) {
+	if (! isTimeline (anim)) return;
+	const ClipDefinition & clip = * anim -> definition;
+	std::vector<CrossedEvent> crossed;
+	if (anim != p.playing) {
+		p.playing = anim;
+		p.position = 0;
+		eventsAtStart (clip, crossed);
+	}
+	p.displayPosition = p.position;
+	AnimationTime from = p.position;
+	AnimationTime to = from + (p.speed > 0 ? p.speed : 0);
+	eventsCrossed (clip, from, to, crossed);
+	p.position = clipTime (clip, to);
+	for (size_t i = 0; i < crossed.size (); i ++) {
+		TimelineEvent e = { crossed[i].position, crossed[i].event -> id, crossed[i].event -> what };
+		out.push_back (e);
+	}
+}
+
+AnimationTime shownTime (const AnimationPlayback & p, const personaAnimation * anim) {
+	return anim && p.playing == anim ? p.displayPosition : 0;
+}
+
+AnimationTime currentTime (const AnimationPlayback & p, const personaAnimation * anim) {
+	return anim && p.playing == anim ? p.position : 0;
+}
+
+bool timelineFinished (const AnimationPlayback & p, const personaAnimation * anim) {
+	if (! isTimeline (anim)) return false;
+	return p.playing == anim && ! clipLoops (* anim -> definition) && p.position >= ticksToTime (anim -> definition -> length);
+}
+
+const sprite * resolveSprite (const SpriteRef * r, const spriteBank * & bank) {
+	bank = NULL;
+	if (! r || r -> kind != SpriteRef::SPRITE || ! r -> bank) return NULL;
+	const spriteBank & b = r -> bank -> bank;
+	if (r -> number < 0 || r -> number >= b.total) {
+		static std::set<std::pair<int, int> > reported;
+		static int log = -1;
+		if (log < 0) log = getenv ("SLUDGE_ANIM_LOG") != NULL;
+		if (log && reported.insert (std::make_pair (r -> bankFile, r -> number)).second) {
+			fprintf (stderr, "Animation: sprite %d of bank %d doesn't exist; drawing nothing\n", r -> number, r -> bankFile);
+		}
+		return NULL;
+	}
+	bank = & b;
+	return & b.sprites[r -> number];
+}
+
+ClipDefinition * editableClip (const personaAnimation * anim, std::string & why) {
+	if (! isTimeline (anim)) {
+		why = "Only clips of newClip () can be changed";
+		return NULL;
+	}
+	if (anim -> definition -> sealed) {
+		why = "This clip is already used by a character, costume or cursor, so it can't change; make another with newClip ()";
+		return NULL;
+	}
+	return const_cast<ClipDefinition *> (anim -> definition.get ());
+}
+
+void sealClip (const personaAnimation * anim) {
+	if (anim && anim -> definition) anim -> definition -> sealed = true;
 }
 
 void updateCursorAnimation (AnimationPlayback & p, const personaAnimation * anim, int ticks) {
+	// A TIMELINE clip plays as for characters, without its events.
+	if (isTimeline (anim)) {
+		std::vector<TimelineEvent> ignored;
+		while (ticks -- > 0) updateTimeline (p, anim, ignored);
+		return;
+	}
 	if (! anim || ! anim -> numFrames ()) return;
 	p.displayFrame = p.frame;
 	p.subTicks += ticks * p.speed;
@@ -102,7 +186,7 @@ bool addLegacyFrames (ClipDefinition & clip, const std::string & part, const per
 		return false;
 	}
 	if (! anim.numFrames ()) {
-		why = "An animation without frames";
+		why = "clipFrames needs an animation of anim (), with frames";
 		return false;
 	}
 
@@ -118,6 +202,7 @@ bool addLegacyFrames (ClipDefinition & clip, const std::string & part, const per
 
 	AnimationPlayback p;
 	EventList fired;
+	std::vector<FrameEvent> startEvents;
 	int lastSprite = 0;
 	for (int k = 1; k <= clip.length + 1; k ++) {
 		fired.events.clear ();
@@ -134,12 +219,18 @@ bool addLegacyFrames (ClipDefinition & clip, const std::string & part, const per
 			lastSprite = s;
 		}
 		// The events of update k, at their times: the start's at 0, the tick's at k.
-		for (size_t e = 0; e < fired.events.size (); e ++) {
-			bool atStart = k == 1 && e == 0 && anim.frame (0).event.kind != FrameEvent::NONE;
-			int at = atStart ? 0 : k;
-			if (at < clip.length || (clip.length == 0 && at == 0)) {
-				if (! addEvent (built, at, fired.events[e], why)) return false;
-			}
+		// As a loop wraps, it fires its events at 0 again: what the update at
+		// its length fires is only at length when it isn't those.
+		size_t first = 0;
+		if (k == 1 && anim.frame (0).event.kind != FrameEvent::NONE && ! fired.events.empty ()) {
+			startEvents.push_back (fired.events[0]);
+			if (! addEvent (built, 0, fired.events[0], why)) return false;
+			first = 1;
+		}
+		std::vector<FrameEvent> ticked (fired.events.begin () + first, fired.events.end ());
+		if (clip.loop && k == clip.length && ticked == startEvents) continue;
+		for (size_t e = 0; e < ticked.size () && k <= clip.length; e ++) {
+			if (! addEvent (built, k, ticked[e], why)) return false;
 		}
 	}
 	clip = built;

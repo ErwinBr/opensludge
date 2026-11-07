@@ -888,6 +888,10 @@ void initBuiltInFunc ()
 	// Light map modes
 	addToStringArray (typeDefFrom, "PERPIXEL");		addToStringArray (typeDefTo, "1");
 	addToStringArray (typeDefFrom, "HOTSPOT");		addToStringArray (typeDefTo, "0");
+
+	// clipSprite, in place of a sprite bank and sprite (see builtin.cpp)
+	addToStringArray (typeDefFrom, "NOSPRITE");		addToStringArray (typeDefTo, "-1");
+	addToStringArray (typeDefFrom, "PART_DEFAULT");	addToStringArray (typeDefTo, "-2");
 }
 
 void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {

@@ -1,0 +1,82 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setClipSpeed</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setClipSpeed</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setClipSpeed (<i>character, layer, percent</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Plays the animation of <i>character</i> at <i>percent</i> of its normal speed: 100 is normal, 50 half speed, 200 twice as fast, and 0 pauses it. It works for clips and for animations of <a href="anim.html">anim</a>, and stays until changed again.
+</P>
+
+<P>
+Characters have one <i>layer</i> for now: 0, the animation of their costume, or of <a href="animate.html">animate</a>.
+</P>
+
+<P>
+<pre>setClipSpeed (ego, 0, 50);	# slow motion</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if there is such a character, FALSE if not.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipFrames.html">clipFrames</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

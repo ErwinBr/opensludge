@@ -66,7 +66,9 @@ void loadHandlers (FILE * fp);
 void saveHandlers (FILE * fp);
 void finishFunction (loadedFunction * fun);
 void abortFunction (loadedFunction * fun);
-FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er, int & fileVersion);
+// newest: the latest version that we read; games are of WHOLE_VERSION at most,
+// saved games of SAVE_VERSION.
+FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er, int & fileVersion, int newest);
 void freezeSubs ();
 void unfreezeSubs ();
 void completeTimers ();

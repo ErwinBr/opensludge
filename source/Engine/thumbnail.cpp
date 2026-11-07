@@ -93,7 +93,7 @@ void showThumbnail (char * filename, int atX, int atY) {
 	GLfloat texCoordH = 1.0;	
 	
 	int ssgVersion;
-	FILE * fp = openAndVerify (filename, 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion);
+	FILE * fp = openAndVerify (filename, 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion, SAVE_VERSION);
 	if (ssgVersion >= VERSION(1,4)) {
 		if (fp == NULL) return;
 		int fileWidth = get4bytes (fp);

@@ -216,7 +216,7 @@ static void testClips () {
 
 	CHECK (addEvent (c, 0, FrameEvent::fromNoise (4), why), "an event at the start");
 	CHECK (addEvent (c, 9, FrameEvent::fromNoise (-4), why), "and before the end");
-	CHECK (! addEvent (c, 10, FrameEvent::fromNoise (4), why), "not at the end: time runs to before it");
+	CHECK (! addEvent (c, 11, FrameEvent::fromNoise (4), why), "not after the end");
 	CHECK (! addEvent (c, -1, FrameEvent::fromNoise (4), why), "not before the start");
 	CHECK (! addEvent (c, 1, FrameEvent (), why), "an event is a sound or a function");
 	CHECK (c.events.size () == 2 && c.events[0].id != c.events[1].id && c.events[1].id < c.nextEventId, "unique IDs");
@@ -237,8 +237,8 @@ static void testClips () {
 	bad.tracks[0].keys[1].time = bad.tracks[0].keys[0].time;
 	CHECK (! validClip (bad, why), "two keys can't share a time in a timeline");
 	bad = c;
-	bad.events[1].time = 10;
-	CHECK (! validClip (bad, why), "events before the end");
+	bad.events[1].time = 11;
+	CHECK (! validClip (bad, why), "events within the clip");
 	bad = c;
 	bad.events[0].frame = 0;
 	CHECK (! validClip (bad, why), "timeline events are at times");
@@ -545,6 +545,24 @@ static void testEvents () {
 	eventsCrossed (c, ticksToTime (4), ticksToTime (4), v);
 	CHECK (v.empty (), "no move, no events");
 
+	// Events at the end: as each pass ends, before the next pass's at 0.
+	ClipDefinition ends = c;
+	addEvent (ends, 10, FrameEvent::fromNoise (5), why);	// id 5
+	v.clear ();
+	eventsAtStart (ends, v);
+	CHECK (v.size () == 1 && v[0].event -> id == 1, "not as the clip starts");
+	v.clear ();
+	eventsCrossed (ends, ticksToTime (9), ticksToTime (10), v);
+	CHECK (v.size () == 2 && v[0].event -> id == 5 && v[1].event -> id == 1, "the end of a pass, then the start of the next");
+	v.clear ();
+	eventsCrossed (ends, 0, ticksToTime (30), v);
+	CHECK (v.size () == 15, "once a pass");
+	ClipDefinition endsOnce = ends;
+	endsOnce.loop = false;
+	v.clear ();
+	eventsCrossed (endsOnce, ticksToTime (9), ticksToTime (50), v);
+	CHECK (v.size () == 1 && v[0].event -> id == 5, "a clip that doesn't loop fires them as it finishes");
+
 	ClipDefinition once = c;
 	once.loop = false;
 	v.clear ();
@@ -560,7 +578,7 @@ static void testEvents () {
 		r.length = rnd (12);
 		r.loop = rnd (3) > 0;
 		int n = rnd (5);
-		for (int e = 0; e < n; e ++) addEvent (r, r.length ? rnd (r.length) : 0, FrameEvent::fromNoise (1 + e), why);
+		for (int e = 0; e < n; e ++) addEvent (r, rnd (r.length + 1), FrameEvent::fromNoise (1 + e), why);
 		AnimationTime end = rnd (5000);
 		std::vector<CrossedEvent> whole, steps;
 		eventsCrossed (r, 0, end, whole);
@@ -638,8 +656,10 @@ static void testLegacyFrames () {
 			const TrackSample * x = sampleOf (s, "body", CHANNEL_SPRITE);
 			int shown = anim.frame (p.displayFrame).sprite;
 			same = x && x -> sprite -> number == (shown < 0 ? - shown : shown) && x -> sprite -> mirror == (shown < 0);
-			// And fires what the timeline does from k - 1 to k (and at the start).
-			if (k <= c.length - 1) {
+			// And fires what the timeline does from k - 1 to k (and at the
+			// start); at the end of a loop, the next pass starts, which an
+			// animation of anim () does only when its passes fit the clip.
+			if (k <= c.length - (c.loop ? 1 : 0)) {
 				std::vector<CrossedEvent> v;
 				if (k == 1) eventsAtStart (c, v);
 				eventsCrossed (c, ticksToTime (k - 1), ticksToTime (k), v);
@@ -677,6 +697,119 @@ static void testLegacyFrames () {
 	CHECK (! addLegacyFrames (c, "body", none, why), "not from an animation without frames");
 }
 
+// The player: updateTimeline against the legacy stepper, on the same
+// animation, a tick at a time, both shown.
+static void testTimelinePlayer () {
+	int compared = 0;
+	for (int round = 0; round < 2000; round ++) {
+		personaAnimation legacy;
+		legacy.definition = randomLegacy ();
+		// The stepper's period: the ticks until its state after the first
+		// update comes round again. (Some never come back to it, as a
+		// frame that holds; those have no whole passes to compare.)
+		int period = 0;
+		{
+			AnimationPlayback s;
+			Recorder ignored;
+			updateAnimation (s, & legacy, 1, true, ignored);
+			int frame = s.frame, left = s.ticksLeft;
+			for (int t = 1; t <= 200 && ! period; t ++) {
+				updateAnimation (s, & legacy, 1, true, ignored);
+				if (s.frame == frame && s.ticksLeft == left) period = t;
+			}
+		}
+		if (period <= 0) continue;
+		std::shared_ptr<ClipDefinition> c = std::make_shared<ClipDefinition> ();
+		c -> length = period * (1 + rnd (3));
+		c -> loop = true;
+		if (! addLegacyFrames (* c, "", legacy, why)) continue;
+		personaAnimation timeline;
+		timeline.definition = c;
+
+		AnimationPlayback lp, tp;
+		Recorder le;
+		std::vector<TimelineEvent> te;
+		bool same = true;
+		for (int k = 0; k < 300 && same; k ++) {
+			le.events.clear ();
+			te.clear ();
+			updateAnimation (lp, & legacy, 1, true, le);
+			updateTimeline (tp, & timeline, te);
+			const SpriteRef * r = sampleSprite (* c, "", shownTime (tp, & timeline));
+			int shown = legacy.frame (lp.displayFrame).sprite;
+			same = r && r -> number == (shown < 0 ? - shown : shown) && r -> mirror == (shown < 0);
+			std::vector<int> noise;
+			for (size_t i = 0; i < te.size (); i ++) noise.push_back (te[i].what.toNoise ());
+			same = same && noise == le.events;
+			compared ++;
+		}
+		if (! same) {
+			// A chain of events over the loop's end is the one thing a
+			// timeline can't do (see addLegacyFrames): it plays the first pass.
+			const AnimationFrame & a = legacy.frame (0), & z = legacy.frame (legacy.numFrames () - 1);
+			if (a.event.kind != FrameEvent::NONE && z.event.kind != FrameEvent::NONE) continue;
+			CHECK (false, "a clip of clipFrames plays as its animation does, loop after loop");
+			break;
+		}
+	}
+	printf ("Played %d ticks of clips against the legacy stepper\n", compared);
+
+	// Start, speed, finishing, and starting again.
+	std::shared_ptr<ClipDefinition> c = std::make_shared<ClipDefinition> ();
+	c -> length = 4;
+	setKey (* c, "", CHANNEL_SPRITE, spriteKey (0, sprite (1, 0)), why);
+	setKey (* c, "", CHANNEL_SPRITE, spriteKey (2, sprite (1, 1)), why);
+	addEvent (* c, 0, FrameEvent::fromNoise (1), why);
+	addEvent (* c, 3, FrameEvent::fromNoise (2), why);
+	personaAnimation a;
+	a.definition = c;
+	AnimationPlayback p;
+	std::vector<TimelineEvent> e;
+	updateTimeline (p, & a, e);
+	CHECK (e.size () == 1 && e[0].what.number == 1 && shownTime (p, & a) == 0, "starting fires the events at 0, and shows 0");
+	CHECK (currentTime (p, & a) == ticksToTime (1), "then moves on a tick");
+	e.clear ();
+	updateTimeline (p, & a, e);
+	updateTimeline (p, & a, e);
+	CHECK (e.size () == 1 && e[0].what.number == 2, "the event at 3");
+	CHECK (! timelineFinished (p, & a), "not finished before its end");
+	updateTimeline (p, & a, e);
+	CHECK (timelineFinished (p, & a) && currentTime (p, & a) == ticksToTime (4), "a clip that doesn't loop finishes");
+	e.clear ();
+	for (int i = 0; i < 10; i ++) updateTimeline (p, & a, e);
+	CHECK (e.empty () && shownTime (p, & a) == ticksToTime (4), "and holds its end, without events");
+
+	personaAnimation b;
+	b.definition = c;
+	updateTimeline (p, & b, e);
+	CHECK (e.size () == 1 && shownTime (p, & b) == 0, "another handle starts again");
+
+	AnimationPlayback half;
+	half.speed = subTicksPerTick / 2;
+	e.clear ();
+	for (int i = 0; i < 6; i ++) updateTimeline (half, & a, e);
+	CHECK (currentTime (half, & a) == ticksToTime (3) && e.size () == 2, "half speed: 3 ticks in 6");
+	AnimationPlayback paused;
+	paused.speed = 0;
+	e.clear ();
+	for (int i = 0; i < 6; i ++) updateTimeline (paused, & a, e);
+	CHECK (currentTime (paused, & a) == 0 && e.size () == 1, "paused: only the start");
+
+	personaAnimation l;
+	l.definition = randomLegacy ();
+	AnimationPlayback lp;
+	updateTimeline (lp, & l, e);
+	CHECK (lp.playing == NULL, "updateTimeline leaves legacy animations alone");
+	CHECK (! isTimeline (& l) && isTimeline (& a), "which are not timelines");
+
+	// Editing and sealing.
+	std::string w;
+	CHECK (editableClip (& a, w) == c.get (), "a new clip can change");
+	sealClip (& a);
+	CHECK (editableClip (& b, w) == NULL && ! w.empty (), "once used, no handle of it can change it");
+	CHECK (editableClip (& l, w) == NULL, "nor an animation of anim ()");
+}
+
 static void testLifetimes () {
 	int rigs = LifetimeCounter<RigDefinition>::live (), clips = LifetimeCounter<ClipDefinition>::live ();
 	{
@@ -699,6 +832,7 @@ int main () {
 	testClipTime ();
 	testEvents ();
 	testLegacyFrames ();
+	testTimelinePlayer ();
 	testLifetimes ();
 	if (failures) {
 		fprintf (stderr, "%d failures\n", failures);

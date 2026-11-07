@@ -1,5 +1,6 @@
 #include "allfiles.h"
 #include <math.h>
+#include <algorithm>
 #include <stdlib.h>
 
 #include "version.h"
@@ -18,6 +19,7 @@
 #include "zbuffer.h"
 #include "sound.h"
 #include "debug.h"
+#include "animformat.h"
 
 #define ANGLEFIX (180.0 / 3.14157)
 #define ANI_STAND 0
@@ -459,7 +461,24 @@ void logLifetimes (const char * when) {
 		LifetimeCounter<RigDefinition>::live ());
 }
 
-void updatePeopleAnimations (int ticks) {
+static unsigned nextSequence = 1;
+
+namespace {
+
+struct PendingEvent {
+	unsigned sequence;
+	int layer;
+	TimelineEvent e;
+};
+
+bool firesBefore (const PendingEvent & a, const PendingEvent & b) {
+	if (a.sequence != b.sequence) return a.sequence < b.sequence;
+	if (a.layer != b.layer) return a.layer < b.layer;
+	if (a.e.position != b.e.position) return a.e.position < b.e.position;
+	return a.e.id < b.e.id;
+}
+
+void legacyPass (int ticks) {
 	// One pass of the sort a tick, as before, so that characters update and
 	// fire their events in the order they are drawn in.
 	shufflePeople ();
@@ -469,12 +488,63 @@ void updatePeopleAnimations (int ticks) {
 	}
 }
 
+}
+
+void updatePeopleAnimations (int ticks) {
+	legacyPass (ticks);
+
+	// The events are copied out before any fires: what they start may
+	// change the clips.
+	EngineFrameEvents events;
+	std::vector<PendingEvent> pending;
+	std::vector<TimelineEvent> crossed;
+	for (int t = 0; t < ticks; t ++) {
+		pending.clear ();
+		for (onScreenPerson * p = allPeople; p; p = p -> next) {
+			crossed.clear ();
+			updateTimeline (p -> playback, p -> myAnim, crossed);
+			for (size_t i = 0; i < crossed.size (); i ++) {
+				PendingEvent e = { p -> sequence, 0, crossed[i] };
+				pending.push_back (e);
+			}
+		}
+		// The engine runs the function it started last first (see
+		// restartFunction), so we start them the other way round, for their
+		// functions to run in this order.
+		std::sort (pending.begin (), pending.end (), firesBefore);
+		for (size_t i = pending.size (); i -- > 0;) events.frameEvent (pending[i].e.what);
+	}
+}
+
+void stepLegacyAnimations () {
+	legacyPass (1);
+}
+
+// The mouse is over the character.
+static void pointAtPerson (const onScreenPerson * thisPerson) {
+	if (thisPerson -> thisType -> screenName[0]) {
+		if (personRegion.thisType != thisPerson -> thisType) lastRegion = NULL;
+		personRegion.thisType = thisPerson -> thisType;
+		overRegion = & personRegion;
+	}
+}
+
 void drawPeople () {
 	overRegion = NULL;
 
 	for (const onScreenPerson * thisPerson = allPeople; thisPerson; thisPerson = thisPerson -> next) {
 		const personaAnimation * myAnim = thisPerson -> myAnim;
-		if (! thisPerson -> show || ! myAnim || ! myAnim -> numFrames ()) continue;
+		if (! thisPerson -> show || ! myAnim) continue;
+
+		// A TIMELINE clip shows the sprite of its root's track.
+		if (isTimeline (myAnim)) {
+			const SpriteRef * r = sampleSprite (* myAnim -> definition, "", shownTime (thisPerson -> playback, myAnim));
+			const spriteBank * bank;
+			const sprite * s = resolveSprite (r, bank);
+			if (s && scaleSprite (* s, * bank, thisPerson, r -> mirror)) pointAtPerson (thisPerson);
+			continue;
+		}
+		if (! myAnim -> numFrames ()) continue;
 
 		// The frame that the last update chose. Until an update has started
 		// a new animation (as when freeze draws), its first frame.
@@ -491,13 +561,7 @@ void drawPeople () {
 		}
 		if (m != 2) {
 			bool r = scaleSprite (bank.sprites[fNum], bank, thisPerson, m);
-			if (r) {
-				if (thisPerson -> thisType -> screenName[0]) {
-					if (personRegion.thisType != thisPerson -> thisType) lastRegion = NULL;
-					personRegion.thisType = thisPerson -> thisType;
-					overRegion = & personRegion;
-				}
-			}
+			if (r) pointAtPerson (thisPerson);
 		}
 	}
 }
@@ -779,6 +843,25 @@ void walkAllPeople () {
 	}
 }
 
+// A character's height: from the first frame of the first animation of its
+// costume, as it always was, or of the sprite a TIMELINE clip starts with.
+static int heightOf (const personaAnimation & first) {
+	if (isTimeline (& first)) {
+		const spriteBank * bank;
+		const sprite * s = resolveSprite (sampleSprite (* first.definition, "", 0), bank);
+		return s ? s -> yhot + 5 : 5;
+	}
+	if (! first.numFrames () || ! first.sprites ()) return 5;	// It was a crash
+	int fNumSigned = first.frame (0).sprite;
+	int fNum = abs (fNumSigned);
+	const spriteBank & bank = first.sprites () -> bank;
+	if (fNum >= bank.total) {
+		if (fNumSigned < 0) return 5;
+		return bank.sprites[0].yhot + 5;
+	}
+	return bank.sprites[fNum].yhot + 5;
+}
+
 bool addPerson (int x, int y, int objNum, persona * p) {
 	onScreenPerson * newPerson = new onScreenPerson;
 	if (! checkNew (newPerson)) return false;
@@ -812,20 +895,8 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 
 	setFrames (* newPerson, ANI_STAND);
 
-	// HEIGHT (BASED ON 1st FRAME OF 1st ANIMATION... INC. SPECIAL CASES)
-	const personaAnimation & first = * p -> animation[0];
-	int fNumSigned = first.frame (0).sprite;
-	int fNum = abs (fNumSigned);
-	const spriteBank & bank = first.sprites () -> bank;
-	if (fNum >= bank.total) {
-		if (fNumSigned < 0) {
-			newPerson -> height = 5;
-		} else {
-			newPerson -> height = bank.sprites[0].yhot + 5;
-		}
-	} else {
-		newPerson -> height = bank.sprites[fNum].yhot + 5;
-	}
+	newPerson -> height = heightOf (* p -> animation[0]);
+	newPerson -> sequence = nextSequence ++;
 
 	// NOW ADD IT IN THE RIGHT PLACE
 	onScreenPerson * * changethat = & allPeople;
@@ -840,6 +911,7 @@ bool addPerson (int x, int y, int objNum, persona * p) {
 }
 
 int timeForAnim (const personaAnimation * fram) {
+	if (isTimeline (fram)) return fram -> definition -> length;
 	int total = 0;
 	for (int a = 0; a < fram -> numFrames (); a ++) {
 		total += fram -> frame (a).ticks;
@@ -937,7 +1009,29 @@ void removeOneCharacter (int i) {
 	}
 }
 
+// The most bytes of the record of a clip that we read.
+static const int32_t maxClipRecord = 64 << 20;
+
 bool saveAnim (const personaAnimation * p, FILE * fp) {
+	// Since saves of 2.3, a byte says what follows: 0 the legacy record of an
+	// animation of anim (), as before; 1 a TIMELINE clip: whether it is
+	// sealed, then the size and bytes of a file of animformat.h.
+	if (isTimeline (p)) {
+		animformat::Document doc;
+		doc.clips.push_back (* p -> definition);
+		animformat::Bytes bytes;
+		std::string why;
+		if (! animformat::encode (doc, bytes, why)) {
+			fatal ("Can't save a clip:", why.c_str ());
+			return false;
+		}
+		fputc (1, fp);
+		fputc (p -> definition -> sealed ? 1 : 0, fp);
+		put4bytes ((uint32_t) bytes.size (), fp);
+		fwrite (bytes.data (), 1, bytes.size (), fp);
+		return true;
+	}
+	fputc (0, fp);
 	int n = p -> numFrames ();
 	put2bytes (n, fp);
 	if (n) {
@@ -953,7 +1047,29 @@ bool saveAnim (const personaAnimation * p, FILE * fp) {
 	return true;
 }
 
+// A TIMELINE clip of saveAnim.
+static bool loadTimelineClip (personaAnimation * p, FILE * fp) {
+	int sealed = fgetc (fp);
+	int32_t size = get4bytes (fp);
+	if (sealed < 0 || sealed > 1 || size < 0 || size > maxClipRecord || feof (fp)) return false;
+	animformat::Bytes bytes (size);
+	if (size && fread (bytes.data (), 1, size, fp) != (size_t) size) return false;
+	animformat::Document doc;
+	std::string why;
+	if (! animformat::decode (bytes.data (), bytes.size (), doc, why) || doc.clips.size () != 1 || ! doc.rigs.empty ()) return false;
+	std::shared_ptr<ClipDefinition> clip = std::make_shared<ClipDefinition> (doc.clips[0]);
+	if (! resolveBanks (* clip, loadBankForAnim)) return false;
+	clip -> sealed = sealed == 1;
+	p -> definition = clip;
+	return true;
+}
+
 bool loadAnim (personaAnimation * p, FILE * fp) {
+	if (ssgVersion >= VERSION (2, 3)) {
+		int kind = fgetc (fp);
+		if (kind == 1) return loadTimelineClip (p, fp);
+		if (kind != 0) return false;
+	}
 	int n = get2bytes (fp);
 	// At the end of a cut-off save, get2bytes gives -257.
 	if (n < 0 || feof (fp)) return false;
@@ -1078,6 +1194,13 @@ bool savePeople (FILE * fp) {
 		
 		saveObjectRef (me -> thisType, fp);
 
+		// Since 2.3: its sequence, and the rest of its playback.
+		put4bytes (me -> sequence, fp);
+		put4bytes (me -> playback.speed, fp);
+		put4bytes (me -> playback.subTicks, fp);
+		put8bytes (me -> playback.position, fp);
+		put8bytes (me -> playback.displayPosition, fp);
+
 		me = me -> next;
 	}
 	return true;
@@ -1162,6 +1285,24 @@ bool loadPeople (FILE * fp) {
 			setMyDrawMode(me, get2bytes(fp));
 		}
 		me -> thisType = loadObjectRef (fp);
+
+		if (ssgVersion >= VERSION (2, 3)) {
+			me -> sequence = get4bytes (fp);
+			me -> playback.speed = get4bytes (fp);
+			me -> playback.subTicks = get4bytes (fp);
+			me -> playback.position = get8bytes (fp);
+			me -> playback.displayPosition = get8bytes (fp);
+			if (me -> playback.speed < 0 || me -> playback.speed > maxPlaybackSpeed
+				|| me -> playback.subTicks < 0 || me -> playback.subTicks >= subTicksPerTick) return false;
+			if (isTimeline (me -> myAnim)) {
+				AnimationTime end = ticksToTime (me -> myAnim -> definition -> length);
+				if (me -> playback.position < 0 || me -> playback.position > end
+					|| me -> playback.displayPosition < 0 || me -> playback.displayPosition > end) return false;
+			}
+		} else {
+			me -> sequence = a + 1;
+		}
+		if (me -> sequence >= nextSequence) nextSequence = me -> sequence + 1;
 
 		// Anti-aliasing settings
 		if (ssgVersion >= VERSION(1,6))

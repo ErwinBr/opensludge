@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>Animation Clips</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>Animation Clips</h2>
+<HR>
+
+<P>
+An animation made with <a href="anim.html">anim</a> is a list of frames, each shown for some frames of the game. A <b>clip</b>, made with <a href="newClip.html">newClip</a>, is an animation of another kind: a length, in frames of the game ("ticks"), and <b>keys</b> at points in that time. You add them one by one: <a href="clipSprite.html">clipSprite</a> chooses the sprite to show from a tick on, <a href="clipFrames.html">clipFrames</a> turns the frames of an <a href="anim.html">anim</a> into keys, and <a href="clipEvent.html">clipEvent</a> plays a sound or starts a function at a tick.
+</P>
+
+<P>
+Anything that takes an animation takes a clip: <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> and <a href="pasteImage.html">pasteImage</a>. Animations of <a href="anim.html">anim</a> play exactly as they always have.
+</P>
+
+<pre>sub walkClip () {
+	var c = newClip (16, TRUE);	# 16 ticks, round and round
+	clipSprite (c, "", 0, 'ego.duc', 0);
+	clipSprite (c, "", 4, 'ego.duc', 1);
+	clipSprite (c, "", 8, 'ego.duc', 2);
+	clipSprite (c, "", 12, 'ego.duc', 3);
+	clipEvent (c, 0, footstep);
+	clipEvent (c, 8, footstep);
+	return c;
+}
+
+addCharacter (ego, 320, 400, costume (standClip (), walkClip (), talkClip ()));</pre>
+
+<H3>Time</H3>
+
+<P>
+A clip's time runs from 0 to just before its length. A clip that loops goes back to 0 there; one that doesn't stops at its length, and holds what it shows there: a key may lie at the length itself. Each frame of the game, a clip shows where it is and then moves on a tick, at the speed of <a href="setClipSpeed.html">setClipSpeed</a>. <a href="isClipPlaying.html">isClipPlaying</a> tells whether it has finished.
+</P>
+
+<H3>Events</H3>
+
+<P>
+The events of <a href="clipEvent.html">clipEvent</a> lie anywhere from 0 to the length. Those at 0 fire as the clip starts, and again each time a loop goes round; those at the length fire as each pass ends, or as a clip that doesn't loop finishes. A clip fires its events whether its character is shown or not, on the screen or not: the drawing of a character never decides whether or when they fire (animations of <a href="anim.html">anim</a> fire nothing while hidden, as they always did).
+</P>
+
+<P>
+Events that fire in the same frame of the game run in the order the characters were added with <a href="addCharacter.html">addCharacter</a>, then in order of time and of when they were added to their clip.
+</P>
+
+<H3>Parts</H3>
+
+<P>
+The second parameter of <a href="clipSprite.html">clipSprite</a> and <a href="clipFrames.html">clipFrames</a> names a part of a character. Characters have one part for now, the character itself, named <b>""</b>. Characters of several parts, each with animations of their own, are coming.
+</P>
+
+<H3>Changing clips</H3>
+
+<P>
+You build a clip in the variable that <a href="newClip.html">newClip</a> gave you. Once a character, costume or the mouse cursor uses it, it can't change: a script that tries stops with an error. Make another with <a href="newClip.html">newClip</a> instead.
+</P>
+
+<H3>Saved games</H3>
+
+<P>
+Saved games keep clips, and where each character is in its clip. Saved games of this version of the engine (2.3) don't load in older engines. Games keep their own version: a saved game's version changes, not the game's.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipFrames.html">clipFrames</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

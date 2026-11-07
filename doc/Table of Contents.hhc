@@ -108,6 +108,18 @@
 					<param name="Local" value="SLUDGEDevKitHelp\clearStatus.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="clipEvent">
+					<param name="Local" value="SLUDGEDevKitHelp\clipEvent.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="clipFrames">
+					<param name="Local" value="SLUDGEDevKitHelp\clipFrames.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="clipSprite">
+					<param name="Local" value="SLUDGEDevKitHelp\clipSprite.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="completeTimers">
 					<param name="Local" value="SLUDGEDevKitHelp\completeTimers.html">
 					</OBJECT>
@@ -236,6 +248,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\isCharacter.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="isClipPlaying">
+					<param name="Local" value="SLUDGEDevKitHelp\isClipPlaying.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="isMoving">
 					<param name="Local" value="SLUDGEDevKitHelp\isMoving.html">
 					</OBJECT>
@@ -274,6 +290,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="moveCharacter">
 					<param name="Local" value="SLUDGEDevKitHelp\moveCharacter.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="newClip">
+					<param name="Local" value="SLUDGEDevKitHelp\newClip.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="newStack">
@@ -454,6 +474,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCharacterWalkSpeed">
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterWalkSpeed.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setClipSpeed">
+					<param name="Local" value="SLUDGEDevKitHelp\setClipSpeed.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCostume">
@@ -682,6 +706,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="Object Types as Characters">
 					<param name="Local" value="SLUDGEDevKitHelp\Object_Types_as_Characters.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="Animation Clips">
+					<param name="Local" value="SLUDGEDevKitHelp\Animation_Clips.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="Object Types as Screen Regions">

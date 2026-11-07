@@ -6,6 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <limits.h>
+#include <algorithm>
+#include <memory>
+#include <string>
 
 #include "sludger.h"
 #include "builtin.h"
@@ -98,7 +102,8 @@ int paramNum[] = {-1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, 8, -1,		// SAY -> MOVEM
 	2,											// setCharacterAngleOffset
 	2, 5,										// setCharacterTransparency, setCharacterColourise
 	1,											// zoomCamera
-	1, 0, 0										// playMovie, stopMovie, pauseMovie
+	1, 0, 0,									// playMovie, stopMovie, pauseMovie
+	-1, -1, 3, 3, 3, 2							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
 };
 
 bool failSecurityCheck (char * fn) {
@@ -1627,6 +1632,15 @@ builtIn(pasteCharacter)
 		// As before, a new animation starts again here, without its events.
 		if (myAnim != thisPerson -> playback.playing) restartAnimationQuietly (thisPerson -> playback, myAnim);
 
+		if (isTimeline (myAnim)) {
+			const SpriteRef * r = sampleSprite (* myAnim -> definition, "", currentTime (thisPerson -> playback, myAnim));
+			const spriteBank * bank;
+			const sprite * s = resolveSprite (r, bank);
+			if (s) fixScaleSprite (thisPerson -> x, thisPerson -> y, * s, * bank, thisPerson, 0, 0, r -> mirror);
+			setVariable (fun -> reg, SVT_INT, 1);
+			return BR_CONTINUE;
+		}
+
 		int fNum = myAnim -> frame (thisPerson -> playback.frame).sprite;
 		const spriteBank & bank = myAnim -> sprites () -> bank;
 		fixScaleSprite (thisPerson -> x, thisPerson -> y, bank.sprites[abs (fNum)], bank, thisPerson, 0, 0, fNum < 0);
@@ -2645,6 +2659,221 @@ builtIn(doBackgroundEffect)
 	UNUSEDALL
 	bool done = blurScreen ();
 	setVariable (fun -> reg, SVT_INT, done ? 1 : 0);
+	return BR_CONTINUE;
+}
+
+#pragma mark -
+#pragma mark Clips: animations of tracks (animmodel.h)
+
+extern const char * typeName[];
+
+// The values that clipSprite takes in place of a sprite bank and sprite.
+const int clipNoSprite = -1;		// NOSPRITE: an empty frame
+const int clipPartDefault = -2;		// PART_DEFAULT: the part's own sprite
+
+// The clip of a variable that a script builds, to change; NULL after fatal.
+static ClipDefinition * clipToChange (variable & v) {
+	if (v.varType != SVT_ANIM) {
+		fatal ("Expecting a clip of newClip (); found variable of type", typeName[v.varType]);
+		return NULL;
+	}
+	std::string why;
+	ClipDefinition * c = editableClip (animationOf (v), why);
+	if (! c) fatal (why.c_str ());
+	return c;
+}
+
+// The name of a part: any text.
+static bool getPartName (variable & v, std::string & name) {
+	char * text = getTextFromAnyVar (v);
+	if (! text) return false;
+	name = text;
+	delete [] text;
+	return true;
+}
+
+// newClip (length [, loop]): an empty clip of length ticks, to fill with
+// clipSprite, clipFrames and clipEvent, and play with animate and costume.
+builtIn(newClip)
+{
+	UNUSEDALL
+	if (numParams < 1 || numParams > 2) {
+		fatal ("Built-in function newClip() must have 1 or 2 parameters.");
+		return BR_ERROR;
+	}
+	int loop = 0, length;
+	if (numParams == 2) {
+		if (! getValueType (loop, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+	}
+	if (! getValueType (length, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (length < 0) {
+		fatal ("A clip can't be shorter than 0 ticks.");
+		return BR_ERROR;
+	}
+	std::shared_ptr<ClipDefinition> clip = std::make_shared<ClipDefinition> ();
+	clip -> length = length;
+	clip -> loop = loop != 0;
+	AnimationHandle h (new personaAnimation);
+	h -> definition = clip;
+	newAnimationVariable (fun -> reg, std::move (h));
+	return BR_CONTINUE;
+}
+
+// clipSprite (clip, part, tick, file, sprite): from tick on, the part shows
+// that sprite of the bank (negative for its mirror image), until its next
+// key. clipSprite (clip, part, tick, NOSPRITE) shows nothing there, and
+// clipSprite (clip, part, tick, PART_DEFAULT) the part's own sprite.
+builtIn(clipSprite)
+{
+	UNUSEDALL
+	if (numParams < 4 || numParams > 5) {
+		fatal ("Built-in function clipSprite() must have 4 or 5 parameters.");
+		return BR_ERROR;
+	}
+	Key key;
+	if (numParams == 5) {
+		int number, file;
+		if (! getValueType (number, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (! getValueType (file, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		SpriteBankRef bank = loadBankForAnim (file);
+		if (! bank) return BR_ERROR;	// fatal done already
+		key.sprite = SpriteRef::sprite (bank, file, number >= 0 ? number : number == INT_MIN ? INT_MAX : - number, number < 0);
+	} else {
+		int which;
+		if (! getValueType (which, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (which == clipNoSprite) {
+			key.sprite = SpriteRef::none ();
+		} else if (which == clipPartDefault) {
+			key.sprite = SpriteRef ();
+		} else {
+			fatal ("With 4 parameters, clipSprite() takes NOSPRITE or PART_DEFAULT; give a sprite bank and a sprite for a sprite.");
+			return BR_ERROR;
+		}
+	}
+	if (! getValueType (key.time, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string part;
+	if (! getPartName (fun -> stack -> thisVar, part)) return BR_ERROR;
+	trimStack (fun -> stack);
+	ClipDefinition * clip = clipToChange (fun -> stack -> thisVar);
+	if (! clip) return BR_ERROR;
+	trimStack (fun -> stack);
+	key.easing = EASING_STEP;
+	std::string why;
+	if (! setKey (* clip, part, CHANNEL_SPRITE, key, why)) {
+		fatal (why.c_str ());
+		return BR_ERROR;
+	}
+	return BR_CONTINUE;
+}
+
+// clipFrames (clip, part, anim (...)): the frames of an animation of
+// anim () as the part's sprites, from the start of the clip to its end,
+// with the animation's sounds and functions as events (see addLegacyFrames).
+builtIn(clipFrames)
+{
+	UNUSEDALL
+	AnimationHandle frames = getAnimationFromVar (fun -> stack -> thisVar);
+	if (! frames) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string part;
+	if (! getPartName (fun -> stack -> thisVar, part)) return BR_ERROR;
+	trimStack (fun -> stack);
+	ClipDefinition * clip = clipToChange (fun -> stack -> thisVar);
+	if (! clip) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string why;
+	if (! addLegacyFrames (* clip, part, * frames, why)) {
+		fatal (why.c_str ());
+		return BR_ERROR;
+	}
+	return BR_CONTINUE;
+}
+
+// clipEvent (clip, tick, sound or function): play the sound, or start the
+// function, when the clip passes tick.
+builtIn(clipEvent)
+{
+	UNUSEDALL
+	FrameEvent what;
+	variable & v = fun -> stack -> thisVar;
+	if (v.varType == SVT_FILE) {
+		what.kind = FrameEvent::SOUND;
+	} else if (v.varType == SVT_FUNC) {
+		what.kind = FrameEvent::FUNCTION;
+	} else {
+		fatal ("Expecting a sound file or a function for clipEvent(); found variable of type", typeName[v.varType]);
+		return BR_ERROR;
+	}
+	what.number = v.varData.intValue;
+	trimStack (fun -> stack);
+	int tick;
+	if (! getValueType (tick, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	ClipDefinition * clip = clipToChange (fun -> stack -> thisVar);
+	if (! clip) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string why;
+	if (! addEvent (* clip, tick, what, why)) {
+		fatal (why.c_str ());
+		return BR_ERROR;
+	}
+	return BR_CONTINUE;
+}
+
+// The character and layer of setClipSpeed and isClipPlaying, from the
+// stack. Characters have one layer for now: 0, their costume's.
+static bool getCharacterLayer (loadedFunction * fun, int & obj) {
+	int layer;
+	if (! getValueType (layer, SVT_INT, fun -> stack -> thisVar)) return false;
+	trimStack (fun -> stack);
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return false;
+	trimStack (fun -> stack);
+	if (layer != 0) {
+		fatal ("Characters play clips on layer 0 only, for now.");
+		return false;
+	}
+	return true;
+}
+
+// setClipSpeed (character, layer, percent): 100 is normal speed, 0 pauses.
+// For animations of anim () too.
+builtIn(setClipSpeed)
+{
+	UNUSEDALL
+	int percent, obj;
+	if (! getValueType (percent, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getCharacterLayer (fun, obj)) return BR_ERROR;
+	if (percent < 0 || percent > 100000) {
+		fatal ("The speed of a clip is a percentage from 0 to 100000.");
+		return BR_ERROR;
+	}
+	onScreenPerson * p = findPerson (obj);
+	if (p) p -> playback.speed = std::min (maxPlaybackSpeed, (int) (((long long) percent * subTicksPerTick + 50) / 100));
+	setVariable (fun -> reg, SVT_INT, p != NULL);
+	return BR_CONTINUE;
+}
+
+// isClipPlaying (character, layer): whether the character plays a clip
+// there that hasn't finished. Animations of anim () never finish.
+builtIn(isClipPlaying)
+{
+	UNUSEDALL
+	int obj;
+	if (! getCharacterLayer (fun, obj)) return BR_ERROR;
+	onScreenPerson * p = findPerson (obj);
+	bool playing = false;
+	if (p && p -> myAnim) {
+		if (isTimeline (p -> myAnim)) playing = ! timelineFinished (p -> playback, p -> myAnim);
+		else playing = p -> myAnim -> numFrames () > 0;
+	}
+	setVariable (fun -> reg, SVT_INT, playing);
 	return BR_CONTINUE;
 }
 

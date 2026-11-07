@@ -23,10 +23,18 @@ AnimationHandle takeCursorAnim () {
 	return std::move (cursorAnim);
 }
 
-void setCursorAnim (AnimationHandle pp, int frame) {
+void setCursorAnim (AnimationHandle pp, int frame, AnimationTime position) {
 	cursorAnim = std::move (pp);
 	cursorPlayback.frame = frame;
 	cursorPlayback.displayFrame = frame;
+	if (isTimeline (cursorAnim.get ())) {
+		cursorPlayback.playing = cursorAnim.get ();
+		cursorPlayback.position = cursorPlayback.displayPosition = clipTime (* cursorAnim -> definition, position);
+	}
+}
+
+AnimationTime cursorPosition () {
+	return currentTime (cursorPlayback, cursorAnim.get ());
 }
 
 const personaAnimation * cursorAnimation () {
@@ -38,11 +46,20 @@ int cursorFrame () {
 }
 
 bool hasCursorSprite () {
-	return cursorAnim && cursorAnim -> numFrames ();
+	return cursorAnim && (cursorAnim -> numFrames () || isTimeline (cursorAnim.get ()));
 }
 
-static void drawCursorFrame (int x, int y, int frame) {
+// A frame of a legacy animation, or the root's sprite at time of a TIMELINE
+// clip.
+static void drawCursorFrame (int x, int y, int frame, AnimationTime time) {
 	if (! hasCursorSprite ()) return;
+	if (isTimeline (cursorAnim.get ())) {
+		const SpriteRef * r = sampleSprite (* cursorAnim -> definition, "", time);
+		const spriteBank * bank;
+		const sprite * s = resolveSprite (r, bank);
+		if (s) (r -> mirror ? flipFontSprite : fontSprite) (x, y, * s, * bank, bank -> myPalette);
+		return;
+	}
 	if (frame < 0 || frame >= cursorAnim -> numFrames ()) frame = 0;
 
 	int spriteNum = cursorAnim -> frame (frame).sprite;
@@ -63,7 +80,7 @@ static void drawCursorFrame (int x, int y, int frame) {
 }
 
 void drawCursor (int x, int y) {
-	drawCursorFrame (x, y, cursorPlayback.frame);
+	drawCursorFrame (x, y, cursorPlayback.frame, currentTime (cursorPlayback, cursorAnim.get ()));
 }
 
 void updateMouseCursor (int ticks) {
@@ -71,11 +88,15 @@ void updateMouseCursor (int ticks) {
 }
 
 void displayCursor () {
-	drawCursorFrame (input.mouseX, input.mouseY, cursorPlayback.displayFrame);
+	drawCursorFrame (input.mouseX, input.mouseY, cursorPlayback.displayFrame, shownTime (cursorPlayback, cursorAnim.get ()));
 }
 
 void pasteCursor (int x, int y, const personaAnimation & c) {
-	if (c.numFrames ()) {
+	if (isTimeline (& c)) {
+		const spriteBank * bank;
+		const sprite * s = resolveSprite (sampleSprite (* c.definition, "", 0), bank);
+		if (s) pasteSpriteToBackDrop (x, y, * s, * bank, bank -> myPalette);
+	} else if (c.numFrames ()) {
 		const spriteBank & bank = c.sprites () -> bank;
 		pasteSpriteToBackDrop (x, y, bank.sprites[c.frame (0).sprite], bank, bank.myPalette);
 	}

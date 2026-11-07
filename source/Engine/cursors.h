@@ -1,11 +1,16 @@
 // The mouse cursor owns its animation (from setCursor), and plays it.
+#include <stdint.h>
 #include "ownedanimation.h"
+
+typedef int64_t AnimationTime;	// As animmodel.h has it
 
 void pickAnimCursor (AnimationHandle pp);
 // For freezing, loading and saving: take the cursor's animation away (it is
 // then the caller's), give it one with a frame, or look at it.
 AnimationHandle takeCursorAnim ();
-void setCursorAnim (AnimationHandle pp, int frame);
+// The cursor's animation again, at frame, or for a TIMELINE clip at position.
+void setCursorAnim (AnimationHandle pp, int frame, AnimationTime position = 0);
+AnimationTime cursorPosition ();
 const struct personaAnimation * cursorAnimation ();
 int cursorFrame ();
 // Move the cursor's animation on by ticks game ticks. Once a tick, before

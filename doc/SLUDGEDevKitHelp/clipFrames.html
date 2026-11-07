@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>clipFrames</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>clipFrames</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">clipFrames (<i>clip, part, animation</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Makes the frames of an <i>animation</i> of <a href="anim.html">anim</a> the sprites of <i>part</i> in <i>clip</i>, from the start of the clip to its end, with the animation's sounds and functions as <a href="clipEvent.html">events</a>. It replaces the part's sprite keys.
+</P>
+
+<P>
+The clip shows and fires exactly what the animation would, tick by tick: frames with a sound or function take no time and aren't drawn, a frame of 0 ticks holds to the end of the clip, and the animation goes round as it always does. Give the clip a length of whole passes of the animation for a loop to match it pass after pass.
+</P>
+
+<P>
+<pre>var quack = newClip (10, TRUE);	# two passes of 5 ticks
+clipFrames (quack, "", anim ('duck.duc', 0, quackSound, 1, 2, wait (3, 2)));</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+None.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

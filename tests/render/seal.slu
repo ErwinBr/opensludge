@@ -1,0 +1,15 @@
+# SealTest: a clip that a character uses can't change any more (see
+# sealClip in source/Engine/animation.h). The engine must stop with that
+# error; tests/capture/expect-fatal.cmake checks that it does.
+
+objectType duck ("duck") {
+}
+
+sub init () {
+	var c = newClip (10, TRUE);
+	clipSprite (c, "", 0, 'outside/duck.duc', 0);
+	addCharacter (duck, 200, 350, c);
+	pause (2);
+	clipSprite (c, "", 5, NOSPRITE);
+	quitGame ();
+}

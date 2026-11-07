@@ -101,8 +101,9 @@ void freezeGraphics() {
 			drawZBuffer(cameraX, cameraY);
 			// Legacy: freezing has always moved the characters' animations on
 			// by a tick (firing their frame events) for each tile it draws,
-			// because drawing did. Games time on it, so we keep it.
-			updatePeopleAnimations (1);
+			// because drawing did. Games time on it, so we keep it, for the
+			// animations of anim () only.
+			stepLegacyAnimations ();
 			drawPeople ();					// Then add any moving characters...
 			
 			y += h;

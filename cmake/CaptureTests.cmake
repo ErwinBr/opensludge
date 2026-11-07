@@ -40,9 +40,11 @@ add_executable(framediff ${CMAKE_CURRENT_SOURCE_DIR}/tests/framediff.cpp)
 target_link_libraries(framediff PRIVATE sludge::png)
 
 # sludge_add_capture_test(<name> GAME <file> [INPUT <script>] [MAX_FRAMES <n>]
-#                         [FRAMES <list>] [ENGINE_ARGS <options>])
+#                         [FRAMES <list>] [ENGINE_ARGS <options>] [NO_REFERENCE])
+# NO_REFERENCE: no "-reference" variant, for games of features that the
+# reference engine doesn't have.
 function(sludge_add_capture_test name)
-	cmake_parse_arguments(PARSE_ARGV 1 arg "" "GAME;INPUT;MAX_FRAMES;FRAMES;ENGINE_ARGS" "")
+	cmake_parse_arguments(PARSE_ARGV 1 arg "NO_REFERENCE" "GAME;INPUT;MAX_FRAMES;FRAMES;ENGINE_ARGS" "")
 	set(defines
 		-DENGINE=$<TARGET_FILE:sludge-engine>
 		-DFRAMEDIFF=$<TARGET_FILE:framediff>
@@ -56,7 +58,7 @@ function(sludge_add_capture_test name)
 	set(gpu_args "${arg_ENGINE_ARGS} --renderer=gpu")
 
 	set(variants determinism)
-	if(SLUDGE_CAPTURE_REFERENCE_ENGINE)
+	if(SLUDGE_CAPTURE_REFERENCE_ENGINE AND NOT arg_NO_REFERENCE)
 		list(APPEND variants reference)
 	endif()
 	if(SLUDGE_GPU_CAPTURE_TESTS)
@@ -156,7 +158,8 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			inside/room.tga outside/duck.duc outside/room.flo outside/room.tga outside/room.zbu)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
-	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu big.png hole.png light.png sky.png movie.webm)
+	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
+			TimelineTest.slp timeline.slu SealTest.slp seal.slu big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
@@ -196,6 +199,32 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	sludge_compile_game(FreezeTest ${render_project}/FreezeTest.slp)
 	sludge_add_capture_test(freeze GAME ${CMAKE_BINARY_DIR}/games/FreezeTest.slg FRAMES 0-260)
 
+	# Clips of newClip (): playback and events apart from drawing, which the
+	# game checks itself, and every fifth frame kept. Saving and loading
+	# must restore the playback exactly: after loading, the game plays what
+	# it played after saving, frame by frame.
+	sludge_compile_game(TimelineTest ${render_project}/TimelineTest.slp)
+	sludge_add_capture_test(timeline GAME ${CMAKE_BINARY_DIR}/games/TimelineTest.slg FRAMES 0-700/5 NO_REFERENCE)
+	add_test(NAME capture-timeline-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/TimelineTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/timeline-saveload
+			"-DENGINE_ARGS=--renderer=gl"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-timeline-saveload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# A clip that a character uses can't change.
+	sludge_compile_game(SealTest ${render_project}/SealTest.slp)
+	add_test(NAME capture-seal
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/SealTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/seal
+			"-DMESSAGE=already used by a character, costume or cursor"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-seal PROPERTIES LABELS capture TIMEOUT 300)
+
 	# What lives after saving and loading, and after loads that fail.
 	sludge_compile_game(LoadTest ${render_project}/LoadTest.slp)
 	add_test(NAME capture-lifetimes
@@ -203,6 +232,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			-DENGINE=$<TARGET_FILE:sludge-engine>
 			-DGAME=${CMAKE_BINARY_DIR}/games/LoadTest.slg
 			-DUNLOAD_GAME=${CMAKE_BINARY_DIR}/games/UnloadTest.slg
+			-DTIMELINE_GAME=${CMAKE_BINARY_DIR}/games/TimelineTest.slg
 			-DOUT=${CMAKE_BINARY_DIR}/capture/lifetimes
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/lifetimes.cmake)
 	set_tests_properties(capture-lifetimes PROPERTIES LABELS capture TIMEOUT 900)

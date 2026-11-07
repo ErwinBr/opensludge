@@ -70,7 +70,7 @@ const RigPart * RigDefinition::part (const std::string & name) const {
 	return i < 0 ? NULL : & parts[i];
 }
 
-ClipDefinition::ClipDefinition () : stepping (STEPPING_TIMELINE), length (0), loop (false), nextTrackId (1), nextEventId (1) {}
+ClipDefinition::ClipDefinition () : stepping (STEPPING_TIMELINE), length (0), loop (false), nextTrackId (1), nextEventId (1), sealed (false) {}
 
 const Track * ClipDefinition::track (const std::string & part, Channel channel) const {
 	for (size_t i = 0; i < tracks.size (); i ++) {
@@ -202,7 +202,7 @@ bool setKey (ClipDefinition & clip, const std::string & part, Channel channel, c
 bool addEvent (ClipDefinition & clip, int time, const FrameEvent & what, std::string & why) {
 	if (clip.stepping != STEPPING_TIMELINE) return fail (why, "Events can't be added to an animation of anim ()");
 	if (what.kind == FrameEvent::NONE) return fail (why, "An event must be a sound or a function");
-	if (time < 0 || (clip.length > 0 ? time >= clip.length : time != 0)) return fail (why, "An event must lie within the clip, before its end");
+	if (time < 0 || time > clip.length) return fail (why, "An event must lie within the clip");
 	ClipEvent e;
 	e.id = clip.nextEventId ++;
 	e.time = time;
@@ -263,7 +263,7 @@ bool validClip (const ClipDefinition & clip, std::string & why) {
 			if (e.frame < 0 || e.frame >= (int) clip.frames.size ()) return fail (why, "An event must be of a frame");
 		} else {
 			if (e.frame != -1) return fail (why, "Events of a timeline are at times, not frames");
-			if (e.time < 0 || (clip.length > 0 ? e.time >= clip.length : e.time != 0)) return fail (why, "An event must lie within the clip, before its end");
+			if (e.time < 0 || e.time > clip.length) return fail (why, "An event must lie within the clip");
 		}
 	}
 	if (clip.stepping == STEPPING_LEGACY) {
@@ -363,10 +363,20 @@ void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples
 	}
 }
 
+const SpriteRef * sampleSprite (const ClipDefinition & clip, const std::string & part, AnimationTime time) {
+	const Track * t = clip.track (part, CHANNEL_SPRITE);
+	if (! t || t -> keys.empty ()) return NULL;
+	int k = keyAt (t -> keys, time);
+	return & t -> keys[k < 0 ? 0 : k].sprite;
+}
+
 namespace {
 
+// By position; at the same position, the end of a pass (events at length)
+// before the start of the next (at 0); then by ID.
 bool earlier (const CrossedEvent & a, const CrossedEvent & b) {
 	if (a.position != b.position) return a.position < b.position;
+	if (a.event -> time != b.event -> time) return a.event -> time > b.event -> time;
 	return a.event -> id < b.event -> id;
 }
 

@@ -49,6 +49,10 @@ struct onScreenPerson {
 	struct objectType * thisType;
 	int extra, spinSpeed;
 	unsigned char r,g,b,colourmix,transparency;
+	// A number of its own, from addCharacter, which orders the events of
+	// TIMELINE clips: the order of drawing never decides when or whether an
+	// event fires. Saved games keep it.
+	unsigned sequence;
 	LifetimeCounter<onScreenPerson> counted;
 };
 
@@ -57,9 +61,17 @@ struct onScreenPerson {
 bool initPeople ();
 bool addPerson (int x, int y, int objNum, persona * p);
 
-// Move every character's animation on by ticks game ticks, firing frame
-// events, in the order in which they are drawn. Once a tick, before drawing.
+// Move every character's animation on by ticks game ticks, firing their
+// events. Once a tick, before drawing. First the legacy pass: animations of
+// anim (), in the order in which characters are drawn, firing their events
+// at once, as the engine always did. Then the timeline pass: TIMELINE clips
+// of every character, shown or not, a tick at a time; each tick's events
+// fire after all have moved on, in order of character sequence, layer,
+// position and event ID: their functions run in that order.
 void updatePeopleAnimations (int ticks);
+// The legacy extra tick of freezing and snapshots, which moves on only the
+// animations of anim (): the timeline never depends on drawing.
+void stepLegacyAnimations ();
 
 // Draw to screen and to backdrop. Drawing doesn't change the animations.
 

@@ -398,8 +398,8 @@ bool saveGame (char * fname) {
 	fprintf (fp, "SLUDSA");
 	fputc (0, fp);
 	fputc (0, fp);
-	fputc (MAJOR_VERSION, fp);
-	fputc (MINOR_VERSION, fp);
+	fputc (SAVE_MAJOR_VERSION, fp);
+	fputc (SAVE_MINOR_VERSION, fp);
 
 	if (! saveThumbnail (fp)) return false;
 
@@ -435,6 +435,7 @@ bool saveGame (char * fname) {
 
 	saveAnim (cursorAnimation (), fp);
 	put2bytes (cursorFrame (), fp);
+	put8bytes (cursorPosition (), fp);
 
 	// Save functions
 	loadedFunction * thisFunction = allRunningFunctions;
@@ -534,7 +535,7 @@ bool loadGame (char * fname) {
 	while (allRunningFunctions) finishFunction (allRunningFunctions);
 
 	std::string file = cutSaveForTest (fname);
-	fp = openAndVerify (& file[0], 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion);
+	fp = openAndVerify (& file[0], 'S', 'A', ERROR_GAME_LOAD_NO, ssgVersion, SAVE_VERSION);
 	if (fp == NULL) return false;
 
 	if (ssgVersion >= VERSION(1,4)) {
@@ -612,7 +613,9 @@ bool loadGame (char * fname) {
 	{
 		AnimationHandle cursor (new personaAnimation);
 		if (! loadAnim (cursor.get (), fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
-		setCursorAnim (std::move (cursor), get2bytes (fp));
+		int frame = get2bytes (fp);
+		int64_t position = ssgVersion >= VERSION (2, 3) ? get8bytes (fp) : 0;
+		setCursorAnim (std::move (cursor), frame, position);
 	}
 
 	loadedFunction * rFunc;

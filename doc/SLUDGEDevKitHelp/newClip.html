@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>newClip</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>newClip</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">newClip (<i>length</i>);
+newClip (<i>length, loop</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Makes a new, empty <a href="Animation_Clips.html">clip</a> of <i>length</i> ticks (frames of the game). With <i>loop</i> TRUE, the clip goes round and round; without it, or with FALSE, it plays once and holds what it shows at its end.
+</P>
+
+<P>
+Fill it with <a href="clipSprite.html">clipSprite</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipEvent.html">clipEvent</a>, then use it as any animation: with <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a> or <a href="setCursor.html">setCursor</a>. Once used, it can't change.
+</P>
+
+<P>
+<pre>var wave = newClip (30);
+clipSprite (wave, "", 0, 'ego.duc', 12);
+clipSprite (wave, "", 10, 'ego.duc', 13);
+clipSprite (wave, "", 20, 'ego.duc', 12);
+pause (animate (ego, wave));</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+The new clip.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipFrames.html">clipFrames</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P>
+<a href="isClipPlaying.html">isClipPlaying</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

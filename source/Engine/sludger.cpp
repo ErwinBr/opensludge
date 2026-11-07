@@ -131,7 +131,7 @@ void saveHandlers (FILE * fp) {
 	put2bytes (currentEvents -> spaceFunction,			fp);
 }
 
-FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er, int & fileVersion) {
+FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er, int & fileVersion, int newest) {
 	FILE * fp = fopen (filename, "rb");
 	if (! fp) {
 		fatal ("Can't open file", filename);
@@ -157,7 +157,7 @@ FILE * openAndVerify (char * filename, char extra1, char extra2, const char * er
 
 	char txtVer[120];
 
-	if (fileVersion > WHOLE_VERSION) {
+	if (fileVersion > newest) {
 		snprintf (txtVer, sizeof (txtVer), ERROR_VERSION_TOO_LOW_2, majVersion, minVersion);
 		fatal (ERROR_VERSION_TOO_LOW_1, txtVer);
 		return NULL;
@@ -173,7 +173,7 @@ bool initSludge (char * filename) {
 	int a = 0;
 	pickAnimCursor (makeNullAnim ());
 
-	FILE * fp = openAndVerify (filename, 'G', 'E', ERROR_BAD_HEADER, gameVersion);
+	FILE * fp = openAndVerify (filename, 'G', 'E', ERROR_BAD_HEADER, gameVersion, WHOLE_VERSION);
 	if (! fp) return false;
 
 	if (fgetc (fp)) {

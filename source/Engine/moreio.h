@@ -14,6 +14,9 @@ void putSigned (short f, FILE * fp);
 short getSigned (FILE * fp);
 int32_t get4bytes (FILE * fp);
 void put4bytes (uint32_t f, FILE * fp);
+// 8 bytes, as two of put4bytes, the low first.
+int64_t get8bytes (FILE * fp);
+void put8bytes (int64_t f, FILE * fp);
 
 char * encodeFilename (char * nameIn);
 char * decodeFilename (char * nameIn);
