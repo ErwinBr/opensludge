@@ -1633,6 +1633,15 @@ builtIn(pasteCharacter)
 		// As before, a new animation starts again here, without its events.
 		if (myAnim != thisPerson -> playback.playing) restartAnimationQuietly (thisPerson -> playback, myAnim);
 
+		// A character of parts pastes its parts, as they are now.
+		if (thisPerson -> rig) {
+			computePose (* thisPerson, true);
+			pasteRiggedPerson (thisPerson);
+			computePose (* thisPerson);
+			setVariable (fun -> reg, SVT_INT, 1);
+			return BR_CONTINUE;
+		}
+
 		if (isTimeline (myAnim)) {
 			const SpriteRef * r = sampleSprite (* myAnim -> definition, "", currentTime (thisPerson -> playback, myAnim));
 			const spriteBank * bank;

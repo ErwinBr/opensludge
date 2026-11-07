@@ -251,6 +251,56 @@ sub showOffClip () {
 	return c;
 }
 
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("CompositeTest: " + what);
+}
+
+# Pointing at the character: it is one character, which the mouse is over
+# where it is over a pixel of any of its parts. composite.input moves the
+# mouse round the points of every scene, 4 frames at each; a scene checks
+# its own points, once the mouse has stood on one for a frame (what is
+# under the mouse comes from the frame drawn before), and that it saw them
+# all. A point is a stack of x, y and whether the mouse is over the ego.
+sub mouseScene (name, points, frames) {
+	var lastX = -1;
+	var lastY = -1;
+	var seen = newStack ();
+	for (var n = 0; n < stackSize (points); n ++) enqueue (seen, FALSE);
+	for (var f = 0; f < frames; f ++) {
+		statusText (name);
+		var x = getMouseX ();
+		var y = getMouseY ();
+		if (x == lastX && y == lastY) {
+			for (var i = 0; i < stackSize (points); i ++) {
+				var p = points[i];
+				if (p[0] == x && p[1] == y) {
+					check ((getOverObject () == ego) == p[2], name + ": the mouse at " + x + ", " + y);
+					seen[i] = TRUE;
+				}
+			}
+		}
+		lastX = x;
+		lastY = y;
+		pause (1);
+	}
+	for (var k = 0; k < stackSize (points); k ++) {
+		var q = points[k];
+		check (seen[k], name + ": the mouse never came to " + q[0] + ", " + q[1]);
+	}
+}
+
+# Standing south, the far arm up and in front, the head at 140%, the near
+# arm hidden.
+sub pointPoseClip () {
+	var c = newClip (0);
+	pose (c, south);
+	clipKey (c, "arm2", PART_ROTATION, 0, -150);
+	clipKey (c, "arm2", PART_DEPTH, 0, 3);
+	clipKey (c, "head", PART_SCALE, 0, 140);
+	clipKey (c, "arm1", PART_VISIBLE, 0, FALSE);
+	return c;
+}
+
 sub scene (name, frames) {
 	for (var i = 0; i < frames; i ++) {
 		statusText (name);
@@ -295,6 +345,51 @@ sub init () {
 	pause (animate (ego, showOffClip ()));
 	scene ("turned, scaled, flipped, hidden", 10);
 	normalCharacter (ego);
+
+	# Pointing at it, standing, with turned, scaled and hidden parts, behind
+	# the z-buffer, and as a rectangle.
+	jumpCharacter (ego, 320, 420);
+	turnCharacter (ego, 180);
+	mouseScene ("pointing", newStack (
+		newStack (318, 150, TRUE), newStack (318, 250, TRUE), newStack (320, 60, FALSE), newStack (180, 300, FALSE),
+		newStack (260, 150, FALSE)), 60);
+	animate (ego, pointPoseClip ());
+	mouseScene ("pointing at turned parts", newStack (
+		newStack (395, 100, TRUE), newStack (255, 290, FALSE), newStack (275, 120, TRUE)), 60);
+	normalCharacter (ego);
+	jumpCharacter (ego, 34, 346);
+	turnCharacter (ego, 90);
+	mouseScene ("pointing behind the z-buffer", newStack (
+		newStack (30, 120, TRUE), newStack (30, 320, FALSE)), 60);
+	jumpCharacter (ego, 320, 420);
+	turnCharacter (ego, 180);
+	setCharacterExtra (ego, RECTANGULAR);
+	mouseScene ("pointing at the box", newStack (
+		newStack (260, 150, TRUE), newStack (180, 300, FALSE)), 60);
+	setCharacterExtra (ego, 0);
+
+	# Pasting it into the backdrop, behind the z-buffer, then walking away.
+	jumpCharacter (ego, 110, 350);
+	turnCharacter (ego, 90);
+	pasteCharacter (ego);
+	jumpCharacter (ego, 420, 400);
+	turnCharacter (ego, 180);
+	scene ("pasted", 10);
+
+	# Freezing and snapshots draw it as they do any character.
+	freeze ();
+	scene ("frozen", 10);
+	unfreeze ();
+	snapshotGrab ();
+	scene ("snapshot", 10);
+	snapshotClear ();
+
+	# Fixed to the screen while the camera zooms.
+	setCharacterExtra (ego, FIXTOSCREEN);
+	zoomCamera (200);
+	scene ("fixed to the screen, zoomed", 10);
+	zoomCamera (100);
+	setCharacterExtra (ego, 0);
 
 	setLightMap ('light.png', PERPIXEL);
 	scene ("light map per pixel", 10);

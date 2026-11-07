@@ -518,10 +518,11 @@ void updatePeopleAnimations (int ticks) {
 	computePoses ();
 }
 
-// The pose of a character of parts, from what its animation shows now: a
+// The pose of a character of parts, from what its animation shows: a
 // TIMELINE clip at its display position, or an animation of anim () at its
-// display frame, on the root.
-static void computePose (onScreenPerson & p) {
+// display frame, on the root; or, current, where they are now (as pasting
+// takes them).
+void computePose (onScreenPerson & p, bool current) {
 	if (! p.rig) {
 		p.pose = Pose ();
 		return;
@@ -531,11 +532,11 @@ static void computePose (onScreenPerson & p) {
 	TrackSamples samples;
 	if (isTimeline (a)) {
 		clip = a -> definition;
-		evaluateClip (* clip, shownTime (p.playback, a), samples);
+		evaluateClip (* clip, current ? currentTime (p.playback, a) : shownTime (p.playback, a), samples);
 	} else if (a && a -> numFrames () && ! a -> definition -> tracks.empty ()) {
 		clip = a -> definition;
 		const Track & t = clip -> tracks[0];
-		int f = p.playback.playing == a ? p.playback.displayFrame : 0;
+		int f = p.playback.playing == a ? (current ? p.playback.frame : p.playback.displayFrame) : 0;
 		if (f < 0 || f >= (int) t.keys.size ()) f = 0;
 		TrackSample s = { & t, 0, & t.keys[f].sprite };
 		samples.push_back (s);

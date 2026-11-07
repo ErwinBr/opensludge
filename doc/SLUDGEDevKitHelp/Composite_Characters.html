@@ -59,8 +59,10 @@ A clip may name parts that a rig doesn't have: those parts are left out. A sprit
 <a href="costume.html">Costumes</a> of clips work as ever: standing, walking and talking, in each direction. Their clips can place the parts of each direction differently.
 </P>
 
+<H3>As one character</H3>
+
 <P>
-Characters of parts can't be pointed at with the mouse, or pasted with <a href="pasteCharacter.html">pasteCharacter</a>, yet.
+A character of parts is one character to everything else. The mouse is over it where it is over a pixel of any of its parts (with RECTANGULAR, see <a href="setCharacterExtra.html">setCharacterExtra</a>, anywhere in the box around all its parts), and not where the z-buffer is in front of it. <a href="pasteCharacter.html">pasteCharacter</a> pastes all its parts as they are, freezing and snapshots keep it as they keep any character, and FIXTOSCREEN, NOZBUFFER, NOLIGHTMAP, transparency and colourise work for all its parts.
 </P>
 
 <H3>See also:</H3>

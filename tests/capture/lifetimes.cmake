@@ -28,7 +28,7 @@ function(run_game name game)
 	execute_process(
 		COMMAND ${CMAKE_COMMAND} -E env --unset=SLUDGE_RENDERER
 			SLUDGE_LIFETIME_LOG=1 SLUDGE_SPRITEBANK_CACHE_MB=0 ${ARGN}
-			"${ENGINE}" "--capture=${folder}" --frames=0 --renderer=gl "${game}"
+			"${ENGINE}" "--capture=${folder}" --frames=0 --renderer=gl ${GAME_ARGS} "${game}"
 		RESULT_VARIABLE result
 		OUTPUT_FILE "${folder}.log"
 		ERROR_FILE "${folder}.log"
@@ -134,7 +134,9 @@ if(DEFINED TIMELINE_GAME)
 endif()
 
 # CompositeTest's save has rigs too, where its sprites are (SLUDGE_EGO_SPRITES).
+# Its scenes of pointing need the mouse of its input script.
 if(DEFINED COMPOSITE_GAME)
+	set(GAME_ARGS "--input=${COMPOSITE_INPUT}")
 	run_game(composite "${COMPOSITE_GAME}")
 	if(NOT composite_result EQUAL 0)
 		message(FATAL_ERROR "CompositeTest stopped with ${composite_result}:\n${composite_log}")

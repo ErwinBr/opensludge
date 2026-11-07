@@ -172,4 +172,7 @@ void setPersonAnim (onScreenPerson & person, personaAnimation * anim);
 // Give the character a rig, sealing it, or take its rig away (NULL). Its
 // height follows the rig's parts at rest.
 bool setPersonRig (int obj, const RigDefinitionRef & rig);
+// Work out the pose of a character of parts from what its animation shows,
+// or (current) from where it is now, as pasting takes it.
+void computePose (onScreenPerson & person, bool current = false);
 void givePersonAnim (onScreenPerson & person, AnimationHandle anim);

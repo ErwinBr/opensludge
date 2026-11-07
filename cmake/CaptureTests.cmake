@@ -253,16 +253,18 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 				COMMENT "Making the sprite banks of CompositeTest"
 				VERBATIM)
 			sludge_compile_game(CompositeTest ${render_project}/CompositeTest.slp DEPENDS ${ego_banks})
-			sludge_add_capture_test(composite GAME ${CMAKE_BINARY_DIR}/games/CompositeTest.slg FRAMES 0-1500/10 NO_REFERENCE)
+			sludge_add_capture_test(composite GAME ${CMAKE_BINARY_DIR}/games/CompositeTest.slg
+				INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/composite.input FRAMES 0-1500/10 NO_REFERENCE)
 			add_test(NAME capture-composite-saveload
 				COMMAND ${CMAKE_COMMAND}
 					-DENGINE=$<TARGET_FILE:sludge-engine>
 					-DGAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg
 					-DOUT=${CMAKE_BINARY_DIR}/capture/composite-saveload
-					"-DENGINE_ARGS=--renderer=gl"
+					"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/composite.input"
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 			set_tests_properties(capture-composite-saveload PROPERTIES LABELS capture TIMEOUT 300)
-			set(composite_lifetimes -DCOMPOSITE_GAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg)
+			set(composite_lifetimes -DCOMPOSITE_GAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg
+				-DCOMPOSITE_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/composite.input)
 		else()
 			message(WARNING "SLUDGE_EGO_SPRITES is set, but there is no Python 3 to make CompositeTest's banks with")
 		endif()
