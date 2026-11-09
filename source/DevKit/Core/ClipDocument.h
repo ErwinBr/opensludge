@@ -115,6 +115,9 @@ private:
 	animformat::Asset state;
 };
 
+// The files of an extension ("rig", without the dot) in a folder and the
+// folders in it, in order of their paths.
+std::vector<std::string> filesWithExtension (const std::string & folder, const std::string & extension);
 // Of the .clp files in a folder and the folders in it, those made for a rig.
 std::vector<std::string> clipsOfRig (const std::string & folder, const animformat::AssetId & rig);
 

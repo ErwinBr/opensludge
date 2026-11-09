@@ -1,0 +1,24 @@
+# The clip of fixtures/clip-edited.clp, which the animation editor made in
+# capture-devkit-clip, played on the rig of fixtures/rig-edited.rig. Its
+# event calls wave, which shows by making the character fainter. The
+# clip comes from the file (clip-asset.slu, ClipAssetGame) or from this
+# script (clip-script.slu, ClipScriptGame): the two must draw every frame
+# the same.
+
+objectType thing ("thing") {
+}
+
+var waves = 0;
+
+sub wave () {
+	waves = waves + 1;
+	setCharacterTransparency (thing, (waves * 30) % 100);
+}
+
+sub init () {
+	addCharacter (thing, 160, 160, anim ('alien-edited.duc', 0));
+	setCharacterRig (thing, loadRig ('rig-edited.rig'));
+	animate (thing, playedClip ());
+	pause (150);
+	quitGame ();
+}

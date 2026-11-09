@@ -13,6 +13,7 @@
 #include "imgui_impl_gfx.h"
 #include "Platform.h"
 #include "Properties.h"
+#include "ClipDocument.h"
 #include "RigView.h"
 #include "WorkspaceActions.h"
 
@@ -50,15 +51,12 @@ float wrapDegrees (float d) {
 }
 
 RigView::RigView (RigDocument * r, WorkspaceActions & a, const CanvasGraphics & g)
-	: rig (r), actions (a), graphics (g), canvas (g), selected (0), haveSelection (false),
+	: rig (r), actions (a), graphics (g), canvas (g), selected (0), haveSelection (false), preview (g.draw),
 	  drag (DRAG_NONE), dragX (0), dragY (0), dragPivotX (0), dragPivotY (0), nameFieldPart (0), nameEditing (false),
 	  keepPivotInPlace (true), pending (new Pending), noticeUntil (0) {
 }
 
 RigView::~RigView () {
-	for (std::map<std::string, std::shared_ptr<DevKitAnimBank> >::iterator i = banks.begin (); i != banks.end (); ++ i) {
-		if (i->second) graphics.draw->forgetPictures (& i->second->sprites ());
-	}
 }
 
 bool RigView::animating () const {
@@ -80,25 +78,11 @@ int RigView::selectedIndex () const {
 }
 
 AnimBankRef RigView::bank (const std::string & path) {
-	if (path.empty ()) return AnimBankRef ();
-	std::string base = baseFolder ();
-	std::string full = base + path;
-	std::map<std::string, std::shared_ptr<DevKitAnimBank> >::iterator found = banks.find (full);
-	if (found != banks.end ()) return found->second;
-	std::shared_ptr<DevKitAnimBank> loaded = std::make_shared<DevKitAnimBank> ();
-	if (base.empty () && folderOf (path).empty ()) loaded.reset ();
-	else if (! loaded->load (full)) loaded.reset ();
-	banks[full] = loaded;
-	return loaded;
+	return preview.bank (baseFolder (), path);
 }
 
 void RigView::pose () {
-	std::shared_ptr<RigDefinition> withBanks = std::make_shared<RigDefinition> (rig->rig ());
-	for (size_t i = 0; i < withBanks->parts.size (); i ++) {
-		SpriteRef & s = withBanks->parts[i].sprite;
-		if (s.kind == SpriteRef::SPRITE) s.bank = bank (rig->bankOf (s));
-	}
-	posedRig = withBanks;
+	posedRig = preview.rig (rig->asset (), baseFolder ());
 	PoseBinding binding;
 	evaluatePose (posedRig, ClipDefinitionRef (), TrackSamples (), Transform2D (), binding, restPose);
 }
@@ -415,10 +399,18 @@ void RigView::drawInspector () {
 			ImGui::InputText ("##name", &nameField);
 			nameEditing = ImGui::IsItemActive ();
 			if (ImGui::IsItemDeactivatedAfterEdit () && nameField != part.name) {
+				// The clips made for this rig name the part too.
 				std::string why;
-				if (! rig->renamePart (id, nameField, why)) {
+				std::vector<ClipDocument *> clips = actions.clipsForRename (rig->asset ().id, part.name, baseFolder ()), renamed;
+				WorkspaceActions * a = &actions;
+				if (! rig->renamePart (id, nameField, clips, [a] (ClipDocument * c) { return a->isOpen ((Document *) c); }, &renamed, why)) {
 					say (why);
 					nameField = part.name;
+				} else if (! renamed.empty ()) {
+					char text[96];
+					snprintf (text, sizeof (text), "Renamed in %d clip%s too: save %s with the rig.", (int) renamed.size (),
+						renamed.size () == 1 ? "" : "s", renamed.size () == 1 ? "it" : "them");
+					say (text);
 				}
 			}
 

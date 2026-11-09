@@ -148,6 +148,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/Launch.cpp
 		${DEVKIT_DIR}/Core/Log.cpp
 		${DEVKIT_DIR}/Core/Preferences.cpp
+		${DEVKIT_DIR}/Core/PreviewPlayer.cpp
 		${DEVKIT_DIR}/Core/ProjectCheck.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
@@ -180,6 +181,8 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/SmokeInput.cpp
+		${DEVKIT_DIR}/App/ClipView.cpp
+		${DEVKIT_DIR}/App/PosePreview.cpp
 		${DEVKIT_DIR}/App/RigView.cpp
 		${DEVKIT_DIR}/App/SpriteBankView.cpp
 		${DEVKIT_DIR}/App/TranslationView.cpp
@@ -271,6 +274,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-rig PROPERTIES LABELS capture)
+		# And for a clip: keyed by dragging a part at two ticks, a sprite bank
+		# dropped on it, an easing chosen and an event added.
+		add_test(NAME capture-devkit-clip
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip.clp
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/clip_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip-edited.clp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-clip PROPERTIES LABELS capture)
 		# And for a translation: VerbCoin's German.
 		add_test(NAME capture-devkit-translation
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

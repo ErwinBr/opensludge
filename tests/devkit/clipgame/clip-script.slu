@@ -1,0 +1,11 @@
+# What fixtures/clip-edited.clp holds, built by script.
+sub playedClip () {
+	var c = newClip (24, TRUE);
+	clipKey (c, "part 2", PART_X, 0, 32, EASE_INOUT);
+	clipKey (c, "part 2", PART_X, 12, 32);
+	clipKey (c, "part 2", PART_Y, 0, -12);
+	clipKey (c, "part 2", PART_Y, 12, 2);
+	clipSprite (c, "part 2", 12, 'alien-edited.duc', 0);
+	clipEvent (c, 12, wave);
+	return c;
+}

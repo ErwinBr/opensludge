@@ -446,7 +446,7 @@ bool ClipDocument::write (const std::string & path, std::string * error) {
 
 namespace {
 
-void findClips (const std::string & folder, const animformat::AssetId & rig, int depth, std::vector<std::string> & out) {
+void findFiles (const std::string & folder, const std::string & extension, int depth, std::vector<std::string> & out) {
 	if (depth > 16) return;
 	DIR * dir = opendir (folder.empty () ? "." : folder.c_str ());
 	if (! dir) return;
@@ -462,31 +462,41 @@ void findClips (const std::string & folder, const animformat::AssetId & rig, int
 		std::string path = folder + names[i];
 		struct stat info;
 		if (stat (path.c_str (), & info)) continue;
-		if (S_ISDIR (info.st_mode)) {
-			findClips (path + "/", rig, depth + 1, out);
-		} else if (extensionOf (path) == "clp") {
-			FILE * f = fopen (path.c_str (), "rb");
-			if (! f) continue;
-			animformat::Bytes bytes;
-			unsigned char buffer[4096];
-			size_t n;
-			while ((n = fread (buffer, 1, sizeof (buffer), f)) > 0) bytes.insert (bytes.end (), buffer, buffer + n);
-			fclose (f);
-			animformat::Asset a;
-			std::string why;
-			if (animformat::decodeAsset (bytes.data (), bytes.size (), a, why) && a.kind == animformat::Asset::CLIP && a.rigId == rig) out.push_back (path);
-		}
+		if (S_ISDIR (info.st_mode)) findFiles (path + "/", extension, depth + 1, out);
+		else if (extensionOf (path) == extension) out.push_back (path);
 	}
 }
 
+bool readAsset (const std::string & path, animformat::Asset & a) {
+	FILE * f = fopen (path.c_str (), "rb");
+	if (! f) return false;
+	animformat::Bytes bytes;
+	unsigned char buffer[4096];
+	size_t n;
+	while ((n = fread (buffer, 1, sizeof (buffer), f)) > 0) bytes.insert (bytes.end (), buffer, buffer + n);
+	fclose (f);
+	std::string why;
+	return animformat::decodeAsset (bytes.data (), bytes.size (), a, why);
+}
+
+}
+
+std::vector<std::string> filesWithExtension (const std::string & folder, const std::string & extension) {
+	std::vector<std::string> out;
+	std::string base = folder;
+	if (! base.empty () && base[base.size () - 1] != '/' && base[base.size () - 1] != '\\') base += "/";
+	findFiles (base, extension, 0, out);
+	return out;
 }
 
 std::vector<std::string> clipsOfRig (const std::string & folder, const animformat::AssetId & rig) {
 	std::vector<std::string> out;
 	if (rig.isNull ()) return out;
-	std::string base = folder;
-	if (! base.empty () && base[base.size () - 1] != '/' && base[base.size () - 1] != '\\') base += "/";
-	findClips (base, rig, 0, out);
+	std::vector<std::string> clips = filesWithExtension (folder, "clp");
+	for (size_t i = 0; i < clips.size (); i ++) {
+		animformat::Asset a;
+		if (readAsset (clips[i], a) && a.kind == animformat::Asset::CLIP && a.rigId == rig) out.push_back (clips[i]);
+	}
 	return out;
 }
 

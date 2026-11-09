@@ -73,6 +73,10 @@ public:
 	void revealInspector () { focusInspector = true; }
 	void checkFiles () { fileCheck.open (project ()); }
 	std::string projectFile () const { return project () ? project ()->path () : std::string (); }
+	double tickMilliseconds () const;
+	Document * findDocument (const std::string & path) const { return manager.find (path); }
+	bool isOpen (const Document * document) const;
+	std::vector<ClipDocument *> clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder);
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -131,6 +135,11 @@ private:
 	int layoutFrames;			// Frames until the new layout is done
 	unsigned int documentDock;	// Where new documents go
 	Document * focusDocument;	// A document to bring to the front
+	// A document to bring to the front again a few frames on, after the
+	// documents that opened behind it (as a rename opens clips) have
+	// appeared and taken the focus.
+	Document * focusLater;
+	int focusLaterFrames;
 	bool closeTab;				// See closeActiveTab
 
 	bool showProject, showBuild, showInspector, showLog;

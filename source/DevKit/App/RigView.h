@@ -29,8 +29,8 @@
 
 #include "CanvasView.h"
 #include "DocumentView.h"
+#include "PosePreview.h"
 #include "RigDocument.h"
-#include "posedraw.h"
 
 namespace devkit {
 
@@ -86,7 +86,7 @@ private:
 
 	PartId selected;
 	bool haveSelection;
-	std::map<std::string, std::shared_ptr<DevKitAnimBank> > banks;	// By full path
+	PosePreview preview;
 	RigDefinitionRef posedRig;
 	Pose restPose;
 

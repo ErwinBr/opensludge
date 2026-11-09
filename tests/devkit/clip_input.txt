@@ -1,0 +1,53 @@
+# The animation editor with the mouse and the keys, on fixtures/clip.clp (a
+# clip of 24 ticks of nothing, made for fixtures/rig-edited.rig) in the
+# window of a smoke test (1280 x 800). The canvas shows the rig at 215%,
+# with part 2 to the right; the ruler is at y 397, with tick 12 at x 743.
+wait 5
+
+# Drag part 2 10 pixels to the right: it keys its place at tick 0.
+move 690 265
+down
+move 700 265
+move 710 265
+up
+wait 2
+
+# At tick 12, drag it 14 pixels down: it keys its place there too.
+move 743 397
+down
+up
+wait 2
+move 700 265
+down
+move 700 280
+move 700 295
+up
+wait 2
+
+# A sprite bank dropped on the window keys part 2's sprite at tick 12.
+drop ${FIXTURES}/alien-edited.duc
+wait 2
+
+# The key of position X at tick 0 eases in and out towards the next.
+move 491 500
+down
+up
+wait 2
+move 1200 137
+down
+up
+wait 2
+move 1200 202
+down
+up
+wait 2
+
+# An event at tick 12 that calls the function wave.
+move 453 418
+down
+up
+wait 2
+type wave
+key Enter
+wait 3
+save ${OUTPUT}

@@ -393,6 +393,47 @@ static void testCharacterCreator () {
 	check ("rig", v);
 	endView (v);
 
+
+	// The animation editor's preview: a clip at a tick between its keys,
+	// with a second clip added over it, as the editor poses them.
+	std::shared_ptr<ClipDefinition> walk = std::make_shared<ClipDefinition> (), lean = std::make_shared<ClipDefinition> ();
+	walk->length = 12;
+	walk->loop = true;
+	Key k;
+	k.easing = EASING_LINEAR;
+	k.value = 0;
+	setKey (* walk, "arm", CHANNEL_ROTATION, k, why);
+	k.time = 12;
+	k.value = -120;
+	setKey (* walk, "arm", CHANNEL_ROTATION, k, why);
+	Key s;
+	s.time = 4;
+	s.sprite = SpriteRef::sprite (bank, 0, 2, false);
+	setKey (* walk, "body", CHANNEL_SPRITE, s, why);
+	lean->length = 12;
+	k.time = 0;
+	k.value = 15;
+	setKey (* lean, "", CHANNEL_ROTATION, k, why);
+	TrackSamples walkSamples, leanSamples;
+	evaluateClip (* walk, ticksToTime (6), walkSamples);
+	evaluateClip (* lean, ticksToTime (6), leanSamples);
+	PoseBinding walkBinding, leanBinding;
+	std::vector<LayerSamples> layers;
+	LayerSamples a = { walk, & walkSamples, LAYER_BLEND_OVERRIDE, & walkBinding };
+	LayerSamples b = { lean, & leanSamples, LAYER_BLEND_ADD, & leanBinding };
+	layers.push_back (a);
+	layers.push_back (b);
+	Pose posed;
+	evaluatePose (rig, layers, std::vector<PartOverride> (), Transform2D (), posed);
+	v = startView (200, 200);
+	draw->setViewArea (-100, 150, v.width, v.height, 1.0f);
+	draw->clear ();
+	drawPose (* draw, posed);
+	drawPoseOverlay (* draw, * rig, posed, 2, 1.0f);
+	draw->finish ();
+	check ("clip-preview", v);
+	endView (v);
+
 	if (partAt (pose, 0, -20) != 1) {
 		printf ("FAIL rig: the body isn't at its middle\n");
 		failures ++;

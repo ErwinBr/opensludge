@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,7 @@
 #include "Launch.h"
 #include "ProjectCheck.h"
 #include "ClipDocument.h"
+#include "PreviewPlayer.h"
 #include "ProjectDocument.h"
 #include "RigDocument.h"
 #include "animedit.h"
@@ -1618,6 +1620,64 @@ static void testRenameAcross () {
 	CHECK (found.size () == 2 && found[0].find ("more/blink.clp") != std::string::npos && found[1].find ("walk.clp") != std::string::npos);
 }
 
+// The preview of the animation editor: time by the library's rules, events
+// when playing, none when scrubbing.
+static void testPreviewPlayer () {
+	std::shared_ptr<ClipDefinition> clip = std::make_shared<ClipDefinition> ();
+	clip->length = 10;
+	clip->loop = true;
+	std::string why;
+	FrameEvent e;
+	e.kind = FrameEvent::FUNCTION;
+	CHECK (addEvent (* clip, 0, e, why) && addEvent (* clip, 5, e, why));
+	PreviewPlayer player;
+	player.setClip (0, clip, LAYER_BLEND_OVERRIDE);
+
+	// Paused, time doesn't move.
+	CHECK (player.advance (1000, 20).empty () && player.ticks () == 0);
+	// Playing at 20 ms a tick: 120 ms is 6 ticks, past the events at 0 and 5.
+	player.play ();
+	std::vector<const ClipEvent *> passed = player.advance (120, 20);
+	CHECK (passed.size () == 2 && player.ticks () == 6);
+	// Round the loop: from 6 to 12 passes 10 (the event at 0) only.
+	passed = player.advance (120, 20);
+	CHECK (passed.size () == 1 && passed[0]->time == 0 && player.ticks () == 2);
+	// Half speed: 120 ms is 3 ticks; the keys stay where they are.
+	player.setSpeed (50);
+	passed = player.advance (120, 20);
+	CHECK (player.ticks () == 5 && passed.size () == 1 && passed[0]->time == 5);
+	player.setSpeed (100);
+
+	// Scrubbing puts time somewhere, and passes nothing.
+	player.pause ();
+	player.scrub (8);
+	CHECK (player.ticks () == 8 && player.advance (100, 20).empty ());
+
+	// A clip that doesn't loop stops at its end, and plays again from 0.
+	clip->loop = false;
+	player.scrub (0);
+	player.play ();
+	player.advance (1000, 20);
+	CHECK (! player.playing () && player.ticks () == 10);
+	player.play ();
+	CHECK (player.playing () && player.ticks () == 0);
+
+	// A second clip, which starts again with reset.
+	std::shared_ptr<ClipDefinition> second = std::make_shared<ClipDefinition> ();
+	second->length = 4;
+	second->loop = true;
+	player.setClip (1, second, LAYER_BLEND_ADD);
+	player.advance (100, 20);
+	CHECK (player.time (1) == ticksToTime (1));
+	std::vector<LayerSamples> layers;
+	std::vector<TrackSamples> samples;
+	PoseBinding bindings[2];
+	player.layers (layers, samples, bindings);
+	CHECK (layers.size () == 2 && layers[1].blend == LAYER_BLEND_ADD);
+	player.reset ();
+	CHECK (player.ticks () == 0 && player.time (1) == 0);
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1643,6 +1703,7 @@ int main (int argc, char ** argv) {
 	testRigs ();
 	testClips ();
 	testRenameAcross ();
+	testPreviewPlayer ();
 	testFileMemory ();
 
 	if (failures) {

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <SDL3/SDL_stdinc.h>
 
 #include "imgui.h"
@@ -13,6 +14,8 @@
 #include "Log.h"
 #include "Platform.h"
 #include "ProjectView.h"
+#include "ClipDocument.h"
+#include "ClipView.h"
 #include "RigDocument.h"
 #include "RigView.h"
 #include "SpriteBankDocument.h"
@@ -47,7 +50,7 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	: thePlatform (p), rendererName (renderer), graphics (g),
 	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
 	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
-	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), closeTab (false),
+	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -82,6 +85,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (SpriteBankDocument::type ());
 	registerView ("Sprite Bank", [this] (Document * document) -> DocumentView * {
 		return new SpriteBankView ((SpriteBankDocument *) document, *this, graphics);
+	});
+	manager.registerType (ClipDocument::type ());
+	registerView ("Clip", [this] (Document * document) -> DocumentView * {
+		return new ClipView ((ClipDocument *) document, *this, graphics);
 	});
 	manager.registerType (RigDocument::type ());
 	registerView ("Rig", [this] (Document * document) -> DocumentView * {
@@ -166,6 +173,50 @@ void Workspace::dropFiles (const std::vector<std::string> & files) {
 		rest.push_back (files[i]);
 	}
 	openFiles (rest);
+}
+
+double Workspace::tickMilliseconds () const {
+	// The speed of a project is the milliseconds of a tick.
+	ProjectDocument * p = project ();
+	int ms = p ? p->settings ().speed : 0;
+	return ms > 0 ? ms : 20;
+}
+
+bool Workspace::isOpen (const Document * document) const {
+	const std::vector<Document *> & all = manager.documents ();
+	return std::find (all.begin (), all.end (), document) != all.end ();
+}
+
+std::vector<ClipDocument *> Workspace::clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder) {
+	std::vector<ClipDocument *> clips;
+	// Those open, saved or not.
+	const std::vector<Document *> & all = manager.documents ();
+	for (size_t i = 0; i < all.size (); i ++) {
+		ClipDocument * c = dynamic_cast<ClipDocument *> (all[i]);
+		if (c && c->isBoundTo (rig)) clips.push_back (c);
+	}
+	// And those of the folder with tracks of the part, which we open.
+	Document * active = manager.active ();
+	std::vector<std::string> files = folder.empty () ? std::vector<std::string> () : clipsOfRig (folder, rig);
+	for (size_t i = 0; i < files.size (); i ++) {
+		if (manager.find (files[i])) continue;
+		ClipDocument probe;
+		std::string error;
+		if (! probe.load (files[i], &error)) continue;
+		bool hasPart = false;
+		for (size_t t = 0; t < probe.clip ().tracks.size (); t ++) hasPart = hasPart || probe.clip ().tracks[t].part == part;
+		if (! hasPart) continue;
+		ClipDocument * c = dynamic_cast<ClipDocument *> (manager.open (files[i]));
+		if (c) clips.push_back (c);
+	}
+	// The rig stays in front.
+	if (active && manager.active () != active) {
+		manager.setActive (active);
+		focusDocument = active;
+		focusLater = active;
+		focusLaterFrames = 3;
+	}
+	return clips;
 }
 
 DocumentView * Workspace::activeView () const {
@@ -344,6 +395,10 @@ void Workspace::draw () {
 		ImGui::SetWindowFocus (BUILD_PANEL);
 		Document * active = manager.active ();
 		if (active && active != project ()) focusDocument = active;
+	}
+	if (focusLater && focusLaterFrames > 0 && -- focusLaterFrames == 0) {
+		if (isOpen (focusLater)) focusDocument = focusLater;
+		focusLater = NULL;
 	}
 	fileCheck.draw (project ());
 	if (showPreferences) drawPreferencesWindow ();

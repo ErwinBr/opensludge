@@ -320,6 +320,32 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		set_tests_properties(capture-assets-play PROPERTIES LABELS capture TIMEOUT 300)
 	endif()
 
+	# The clip that capture-devkit-clip makes in the animation editor
+	# (tests/devkit/fixtures/clip-edited.clp), compiled into a game, draws
+	# every frame as the same clip built by script.
+	if(TARGET sludge-compiler)
+		set(clip_project ${CMAKE_BINARY_DIR}/clipgame-project)
+		foreach(file ClipAssetGame.slp ClipScriptGame.slp clipgame.slu clip-asset.slu clip-script.slu)
+			configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/devkit/clipgame/${file} ${clip_project}/${file} COPYONLY)
+		endforeach()
+		foreach(file rig-edited.rig clip-edited.clp alien-edited.duc)
+			configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/devkit/fixtures/${file} ${clip_project}/${file} COPYONLY)
+		endforeach()
+		sludge_compile_game(ClipAssetGame ${clip_project}/ClipAssetGame.slp)
+		sludge_compile_game(ClipScriptGame ${clip_project}/ClipScriptGame.slp)
+		add_test(NAME capture-devkit-clipgame
+			COMMAND ${CMAKE_COMMAND}
+				-DENGINE=$<TARGET_FILE:sludge-engine>
+				-DFRAMEDIFF=$<TARGET_FILE:framediff>
+				-DGAME=${CMAKE_BINARY_DIR}/games/ClipAssetGame.slg
+				-DEXPECTED_GAME=${CMAKE_BINARY_DIR}/games/ClipScriptGame.slg
+				-DFRAMES=0-150
+				-DOUT=${CMAKE_BINARY_DIR}/capture/devkit-clipgame
+				"-DENGINE_ARGS=--renderer=gl"
+				-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
+		set_tests_properties(capture-devkit-clipgame PROPERTIES LABELS capture TIMEOUT 300)
+	endif()
+
 	# What lives after saving and loading, and after loads that fail.
 	sludge_compile_game(LoadTest ${render_project}/LoadTest.slp)
 	add_test(NAME capture-lifetimes

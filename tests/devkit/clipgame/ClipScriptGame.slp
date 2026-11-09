@@ -1,0 +1,29 @@
+[SETTINGS]
+windowname=SLUDGE ClipScriptGame
+finalfile=ClipScriptGame
+language=English
+datafolder=
+quitmessage=Quit the seal test?
+customicon=
+customlogo=
+mouse=0
+fullscreen=N
+makesilent=N
+showlogo=N
+showloading=N
+invisible=N
+ditherimages=N
+width=320
+height=240
+speed=50
+chrRender_def_enabled=Y
+chrRender_def_softX=4
+chrRender_def_softY=4
+chrRender_max_enabled=Y
+chrRender_max_readIni=Y
+chrRender_max_softX=100
+chrRender_max_softY=100
+
+[FILES]
+clipgame.slu
+clip-script.slu
