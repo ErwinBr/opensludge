@@ -38,7 +38,7 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "documents") ok = sscanf (rest, "%d", &s.frames) == 1;
-		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "type" || s.what == "sheet") ok = ! s.text.empty ();
+		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "drop" || s.what == "type" || s.what == "sheet") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl" || s.text == "shift";
 		else ok = s.what == "up" || s.what == "close";
 		if (! ok) {
@@ -124,6 +124,8 @@ bool SmokeInput::step (Workspace & workspace) {
 		}
 	} else if (s.what == "open") {
 		workspace.openFiles (std::vector<std::string> (1, s.text));
+	} else if (s.what == "drop") {
+		workspace.dropFiles (std::vector<std::string> (1, s.text));
 	} else if (s.what == "sheet") {
 		SpriteBankView * view = dynamic_cast<SpriteBankView *> (workspace.activeView ());
 		if (! view || ! view->openSheet (s.text)) {

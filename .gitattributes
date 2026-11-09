@@ -14,3 +14,7 @@ packaging/windows export-ignore
 # and its Windows-1252 text, as it is.
 tests/devkit/fixtures/OldProject/** -text
 tests/devkit/fixtures/init-utf8.slu -text
+
+# Rigs and clips of the Dev Kit (source/Anim/animformat.h) are binary.
+*.rig binary
+*.clp binary

@@ -50,6 +50,10 @@ public:
 	virtual void drawPicture (const spriteBank * bank, int index, bool zBufferLayer,
 		float x1, float y1, float x2, float y2,
 		float tx1, float ty1, float tx2, float ty2) = 0;
+	// The same with free corners, as a sprite turned or scaled: the top left,
+	// top right, bottom left and bottom right corners of the picture, as
+	// x, y pairs, with the whole picture in them.
+	virtual void drawPictureQuad (const spriteBank * bank, int index, bool zBufferLayer, const float corners[8]) = 0;
 
 	// Draw what we have batched up, if anything. Call this at the end of a
 	// view.

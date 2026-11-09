@@ -1343,6 +1343,13 @@ static void testRigs () {
 	rig.setRest (arm, p);
 	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.scale == 1.5f && rig.part (arm)->rest.flip);
 
+	// The same pose again, as a click without a drag, changes nothing.
+	size_t undoable = 0;
+	while (rig.commands ().canUndo ()) { rig.commands ().undo (); undoable ++; }
+	for (size_t i = 0; i < undoable; i ++) rig.commands ().redo ();
+	rig.commands ().markSaved ();
+	rig.setRest (arm, rig.part (arm)->rest);
+	CHECK (! rig.isModified ());
 	rig.setDepth (arm, -1);
 	CHECK (rig.part (arm)->depth == -1 && rig.commands ().undoLabel () == "Depth of arm");
 

@@ -75,6 +75,9 @@ std::string extensionOf (const std::string & path);
 std::string fileNameOf (const std::string & path);
 // The folder of a file, ending with a separator, or empty.
 std::string folderOf (const std::string & path);
+// The path of a file from a folder, with / between folders, and ../ to go
+// up.
+std::string relativePathFrom (const std::string & folder, const std::string & fullPath);
 
 } // namespace devkit
 

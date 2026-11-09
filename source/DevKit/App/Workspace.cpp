@@ -13,6 +13,8 @@
 #include "Log.h"
 #include "Platform.h"
 #include "ProjectView.h"
+#include "RigDocument.h"
+#include "RigView.h"
 #include "SpriteBankDocument.h"
 #include "SpriteBankView.h"
 #include "TranslationDocument.h"
@@ -80,6 +82,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (SpriteBankDocument::type ());
 	registerView ("Sprite Bank", [this] (Document * document) -> DocumentView * {
 		return new SpriteBankView ((SpriteBankDocument *) document, *this, graphics);
+	});
+	manager.registerType (RigDocument::type ());
+	registerView ("Rig", [this] (Document * document) -> DocumentView * {
+		return new RigView ((RigDocument *) document, *this, graphics);
 	});
 	manager.registerType (TranslationDocument::type ());
 	registerView ("Translation", [this] (Document * document) -> DocumentView * {
@@ -150,6 +156,16 @@ void Workspace::openFiles (const std::vector<std::string> & files) {
 		manager.open (files[i]);
 	}
 	if (! add.empty ()) p->addFiles (add);
+}
+
+void Workspace::dropFiles (const std::vector<std::string> & files) {
+	std::vector<std::string> rest;
+	for (size_t i = 0; i < files.size (); i ++) {
+		DocumentView * view = projectPanelHovered ? NULL : activeView ();
+		if (view && manager.typeOf (files[i]) && view->takeFile (files[i])) continue;
+		rest.push_back (files[i]);
+	}
+	openFiles (rest);
 }
 
 DocumentView * Workspace::activeView () const {

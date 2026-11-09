@@ -15,6 +15,8 @@
  *   wait <frames>    do nothing for some frames
  *   new <kind>       make a new document, such as a Z-Buffer
  *   open <file>      open a file, or drop it on the active document
+ *   drop <file>      drop a file on the window, which the active editor may
+ *                    take even if the Dev Kit opens it
  *   save <file>      save the active document as file
  *   close            close the tab of the active document, as its X does
  *   sheet <file>     open the Import Sprite Sheet dialog of the active

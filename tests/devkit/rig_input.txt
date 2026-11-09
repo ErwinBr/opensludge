@@ -1,0 +1,56 @@
+# The character creator with the mouse and the keys, on fixtures/rig.rig (a
+# rig of the character only) in the window of a smoke test (1280 x 800).
+# Dropping fixtures/alien-edited.duc gives the selected part sprite 0 of it;
+# the canvas shows the character at 172%, with its origin at (733, 310).
+wait 3
+
+# Add a part to the character, and a part to that, each with the alien.
+move 302 60
+down
+up
+wait 2
+drop ${FIXTURES}/alien-edited.duc
+wait 2
+move 302 60
+down
+up
+wait 2
+drop ${FIXTURES}/alien-edited.duc
+wait 3
+
+# Move part 2 by its sprite, 40 points (23 pixels) to the right.
+move 733 270
+down
+move 753 270
+move 773 270
+up
+wait 2
+
+# Turn it a quarter clockwise with the round knob, 40 points to the right
+# of its origin, which snaps to 90 degrees.
+move 813 310
+down
+move 803 360
+move 778 560
+up
+wait 2
+
+# Move its pivot up by 20 points: the pivot is (-12, 0) in its turned
+# space, and its place moves to keep the sprite where it is.
+move 773 310
+down
+move 773 300
+move 773 290
+up
+wait 2
+
+# A part on part 2, removed, and the removal undone.
+move 302 60
+down
+up
+wait 2
+key Delete
+key ctrl+Z
+
+wait 3
+save ${OUTPUT}

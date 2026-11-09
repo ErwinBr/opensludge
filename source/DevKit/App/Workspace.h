@@ -56,6 +56,10 @@ public:
 
 	// Files that were dropped on the window or named on the command line.
 	void openFiles (const std::vector<std::string> & files);
+	// Files dropped on the window: as openFiles, but the active editor may
+	// take any of them first, as the character creator takes a sprite bank
+	// for the selected part.
+	void dropFiles (const std::vector<std::string> & files);
 
 	// The title of the window.
 	std::string title () const;

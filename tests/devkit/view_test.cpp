@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,7 @@
 
 #include "draw2d.h"
 #include "floormaker.h"
+#include "posedraw.h"
 #include "interface.h"
 #include "sprites.h"
 #include "zbuffer.h"
@@ -346,6 +348,62 @@ static void testZBufferMaker () {
 	forgetSpriteBank (&backdrop);
 }
 
+// The character creator: a rig of the alien of fixtures/alien-edited.duc,
+// with a part turned, scaled, flipped and moved about its pivot, a sprite
+// mirrored, a joint, and the overlay of the selected part.
+static void testCharacterCreator () {
+	std::shared_ptr<DevKitAnimBank> bank = std::make_shared<DevKitAnimBank> ();
+	std::string file = testFolder + "/fixtures/alien-edited.duc";
+	if (! bank->load (file)) {
+		printf ("FAIL rig: we can't load %s\n", file.c_str ());
+		failures ++;
+		return;
+	}
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> ();
+	std::string why;
+	PartPose rest;
+	addPart (* rig, "body", "", rest, SpriteRef::sprite (bank, 0, 0, false), why);
+	rest.x = 4;
+	rest.y = -40;
+	rest.rotation = 30;
+	rest.scale = 1.5f;
+	rest.flip = true;
+	addPart (* rig, "arm", "body", rest, SpriteRef::sprite (bank, 0, 1, false), why);
+	rig->parts[2].pivotX = 0;
+	rig->parts[2].pivotY = -20;
+	rig->parts[2].depth = 1;
+	rest = PartPose ();
+	rest.x = 10;
+	rest.y = 20;
+	addPart (* rig, "hand", "arm", rest, SpriteRef (), why);
+	rest.x = -30;
+	rest.y = 0;
+	addPart (* rig, "twin", "", rest, SpriteRef::sprite (bank, 0, 0, true), why);
+
+	Pose pose;
+	PoseBinding binding;
+	evaluatePose (rig, ClipDefinitionRef (), TrackSamples (), Transform2D (), binding, pose);
+	View v = startView (200, 200);
+	// From -100, -150 (setViewArea takes minus the top).
+	draw->setViewArea (-100, 150, v.width, v.height, 1.0f);
+	draw->clear ();
+	drawPose (* draw, pose);
+	drawPoseOverlay (* draw, * rig, pose, 2, 1.0f);
+	draw->finish ();
+	check ("rig", v);
+	endView (v);
+
+	if (partAt (pose, 0, -20) != 1) {
+		printf ("FAIL rig: the body isn't at its middle\n");
+		failures ++;
+	}
+	if (partAt (pose, 300, 300) != -1) {
+		printf ("FAIL rig: a part is where there is none\n");
+		failures ++;
+	}
+	draw->forgetPictures (& bank->sprites ());
+}
+
 int main (int argc, char ** argv) {
 	testFolder = VIEW_TEST_FOLDER;
 	const char * choice = "auto";
@@ -362,6 +420,7 @@ int main (int argc, char ** argv) {
 	testFloorMaker ();
 	testSpriteBankEditor ();
 	testZBufferMaker ();
+	testCharacterCreator ();
 
 	delete draw;
 	gfx::destroyWindowRenderer ();

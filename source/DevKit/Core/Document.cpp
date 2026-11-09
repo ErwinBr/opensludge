@@ -64,6 +64,34 @@ std::string folderOf (const std::string & path) {
 	return separator == std::string::npos ? std::string () : path.substr (0, separator + 1);
 }
 
+// The parts of a path between its separators.
+static std::vector<std::string> splitPath (const std::string & path) {
+	std::vector<std::string> parts;
+	std::string part;
+	for (size_t i = 0; i <= path.size (); i ++) {
+		if (i == path.size () || path[i] == '/' || path[i] == '\\') {
+			if (! part.empty () && part != ".") parts.push_back (part);
+			part.clear ();
+		} else {
+			part += path[i];
+		}
+	}
+	return parts;
+}
+
+std::string relativePathFrom (const std::string & folder, const std::string & full) {
+	std::vector<std::string> base = splitPath (folder), target = splitPath (full);
+	size_t same = 0;
+	while (same < base.size () && same + 1 < target.size () && base[same] == target[same]) same ++;
+	std::string relative;
+	for (size_t i = same; i < base.size (); i ++) relative += "../";
+	for (size_t i = same; i < target.size (); i ++) {
+		relative += target[i];
+		if (i + 1 < target.size ()) relative += "/";
+	}
+	return relative;
+}
+
 std::string extensionOf (const std::string & path) {
 	std::string name = fileNameOf (path);
 	size_t dot = name.rfind ('.');

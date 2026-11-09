@@ -54,9 +54,10 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/GraphicalTools/sprites.cpp
 		${DEVKIT_DIR}/GraphicalTools/floormaker.cpp
 		${DEVKIT_DIR}/GraphicalTools/zbuffer.cpp
+		${DEVKIT_DIR}/GraphicalTools/posedraw.cpp
 	)
 	target_include_directories(devkit-graphics PUBLIC ${DEVKIT_DIR}/GraphicalTools)
-	target_link_libraries(devkit-graphics PUBLIC devkit-common sludge::png)
+	target_link_libraries(devkit-graphics PUBLIC devkit-common sludge-anim sludge::png)
 endif()
 
 add_executable(sludge-compiler ${DEVKIT_DIR}/Compiler/CompilerMain.cpp)
@@ -178,6 +179,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/SmokeInput.cpp
+		${DEVKIT_DIR}/App/RigView.cpp
 		${DEVKIT_DIR}/App/SpriteBankView.cpp
 		${DEVKIT_DIR}/App/TranslationView.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
@@ -257,6 +259,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-sprites
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-sprites PROPERTIES LABELS capture)
+		# And for a rig: parts with a sprite bank dropped on them, moved, turned,
+		# with a pivot that keeps the sprite in place, a part removed and back.
+		add_test(NAME capture-devkit-rig
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig.rig
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/rig_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig-edited.rig
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-rig PROPERTIES LABELS capture)
 		# And for a translation: VerbCoin's German.
 		add_test(NAME capture-devkit-translation
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

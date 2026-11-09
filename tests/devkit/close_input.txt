@@ -27,6 +27,12 @@ close
 wait 2
 documents 0
 
+open ${FIXTURES}/rig-edited.rig
+wait 3
+close
+wait 2
+documents 0
+
 # Two at once, closing the one behind first with Ctrl+W after the front.
 open ${FIXTURES}/floor-edited.flo
 wait 2

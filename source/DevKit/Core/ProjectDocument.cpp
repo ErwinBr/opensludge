@@ -184,32 +184,8 @@ std::string ProjectDocument::fullPath (const std::string & file) const {
 	return folder () + file;
 }
 
-// The parts of a path between its separators.
-static std::vector<std::string> splitPath (const std::string & path) {
-	std::vector<std::string> parts;
-	std::string part;
-	for (size_t i = 0; i <= path.size (); i ++) {
-		if (i == path.size () || path[i] == '/' || path[i] == '\\') {
-			if (! part.empty () && part != ".") parts.push_back (part);
-			part.clear ();
-		} else {
-			part += path[i];
-		}
-	}
-	return parts;
-}
-
 std::string ProjectDocument::relativePath (const std::string & full) const {
-	std::vector<std::string> base = splitPath (folder ()), target = splitPath (full);
-	size_t same = 0;
-	while (same < base.size () && same + 1 < target.size () && base[same] == target[same]) same ++;
-	std::string relative;
-	for (size_t i = same; i < base.size (); i ++) relative += "../";
-	for (size_t i = same; i < target.size (); i ++) {
-		relative += target[i];
-		if (i + 1 < target.size ()) relative += "/";
-	}
-	return relative;
+	return relativePathFrom (folder (), full);
 }
 
 void ProjectDocument::setSettings (const ProjectSettings & s, int mergeKey) {

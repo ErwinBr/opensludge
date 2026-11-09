@@ -50,6 +50,7 @@ public:
 	void drawLines (const float * points, int count);
 	void drawLineLoop (const float * points, int count);
 	void drawPolygon (const float * points, int count);
+	void drawPictureQuad (const spriteBank * bank, int index, bool zBufferLayer, const float corners[8]);
 	void drawPicture (const spriteBank * bank, int index, bool zBufferLayer,
 		float x1, float y1, float x2, float y2,
 		float tx1, float ty1, float tx2, float ty2);
@@ -309,6 +310,18 @@ void GfxDraw2D::drawPicture (const spriteBank * bank, int index, bool zBufferLay
 	addVertex (x2, y1, tx2, ty1);
 	addVertex (x1, y2, tx1, ty2);
 	addVertex (x2, y2, tx2, ty2);
+	const unsigned short quad[6] = { 0, 1, 2, 2, 1, 3 };
+	for (int i = 0; i < 6; i ++) indices.push_back (first + quad[i]);
+	batches.back ().indexCount += 6;
+}
+
+void GfxDraw2D::drawPictureQuad (const spriteBank * bank, int index, bool zBufferLayer, const float corners[8]) {
+	gfx::Texture * t = texture (bank, index, zBufferLayer);
+	unsigned short first = startBatch (t, 4);
+	addVertex (corners[0], corners[1], 0, 0);
+	addVertex (corners[2], corners[3], 1, 0);
+	addVertex (corners[4], corners[5], 0, 1);
+	addVertex (corners[6], corners[7], 1, 1);
 	const unsigned short quad[6] = { 0, 1, 2, 2, 1, 3 };
 	for (int i = 0; i < 6; i ++) indices.push_back (first + quad[i]);
 	batches.back ().indexCount += 6;

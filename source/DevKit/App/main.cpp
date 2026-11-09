@@ -308,7 +308,7 @@ int main (int argc, char ** argv) {
 			bool ours = event.window.windowID == SDL_GetWindowID (window);
 			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && ours) workspace.requestQuit ();
 			if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && ours) gfx::windowResized (event.window.data1, event.window.data2);
-			if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) workspace.openFiles (std::vector<std::string> (1, event.drop.data));
+			if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) workspace.dropFiles (std::vector<std::string> (1, event.drop.data));
 			framesToDraw = FRAMES_AFTER_EVENT;
 			haveEvent = SDL_PollEvent (&event);
 		}
