@@ -288,8 +288,16 @@
 					<param name="Local" value="SLUDGEDevKitHelp\loadCustomData_and_saveCustomData.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="loadClip">
+					<param name="Local" value="SLUDGEDevKitHelp\loadClip.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="loadGame">
 					<param name="Local" value="SLUDGEDevKitHelp\loadGame.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="loadRig">
+					<param name="Local" value="SLUDGEDevKitHelp\loadRig.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="loopSound">
@@ -558,6 +566,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setPartDepth">
 					<param name="Local" value="SLUDGEDevKitHelp\setPartDepth.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setPartPivot">
+					<param name="Local" value="SLUDGEDevKitHelp\setPartPivot.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setPartProperty">
@@ -859,6 +871,14 @@
 			<LI> <OBJECT type="text/sitemap">
 				<param name="Name" value="About the SLUDGE Sprite Bank Editor">
 				<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Sprite_Bank_Editor.html">
+				</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
+				<param name="Name" value="The Character Creator">
+				<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Character_Creator.html">
+				</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
+				<param name="Name" value="The Animation Editor">
+				<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Animation_Editor.html">
 				</OBJECT>
 			<LI> <OBJECT type="text/sitemap">
 				<param name="Name" value="About the SLUDGE Translation Editor">

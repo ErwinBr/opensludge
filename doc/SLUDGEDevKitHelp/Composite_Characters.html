@@ -17,7 +17,7 @@ As of SLUDGE 2.3: A character can consist of separate parts, each represented wi
 <H3>Rig</H3>
 
 <P>
-A <b>rig</b>, made with <a href="newRig.html">newRig</a>, defines the parts of a Composite Character. You build a rig by <a href="addPart.html">adding parts</a>. The parts and their properties defined with addPart are what makes up the rest pose of the character.
+A <b>rig</b> defines the parts of a Composite Character. The easiest way to make one is in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> of the Dev Kit, which saves it as a .rig file; your script loads that with <a href="loadRig.html">loadRig</a>. You can also build a rig in a script: make it with <a href="newRig.html">newRig</a>, and <a href="addPart.html">add parts</a> to it. The parts and their properties are the rest pose of the character: how it stands when no animation moves it.
 </P>
 
 <P>
@@ -27,7 +27,7 @@ Build the rig completely before you give it to a character. As soon as you call 
 <H3>Parts</H3>
 
 <P>
-A part's origin is the hotspot of its sprite, as you set it in the Sprite Bank Editor. Its x and y say where that origin sits, measured from its parent's origin: +X is right, +Y is down. A part turns (clockwise, in degrees) and scales about its origin. Whatever you do to a part, you also do to the parts attached to it: turn the torso and the head and arms turn with it, and then each can turn further on its own.
+A part's origin is the hotspot of its sprite, as you set it in the Sprite Bank Editor, or a point of the sprite of its own, its pivot (see <a href="setPartPivot.html">setPartPivot</a>). Its x and y say where that origin sits, measured from its parent's origin: +X is right, +Y is down. A part turns (clockwise, in degrees) and scales about its origin. Whatever you do to a part, you also do to the parts attached to it: turn the torso and the head and arms turn with it, and then each can turn further on its own.
 </P>
 
 <P>
@@ -76,6 +76,14 @@ addCharacter (hero, 320, 400, heroCostume ());			# Create a character and set it
 setCharacterRig (hero, heroRig ());				# Assign the rig created on top of this example to the character.
 </pre>
 
+<P>
+The same with a rig made in the Character Creator, and clips made in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>:
+</P>
+
+<pre>addCharacter (hero, 320, 400, costume (loadClip ('hero/stand.clp'), loadClip ('hero/walk.clp'), loadClip ('hero/talk.clp')));
+setCharacterRig (hero, loadRig ('hero/hero.rig'));
+</pre>
+
 <H3>See also:</H3>
 
 <P>
@@ -112,6 +120,18 @@ setCharacterRig (hero, heroRig ());				# Assign the rig created on top of this e
 
 <P>
 <a href="setPartProperty.html">setPartProperty</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+</P>
+
+<P>
+<a href="loadRig.html">loadRig</a>
+</P>
+
+<P>
+<a href="setPartPivot.html">setPartPivot</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

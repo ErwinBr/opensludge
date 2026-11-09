@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>The Character Creator</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>The Character Creator</h2>
+<HR>
+
+<P>
+Use the Character Creator to build a <a href="Composite_Characters.html">Composite Character</a>: a character made of parts, such as a body, a head and arms, each with a sprite of its own. What you make is a <b>rig</b>: the parts, what each part is attached to, and how the character stands when no animation moves it, its <b>rest pose</b>. The <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> then animates the parts. This is how it looks with a rig of two aliens of the verb coin example, the small one standing on the big one's shoulder:
+</P>
+
+<P>
+<IMG SRC="images/devkit-rig.png" alt="A rig in the Character Creator">
+</P>
+
+<P>
+The parts are on the left, as a tree: each part is under the part it is attached to. The top of the tree, Character, is the character itself. The middle shows the character in its rest pose, and the Inspector on the right shows the part that you select. Click a part in the tree, or click its sprite in the picture, to select it.
+</P>
+
+<H3>Opening and creating rigs</H3>
+
+<P>
+Open a rig (a .rig file) with File &gt; Open, or make a new one with File &gt; New &gt; Rig. Save it in the folder of your project, or in a folder inside it.
+</P>
+
+<P>
+A rig knows which clips are made for it, even when you rename the rig's file or move it.
+</P>
+
+<H3>Adding, naming and removing parts</H3>
+
+<P>
+Add Part adds a part to the selected part, or to the character when nothing is selected. Give it a name in the Inspector: clips and scripts find a part by its name, so every part of a rig has a name of its own.
+</P>
+
+<P>
+Remove takes the selected part away, with every part attached to it. Delete does the same. Undo (Ctrl+Z, or Command+Z on macOS) brings it back.
+</P>
+
+<H3>Attaching parts</H3>
+
+<P>
+Drag a part in the tree onto another part to attach it there, or choose the part in the Inspector's Attached to. The part stays where it is on the screen: it then moves, turns, scales and flips with its new parent.
+</P>
+
+<P>
+Move Up and Move Down change the order of the parts that hang from the same part. Parts of the same depth are drawn in that order: the first one first, behind the others.
+</P>
+
+<H3>Choosing a part's sprite</H3>
+
+<P>
+In the Inspector, Choose... picks the sprite bank of the selected part, and Sprite the number of the sprite in it. You can also drop a sprite bank (a .duc file) on the window to give the selected part its first sprite. Mirror image shows the sprite mirrored, but not the parts attached to it.
+</P>
+
+<P>
+None takes the sprite away. A part without a sprite is a <b>joint</b>: it draws nothing, but other parts can hang from it, such as an item in a hand. Joints show as crosses in the picture, and as (joint) in the tree.
+</P>
+
+<P>
+The names of the sprite banks are kept from the folder of your project, as the compiler finds them. Without a project open, they are kept from the folder of the rig.
+</P>
+
+<H3>Placing parts</H3>
+
+<P>
+Drag a part in the picture to move it. Where you drop it is where it is attached: its <b>origin</b>, the point where the part hangs from its parent. X and Y in the Inspector are the same place in numbers. They are measured from the origin of the parent, in the parent's pixels: +X is to the right, and +Y is down.
+</P>
+
+<P>
+The lines between the parts show which part hangs from which: from each part's origin to its parent's.
+</P>
+
+<H3>Turning, scaling, flipping and hiding parts</H3>
+
+<P>
+The selected part has a ring around its origin. Drag the round knob on the ring to turn the part, and the square knob to scale it. The parts attached to it turn and scale with it. In the Inspector, Turn is in degrees, clockwise, and Scale in percent.
+</P>
+
+<P>
+Flip mirrors the part, and the parts attached to it. When Visible is off, the part is hidden, and so are the parts attached to it.
+</P>
+
+<P>
+In the picture, places snap to whole pixels, turns to whole degrees and scales to whole percents. Type other values in the Inspector.
+</P>
+
+<H3>Depth</H3>
+
+<P>
+Depth sets which parts are drawn in front of the others: a part with a higher depth is drawn over one with a lower depth. An arm behind the body has a lower depth than the body. Depth only orders the parts of the character itself: where the character is among other characters still depends on its place on the screen, as always. A clip can change the depth of a part while it plays.
+</P>
+
+<H3>The pivot</H3>
+
+<P>
+A part turns and scales about its <b>pivot</b>, which is also its origin. Normally that is the hotspot of its sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. But the hotspot of a sprite doesn't always suit the part: an arm whose hotspot is in its middle should turn at its shoulder. Rather than changing the sprite bank, which other parts or characters may use too, you give the part a pivot of its own.
+</P>
+
+<P>
+Drag the red circle at the selected part's origin to move its pivot, or type it in the Inspector, in the sprite's pixels from its hotspot. With Keep in place on, the sprite and the parts attached to it stay where they are on the screen: only the point that the part turns about moves.
+</P>
+
+<H3>Using the rig in a game</H3>
+
+<P>
+Load the rig in your scripts with <a href="loadRig.html">loadRig</a>, and give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>. Animate it with the clips of the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>:
+</P>
+
+<P>
+<pre>addCharacter (ego, 320, 400, egoCostume ());
+setCharacterRig (ego, loadRig ('ego/ego.rig'));</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
+</P>
+
+<P>
+<a href="loadRig.html">loadRig</a>
+</P>
+
+<P>
+<a href="setPartPivot.html">setPartPivot</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Sprite_Bank_Editor.html">The Sprite Bank Editor</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

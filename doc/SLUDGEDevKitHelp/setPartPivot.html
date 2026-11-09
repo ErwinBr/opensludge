@@ -1,0 +1,71 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setPartPivot</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setPartPivot</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setPartPivot (<i>rig, name, x, y</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets the pivot of a part of a <a href="Composite_Characters.html">Composite Character</a>: the point that the part turns, scales and flips about. Without a pivot, that point is the hotspot of the part's sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. With one, it is that hotspot moved by <i>x</i>, <i>y</i> pixels of the sprite. +X is right, +Y is down.
+</P>
+
+<P>
+Use a pivot when the hotspot of a sprite doesn't suit the part. An arm whose hotspot is in its middle can turn at its shoulder this way, without changing the sprite bank, which other parts or characters may use too.
+</P>
+
+<P>
+The pivot is also where the part is placed: the <i>x</i> and <i>y</i> that you give <a href="addPart.html">addPart</a> say where the pivot is, from the parent's. So setPartPivot moves only the sprite around that point: the part's place, and the parts attached to it, stay where they are. (In the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, moving the pivot keeps the sprite in place instead, and moves the part.)
+</P>
+
+<P>
+Call it while you build the rig, before you give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>: after that, the rig can't change.
+</P>
+
+<P>
+<pre>addPart (r, "arm", "torso", 40, -150, 'arm.duc', 0);	# The arm sprite's hotspot is in its middle...
+setPartPivot (r, "arm", 0, -60);			# ...so it turns at its shoulder, 60 pixels above that</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+None.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="addPart.html">addPart</a>
+</P>
+
+<P>
+<a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>The Animation Editor</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>The Animation Editor</h2>
+<HR>
+
+<P>
+Use the Animation Editor to animate the parts of a <a href="Composite_Characters.html">Composite Character</a>. What you make is an animation <b>clip</b>: for each part that moves, <b>tracks</b> of its place, turn, scale, sprite, visibility, depth or flip, with <b>keys</b> that set them at points in time, and <b>events</b> that play sounds or call functions. A character can play several clips at once, such as a walk and a blink (see <a href="Animation_Clips.html">Animation Clips</a>). This is how it looks with the clip of a walk of the aliens of the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>:
+</P>
+
+<P>
+<IMG SRC="images/devkit-clip.png" alt="A clip in the Animation Editor">
+</P>
+
+<P>
+At the top is the character, as the clip poses it at the <b>playhead</b>: the red line on the timeline below. On the left of the timeline are the parts and their tracks, and on the right the keys of each track, as diamonds and squares. Time goes from left to right in <b>ticks</b>, the steps of the game. The Inspector shows the key or event that you select, or the clip.
+</P>
+
+<H3>Creating a clip, and its rig</H3>
+
+<P>
+Open a clip (a .clp file) with File &gt; Open, or make a new one with File &gt; New &gt; Clip. Save it in the folder of your project, or in a folder inside it.
+</P>
+
+<P>
+Choose the rig that the clip is made for in the Rig box of the toolbar: the rigs of your project. The editor shows that rig. The clip keeps only which rig it is for: it moves parts by their names, so it plays on any rig with parts of the same names.
+</P>
+
+<H3>The tracks</H3>
+
+<P>
+The tracks are in the order of the rig's parts, each part under the part it is attached to. Click the name of a part to fold its tracks away, or to show them again. With Only animated parts on, the parts without tracks are hidden, except the parts that animated parts hang from.
+</P>
+
+<P>
+The + by a part adds a track to it: Position (a track for X and one for Y), Turn, Scale, Sprite, Visible, Depth or Flip. The x by a track removes it, with its keys.
+</P>
+
+<P>
+Tracks of parts that the rig doesn't have are at the end, in orange. They do nothing until the rig has a part of that name.
+</P>
+
+<H3>Keying parts in the picture</H3>
+
+<P>
+Put the playhead where you want a key, and move a part in the picture: drag it to move it, or drag the round or square knob on its ring to turn or scale it. That makes a key at the playhead, or changes the key that is there. If the part has no track for it yet, the editor makes one. A move keys the place only, a turn the turn, a scale the scale. The red frame of the picture, and the line under it, say what you are keying.
+</P>
+
+<P>
+Moving parts in the picture always makes keys. To change how a character stands without an animation, use the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>.
+</P>
+
+<H3>Keys on the timeline</H3>
+
+<P>
+Click a key to select it, Shift-click to add keys to the selection, or drag a box around keys on an empty part of the timeline. Drag selected keys to move them in time, a whole tick at a time; hold Alt while you drag to copy them instead. A key keeps its value and its easing as it moves. A key that you move or copy onto a tick where its track has a key already takes that key's place; Undo brings the other key back. Delete removes the selected keys.
+</P>
+
+<P>
+Click the name of a track to make it the current one, and press K to key it at the playhead, with the value that it has there.
+</P>
+
+<H3>Values and easing</H3>
+
+<P>
+The Inspector shows the selected key: its tick, its value and, for place, turn and scale, its easing. The easing says how the value goes from this key to the next one: Step holds it until the next key, Linear goes at a steady speed, and In and out starts and ends slowly. The colours of the keys show their easing, and so do the lines between them. Sprite, visibility, depth and flip keys always step.
+</P>
+
+<H3>Sprite keys</H3>
+
+<P>
+Drop a sprite bank (a .duc file) on the window to key the selected part's sprite at the playhead, with sprite 0 of the bank. In the Inspector, choose the sprite's number in the bank, or another bank with Choose.... Nothing shows no sprite at all, an empty frame, and Own goes back to the sprite that the part has in its rig.
+</P>
+
+<H3>Events</H3>
+
+<P>
+Events are in the lane at the top of the timeline. + Sound adds an event at the playhead that plays a sound file of your project; + Function one that calls a function of your scripts, which you name. Sounds show as orange circles, and functions as purple diamonds: point at one to see its sound or function. Drag an event to move it in time, and change it in the Inspector.
+</P>
+
+<H3>Length and looping</H3>
+
+<P>
+The white triangle at the end of the ruler is the end of the clip: drag it to make the clip longer or shorter, or type its length in the Inspector when nothing is selected. A clip can't keep keys or events past its end: when you shorten it past some, the editor asks first, and removes them only when you say so.
+</P>
+
+<P>
+With Loop on, the clip goes round and round. Otherwise, it plays once and holds its last pose.
+</P>
+
+<H3>Playing and scrubbing</H3>
+
+<P>
+Play plays the clip, at the speed of your game; Restart plays it again from the start. The percentage next to Loop plays it faster or slower, without changing the clip. As the clip plays, its events flash as they pass. (The preview plays no sounds yet.)
+</P>
+
+<P>
+Click or drag in the ruler to move the playhead, or use the Left and Right arrow keys: the picture shows the pose at that tick, and no events happen.
+</P>
+
+<H3>A second clip on top</H3>
+
+<P>
+In a game, a character can play a clip on a layer over its costume (see <a href="playClip.html">playClip</a>). To see how two clips go together, choose another clip of your project in Over it. Override lets the second clip set what it keys, over the first; Additive adds its places and turns to those of the first, and multiplies its scales.
+</P>
+
+<H3>Renaming parts</H3>
+
+<P>
+When you rename a part in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, its tracks in the clips made for the rig are renamed too. The editor opens those clips, so that you can save them with the rig. Undo in the rig undoes the rename in the clips as well.
+</P>
+
+<H3>Using the clip in a game</H3>
+
+<P>
+Load the clip in your scripts with <a href="loadClip.html">loadClip</a>, and use it in a <a href="costume.html">costume</a>, with <a href="animate.html">animate</a>, or on a layer with <a href="playClip.html">playClip</a>:
+</P>
+
+<P>
+<pre>animate (ego, loadClip ('ego/wave.clp'));
+playClip (ego, 2, loadClip ('ego/blink.clp'));</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

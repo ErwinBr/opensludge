@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>loadRig</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>loadRig</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">loadRig ('<i>rigFile</i>');</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Loads a rig that you made in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> of the Dev Kit: a .rig file of your project, with all its parts, their sprites, their rest pose and their pivots. You get the same rig as one you build with <a href="newRig.html">newRig</a> and <a href="addPart.html">addPart</a>, so you give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>. Until a character uses it, you can still add parts to it, or change their depth or pivot.
+</P>
+
+<P>
+Name the file in single quotes, as you name sprite banks and sounds, from the folder of your project. The compiler puts the rig into your game, together with the sprite banks that it uses. If one of those banks is missing, the compiler tells you which one, and in which script and line you load the rig.
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a> loads the clips that you made for the rig in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>.
+</P>
+
+<P>
+<pre>objectType ego ("Ego") {
+}
+
+sub init () {
+	addCharacter (ego, 320, 400, egoCostume ());
+	setCharacterRig (ego, loadRig ('ego/ego.rig'));	# The parts of the Character Creator
+}</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+The rig.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a>
+</P>
+
+<P>
+<a href="newRig.html">newRig</a>
+</P>
+
+<P>
+<a href="setCharacterRig.html">setCharacterRig</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

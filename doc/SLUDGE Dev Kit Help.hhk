@@ -141,6 +141,23 @@
 		<param name="Local" value="SLUDGEDevKitHelp\setPartDepth.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setPartPivot">
+		<param name="Name" value="setPartPivot (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setPartPivot.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="Character Creator">
+		<param name="Name" value="Rig editor">
+		<param name="Name" value=".RIG file extension">
+		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Character_Creator.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="Animation Editor">
+		<param name="Name" value="Clip editor">
+		<param name="Name" value=".CLP file extension">
+		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Animation_Editor.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setPartProperty">
 		<param name="Name" value="setPartProperty (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setPartProperty.html">
@@ -1547,9 +1564,19 @@
 		<param name="Local" value="SLUDGEDevKitHelp\loadCustomData_and_saveCustomData.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="loadClip">
+		<param name="Name" value="loadClip (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\loadClip.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="loadGame">
 		<param name="Name" value="loadGame (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\loadGame.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="loadRig">
+		<param name="Name" value="loadRig (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\loadRig.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="loopSound">

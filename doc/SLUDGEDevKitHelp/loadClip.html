@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>loadClip</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>loadClip</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">loadClip ('<i>clipFile</i>');</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Loads an animation clip that you made in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> of the Dev Kit: a .clp file of your project, with all its tracks, keys and events. You get the same clip as one you build with <a href="newClip.html">newClip</a>, so you use it in the same ways: in a <a href="costume.html">costume</a>, with <a href="animate.html">animate</a>, on a layer with <a href="playClip.html">playClip</a>, or mirrored with <a href="mirrorClip.html">mirrorClip</a>. Until you use it, you can still add keys and events to it.
+</P>
+
+<P>
+A clip moves parts by their names, so it plays on the rig that you made it for, and on any other rig with parts of the same names (see <a href="Composite_Characters.html">Composite Characters</a>).
+</P>
+
+<P>
+Name the file in single quotes, from the folder of your project. The compiler puts the clip into your game, with the sprite banks and sounds that it uses. It tells you, with the script and line that load the clip, when a bank or sound is missing, or when an event calls a function that your scripts don't have. It warns you when the clip has tracks for parts that its rig doesn't have: those tracks do nothing.
+</P>
+
+<P>
+<pre>sub egoCostume () {
+	return costume (
+		loadClip ('ego/stand_south.clp'), loadClip ('ego/stand_west.clp'), loadClip ('ego/stand_north.clp'), loadClip ('ego/stand_east.clp'),
+		loadClip ('ego/walk_south.clp'), mirrorClip (loadClip ('ego/walk_east.clp')), loadClip ('ego/walk_north.clp'), loadClip ('ego/walk_east.clp'),
+		loadClip ('ego/talk_south.clp'), loadClip ('ego/talk_west.clp'), loadClip ('ego/talk_north.clp'), loadClip ('ego/talk_east.clp'));
+}
+
+sub startBlinking () {
+	playClip (ego, 2, loadClip ('ego/blink.clp'));	# On a layer of its own
+}</pre>
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+The clip.
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
+</P>
+
+<P>
+<a href="loadRig.html">loadRig</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P>
+<a href="costume.html">costume</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>
