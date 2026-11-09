@@ -19,11 +19,11 @@
 <H3>Purpose:</H3>
 
 <P>
-Tells whether <i>character</i> plays an animation on <i>layer</i> that hasn't finished. A clip that doesn't loop finishes at its end; clips that loop, and animations of <a href="anim.html">anim</a>, never do.
+Returns whether <i>character</i> plays an animation on <i>layer</i> that hasn't finished. Looping clips, and animations of <a href="anim.html">anim</a>, are always playing.
 </P>
 
 <P>
-The <i>layer</i> is 0 for the animation of the character's costume, or of <a href="animate.html">animate</a>, and 1 to 99 for the clips of <a href="playClip.html">playClip</a>; on a layer that plays nothing, it is FALSE.
+On layers 1 to 99, a clip that has finished still holds its last pose until <a href="stopClip.html">stopClip</a>, even though isClipPlaying is FALSE.
 </P>
 
 <P>

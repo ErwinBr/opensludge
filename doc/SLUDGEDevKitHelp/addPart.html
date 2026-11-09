@@ -24,12 +24,28 @@ Adds a part called <i>name</i> to <i>rig</i>, attached to the part called <i>par
 </P>
 
 <P>
-Without a sprite, the part is a joint: it shows nothing, but places what is attached to it, as a hand that holds things.
+<i>name</i> must be new in this rig, and <i>parent</i> must be added before it (or be ""). You can't add parts once a character uses the rig, which happens as soon as you give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>.
 </P>
 
 <P>
-<pre>addPart (r, "head", "torso", 3, -213, 'hero_head.duc', 0);
-addPart (r, "hand", "arm", -30, 222);</pre>
+Without a sprite, the part is an empty joint: it shows nothing, but you can later play a clip on a layer that gives it a sprite. This way you can dynamically put items in a character's hand, for example.
+</P>
+
+<P>
+<pre>addPart (r, "head", "torso", 3, -213, 'head.duc', 0);	# Head is added as a child of torso
+addPart (r, "hand", "arm", -30, 222);	# An empty joint
+
+sub holdSomething (file, sprite) {
+	var c = newClip (1, TRUE);
+	clipSprite (c, "hand", 0, file, sprite);
+	return c;
+}
+
+playClip (ego, 4, holdSomething ('items.duc', 2));	# ego holds item 2
+stopClip (ego, 4);								# empty hand again
+
+
+</pre>
 </P>
 
 <H3>Return value:</H3>

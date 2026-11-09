@@ -21,22 +21,22 @@ clipSprite (<i>clip, part, tick</i>, PART_DEFAULT);</pre>
 <H3>Purpose:</H3>
 
 <P>
-From <i>tick</i> on, until its next key, the <i>part</i> of the character shows <i>sprite</i> of the sprite bank <i>spriteBank</i>. A negative <i>sprite</i> shows its mirror image, as with <a href="anim.html">anim</a>. A key at the same tick as another replaces it.
+Changes the displayed sprite from a spriteBank. From <i>tick</i> until the next key of that part, the <i>part</i> of the character shows <i>sprite</i> in <i>spriteBank</i>. A negative <i>sprite</i> shows its mirror image, as with <a href="anim.html">anim</a>.
 </P>
 
 <P>
-With NOSPRITE, the part shows nothing from <i>tick</i> on: an empty frame. With PART_DEFAULT, it shows its own sprite (a character of one part has none, and shows nothing too).
+With NOSPRITE, the part shows nothing: an empty frame. With PART_DEFAULT, it shows the sprite you gave the part with <a href="addPart.html">addPart</a> (see <a href="Composite_Characters.html">Composite Characters</a>).
 </P>
 
 <P>
-A character of one sprite has one part: the character itself, named <b>""</b>; see <a href="Composite_Characters.html">Composite Characters</a> for characters of more. The <i>tick</i> lies from 0 to the length of the clip. Before its first key, a part shows the sprite of its first key.
+Sprites never ease: the part changes sprite exactly at the key's tick.
 </P>
 
 <P>
 <pre>var c = newClip (40, TRUE);
-clipSprite (c, "", 0, 'ego.duc', 4);
-clipSprite (c, "", 36, 'ego.duc', 5);	# blinks for 4 ticks
-clipSprite (c, "", 38, NOSPRITE);</pre>
+clipSprite (c, "eyes", 0, 'eyes.duc', 4);
+clipSprite (c, "eyes", 36, 'eyes.duc', 5);	# eyes half-closed
+clipSprite (c, "eyes", 38, NOSPRITE);	# eyes closed means we show nothing</pre>
 </P>
 
 <H3>Return value:</H3>

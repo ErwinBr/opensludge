@@ -19,7 +19,15 @@
 <H3>Purpose:</H3>
 
 <P>
-Sets the order in which a part is drawn: parts of a lower <i>depth</i> first, behind the others. Parts of the same depth are drawn in the order they were added. Every part starts at 0. Clips can change it with PART_DEPTH (see <a href="clipKey.html">clipKey</a>).
+Sets the order in which a part of the <i>rig</i> is drawn among the other parts of the same character. Parts with a lower <i>depth</i> are drawn first, behind the others; parts of the same depth are drawn in the order you added them. Every part starts at 0.
+</P>
+
+<P>
+This is the part's usual depth. A clip can change it while it plays with PART_DEPTH (see <a href="clipKey.html">clipKey</a>), for example to bring the far arm forward when the character turns. Depth only orders the parts of one character: where the character stands among other characters and behind the scenery still depends on its position, as always. Call setPartDepth while you build the rig, before you give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>: after that the rig can't change.
+</P>
+
+<P>
+<pre>setPartDepth (r, "arm", -1);	# draw the arm behind the torso</pre>
 </P>
 
 <H3>Return value:</H3>

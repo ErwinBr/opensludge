@@ -20,11 +20,11 @@ newClip (<i>length, loop</i>);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Makes a new, empty <a href="Animation_Clips.html">clip</a> of <i>length</i> ticks (frames of the game). With <i>loop</i> TRUE, the clip goes round and round; without it, or with FALSE, it plays once and holds what it shows at its end.
+Makes a new, empty animation <a href="Animation_Clips.html">clip</a> of <i>length</i> ticks (screen updates). With <i>loop</i> TRUE, the clip plays over and over; without it, or with FALSE, it plays once and then holds its last frame. A clip of length 0 shows one fixed pose: useful for standing still.
 </P>
 
 <P>
-Fill it with <a href="clipSprite.html">clipSprite</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipEvent.html">clipEvent</a>, then use it as any animation: with <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a> or <a href="setCursor.html">setCursor</a>. Once used, it can't change.
+Fill it with <a href="clipSprite.html">clipSprite</a>, <a href="clipKey.html">clipKey</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipEvent.html">clipEvent</a>, then use it as you would an animation of <a href="anim.html">anim</a>: with <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> or <a href="pasteImage.html">pasteImage</a>, or play it on a layer with <a href="playClip.html">playClip</a>. Add all its keys and events first: as soon as you use the clip in one of those ways, it is fixed, and adding a key or event to it gives an error.
 </P>
 
 <P>

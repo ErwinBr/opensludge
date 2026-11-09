@@ -19,11 +19,17 @@
 <H3>Purpose:</H3>
 
 <P>
-Sets a <i>property</i> of a <i>part</i> of <i>character</i> to <i>value</i>, over every layer, until <a href="clearPartProperty.html">clearPartProperty</a>: a head that looks at the mouse, an arm that holds something up. The properties and their units are those of <a href="clipKey.html">clipKey</a>: PART_X, PART_Y, PART_ROTATION, PART_SCALE (in percent), PART_DEPTH, PART_VISIBLE and PART_FLIP.
+Sets a <i>property</i> of a <i>part</i> of <i>character</i> directly from your script, for example a head that turns to follow the mouse, or an arm that holds something up. The value wins over every clip and layer, and stays until you call <a href="clearPartProperty.html">clearPartProperty</a>.
 </P>
 
 <P>
-<pre>setPartProperty (hero, "head", PART_ROTATION, -15);</pre>
+The properties and their units are those of <a href="clipKey.html">clipKey</a>: PART_X, PART_Y, PART_ROTATION, PART_SCALE (in percent), PART_DEPTH, PART_VISIBLE and PART_FLIP. Sprites can't be set this way; play a clip with <a href="clipSprite.html">clipSprite</a> on a layer instead (see <a href="playClip.html">playClip</a>).
+</P>
+
+<P>
+<pre>setPartProperty (hero, "head", PART_ROTATION, -15);	# tilt the head
+...
+clearPartProperty (hero, "head", PART_ROTATION);	# the clips move the head again</pre>
 </P>
 
 <H3>Return value:</H3>

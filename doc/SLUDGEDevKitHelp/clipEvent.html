@@ -19,17 +19,18 @@
 <H3>Purpose:</H3>
 
 <P>
-When <i>clip</i> passes <i>tick</i>, it plays the sound file, or starts the function (without parameters), as the frames of <a href="anim.html">anim</a> can. The <i>tick</i> lies from 0 to the length of the clip: at 0, the event fires as the clip starts and each time a loop goes round; at the length, as each pass ends, or as a clip that doesn't loop finishes.
+Runs an event during playback of a <a href="Animation_Clips.html">clip</a>. When <i>clip</i> passes <i>tick</i>, it plays a sound file, or starts a function (without parameters). Events fire whether the character is shown or not.
 </P>
 
 <P>
-Events fire whether the character is shown or not. See <a href="Animation_Clips.html">Animation Clips</a> for their order.
+<i>tick</i> can be anything from 0 to the length of the clip. An event at tick 0 happens when the clip starts. If the clip loops, it happens again each time the clip starts over. An event at the last tick happens when the clip reaches its end. If the clip loops, that is at the end of every round.
 </P>
 
 <P>
-<pre>clipEvent (walk, 0, 'step.wav');
+<pre>var walk = newClip (32, TRUE);
+clipEvent (walk, 0, 'step.wav');
 clipEvent (walk, 8, 'step.wav');
-clipEvent (wave, 30, waveDone);	# as the wave finishes</pre>
+clipEvent (walk, 30, someFunction);</pre>
 </P>
 
 <H3>Return value:</H3>

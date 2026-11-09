@@ -20,15 +20,19 @@ playClip (<i>character, layer, clip</i>, LAYER_ADD);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Plays <i>clip</i>, from its start, on a <i>layer</i> of <i>character</i> of its own, from 1 to 99, over the animation of its costume (layer 0, which <a href="animate.html">animate</a>, walking and talking change) and over the layers below it. Each layer plays on its own: its time, its speed (<a href="setClipSpeed.html">setClipSpeed</a>) and its events. A layer that plays another clip starts again.
+Plays <i>clip</i> on a <i>layer</i> of a <i>character</i>. You can assign layers 1 to 99. A character's costume exists on layer 0. The layering enables you to play clips on top of other clips, overriding them or adding to them.
 </P>
 
 <P>
-A layer <b>overrides</b> (LAYER_OVERRIDE, if none is given) what its clip keys: the eyes of a blink, whatever the costume does with them. With <b>LAYER_ADD</b>, it adds to places (PART_X, PART_Y) and angles (PART_ROTATION), and multiplies sizes (PART_SCALE, where 100 leaves a part as it is): breathing, over standing, walking or talking. Sprites, visibility, depth and flipping have nothing to add: any layer sets them, and where two layers set a part's sprite, the higher layer's shows.
+An override layer (<b>LAYER_OVERRIDE</b>, the default value) sets what its clip keys, over the layers below it. Parts and properties that its clip doesn't key are left to the layers below. With <b>LAYER_ADD</b>, it adds to a current position (PART_X, PART_Y) and angle (PART_ROTATION), and multiplies a size (PART_SCALE, where 100 leaves a part as it is at 100%). Sprites, visibility, depth and flipping can't be added to: even on an additive layer they are set, and the highest layer that keys them wins.
 </P>
 
 <P>
-A clip that doesn't loop holds its end until <a href="stopClip.html">stopClip</a>.
+Playing a clip on a layer that already has one replaces it. The layer has its own time, speed (see <a href="setClipSpeed.html">setClipSpeed</a>) and events.
+</P>
+
+<P>
+A clip that doesn't loop will hold its last key until you end the clip with <a href="stopClip.html">stopClip</a>. This will end a looping clip as well.
 </P>
 
 <P>

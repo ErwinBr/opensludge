@@ -20,27 +20,44 @@ clipKey (<i>clip, part, property, tick, value, easing</i>);</pre>
 <H3>Purpose:</H3>
 
 <P>
-From <i>tick</i> on, the <i>property</i> of <i>part</i> moves towards <i>value</i>, which it reaches at the next key:
+Changes properties of a character's <a href="Composite_Characters.html">part</a> during the playback of an animation <a href="Animation_Clips.html">clip</a>. At <i>tick</i>, the <i>property</i> of <i>part</i> is <i>value</i>. From there it moves towards the value of the next key, and reaches it at that key's tick. <i>tick</i> may be from 0 to the length of the clip.
 </P>
 
+<P>
+Properties you can change:
 <UL>
-<LI><b>PART_X</b>, <b>PART_Y</b>: where the part's origin is, in pixels from its parent's</LI>
-<LI><b>PART_ROTATION</b>: how far it is turned, in degrees, clockwise</LI>
-<LI><b>PART_SCALE</b>: its size, in percent, and that of all attached to it</LI>
-<LI><b>PART_DEPTH</b>: the order of drawing (see <a href="setPartDepth.html">setPartDepth</a>)</LI>
-<LI><b>PART_VISIBLE</b>: TRUE or FALSE; FALSE hides the part and all attached to it</LI>
-<LI><b>PART_FLIP</b>: TRUE mirrors the part and all attached to it</LI>
+<LI><b>PART_X</b>, <b>PART_Y</b>: The part's local X and Y coordinates.</LI>
+<LI><b>PART_ROTATION</b>: Rotation in degrees, measured clockwise.</LI>
+<LI><b>PART_SCALE</b>: Size in percentage, the same in width and height. 100 = full size, 50 = half, 200 is double, etc...</LI>
+<LI><b>PART_DEPTH</b>: The order of drawing relative to other parts. For example, to draw an arm behind its body. (see <a href="setPartDepth.html">setPartDepth</a>)</LI>
+<LI><b>PART_VISIBLE</b>: Set visibility to TRUE or FALSE. FALSE hides the part and the parts attached to it.</LI>
+<LI><b>PART_FLIP</b>: TRUE mirrors the part, and the parts attached to it.</LI>
 </UL>
-
-<P>
-The <i>easing</i> says how it moves towards the next key: <b>EASE_LINEAR</b> (straight there, if none is given), <b>EASE_INOUT</b> (easing in and out) or <b>EASE_STEP</b> (it keeps its value until the next key). Depth, visibility and flipping always step. Before its first key a part has the value of its first key; after its last key, the value of its last. A key at the length of a clip closes a loop: the last stretch moves towards it.
 </P>
 
 <P>
-<pre>var bob = newClip (48, TRUE);
-clipKey (bob, "torso", PART_Y, 0, -250);
-clipKey (bob, "torso", PART_Y, 24, -262, EASE_INOUT);
-clipKey (bob, "torso", PART_Y, 48, -250, EASE_INOUT);</pre>
+The <i>easing</i> says how the current key moves towards the next key:
+<UL>
+<LI><b>EASE_LINEAR</b> properties change at a steady speed (the default value)</LI>
+<LI><b>EASE_INOUT</b> slow at the start, slow at the end</LI>
+<LI><b>EASE_STEP</b> properties hold their value until the next key.</LI>
+</UL>
+PART_DEPTH, PART_VISIBLE and PART_FLIP always step, whatever easing you give them, because they have no values in between.
+</P>
+
+<P>
+The easing you give a key decides how the property moves from that key to the next one. The last key is where the movement ends: the property moves towards it with the easing of the key before it. If you give the last key an easing as well, it has no effect, because no movement starts there.
+</P>
+
+<P>
+Before the first key, the property keeps the value of that first key. After the last key, it keeps the value of the last key.
+</P>
+
+<P>
+<pre>var c = newClip (48, TRUE); 				# Create a new clip: Duration: 48 ticks, looping = true
+clipKey (c, "torso", PART_Y, 0, -250, EASE_INOUT); 	# The torso of a character's Y position starts at -250 and eases to -262 at tick 24...
+clipKey (c, "torso", PART_Y, 24, -262, EASE_INOUT); 	# ...then eases back to -250 at tick 48.
+clipKey (c, "torso", PART_Y, 48, -250); 		# Last tick (48): the target of the movement before it. </pre>
 </P>
 
 <H3>Return value:</H3>

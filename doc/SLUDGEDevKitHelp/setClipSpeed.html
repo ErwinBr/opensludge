@@ -19,11 +19,7 @@
 <H3>Purpose:</H3>
 
 <P>
-Plays the animation of <i>character</i> at <i>percent</i> of its normal speed: 100 is normal, 50 half speed, 200 twice as fast, and 0 pauses it. It works for clips and for animations of <a href="anim.html">anim</a>, and stays until changed again.
-</P>
-
-<P>
-The <i>layer</i> is 0 for the animation of the character's costume, or of <a href="animate.html">animate</a>, and 1 to 99 for the clips of <a href="playClip.html">playClip</a>.
+Plays the animation of <i>character</i> at <i>percent</i> of its normal speed, on the given <i>layer</i>. 100 is normal, 50 half speed, 200 twice as fast, and 0 pauses it. It works for clips, and for animations created with <a href="anim.html">anim</a>.
 </P>
 
 <P>
@@ -33,7 +29,7 @@ The <i>layer</i> is 0 for the animation of the character's costume, or of <a hre
 <H3>Return value:</H3>
 
 <P>
-TRUE if there is such a character, FALSE if not.
+TRUE, or FALSE if there's no such character or nothing plays on that layer.
 </P>
 
 <H3>See also:</H3>

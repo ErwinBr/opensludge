@@ -19,8 +19,25 @@
 <H3>Purpose:</H3>
 
 <P>
-Makes a new <a href="Composite_Characters.html">rig</a>: the parts of a character, and what is attached to what. It has one part to begin with, the character itself, called "". Add parts with <a href="addPart.html">addPart</a>, then give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>. Once a character has it, it can't change.
+Creates a new <i>rig</i>, which holds the parts of a <a href="Composite_Characters.html">Composite Character</a>. It has one part to begin with, its root, called "": the character itself. The root part is just an empty node in the hierarchy until you add parts with <a href="addPart.html">addPart</a>. Give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>.
 </P>
+
+<pre>
+sub egoRig () {
+	var r = newRig ();
+	addPart (r, "legs", "", -4, -1, 'legs.duc', 0);		# This part is a child of "", meaning the root of the rig
+	addPart (r, "torso", "", -3, -258, 'torso.duc', 0);
+	addPart (r, "head", "torso", 3, -213, 'head.duc', 0);	# This part is a child of the torso
+	addPart (r, "eyes", "head", 0, 0, 'head.duc', 6);
+	addPart (r, "arm1", "torso", -79, -153, 'arm1.duc', 0);
+	addPart (r, "hand1", "arm1", -30, 222);          	# an empty joint: we can play a clip on it that represents an object it holds in its hand.
+	addPart (r, "arm2", "torso", 70, -159, 'arm2.duc', 0);
+	addPart (r, "hand2", "arm2", -9, 213);
+	return r;
+}
+
+setCharacterRig (ego, egoRig ());
+</pre>
 
 <H3>Return value:</H3>
 

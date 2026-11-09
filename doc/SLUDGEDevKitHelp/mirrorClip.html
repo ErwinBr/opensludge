@@ -19,13 +19,21 @@
 <H3>Purpose:</H3>
 
 <P>
-Makes a new clip that is the mirror image of <i>clip</i>: the character itself (the part "") flips where <i>clip</i> has it flip or not. A costume can walk west with the clip that walks east. The new clip can change, as a clip of <a href="newClip.html">newClip</a> can.
+Makes a copy of <i>clip</i> in which the character is flipped horizontally. It does that by flipping the character from the root, which mirrors every part attached to it. A part you flipped with PART_FLIP stays flipped relative to its parent, so in the copy it is mirrored along with the rest, exactly like a mirror image. If the clip already flips the root, the copy unflips it. A costume can use it to walk WEST using a clip that walks EAST.
 </P>
 
 <P>
-<pre>costume (standSouth, standWest, standNorth, standEast,
+mirrorClip only takes a clip of <a href="newClip.html">newClip</a>, not an animation of <a href="anim.html">anim</a> (use a negative sprite number in anim instead). The copy is a new clip that you can still add keys to; the original stays as it was.
+</P>
+
+<P>
+Note: On a Composite Character, mirror a single part by keying its PART_FLIP property with <a href="clipKey.html">clipKey</a> instead.
+</P>
+
+<P>
+<pre>costume (standSouth, mirrorClip (standEast), standNorth, standEast,
 	walkSouth, mirrorClip (walkEast), walkNorth, walkEast,
-	talkSouth, talkWest, talkNorth, talkEast)</pre>
+	talkSouth, mirrorClip (talkEast), talkNorth, talkEast)</pre>
 </P>
 
 <H3>Return value:</H3>
