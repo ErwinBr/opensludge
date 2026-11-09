@@ -82,7 +82,10 @@ struct PosedPart {
 	int depth;
 	bool shown;			// It and every part it is attached to are visible
 	SpriteRef sprite;	// What it shows: kind SPRITE, or NONE for nothing
-	Transform2D world;
+	Transform2D world;	// Of its origin, which its children are placed from
+	// What its sprite is drawn through, with the sprite's hotspot at the
+	// origin: world, moved back by the part's pivot.
+	Transform2D spriteWorld;
 };
 
 struct Pose {
@@ -141,6 +144,14 @@ void spriteCorners (const Transform2D & m, int w, int h, int xhot, int yhot, boo
 // The box around the sprites that a pose draws, in the space of its
 // character's transform. False when it draws none.
 bool poseBounds (const Pose & pose, float & x1, float & y1, float & x2, float & y2);
+
+// Move the pivot of part (an index of rig) to pivotX, pivotY, keeping its
+// sprite and the parts attached to it where they are in its rest pose. The
+// pivot's move d, in the part's sprite pixels, moves its origin by M d in
+// its parent's space, where M is the turn, scale and flip of the part's
+// rest pose: so its x, y move by M d, and the x, y of its children, which
+// are from its origin in its own space, by - d.
+void movePivot (RigDefinition & rig, int part, float pivotX, float pivotY);
 
 // Forget what evaluatePose has reported, so that it reports it again (for
 // tests; see animDiagnostic in animmodel.h).

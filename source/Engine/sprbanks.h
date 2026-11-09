@@ -16,14 +16,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "animbank.h"
 #include "sprites.h"
 
-struct loadedSpriteBank {
+// A bank, as the animation library sees it too (AnimSpriteBank).
+struct loadedSpriteBank : public AnimSpriteBank {
 	int ID;
 	spriteBank bank;
+
+	loadedSpriteBank () : ID (0) {}
+	int animSpriteCount () const { return bank.total; }
+	AnimSpriteSize animSpriteSize (int number) const {
+		const sprite & s = bank.sprites[number];
+		AnimSpriteSize size = { s.width, s.height, s.xhot, s.yhot };
+		return size;
+	}
 };
 
 typedef std::shared_ptr<loadedSpriteBank> SpriteBankRef;
+
+// The engine's bank behind a bank of the animation library. Every bank that
+// the engine gives the library is a loadedSpriteBank.
+inline loadedSpriteBank * engineBank (const AnimBankRef & bank) {
+	return static_cast<loadedSpriteBank *> (bank.get ());
+}
 
 // The bank of file ID, loaded if it isn't yet. NULL when it can't be
 // loaded; fatal has been called then.

@@ -34,6 +34,7 @@
 
 #include "animmodel.h"
 #include "ownedanimation.h"
+#include "sprbanks.h"
 
 // The definition of an animation is a clip (animmodel.h). Animations of
 // anim () and of saved games are LEGACY clips, which play as below.
@@ -52,7 +53,7 @@ struct personaAnimation {
 
 	int numFrames () const { return definition ? (int) definition -> frames.size () : 0; }
 	const AnimationFrame & frame (int i) const { return definition -> frames[i]; }
-	const SpriteBankRef & sprites () const { return definition -> spriteBank; }
+	SpriteBankRef sprites () const { return std::static_pointer_cast<loadedSpriteBank> (definition -> spriteBank); }
 };
 
 // Where sounds and script functions of frame events go: the engine starts

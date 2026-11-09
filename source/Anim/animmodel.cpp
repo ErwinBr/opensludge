@@ -38,7 +38,7 @@ SpriteRef SpriteRef::none () {
 	return r;
 }
 
-SpriteRef SpriteRef::sprite (const SpriteBankRef & bank, int bankFile, int number, bool mirror) {
+SpriteRef SpriteRef::sprite (const AnimBankRef & bank, int bankFile, int number, bool mirror) {
 	SpriteRef r;
 	r.kind = SPRITE;
 	r.bank = bank;
@@ -81,7 +81,7 @@ const Track * ClipDefinition::track (const std::string & part, Channel channel) 
 	return NULL;
 }
 
-ClipDefinitionRef makeLegacyClip (const SpriteBankRef & bank, const std::vector<AnimationFrame> & frames) {
+ClipDefinitionRef makeLegacyClip (const AnimBankRef & bank, int bankFile, const std::vector<AnimationFrame> & frames) {
 	std::shared_ptr<ClipDefinition> d = std::make_shared<ClipDefinition> ();
 	d -> stepping = STEPPING_LEGACY;
 	d -> loop = true;
@@ -95,7 +95,6 @@ ClipDefinitionRef makeLegacyClip (const SpriteBankRef & bank, const std::vector<
 	sprites.id = d -> nextTrackId ++;
 	sprites.part = "";
 	sprites.channel = CHANNEL_SPRITE;
-	int bankFile = bank ? bank -> ID : -1;
 	long long time = 0;
 	for (size_t i = 0; i < frames.size (); i ++) {
 		int s = frames[i].sprite;
@@ -229,6 +228,7 @@ bool validRig (const RigDefinition & rig, std::string & why) {
 		if (p.id >= rig.nextPartId || ! ids.insert (p.id).second) return fail (why, "The IDs of parts must be unique");
 		if (! names.insert (p.name).second) return fail (why, "The names of parts must be unique");
 		if (! validPose (p.rest)) return fail (why, "The position of a part must be a number");
+		if (! finite (p.pivotX) || ! finite (p.pivotY)) return fail (why, "The pivot of a part must be a number");
 		if (p.sprite.kind == SpriteRef::NONE || ! validSprite (p.sprite)) return fail (why, "Not a sprite for a part");
 	}
 	return true;
@@ -280,7 +280,7 @@ bool validClip (const ClipDefinition & clip, std::string & why) {
 
 namespace {
 
-bool resolve (SpriteRef & s, BankLoader load) {
+bool resolve (SpriteRef & s, const BankLoader & load) {
 	if (s.kind != SpriteRef::SPRITE || s.bank || s.bankFile < 0) return true;
 	s.bank = load (s.bankFile);
 	return s.bank != NULL;
@@ -288,14 +288,14 @@ bool resolve (SpriteRef & s, BankLoader load) {
 
 }
 
-bool resolveBanks (RigDefinition & rig, BankLoader load) {
+bool resolveBanks (RigDefinition & rig, const BankLoader & load) {
 	for (size_t i = 0; i < rig.parts.size (); i ++) {
 		if (! resolve (rig.parts[i].sprite, load)) return false;
 	}
 	return true;
 }
 
-bool resolveBanks (ClipDefinition & clip, BankLoader load) {
+bool resolveBanks (ClipDefinition & clip, const BankLoader & load) {
 	for (size_t t = 0; t < clip.tracks.size (); t ++) {
 		for (size_t k = 0; k < clip.tracks[t].keys.size (); k ++) {
 			if (! resolve (clip.tracks[t].keys[k].sprite, load)) return false;

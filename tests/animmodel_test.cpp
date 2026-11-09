@@ -100,7 +100,7 @@ static void testLegacyClips () {
 	frames.push_back (frame (-4, 3, 9));	// Mirrored, with a sound
 	frames.push_back (frame (1, 0, -6));	// Holds, with a function
 	frames.push_back (frame (0, 7));
-	ClipDefinitionRef c = makeLegacyClip (SpriteBankRef (), frames);
+	ClipDefinitionRef c = makeLegacyClip (SpriteBankRef (), -1, frames);
 
 	CHECK (c -> stepping == STEPPING_LEGACY && c -> loop, "anim () makes a looping LEGACY clip");
 	CHECK (c -> frames.size () == 4, "it keeps the frames");
@@ -135,12 +135,12 @@ static void testLegacyClips () {
 	wild.push_back (frame (INT_MIN, INT_MAX));
 	wild.push_back (frame (5, INT_MAX));
 	wild.push_back (frame (6, -9));
-	ClipDefinitionRef w = makeLegacyClip (SpriteBankRef (), wild);
+	ClipDefinitionRef w = makeLegacyClip (SpriteBankRef (), -1, wild);
 	CHECK (w -> length == INT_MAX, "lengths stop at the largest int");
 	CHECK (w -> tracks[0].keys[0].sprite.number == INT_MAX && w -> tracks[0].keys[0].sprite.mirror, "the most negative sprite");
 	CHECK (validClip (* w, why), "still valid");
 
-	ClipDefinitionRef empty = makeLegacyClip (SpriteBankRef (), std::vector<AnimationFrame> ());
+	ClipDefinitionRef empty = makeLegacyClip (SpriteBankRef (), -1, std::vector<AnimationFrame> ());
 	CHECK (empty -> length == 0 && empty -> tracks[0].keys.empty () && validClip (* empty, why), "anim () of no frames");
 
 	ClipDefinition legacy = * c;
@@ -342,7 +342,7 @@ static void testFormat () {
 	animformat::Document doc = document (), back;
 	animformat::Bytes bytes;
 	CHECK (animformat::encode (doc, bytes, why), "a document encodes");
-	CHECK (bytes.size () > 6 && ! memcmp (bytes.data (), "SLAN", 4) && bytes[4] == animformat::version && bytes[5] == 0, "magic and version");
+	CHECK (bytes.size () > 6 && ! memcmp (bytes.data (), "SLAN", 4) && bytes[4] == 1 && bytes[5] == 0, "magic and version (1, with no pivots)");
 	CHECK (decodeBytes (bytes, back), "and decodes");
 	CHECK (back.rigs.size () == 2 && back.clips.size () == 2, "all of it");
 	if (back.rigs.size () == 2 && back.clips.size () == 2) {
@@ -364,7 +364,7 @@ static void testFormat () {
 
 	// Things that don't encode.
 	animformat::Document legacy;
-	legacy.clips.push_back (* makeLegacyClip (SpriteBankRef (), std::vector<AnimationFrame> (1, frame (0, 1))));
+	legacy.clips.push_back (* makeLegacyClip (SpriteBankRef (), -1, std::vector<AnimationFrame> (1, frame (0, 1))));
 	CHECK (! animformat::encode (legacy, bytes, why), "anim ()'s clips keep their legacy record");
 	animformat::Document invalid = document ();
 	invalid.rigs[0].parts[2].parent = 4;
@@ -620,7 +620,7 @@ static ClipDefinitionRef randomLegacy () {
 		int e = rnd (5);
 		frames[f].event = FrameEvent::fromNoise (e == 0 ? 1 + rnd (50) : e == 1 ? - (1 + rnd (50)) : 0);
 	}
-	return makeLegacyClip (SpriteBankRef (), frames);
+	return makeLegacyClip (SpriteBankRef (), -1, frames);
 }
 
 class Recorder : public FrameEventSink {
@@ -684,7 +684,7 @@ static void testLegacyFrames () {
 	TrackId id = c.tracks[0].id;
 	std::vector<AnimationFrame> frames (1, frame (2, 8));
 	personaAnimation anim;
-	anim.definition = makeLegacyClip (SpriteBankRef (), frames);
+	anim.definition = makeLegacyClip (SpriteBankRef (), -1, frames);
 	CHECK (addLegacyFrames (c, "body", anim, why), "frames over a track");
 	CHECK (c.tracks.size () == 1 && c.tracks[0].id == id && c.tracks[0].keys.size () == 1
 		&& c.tracks[0].keys[0].sprite.number == 2, "replace its keys, and keep its ID");
@@ -999,7 +999,7 @@ static void testPoses () {
 		&& pose.drawOrder[3] == glove, "by depth, then rig order");
 
 	// A clip of a single part (as anim () on a rig): the root's sprite.
-	ClipDefinitionRef legacy = makeLegacyClip (bankOf4 (), std::vector<AnimationFrame> (1, frame (1, 3)));
+	ClipDefinitionRef legacy = makeLegacyClip (bankOf4 (), bankOf4 () -> ID, std::vector<AnimationFrame> (1, frame (1, 3)));
 	evaluateClip (* legacy, 0, s);
 	evaluatePose (r, legacy, s, Transform2D (), binding, pose);
 	CHECK (pose.parts[0].sprite.kind == SpriteRef::SPRITE && pose.parts[0].sprite.number == 1, "an animation of anim () shows on the root");
@@ -1118,7 +1118,7 @@ static void testLifetimes () {
 	{
 		animformat::Document doc = document ();
 		RigDefinition copy = doc.rigs[0];
-		ClipDefinitionRef legacy = makeLegacyClip (SpriteBankRef (), std::vector<AnimationFrame> (1, frame (0, 1)));
+		ClipDefinitionRef legacy = makeLegacyClip (SpriteBankRef (), -1, std::vector<AnimationFrame> (1, frame (0, 1)));
 		CHECK (LifetimeCounter<RigDefinition>::live () == rigs + 3, "rigs are counted");
 		CHECK (LifetimeCounter<ClipDefinition>::live () == clips + 3, "clips are counted");
 	}

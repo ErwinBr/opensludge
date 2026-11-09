@@ -105,7 +105,8 @@ int paramNum[] = {-1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, 8, -1,		// SAY -> MOVEM
 	1, 0, 0,									// playMovie, stopMovie, pauseMovie
 	-1, -1, 3, 3, 3, 2,							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
 	0, -1, 3, 2, -1,							// newRig, addPart, setPartDepth, setCharacterRig, clipKey
-	-1, 2, 4, 3, 1								// playClip, stopClip, setPartProperty, clearPartProperty, mirrorClip
+	-1, 2, 4, 3, 1,								// playClip, stopClip, setPartProperty, clearPartProperty, mirrorClip
+	4											// setPartPivot
 };
 
 bool failSecurityCheck (char * fn) {
@@ -2998,6 +2999,34 @@ builtIn(setPartDepth)
 		return BR_ERROR;
 	}
 	rig -> parts[part].depth = depth;
+	return BR_CONTINUE;
+}
+
+// setPartPivot (rig, name, x, y): the point the part turns, scales and
+// flips about, and that its x, y place: its sprite's hotspot, moved by x, y
+// of the sprite's pixels. It moves the sprite about the part's origin; the
+// origin, and the parts attached to it, stay where they are.
+builtIn(setPartPivot)
+{
+	UNUSEDALL
+	int x, y;
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	std::string name;
+	if (! getPartName (fun -> stack -> thisVar, name)) return BR_ERROR;
+	trimStack (fun -> stack);
+	RigDefinition * rig = rigToChange (fun -> stack -> thisVar);
+	if (! rig) return BR_ERROR;
+	trimStack (fun -> stack);
+	int part = rig -> findPart (name);
+	if (part < 0) {
+		fatal ("There is no part of that name in this rig:", name.c_str ());
+		return BR_ERROR;
+	}
+	rig -> parts[part].pivotX = (float) x;
+	rig -> parts[part].pivotY = (float) y;
 	return BR_CONTINUE;
 }
 

@@ -19,7 +19,7 @@ AnimationHandle OwnedAnimation::release () {
 }
 
 AnimationDefinitionRef makeAnimation (const SpriteBankRef & bank, const std::vector<AnimationFrame> & frames) {
-	return makeLegacyClip (bank, frames);
+	return makeLegacyClip (bank, bank ? bank -> ID : -1, frames);
 }
 
 namespace {
@@ -121,7 +121,7 @@ static std::set<std::pair<int, int> > reportedMissingSprites;
 const sprite * resolveSprite (const SpriteRef * r, const spriteBank * & bank) {
 	bank = NULL;
 	if (! r || r -> kind != SpriteRef::SPRITE || ! r -> bank) return NULL;
-	const spriteBank & b = r -> bank -> bank;
+	const spriteBank & b = engineBank (r -> bank) -> bank;
 	if (r -> number < 0 || r -> number >= b.total) {
 		if (reportedMissingSprites.insert (std::make_pair (r -> bankFile, r -> number)).second) {
 			char text[120];

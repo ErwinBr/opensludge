@@ -103,19 +103,19 @@ struct PartQuad {
 
 static PartQuad partQuad (const PosedPart & part, const Transform2D & m) {
 	PartQuad q;
-	const spriteBank & bank = part.sprite.bank -> bank;
+	const spriteBank & bank = engineBank (part.sprite.bank) -> bank;
 	q.s = & bank.sprites[part.sprite.number];
 	q.page = & bank.pages[q.s -> texNum];
 	q.r = spritebank::texRect (q.s -> tex_x, q.s -> tex_y, q.s -> width, q.s -> height, q.page -> w, q.page -> h, spritebank::TEXKIND_SCALE);
-	spriteCorners (m * part.world, q.s -> width, q.s -> height, q.s -> xhot, q.s -> yhot, part.sprite.mirror, q.corners);
+	spriteCorners (m * part.spriteWorld, q.s -> width, q.s -> height, q.s -> xhot, q.s -> yhot, part.sprite.mirror, q.corners);
 	return q;
 }
 
 // Whether the mouse is over a pixel of the part, not behind the z-buffer.
 static bool mouseOverPart (const PosedPart & part, const Transform2D & m, int panel) {
-	const sprite & s = part.sprite.bank -> bank.sprites[part.sprite.number];
+	const sprite & s = engineBank (part.sprite.bank) -> bank.sprites[part.sprite.number];
 	if (s.alpha.empty ()) return false;
-	Transform2D t = m * part.world, inv;
+	Transform2D t = m * part.spriteWorld, inv;
 	if (part.sprite.mirror) t = t * Transform2D::flipX ();
 	if (! t.inverse (inv)) return false;
 	float lx, ly;

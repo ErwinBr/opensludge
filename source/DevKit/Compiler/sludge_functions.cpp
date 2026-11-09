@@ -894,7 +894,7 @@ void initBuiltInFunc ()
 	addToStringArray (typeDefFrom, "PART_DEFAULT");	addToStringArray (typeDefTo, "-2");
 
 	// clipKey: the properties of parts, and easings (the Channel and Easing
-	// of source/Engine/animmodel.h)
+	// of source/Anim/animmodel.h)
 	addToStringArray (typeDefFrom, "PART_X");		addToStringArray (typeDefTo, "0");
 	addToStringArray (typeDefFrom, "PART_Y");		addToStringArray (typeDefTo, "1");
 	addToStringArray (typeDefFrom, "PART_ROTATION");	addToStringArray (typeDefTo, "2");
@@ -906,7 +906,7 @@ void initBuiltInFunc ()
 	addToStringArray (typeDefFrom, "EASE_LINEAR");	addToStringArray (typeDefTo, "1");
 	addToStringArray (typeDefFrom, "EASE_INOUT");	addToStringArray (typeDefTo, "2");
 
-	// playClip: how a layer blends (LayerBlend of source/Engine/animpose.h)
+	// playClip: how a layer blends (LayerBlend of source/Anim/animpose.h)
 	addToStringArray (typeDefFrom, "LAYER_OVERRIDE");	addToStringArray (typeDefTo, "0");
 	addToStringArray (typeDefFrom, "LAYER_ADD");		addToStringArray (typeDefTo, "1");
 }

@@ -14,7 +14,8 @@
  *
  * Coordinates: +X is right and +Y down, in pixels. Angles are in degrees,
  * clockwise. A part's origin, and the point it turns, scales and flips
- * about, is its sprite's hotspot. A part's x, y is where its origin sits,
+ * about, is its sprite's hotspot moved by the part's pivot (pivotX, pivotY,
+ * in the sprite's pixels; 0, 0 is the hotspot). A part's x, y is where its origin sits,
  * from its parent's origin, in its parent's space (turned, scaled and
  * flipped as the parent is, in the parent's sprite pixels). Part 0 is the
  * root: the character itself, named "".
@@ -42,11 +43,12 @@
  */
 
 #include <stdint.h>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "sprbanks.h"
+#include "animbank.h"
 
 // Counts how many objects of a kind are alive, as a member of them, for the
 // lifetime log (SLUDGE_LIFETIME_LOG, see logLifetimes in people.h).
@@ -115,13 +117,13 @@ struct SpriteRef {
 	enum Kind { DEFAULT, NONE, SPRITE };
 	Kind kind;
 	int bankFile;			// The bank's file number, for saving; -1 for none
-	SpriteBankRef bank;		// The bank, once loaded (resolveBanks)
+	AnimBankRef bank;		// The bank, once loaded (resolveBanks)
 	int number;				// The sprite of the bank
 	bool mirror;			// The sprite's mirror image (only this sprite)
 
 	SpriteRef () : kind (DEFAULT), bankFile (-1), number (0), mirror (false) {}
 	static SpriteRef none ();
-	static SpriteRef sprite (const SpriteBankRef & bank, int bankFile, int number, bool mirror);
+	static SpriteRef sprite (const AnimBankRef & bank, int bankFile, int number, bool mirror);
 	bool operator== (const SpriteRef & o) const;
 };
 
@@ -143,8 +145,11 @@ struct RigPart {
 	PartPose rest;
 	SpriteRef sprite;	// DEFAULT here means none: a joint
 	int depth;			// Drawing order; parts of the same depth in rig order
+	// The point it turns, scales and flips about, and that x, y place: its
+	// sprite's hotspot, moved by this many of the sprite's pixels.
+	float pivotX, pivotY;
 
-	RigPart () : id (0), parent (-1), depth (0) {}
+	RigPart () : id (0), parent (-1), depth (0), pivotX (0), pivotY (0) {}
 };
 
 struct RigDefinition {
@@ -204,7 +209,7 @@ struct ClipDefinition {
 	EventId nextEventId;
 
 	// LEGACY only: what the legacy stepper plays, and the tracks show.
-	SpriteBankRef spriteBank;
+	AnimBankRef spriteBank;
 	std::vector<AnimationFrame> frames;
 
 	// Not part of the definition: whether a script may still change it.
@@ -224,8 +229,9 @@ struct ClipDefinition {
 
 typedef std::shared_ptr<const ClipDefinition> ClipDefinitionRef;
 
-// A LEGACY clip of anim ()'s frames.
-ClipDefinitionRef makeLegacyClip (const SpriteBankRef & bank, const std::vector<AnimationFrame> & frames);
+// A LEGACY clip of anim ()'s frames, of the bank of file bankFile (-1 for
+// none).
+ClipDefinitionRef makeLegacyClip (const AnimBankRef & bank, int bankFile, const std::vector<AnimationFrame> & frames);
 
 // Building definitions, for scripts, the decoder and tests. On failure they
 // change nothing and return false, with why.
@@ -247,7 +253,7 @@ bool validClip (const ClipDefinition & clip, std::string & why);
 
 // Fill in the banks of every SpriteRef from its file number. load gives the
 // bank of a file, or NULL; then this returns false.
-typedef SpriteBankRef (* BankLoader) (int bankFile);
+typedef std::function<AnimBankRef (int bankFile)> BankLoader;
 
 // Reports of the animation model, as a track for a part that a rig lacks,
 // or a sprite that its bank lacks. With SLUDGE_ANIM_LOG set, they go to
@@ -255,8 +261,8 @@ typedef SpriteBankRef (* BankLoader) (int bankFile);
 void animDiagnostic (const std::string & what);
 typedef void (* AnimDiagnosticHandler) (const std::string & what);
 void setAnimDiagnosticHandler (AnimDiagnosticHandler handler);
-bool resolveBanks (RigDefinition & rig, BankLoader load);
-bool resolveBanks (ClipDefinition & clip, BankLoader load);
+bool resolveBanks (RigDefinition & rig, const BankLoader & load);
+bool resolveBanks (ClipDefinition & clip, const BankLoader & load);
 
 /*
  * Evaluating a TIMELINE clip. Pure functions: no state, no events fired,

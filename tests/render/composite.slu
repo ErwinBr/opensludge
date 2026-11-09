@@ -29,7 +29,11 @@ sub egoRig () {
 	addPart (r, "legs", "", -4, -1, 'hd-ego/legs_south.duc', 0);
 	addPart (r, "torso", "", -3, -258, 'hd-ego/torso_south.duc', 0);
 	addPart (r, "head", "torso", 3, -213, 'hd-ego/head_south.duc', 0);
-	addPart (r, "eyes", "head", 0, 0, 'hd-ego/head_south.duc', 6);
+	# The eyes turn about a point 100 pixels above their sprite's hotspot (a
+	# pivot), and that point is 100 above the head's: so they show where they
+	# would without a pivot.
+	addPart (r, "eyes", "head", 0, -100, 'hd-ego/head_south.duc', 6);
+	setPartPivot (r, "eyes", 0, -100);
 	addPart (r, "arm1", "torso", -79, -153, 'hd-ego/arm1_south.duc', 0);
 	addPart (r, "hand1", "arm1", -30, 222);
 	addPart (r, "arm2", "torso", 70, -159, 'hd-ego/arm2_south.duc', 0);
@@ -54,7 +58,7 @@ sub pose (c, dir) {
 		keyPart (c, "legs", -4, -1, 0);
 		keyPart (c, "torso", -3, -258, 1);
 		keyPart (c, "head", 3, -213, 2);
-		keyPart (c, "eyes", 0, 0, 2);
+		keyPart (c, "eyes", 0, -100, 2);
 		keyPart (c, "arm1", -79, -153, -1);
 		keyPart (c, "arm2", 70, -159, -1);
 		clipSprite (c, "legs", 0, 'hd-ego/legs_south.duc', 0);
@@ -81,7 +85,7 @@ sub pose (c, dir) {
 		keyPart (c, "legs", 9, -1, 0);
 		keyPart (c, "torso", -21, -246, 1);
 		keyPart (c, "head", -7, -226, 4);
-		keyPart (c, "eyes", 0, 0, 4);
+		keyPart (c, "eyes", 0, -100, 4);
 		if (dir == west) {
 			keyPart (c, "arm1", 53, -161, -1);
 		} else {

@@ -55,6 +55,15 @@ endif()
 
 if(SLUDGE_ENGINE OR SLUDGE_COMPILER OR SLUDGE_DEVKIT)
 	include(cmake/Dependencies.cmake)
+
+	# The animation library: rigs, clips, their file format and posing. The
+	# engine plays them, the compiler packs them and the Dev Kit edits them,
+	# all with this one model. It depends on nothing but the C++ standard
+	# library: it has no include folder but its own and links nothing, so a
+	# header of the engine, renderer, compiler or Dev Kit doesn't build in it.
+	set(ANIM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/Anim)
+	add_library(sludge-anim STATIC ${ANIM_DIR}/animmodel.cpp ${ANIM_DIR}/animformat.cpp ${ANIM_DIR}/animpose.cpp)
+	target_include_directories(sludge-anim PUBLIC ${ANIM_DIR})
 endif()
 
 if(SLUDGE_COMPILER)
@@ -143,7 +152,7 @@ if(SLUDGE_ENGINE)
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
 		region.cpp savedata.cpp sludger.cpp sprbanks.cpp
-		animation.cpp animformat.cpp animmodel.cpp animpose.cpp composite.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
+		animation.cpp composite.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp
 	)
@@ -167,7 +176,7 @@ if(SLUDGE_ENGINE)
 
 	target_include_directories(sludge-engine PRIVATE ${COMMON_DIR})
 	target_link_libraries(sludge-engine PRIVATE
-		sludge-renderer sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
+		sludge-anim sludge-renderer sludge::sdl3 sludge::vorbis sludge::png sludge::dumb)
 
 	if(SLUDGE_GLES2)
 		target_compile_definitions(sludge-engine PRIVATE ${DEVICE_DEFINITIONS})
@@ -210,7 +219,7 @@ if(SLUDGE_ENGINE)
 		add_executable(gamepad_test tests/gamepad_test.cpp ${ENGINE_DIR}/gamepad.cpp
 			${ENGINE_DIR}/controllermap.cpp ${ENGINE_DIR}/keys.cpp)
 		target_include_directories(gamepad_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
-		target_link_libraries(gamepad_test PRIVATE sludge::sdl3)
+		target_link_libraries(gamepad_test PRIVATE sludge-anim sludge::sdl3)
 		add_test(NAME gamepad COMMAND gamepad_test)
 
 		add_executable(cp1250_test tests/cp1250_test.cpp ${ENGINE_DIR}/cp1250.cpp)
@@ -226,19 +235,24 @@ if(SLUDGE_ENGINE)
 		add_executable(spritebank_cache_test tests/spritebank_cache_test.cpp ${ENGINE_DIR}/sprbanks.cpp
 			${ENGINE_DIR}/spriteupload.cpp ${ENGINE_DIR}/spritebankdecode.cpp)
 		target_include_directories(spritebank_cache_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
-		target_link_libraries(spritebank_cache_test PRIVATE sludge-renderer sludge::png)
+		target_link_libraries(spritebank_cache_test PRIVATE sludge-anim sludge-renderer sludge::png)
 		add_test(NAME spritebank_cache COMMAND spritebank_cache_test)
 
-		add_executable(animation_test tests/animation_test.cpp ${ENGINE_DIR}/animation.cpp ${ENGINE_DIR}/animmodel.cpp)
+		add_executable(animation_test tests/animation_test.cpp ${ENGINE_DIR}/animation.cpp)
 		target_include_directories(animation_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
-		target_link_libraries(animation_test PRIVATE sludge-renderer)
+		target_link_libraries(animation_test PRIVATE sludge-anim sludge-renderer)
 		add_test(NAME animation COMMAND animation_test)
 
-		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animmodel.cpp ${ENGINE_DIR}/animformat.cpp
-			${ENGINE_DIR}/animation.cpp ${ENGINE_DIR}/animpose.cpp)
+		add_executable(animmodel_test tests/animmodel_test.cpp ${ENGINE_DIR}/animation.cpp)
 		target_include_directories(animmodel_test PRIVATE ${ENGINE_DIR} ${COMMON_DIR})
-		target_link_libraries(animmodel_test PRIVATE sludge-renderer)
+		target_link_libraries(animmodel_test PRIVATE sludge-anim sludge-renderer)
 		add_test(NAME animmodel COMMAND animmodel_test)
+
+		# The animation library alone, with no other include folder or library:
+		# if it needed anything else, this wouldn't build.
+		add_executable(anim_test tests/anim_test.cpp)
+		target_link_libraries(anim_test PRIVATE sludge-anim)
+		add_test(NAME anim COMMAND anim_test)
 
 		include(cmake/CaptureTests.cmake)
 	endif()

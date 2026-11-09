@@ -105,7 +105,7 @@ const std::vector<int> & PoseBinding::bind (const ClipDefinitionRef & c, const R
 namespace {
 
 bool exists (const SpriteRef & s) {
-	return s.kind == SpriteRef::SPRITE && s.bank && s.number >= 0 && s.number < s.bank -> bank.total;
+	return s.kind == SpriteRef::SPRITE && s.bank && s.number >= 0 && s.number < s.bank -> animSpriteCount ();
 }
 
 void reportMissing (const SpriteRef & s) {
@@ -203,11 +203,32 @@ void evaluatePose (const RigDefinitionRef & rig, const std::vector<LayerSamples>
 		int parent = parts[i].parent;
 		const Transform2D & above = parent < 0 ? character : out.parts[parent].world;
 		p.world = above * localTransform (p.local);
+		p.spriteWorld = parts[i].pivotX == 0 && parts[i].pivotY == 0 ? p.world
+			: p.world * Transform2D::translation (- parts[i].pivotX, - parts[i].pivotY);
 		p.shown = p.local.visible && (parent < 0 || out.parts[parent].shown);
 		if (p.shown && p.sprite.kind == SpriteRef::SPRITE) out.drawOrder.push_back ((int) i);
 	}
 	std::stable_sort (out.drawOrder.begin (), out.drawOrder.end (),
 		[&out] (int x, int y) { return out.parts[x].depth < out.parts[y].depth; });
+}
+
+void movePivot (RigDefinition & rig, int part, float pivotX, float pivotY) {
+	if (part < 0 || part >= (int) rig.parts.size ()) return;
+	RigPart & p = rig.parts[part];
+	float dx = pivotX - p.pivotX, dy = pivotY - p.pivotY;
+	PartPose turn = p.rest;
+	turn.x = turn.y = 0;
+	float mx, my;
+	localTransform (turn).apply (dx, dy, mx, my);
+	p.rest.x += mx;
+	p.rest.y += my;
+	p.pivotX = pivotX;
+	p.pivotY = pivotY;
+	for (size_t i = 0; i < rig.parts.size (); i ++) {
+		if (rig.parts[i].parent != part) continue;
+		rig.parts[i].rest.x -= dx;
+		rig.parts[i].rest.y -= dy;
+	}
 }
 
 void spriteCorners (const Transform2D & m, int w, int h, int xhot, int yhot, bool mirror, float out[8]) {
@@ -221,9 +242,9 @@ bool poseBounds (const Pose & pose, float & x1, float & y1, float & x2, float & 
 	bool any = false;
 	for (size_t i = 0; i < pose.drawOrder.size (); i ++) {
 		const PosedPart & p = pose.parts[pose.drawOrder[i]];
-		const sprite & s = p.sprite.bank -> bank.sprites[p.sprite.number];
+		AnimSpriteSize s = p.sprite.bank -> animSpriteSize (p.sprite.number);
 		float c[8];
-		spriteCorners (p.world, s.width, s.height, s.xhot, s.yhot, p.sprite.mirror, c);
+		spriteCorners (p.spriteWorld, s.width, s.height, s.xhot, s.yhot, p.sprite.mirror, c);
 		for (int k = 0; k < 4; k ++) {
 			float x = c[k * 2], y = c[k * 2 + 1];
 			if (! any) {
