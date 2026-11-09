@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "animbank.h"
+#include "animedit.h"
 #include "animformat.h"
 #include "animmodel.h"
 #include "animpose.h"
@@ -355,7 +356,84 @@ static void testDamagedAssets () {
 	printf ("%d of %d damaged assets still decoded (to whole assets)\n", decoded, tried);
 }
 
+static int part (const RigDefinition & rig, const char * name) { return rig.findPart (name); }
+
+static std::vector<std::string> namesInOrder (const RigDefinition & rig) {
+	std::vector<std::string> names;
+	for (size_t i = 0; i < rig.parts.size (); i ++) names.push_back (rig.parts[i].name);
+	return names;
+}
+
+static void testPoseOfTransform () {
+	const float angles[] = { 0, 30, -75, 90, 179, -179 };
+	const float scales[] = { 1, 0.5f, 2.25f };
+	for (int a = 0; a < 6; a ++) {
+		for (int s = 0; s < 3; s ++) {
+			for (int f = 0; f < 2; f ++) {
+				PartPose p = pose (12, -7, angles[a], scales[s], f == 1), back;
+				CHECK (poseOfTransform (localTransform (p), back), "a pose of a transform");
+				CHECK (near (back.x, 12) && near (back.y, -7) && near (back.rotation, angles[a]) && near (back.scale, scales[s])
+					&& back.flip == (f == 1), "is the pose it was made of");
+			}
+		}
+	}
+	PartPose out;
+	CHECK (! poseOfTransform (Transform2D::scaling (0), out), "a transform scaled to nothing has no pose");
+}
+
+static void testRenameAndRemove () {
+	RigDefinition rig = armRig ();
+	CHECK (renamePart (rig, part (rig, "arm"), "leftArm", why) && part (rig, "leftArm") == 2 && part (rig, "arm") < 0, "a part renames");
+	CHECK (! renamePart (rig, part (rig, "hand"), "body", why), "not to another part's name");
+	CHECK (! renamePart (rig, part (rig, "hand"), "", why), "nor to nothing");
+	CHECK (! renamePart (rig, 0, "root", why), "and the root has no name");
+	PartId hand = rig.parts[part (rig, "hand")].id;
+
+	CHECK (removePart (rig, part (rig, "leftArm"), why), "a part removes");
+	CHECK (rig.parts.size () == 2 && part (rig, "hand") < 0 && partWithId (rig, hand) < 0, "with what is attached to it");
+	CHECK (validRig (rig, why), "leaving a whole rig");
+	CHECK (! removePart (rig, 0, why), "but not the root");
+}
+
+static void testPlacePart () {
+	RigDefinition rig = armRig ();
+	CHECK (addPart (rig, "head", "body", pose (0, -100), SpriteRef (), why), "a head");
+	CHECK (addPart (rig, "tail", "", pose (0, 0), SpriteRef (), why), "a tail on the root");
+	// Out of order: an eye under the head, added after the tail.
+	CHECK (addPart (rig, "eye", "head", pose (5, -10, 15, 1.25f), SpriteRef (), why), "an eye");
+	std::vector<std::string> before = namesInOrder (rig);
+	std::vector<int> bodyChildren = partChildren (rig, part (rig, "body"));
+	CHECK (bodyChildren.size () == 2 && bodyChildren[0] == part (rig, "arm") && bodyChildren[1] == part (rig, "head"), "the body's parts in order");
+
+	// The head first among the body's parts: drawn before the arm, at the same depth.
+	CHECK (placePart (rig, part (rig, "head"), part (rig, "body"), 0, why), "the head goes first");
+	bodyChildren = partChildren (rig, part (rig, "body"));
+	CHECK (bodyChildren.size () == 2 && bodyChildren[0] == part (rig, "head") && bodyChildren[1] == part (rig, "arm"), "before the arm");
+	CHECK (validRig (rig, why) && partIsUnder (rig, part (rig, "eye"), part (rig, "head")), "with its eye, in a whole rig");
+	CHECK (placePart (rig, part (rig, "head"), part (rig, "body"), 5, why), "and back last");
+	bodyChildren = partChildren (rig, part (rig, "body"));
+	CHECK (bodyChildren[1] == part (rig, "head"), "after the arm");
+
+	// The eye onto the turned, scaled and flipped arm, staying where it is.
+	Transform2D eyeBefore = restWorld (rig, part (rig, "eye"));
+	CHECK (placePart (rig, part (rig, "eye"), part (rig, "arm"), 0, why), "the eye goes onto the arm");
+	CHECK (rig.parts[part (rig, "eye")].parent == part (rig, "arm"), "under it");
+	Transform2D eyeAfter = restWorld (rig, part (rig, "eye"));
+	CHECK (near (eyeBefore.a, eyeAfter.a) && near (eyeBefore.b, eyeAfter.b) && near (eyeBefore.c, eyeAfter.c)
+		&& near (eyeBefore.d, eyeAfter.d) && near (eyeBefore.tx, eyeAfter.tx) && near (eyeBefore.ty, eyeAfter.ty),
+		"where it was in the world");
+	CHECK (validRig (rig, why), "a whole rig");
+
+	CHECK (! placePart (rig, part (rig, "arm"), part (rig, "eye"), 0, why), "a part can't go under what is attached to it");
+	CHECK (! placePart (rig, part (rig, "arm"), part (rig, "arm"), 0, why), "nor under itself");
+	CHECK (! placePart (rig, 0, part (rig, "arm"), 0, why), "and the root stays");
+	CHECK (rig.parts.size () == before.size (), "nothing is lost");
+}
+
 int main () {
+	testPoseOfTransform ();
+	testRenameAndRemove ();
+	testPlacePart ();
 	testPivotDrawing ();
 	testMovePivot ();
 	testPivotFormat ();

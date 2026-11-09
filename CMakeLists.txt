@@ -62,7 +62,8 @@ if(SLUDGE_ENGINE OR SLUDGE_COMPILER OR SLUDGE_DEVKIT)
 	# library: it has no include folder but its own and links nothing, so a
 	# header of the engine, renderer, compiler or Dev Kit doesn't build in it.
 	set(ANIM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/Anim)
-	add_library(sludge-anim STATIC ${ANIM_DIR}/animmodel.cpp ${ANIM_DIR}/animformat.cpp ${ANIM_DIR}/animpose.cpp)
+	add_library(sludge-anim STATIC ${ANIM_DIR}/animmodel.cpp ${ANIM_DIR}/animformat.cpp ${ANIM_DIR}/animpose.cpp
+		${ANIM_DIR}/animedit.cpp)
 	target_include_directories(sludge-anim PUBLIC ${ANIM_DIR})
 endif()
 

@@ -7,6 +7,7 @@
  * Usage: core_test <folder for files> <folder of the example projects> <fixtures>
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -28,6 +29,8 @@
 #include "Launch.h"
 #include "ProjectCheck.h"
 #include "ProjectDocument.h"
+#include "RigDocument.h"
+#include "animedit.h"
 #include "Document.h"
 #include "DocumentManager.h"
 #include "FileMemory.h"
@@ -1285,6 +1288,135 @@ static void testFileMemory () {
 	CHECK (memory.get ("/a/room.flo", "floor.colour") == "0 1 0");
 }
 
+static bool samePlace (const Transform2D & a, const Transform2D & b) {
+	const float e = 1e-3f;
+	return fabsf (a.a - b.a) < e && fabsf (a.b - b.b) < e && fabsf (a.c - b.c) < e && fabsf (a.d - b.d) < e
+		&& fabsf (a.tx - b.tx) < e && fabsf (a.ty - b.ty) < e;
+}
+
+static void testRigs () {
+	// A new rig is of the root only, with an identity of its own.
+	RigDocument rig, other;
+	CHECK (rig.rig ().parts.size () == 1 && rig.rig ().parts[0].name.empty ());
+	CHECK (! rig.asset ().id.isNull () && rig.asset ().id != other.asset ().id);
+	CHECK (rig.untitledName () == "Untitled Rig.rig" && ! rig.isModified ());
+	CHECK (fileKind ("ego.RIG") == FILE_DOCUMENT);
+
+	// Parts, by their IDs; each change undoes.
+	std::string why;
+	PartId root = rig.rig ().parts[0].id, body, arm, hand;
+	CHECK (rig.addPart (root, "body", &body, why));
+	CHECK (rig.addPart (body, "arm", &arm, why));
+	CHECK (rig.addPart (arm, rig.freeName ("arm"), &hand, why));
+	CHECK (rig.part (hand) && rig.part (hand)->name == "arm 2");
+	CHECK (rig.isModified () && rig.commands ().undoLabel () == "Add Part");
+	CHECK (! rig.addPart (body, "arm", NULL, why) && ! why.empty ());
+	CHECK (! rig.addPart (12345, "nothing", NULL, why));
+	rig.commands ().undo ();
+	CHECK (! rig.part (hand) && rig.rig ().parts.size () == 3);
+	rig.commands ().redo ();
+	CHECK (rig.part (hand) && rig.part (hand)->name == "arm 2");
+
+	CHECK (rig.renamePart (hand, "hand", why) && rig.part (hand)->name == "hand");
+	CHECK (rig.commands ().undoLabel () == "Rename Part");
+	CHECK (! rig.renamePart (hand, "body", why) && rig.part (hand)->name == "hand");
+	CHECK (! rig.renamePart (root, "root", why));
+
+	// The rest pose: the steps of a drag merge into one change.
+	PartPose p = rig.part (arm)->rest;
+	for (int i = 1; i <= 3; i ++) {
+		p.x = 10.0f * i;
+		p.rotation = 15.0f * i;
+		rig.setRest (arm, p, 7);
+	}
+	rig.commands ().stopMerging ();
+	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.rotation == 45);
+	CHECK (rig.commands ().undoLabel () == "Rest Pose of arm");
+	rig.commands ().undo ();
+	CHECK (rig.part (arm)->rest.x == 0 && rig.part (arm)->rest.rotation == 0);
+	rig.commands ().redo ();
+	p = rig.part (arm)->rest;
+	p.scale = 1.5f;
+	p.flip = true;
+	rig.setRest (arm, p);
+	p.x = NAN;
+	rig.setRest (arm, p);
+	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.scale == 1.5f && rig.part (arm)->rest.flip);
+
+	rig.setDepth (arm, -1);
+	CHECK (rig.part (arm)->depth == -1 && rig.commands ().undoLabel () == "Depth of arm");
+
+	// Sprites name their banks by path; a bank goes when no part uses it.
+	rig.setSprite (body, "hd/body.duc", 3, false);
+	rig.setSprite (arm, "hd/arms.duc", 1, false);
+	rig.setSprite (hand, "hd/arms.duc", 4, true);
+	CHECK (rig.asset ().banks.size () == 2);
+	CHECK (rig.bankOf (rig.part (hand)->sprite) == "hd/arms.duc" && rig.part (hand)->sprite.number == 4 && rig.part (hand)->sprite.mirror);
+	rig.setSprite (arm, "", 0, false);
+	CHECK (rig.part (arm)->sprite.kind == SpriteRef::DEFAULT && rig.asset ().banks.size () == 2);
+	rig.setSprite (hand, "", 0, false);
+	CHECK (rig.asset ().banks.size () == 1 && rig.asset ().banks[0] == "hd/body.duc");
+	rig.commands ().undo ();
+	rig.commands ().undo ();
+	CHECK (rig.asset ().banks.size () == 2 && rig.bankOf (rig.part (arm)->sprite) == "hd/arms.duc");
+
+	// A pivot that keeps the part in place moves its origin, and what is
+	// attached to it, so that nothing moves in the world.
+	int armIndex = partWithId (rig.rig (), arm), handIndex = partWithId (rig.rig (), hand);
+	Transform2D spriteBefore = restWorld (rig.rig (), armIndex) * Transform2D::translation (0, 0);
+	Transform2D handBefore = restWorld (rig.rig (), handIndex);
+	rig.setPivot (arm, 4, 20, true, 9);
+	rig.setPivot (arm, 6, 40, true, 9);
+	rig.commands ().stopMerging ();
+	armIndex = partWithId (rig.rig (), arm);
+	handIndex = partWithId (rig.rig (), hand);
+	CHECK (rig.part (arm)->pivotX == 6 && rig.part (arm)->pivotY == 40);
+	CHECK (samePlace (spriteBefore, restWorld (rig.rig (), armIndex) * Transform2D::translation (-6, -40)));
+	CHECK (samePlace (handBefore, restWorld (rig.rig (), handIndex)));
+	CHECK (rig.commands ().undoLabel () == "Pivot of arm");
+	rig.commands ().undo ();
+	CHECK (rig.part (arm)->pivotX == 0 && rig.part (arm)->rest.x == 30);
+	rig.setPivot (arm, 0, 10, false);
+	CHECK (rig.part (arm)->pivotY == 10 && rig.part (arm)->rest.x == 30);
+
+	// Moving and removing parts, with what is attached to them.
+	CHECK (rig.placePart (hand, body, 0, why));
+	CHECK (rig.part (hand)->parent == partWithId (rig.rig (), body));
+	CHECK (partChildren (rig.rig (), partWithId (rig.rig (), body))[0] == partWithId (rig.rig (), hand));
+	CHECK (! rig.placePart (body, hand, 0, why));
+	rig.commands ().undo ();
+	CHECK (rig.part (hand)->parent == partWithId (rig.rig (), arm));
+	CHECK (rig.removePart (arm, why) && ! rig.part (arm) && ! rig.part (hand) && rig.part (body));
+	CHECK (rig.commands ().undoLabel () == "Removal of arm" && rig.asset ().banks.size () == 1);
+	rig.commands ().undo ();
+	CHECK (rig.part (arm) && rig.part (hand) && rig.asset ().banks.size () == 2);
+	CHECK (! rig.removePart (root, why));
+
+	// Saved and opened again, it is the same to the byte, identity and all.
+	std::string error;
+	CHECK (rig.save (folder + "ego.rig", &error));
+	CHECK (! rig.isModified ());
+	RigDocument opened;
+	CHECK (opened.load (folder + "ego.rig", &error));
+	CHECK (opened.asset ().id == rig.asset ().id && ! opened.isModified ());
+	CHECK (opened.part (hand) && opened.part (hand)->name == "hand" && opened.part (arm)->pivotY == 10);
+	CHECK (opened.save (folder + "again.rig", &error));
+	CHECK (readFile (folder + "ego.rig") == readFile (folder + "again.rig"));
+	CHECK (opened.asset ().id == rig.asset ().id);
+
+	// What isn't a rig doesn't open, and leaves the document as it was.
+	writeFile (folder + "nothing.rig", "not a rig");
+	CHECK (! opened.load (folder + "nothing.rig", &error) && ! error.empty ());
+	animformat::Asset clip;
+	clip.kind = animformat::Asset::CLIP;
+	clip.id = animformat::newAssetId ();
+	animformat::Bytes bytes;
+	CHECK (animformat::encodeAsset (clip, bytes, why));
+	writeFile (folder + "clip.rig", std::string (bytes.begin (), bytes.end ()));
+	CHECK (! opened.load (folder + "clip.rig", &error) && error.find ("clip") != std::string::npos);
+	CHECK (opened.part (hand) && opened.asset ().id == rig.asset ().id);
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1307,6 +1439,7 @@ int main (int argc, char ** argv) {
 	testZBuffers ();
 	testSpriteBanks ();
 	testTranslations ();
+	testRigs ();
 	testFileMemory ();
 
 	if (failures) {

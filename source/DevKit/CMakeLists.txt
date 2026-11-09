@@ -149,6 +149,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectCheck.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
+		${DEVKIT_DIR}/Core/RigDocument.cpp
 		${DEVKIT_DIR}/Core/SpriteBankDocument.cpp
 		${DEVKIT_DIR}/Core/TranslationDocument.cpp
 		${DEVKIT_DIR}/Core/ZBufferDocument.cpp
@@ -160,7 +161,7 @@ if(SLUDGE_DEVKIT)
 	# Those call the functions of Common/interface.h, which
 	# Core/InterfacePlatform.cpp has: the programs take that in themselves,
 	# as a library after devkit-graphics would come too early for GNU ld.
-	target_link_libraries(devkit-core PUBLIC devkit-graphics Threads::Threads)
+	target_link_libraries(devkit-core PUBLIC devkit-graphics sludge-anim Threads::Threads)
 
 	# The drawing of the views with the renderers of the engine.
 	add_library(devkit-view STATIC ${DEVKIT_DIR}/GraphicalTools/draw2d_gfx.cpp)
