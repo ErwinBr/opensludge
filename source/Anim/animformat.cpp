@@ -298,13 +298,21 @@ std::string AssetId::text () const {
 	return s;
 }
 
+// Not a static of newAssetId: one that needs constructing gets a thread-safe
+// guard, which MinGW's libstdc++ makes of condition variables, which Windows
+// XP lacks, and the engine links this file. Made on first use, by the Dev
+// Kit's thread of the interface.
+static std::mt19937_64 * idRandom = NULL;
+
 AssetId newAssetId () {
-	static std::random_device device;
-	static std::mt19937_64 random (((uint64_t) device () << 32) ^ device ());
+	if (! idRandom) {
+		std::random_device device;
+		idRandom = new std::mt19937_64 (((uint64_t) device () << 32) ^ device ());
+	}
 	AssetId id;
 	do {
 		for (int i = 0; i < 16; i += 8) {
-			uint64_t r = random ();
+			uint64_t r = (* idRandom) ();
 			for (int b = 0; b < 8; b ++) id.bytes[i + b] = (unsigned char) (r >> (8 * b));
 		}
 	} while (id.isNull ());
