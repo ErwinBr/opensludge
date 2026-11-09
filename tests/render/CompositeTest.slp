@@ -26,3 +26,4 @@ chrRender_max_softY=100
 
 [FILES]
 composite.slu
+ego-script.slu

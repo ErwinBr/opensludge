@@ -4,7 +4,8 @@
 #   cmake -DENGINE=<sludge-engine> -DFRAMEDIFF=<framediff> -DGAME=<game.slg>
 #         -DOUT=<folder> [-DINPUT=<script>] [-DMAX_FRAMES=<n>] [-DFRAMES=<list>]
 #         [-DENGINE_ARGS=<options>] [-DEXPECTED_ARGS=<options>]
-#         [-DREFERENCE_ENGINE=<sludge-engine>] [-DREQUIRE=<regex>]
+#         [-DREFERENCE_ENGINE=<sludge-engine>] [-DEXPECTED_GAME=<game.slg>]
+#         [-DREQUIRE=<regex>]
 #         [-DENGINE_ENV=<variable>=<value>...] [-DMAX_DIFF=<n>]
 #         [-DMAX_BAD=<fraction>] -P run.cmake
 #
@@ -12,7 +13,9 @@
 # same, which tests that the run is deterministic. With REFERENCE_ENGINE, we
 # compare with a run of that engine, for example a build of an earlier
 # commit. With EXPECTED_ARGS, the first run has those options instead of
-# ENGINE_ARGS, for example to compare two renderers. The second run has
+# ENGINE_ARGS, for example to compare two renderers. With EXPECTED_GAME,
+# the first run plays that game instead of GAME, which must draw the same:
+# a game made another way, for example. The second run has
 # the environment variables of ENGINE_ENV, separated by spaces, and its
 # output must match REQUIRE. We unset SLUDGE_RENDERER for both runs. The
 # frames are in OUT/expected and OUT/actual, and the images that differ in
@@ -23,9 +26,14 @@ foreach(var ENGINE FRAMEDIFF GAME OUT)
 		message(FATAL_ERROR "${var} is not set")
 	endif()
 endforeach()
-if(NOT EXISTS "${GAME}")
-	message(FATAL_ERROR "The game ${GAME} doesn't exist")
+if(NOT DEFINED EXPECTED_GAME)
+	set(EXPECTED_GAME "${GAME}")
 endif()
+foreach(game "${GAME}" "${EXPECTED_GAME}")
+	if(NOT EXISTS "${game}")
+		message(FATAL_ERROR "The game ${game} doesn't exist")
+	endif()
+endforeach()
 if(NOT DEFINED MAX_DIFF)
 	set(MAX_DIFF 0)
 endif()
@@ -36,7 +44,7 @@ endif()
 file(REMOVE_RECURSE "${OUT}")
 file(MAKE_DIRECTORY "${OUT}")
 
-function(run_engine engine folder engine_args engine_env)
+function(run_engine engine game folder engine_args engine_env)
 	set(args "--capture=${OUT}/${folder}")
 	if(DEFINED INPUT)
 		list(APPEND args "--input=${INPUT}")
@@ -51,7 +59,7 @@ function(run_engine engine folder engine_args engine_env)
 	separate_arguments(env NATIVE_COMMAND "${engine_env}")
 	execute_process(
 		COMMAND ${CMAKE_COMMAND} -E env --unset=SLUDGE_RENDERER ${env}
-			"${engine}" ${args} ${extra} "${GAME}"
+			"${engine}" ${args} ${extra} "${game}"
 		RESULT_VARIABLE result
 		OUTPUT_FILE "${OUT}/${folder}.log"
 		ERROR_FILE "${OUT}/${folder}.log"
@@ -66,11 +74,11 @@ if(NOT DEFINED EXPECTED_ARGS)
 	set(EXPECTED_ARGS "${ENGINE_ARGS}")
 endif()
 if(DEFINED REFERENCE_ENGINE AND NOT REFERENCE_ENGINE STREQUAL "")
-	run_engine("${REFERENCE_ENGINE}" expected "${EXPECTED_ARGS}" "")
+	run_engine("${REFERENCE_ENGINE}" "${EXPECTED_GAME}" expected "${EXPECTED_ARGS}" "")
 else()
-	run_engine("${ENGINE}" expected "${EXPECTED_ARGS}" "")
+	run_engine("${ENGINE}" "${EXPECTED_GAME}" expected "${EXPECTED_ARGS}" "")
 endif()
-run_engine("${ENGINE}" actual "${ENGINE_ARGS}" "${ENGINE_ENV}")
+run_engine("${ENGINE}" "${GAME}" actual "${ENGINE_ARGS}" "${ENGINE_ENV}")
 if(DEFINED REQUIRE)
 	file(READ "${OUT}/actual.log" log)
 	if(NOT log MATCHES "${REQUIRE}")

@@ -1,0 +1,17 @@
+# CompositeAssetsTest: ego from the rig and clips that the Dev Kit saves
+# (.rig and .clp files), which tests/render/make_ego_assets.cpp writes. The
+# game must draw every frame as CompositeTest, which builds them by script.
+
+sub playedRig () {
+	return loadRig ('hd-ego/ego.rig');
+}
+
+sub playedCostume () {
+	return costume (
+		loadClip ('hd-ego/stand_south.clp'), loadClip ('hd-ego/stand_west.clp'),
+		loadClip ('hd-ego/stand_north.clp'), loadClip ('hd-ego/stand_east.clp'),
+		loadClip ('hd-ego/walk_south.clp'), mirrorClip (loadClip ('hd-ego/walk_east.clp')),
+		loadClip ('hd-ego/walk_north.clp'), loadClip ('hd-ego/walk_east.clp'),
+		loadClip ('hd-ego/talk_south.clp'), loadClip ('hd-ego/talk_west.clp'),
+		loadClip ('hd-ego/talk_north.clp'), loadClip ('hd-ego/talk_east.clp'));
+}

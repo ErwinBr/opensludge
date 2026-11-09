@@ -13,6 +13,7 @@
 #include "translation.h"
 #include "dumpfiles.h"
 #include "compilerinfo.h"
+#include "animassets.h"
 
 bool dumpFileInto (FILE * writer, const char * thisFile) {
 	int a;
@@ -64,6 +65,8 @@ int getFileType (const char * filename) {
 					strcmp (compareMe, ".zbu") == 0 ||
 					strcmp (compareMe, ".png") == 0) {
 			reply = FILETYPE_RAW;
+		} else if (isAnimAssetName (filename)) {
+			reply = FILETYPE_ANIMASSET;
 		}
 		delete compareMe;
 	}
@@ -119,7 +122,8 @@ bool dumpFiles (FILE * mainFile, stringArray * & theSA) {
 			char * onDisk = fileNameOnDisk (theSA -> string, &found, &caseDiffers);
 			delete [] theSA -> string;
 			theSA -> string = onDisk;
-			switch (getFileType (theSA->string)) {
+			int type = getFileType (theSA -> string);
+			switch (type) {
 				case FILETYPE_TGA:
 				convertTGA (theSA -> string);
 				killAfterAdd = programSettings.compilerKillImages;
@@ -134,8 +138,24 @@ bool dumpFiles (FILE * mainFile, stringArray * & theSA) {
 				addComment (ERRORTYPE_PROJECTWARNING, "The current version of the SLUDGE engine cannot play MIDI files such as", theSA->string, NULL, 0);
 				break;
 
+				case FILETYPE_ANIMASSET:
+				break;
+
 				case FILETYPE_UNKNOWN:
-				return addComment (ERRORTYPE_PROJECTERROR, "Tried to include a file which is not supported by SLUDGE.\n\nSupported music types: .XM, .MOD, .S3M, .IT\nSupported sampled sound types: .WAV, .OGG\nSupported graphic types: .TGA, .PNG\nSupported movie format: .WebM\nSLUDGE-specific types: .FLO, .ZBU, .DUC\n\nThe file you tried to include was:", theSA -> string, NULL, 0);
+				return addComment (ERRORTYPE_PROJECTERROR, "Tried to include a file which is not supported by SLUDGE.\n\nSupported music types: .XM, .MOD, .S3M, .IT\nSupported sampled sound types: .WAV, .OGG\nSupported graphic types: .TGA, .PNG\nSupported movie format: .WebM\nSLUDGE-specific types: .FLO, .ZBU, .DUC, .RIG, .CLP\n\nThe file you tried to include was:", theSA -> string, NULL, 0);
+			}
+
+			// A rig or clip goes into the game as the compiler packs it.
+			if (type == FILETYPE_ANIMASSET) {
+				std::vector<unsigned char> packed;
+				if (! packAnimAsset (theSA -> string, packed)) return false;
+				put4bytes (packed.size (), mainFile);
+				remainingIndexSize[i] = currentRemainingIndex;
+				currentRemainingIndex += packed.size ();
+				fwrite (packed.data (), 1, packed.size (), mainFile);
+				destroyFirst (theSA);
+				percRect (++ i, P_BOTTOM);
+				continue;
 			}
 
 			inFile = fopen (theSA -> string, "rb");

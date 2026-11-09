@@ -26,6 +26,7 @@ add_library(devkit-compiler STATIC
 	${DEVKIT_DIR}/Compiler/compiler.cpp
 	${DEVKIT_DIR}/Compiler/compilerinfo.cpp
 	${DEVKIT_DIR}/Compiler/allknown.cpp
+	${DEVKIT_DIR}/Compiler/animassets.cpp
 	${DEVKIT_DIR}/Compiler/checkused.cpp
 	${DEVKIT_DIR}/Compiler/dumpfiles.cpp
 	${DEVKIT_DIR}/Compiler/floor.cpp
@@ -43,7 +44,7 @@ target_include_directories(devkit-compiler PUBLIC
 	${DEVKIT_DIR}/Compiler
 	${DEVKIT_DIR}/ProjectManager
 )
-target_link_libraries(devkit-compiler PUBLIC devkit-common sludge::png)
+target_link_libraries(devkit-compiler PUBLIC devkit-common sludge-anim sludge::png)
 
 # The models of the floor maker, the z-buffer maker and the sprite bank
 # editor, and the drawing of their views through draw2d.h, which knows
@@ -105,6 +106,30 @@ if(NOT CMAKE_CROSSCOMPILING)
 					-DHASHES=${PROJECT_SOURCE_DIR}/tests/games.sha256
 					-P ${PROJECT_SOURCE_DIR}/tests/check_machine_compile.cmake)
 		endforeach()
+
+		# Projects of rigs and clips (.rig and .clp): what assets share is one
+		# file of the game, and every mistake names the asset and what it lacks.
+		add_executable(make_asset_project ${PROJECT_SOURCE_DIR}/tests/compiler/make_asset_project.cpp)
+		target_link_libraries(make_asset_project PRIVATE sludge-anim)
+		set(asset_test_defines
+			-DCOMPILER=$<TARGET_FILE:sludge-compiler>
+			-DMAKER=$<TARGET_FILE:make_asset_project>
+			-DBANK=${PROJECT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/ego/alien.duc
+			-DSOUND=${PROJECT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/iface/pop.wav)
+		function(sludge_asset_test case expect)
+			add_test(NAME compiler_assets_${case}
+				COMMAND ${CMAKE_COMMAND} ${asset_test_defines} -DCASE=${case}
+					-DWORK_DIR=${CMAKE_BINARY_DIR}/assets/${case} "${expect}"
+					-P ${PROJECT_SOURCE_DIR}/tests/compiler/asset_compile_test.cmake)
+		endfunction()
+		sludge_asset_test(shared "-DRESOURCES=6")
+		sludge_asset_test(missing-bank "-DERROR=assets.slu\t7\twalk.clp: the sprite bank 'sprites/nothing.duc' doesn't exist\t")
+		sludge_asset_test(missing-sound "-DERROR=assets.slu\t7\twalk.clp: the sound 'sounds/nothing.wav' doesn't exist\t")
+		sludge_asset_test(missing-function "-DERROR=assets.slu\t7\twalk.clp: the event at tick 8 calls 'nothing', which isn't a function\t")
+		sludge_asset_test(damaged "-DERROR=assets.slu\t7\twalk.clp: not a valid clip: .+")
+		sludge_asset_test(wrong-kind "-DERROR=assets.slu\t7\twalk.clp: a rig, in a file of a clip\t")
+		sludge_asset_test(missing-part "-DWARNING=assets.slu\t7\twalk.clp: the rig 'one.rig' has no part \"tail\" for its track of the rotation\; the track does nothing\t")
+		# capture-assets-play (cmake/CaptureTests.cmake) plays the shared ones.
 	endif()
 endif()
 

@@ -369,8 +369,11 @@ sub init () {
 	# Half its size at the front, smaller further back.
 	setScale (-400, 1600);
 
-	addCharacter (ego, 420, 400, egoCostume ());
-	setCharacterRig (ego, egoRig ());
+	# Ego's rig and costume: built by the script (ego-script.slu, for
+	# CompositeTest) or loaded from the files the Dev Kit saves
+	# (ego-assets.slu, for CompositeAssetsTest).
+	addCharacter (ego, 420, 400, playedCostume ());
+	setCharacterRig (ego, playedRig ());
 	scene ("standing south", 10);
 	turnCharacter (ego, 270);
 	scene ("standing west", 10);

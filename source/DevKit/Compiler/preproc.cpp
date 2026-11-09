@@ -7,6 +7,7 @@
 #include "helpers.h"
 #include "messbox.h"
 #include "dumpfiles.h"
+#include "animassets.h"
 #include "utf8.h"
 
 #define numDoubleCharTypes 13
@@ -109,6 +110,8 @@ bool preProcess (char * codeFileName, int fileNumber, stringArray * & strings, s
 					}
 					doLine();
 					fprintf (outputFile, "_%s%i ", "file", findOrAdd (fileHandles, grabString, false));
+					if (isAnimAssetName (grabString) && ! registerAnimAsset (grabString, fileHandles, codeFileName, currentLine))
+						return false;
 				}
 			}
 			else if ((wholeFile[index] == '\\') && (quoteChar == '\"') && (! escapeCharNext))

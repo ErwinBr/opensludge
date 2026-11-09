@@ -23,6 +23,8 @@
 #include "sprites.h"
 #include "fonttext.h"
 #include "sprbanks.h"
+#include "animformat.h"
+#include "fileset.h"
 #include "people.h"
 #include "sound.h"
 #include "objtypes.h"
@@ -106,7 +108,7 @@ int paramNum[] = {-1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, 8, -1,		// SAY -> MOVEM
 	-1, -1, 3, 3, 3, 2,							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
 	0, -1, 3, 2, -1,							// newRig, addPart, setPartDepth, setCharacterRig, clipKey
 	-1, 2, 4, 3, 1,								// playClip, stopClip, setPartProperty, clearPartProperty, mirrorClip
-	4											// setPartPivot
+	4, 1, 1									// setPartPivot, loadRig, loadClip
 };
 
 bool failSecurityCheck (char * fn) {
@@ -3027,6 +3029,64 @@ builtIn(setPartPivot)
 	}
 	rig -> parts[part].pivotX = (float) x;
 	rig -> parts[part].pivotY = (float) y;
+	return BR_CONTINUE;
+}
+
+// The rigs and clips of a file of the game: a rig (.rig) or clip (.clp) of
+// the project, as the compiler packs it (see animassets.h of the compiler).
+static bool readAnimationFile (int file, animformat::Document & doc) {
+	setResourceForFatal (file);
+	unsigned int length = openFileFromNum (file);
+	if (! length) return fatal ("Can't open a rig or clip");
+	animformat::Bytes bytes (length);
+	bool read = fread (bytes.data (), 1, length, bigDataFile) == length;
+	finishAccess ();
+	if (! read) return fatal ("Can't open a rig or clip - the file ends too soon.");
+	std::string why;
+	if (! animformat::decode (bytes.data (), bytes.size (), doc, why)) return fatal ("Not a rig or clip:", why.c_str ());
+	setResourceForFatal (-1);
+	return true;
+}
+
+// loadRig ('a.rig'): the rig of a file that the Dev Kit made, which a script
+// may add to until a character has it, as one of newRig.
+builtIn(loadRig)
+{
+	UNUSEDALL
+	int file;
+	if (! getValueType (file, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	animformat::Document doc;
+	if (! readAnimationFile (file, doc)) return BR_ERROR;
+	if (doc.rigs.size () != 1 || ! doc.clips.empty ()) {
+		fatal ("loadRig () takes a rig (a .rig file) of the project.");
+		return BR_ERROR;
+	}
+	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> (doc.rigs[0]);
+	if (! resolveBanks (* rig, loadBankForAnim)) return BR_ERROR;	// fatal done already
+	newRigVariable (fun -> reg, rig);
+	return BR_CONTINUE;
+}
+
+// loadClip ('a.clp'): the clip of a file that the Dev Kit made, which a
+// script may add to until it is used, as one of newClip.
+builtIn(loadClip)
+{
+	UNUSEDALL
+	int file;
+	if (! getValueType (file, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	animformat::Document doc;
+	if (! readAnimationFile (file, doc)) return BR_ERROR;
+	if (doc.clips.size () != 1 || ! doc.rigs.empty ()) {
+		fatal ("loadClip () takes a clip (a .clp file) of the project.");
+		return BR_ERROR;
+	}
+	std::shared_ptr<ClipDefinition> clip = std::make_shared<ClipDefinition> (doc.clips[0]);
+	if (! resolveBanks (* clip, loadBankForAnim)) return BR_ERROR;
+	AnimationHandle h (new personaAnimation);
+	h -> definition = clip;
+	newAnimationVariable (fun -> reg, std::move (h));
 	return BR_CONTINUE;
 }
 

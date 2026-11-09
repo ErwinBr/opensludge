@@ -161,7 +161,8 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
-			TimelineTest.slp timeline.slu SealTest.slp seal.slu CompositeTest.slp composite.slu
+			TimelineTest.slp timeline.slu SealTest.slp seal.slu CompositeTest.slp composite.slu ego-script.slu
+			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
@@ -253,6 +254,40 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 				COMMENT "Making the sprite banks of CompositeTest"
 				VERBATIM)
 			sludge_compile_game(CompositeTest ${render_project}/CompositeTest.slp DEPENDS ${ego_banks})
+
+			# The same character from the rig and clips that the Dev Kit saves:
+			# make_ego_assets builds them a second way, apart from the script, and
+			# the game that loads them must draw every frame as CompositeTest.
+			add_executable(make_ego_assets ${CMAKE_CURRENT_SOURCE_DIR}/tests/render/make_ego_assets.cpp)
+			target_link_libraries(make_ego_assets PRIVATE sludge-anim)
+			set(ego_assets ${render_project}/hd-ego/ego.rig)
+			foreach(direction south west north east)
+				list(APPEND ego_assets ${render_project}/hd-ego/stand_${direction}.clp ${render_project}/hd-ego/talk_${direction}.clp)
+				if(NOT direction STREQUAL "west")
+					list(APPEND ego_assets ${render_project}/hd-ego/walk_${direction}.clp)
+				endif()
+			endforeach()
+			add_custom_command(
+				OUTPUT ${ego_assets}
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${render_project}/hd-ego
+				COMMAND make_ego_assets ${render_project}/hd-ego
+				DEPENDS make_ego_assets
+				COMMENT "Making the rig and clips of CompositeAssetsTest"
+				VERBATIM)
+			sludge_compile_game(CompositeAssetsTest ${render_project}/CompositeAssetsTest.slp DEPENDS ${ego_banks} ${ego_assets})
+			add_test(NAME capture-composite-assets
+				COMMAND ${CMAKE_COMMAND}
+					-DENGINE=$<TARGET_FILE:sludge-engine>
+					-DFRAMEDIFF=$<TARGET_FILE:framediff>
+					-DGAME=${CMAKE_BINARY_DIR}/games/CompositeAssetsTest.slg
+					-DEXPECTED_GAME=${CMAKE_BINARY_DIR}/games/CompositeTest.slg
+					-DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/composite.input
+					-DFRAMES=0-1500/10
+					-DOUT=${CMAKE_BINARY_DIR}/capture/composite-assets
+					"-DENGINE_ARGS=--renderer=gl"
+					"-DREQUIRE=Renderer: OpenGL"
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/run.cmake)
+			set_tests_properties(capture-composite-assets PROPERTIES LABELS capture TIMEOUT 600)
 			sludge_add_capture_test(composite GAME ${CMAKE_BINARY_DIR}/games/CompositeTest.slg
 				INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/composite.input FRAMES 0-1500/10 NO_REFERENCE)
 			add_test(NAME capture-composite-saveload
@@ -268,6 +303,21 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		else()
 			message(WARNING "SLUDGE_EGO_SPRITES is set, but there is no Python 3 to make CompositeTest's banks with")
 		endif()
+	endif()
+
+	# A game of rigs and clips that share a bank and a sound (see
+	# compiler_assets_shared in source/DevKit/CMakeLists.txt) plays.
+	if(TARGET make_asset_project)
+		add_test(NAME capture-assets-play
+			COMMAND ${CMAKE_COMMAND}
+				-DCOMPILER=$<TARGET_FILE:sludge-compiler>
+				-DMAKER=$<TARGET_FILE:make_asset_project>
+				-DBANK=${CMAKE_CURRENT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/ego/alien.duc
+				-DSOUND=${CMAKE_CURRENT_SOURCE_DIR}/doc/ExampleProjects/VerbCoin/iface/pop.wav
+				-DCASE=shared -DRESOURCES=6 -DENGINE=$<TARGET_FILE:sludge-engine>
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/assets/play
+				-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/compiler/asset_compile_test.cmake)
+		set_tests_properties(capture-assets-play PROPERTIES LABELS capture TIMEOUT 300)
 	endif()
 
 	# What lives after saving and loading, and after loads that fail.

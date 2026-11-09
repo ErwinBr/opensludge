@@ -12,6 +12,7 @@
 #include "interface.h"
 #include "allknown.h"
 #include "compilerinfo.h"
+#include "animassets.h"
 
 #include "utf8.h"
 
@@ -911,7 +912,8 @@ void initBuiltInFunc ()
 	addToStringArray (typeDefFrom, "LAYER_ADD");		addToStringArray (typeDefTo, "1");
 }
 
-void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {
+bool doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles) {
+	bool ok = true;
 	FILE * fp = fopen (fn, "rb");
 	if (fp) {
 		int line = 0;
@@ -922,7 +924,7 @@ void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles)
 			if (! u8_isvalid(t)) {
 				addComment (ERRORTYPE_PROJECTERROR, "The file is not UTF-8 encoded. (Text from old Windows versions of SLUDGE often isn't; the Dev Kit can convert it.)", NULL, fn, line);
 				fclose (fp);
-				return;
+				return true;
 			}
 			
 			stringArray * sa = splitString (t, '#');
@@ -940,8 +942,9 @@ void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles)
 						snprintf (newTarget, 30, "_string%i", findOrAdd (strings, bits->next->string, false));
 						delete bits->next->string;
 						bits->next->string = newTarget;
-					} else if (trimStart (bits->next->string, '"')) {
+					} else if (trimStart (bits->next->string, '\'')) {
 						if (! trimEnd (bits->next->string, '\'')) addComment (ERRORTYPE_PROJECTERROR, "Definition starts with ', but doesn't end with it! Sorry, currently support for complex constants is very limited", bits->next->string, fn, 0);
+						if (isAnimAssetName (bits->next->string) && ! registerAnimAsset (bits->next->string, fileHandles, fn, line)) ok = false;
 						char * newTarget = new char[30];
 						snprintf (newTarget, 30, "_file%i", findOrAdd (fileHandles, bits->next->string, false));
 						delete bits->next->string;
@@ -966,6 +969,7 @@ void doDefines (char * fn, stringArray * & strings, stringArray * & fileHandles)
 	} else {
 		addComment (ERRORTYPE_PROJECTERROR, "Can't read definition file", fn, NULL, 0);
 	}
+	return ok;
 }
 
 bool outdoorSub (char * code, const char * fileName, unsigned int fileLine) {

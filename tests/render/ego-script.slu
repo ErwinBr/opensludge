@@ -1,0 +1,9 @@
+# CompositeTest: ego as composite.slu builds it, with newRig and newClip.
+
+sub playedRig () {
+	return egoRig ();
+}
+
+sub playedCostume () {
+	return egoCostume ();
+}

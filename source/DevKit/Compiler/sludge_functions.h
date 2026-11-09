@@ -26,4 +26,6 @@ int outputMarkerCode (compilationSpace & theSpace, sludgeCommand theCommand);
 void outputDoneCode (compilationSpace & theSpace, sludgeCommand theCommand, int value);
 bool outdoorSub (char *, const char *, unsigned int);
 void writeDebugData (FILE * mainFile);
-void doDefines (char * fn, stringArray * &, stringArray * &);
+// False when a rig or clip that a definition names can't be read (see
+// animassets.h); other mistakes are reported, and don't stop the compiler.
+bool doDefines (char * fn, stringArray * &, stringArray * &);

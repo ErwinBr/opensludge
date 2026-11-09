@@ -17,6 +17,7 @@
 #include "allknown.h"
 #include "checkused.h"
 #include "dumpfiles.h"
+#include "animassets.h"
 #include "sludge_functions.h"
 #include "linker.h"
 #include "messbox.h"
@@ -105,6 +106,7 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
 	{
 		case CSTEP_INIT:
 		numProcessed = 0;
+		resetAnimAssets ();
 		setGlobPointer (& globalVarNames);
 
 		if (! (*numFiles)) {
@@ -152,7 +154,7 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
 					compareMe[4] = 0;
 				}
 				if (strcmp (compareMe, ".sld") == 0) {
-					doDefines (tx, allSourceStrings, allFileHandles);
+					if (! doDefines (tx, allSourceStrings, allFileHandles)) return false;
 				} else if (strcmp (compareMe, ".slu") == 0) {
 					if (! preProcess (tx, numProcessed ++, allSourceStrings, allFileHandles))
 						return false;
@@ -364,6 +366,11 @@ bool doSingleCompileStep (char **fileList, int *numFiles) {
 		extern stringArray * globalVarFileOrigins;
 		extern stringArray * functionFiles;
 
+		// The functions that clips' events call are used, too.
+		if (! resolveAnimAssetFunctions (functionNames)) {
+			fclose (projectFile);
+			return false;
+		}
 		warnAboutUnused (CHECKUSED_FUNCTIONS, functionNames, "Function ", functionFiles);
 		warnAboutUnused (CHECKUSED_GLOBALS, globalVarNames, "Global variable ", globalVarFileOrigins);
 
@@ -428,6 +435,7 @@ int compileEverything (char * project, char **fileList, int *numFiles, void (*in
 	destroyAll (allKnownFlags);
 	destroyAll (allSourceStrings);
 	destroyAll (allFileHandles);
+	resetAnimAssets ();
 
 	killTempDir();
 	setFinished(success);
