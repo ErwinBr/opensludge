@@ -20,6 +20,7 @@
 #include <chrono>
 #include <thread>
 
+#include <algorithm>
 #include <deque>
 #include <string>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "CompileJob.h"
 #include "Launch.h"
 #include "ProjectCheck.h"
+#include "ClipDocument.h"
 #include "ProjectDocument.h"
 #include "RigDocument.h"
 #include "animedit.h"
@@ -1424,6 +1426,198 @@ static void testRigs () {
 	CHECK (opened.part (hand) && opened.asset ().id == rig.asset ().id);
 }
 
+static void testClips () {
+	ClipDocument clip, other;
+	std::string why, error;
+	CHECK (clip.clip ().length == 48 && clip.clip ().loop && clip.clip ().tracks.empty ());
+	CHECK (! clip.asset ().id.isNull () && clip.asset ().id != other.asset ().id);
+	CHECK (clip.untitledName () == "Untitled Clip.clp" && ! clip.isModified ());
+	CHECK (fileKind ("walk.clp") == FILE_DOCUMENT);
+
+	// Tracks and keys.
+	TrackId turn, eyes, sprite;
+	CHECK (clip.addTrack ("head", CHANNEL_ROTATION, &turn, why));
+	CHECK (! clip.addTrack ("head", CHANNEL_ROTATION, NULL, why));
+	CHECK (clip.setKey (turn, 0, 10, EASING_INOUT, why));
+	CHECK (clip.setKey (turn, 24, -10, EASING_LINEAR, why));
+	CHECK (! clip.setKey (turn, 49, 0, EASING_LINEAR, why));
+	CHECK (! clip.setKey (turn, 4, NAN, EASING_LINEAR, why));
+	CHECK (clip.key (KeyRef (turn, 0)) && clip.key (KeyRef (turn, 0))->easing == EASING_INOUT);
+	CHECK (clip.key (KeyRef (turn, 24))->value == -10);
+	clip.commands ().undo ();
+	CHECK (! clip.key (KeyRef (turn, 24)));
+	clip.commands ().redo ();
+	CHECK (clip.addTrack ("eyes", CHANNEL_VISIBLE, &eyes, why));
+	CHECK (clip.setKey (eyes, 4, 5, EASING_INOUT, why));
+	CHECK (clip.key (KeyRef (eyes, 4))->value == 1 && clip.key (KeyRef (eyes, 4))->easing == EASING_STEP);
+	clip.setEasing (KeyRef (turn, 24), EASING_STEP);
+	CHECK (clip.key (KeyRef (turn, 24))->easing == EASING_STEP && clip.commands ().undoLabel () == "Easing");
+
+	// Sprites name their banks by path, and a bank goes when no key uses it.
+	CHECK (clip.addTrack ("eyes", CHANNEL_SPRITE, &sprite, why));
+	CHECK (clip.setSpriteKey (sprite, 0, "hd/eyes.duc", 3, false, false, why));
+	CHECK (clip.setSpriteKey (sprite, 8, "", 0, false, false, why));
+	CHECK (clip.setSpriteKey (sprite, 12, "", 0, false, true, why));
+	CHECK (clip.asset ().banks.size () == 1 && clip.bankOf (clip.key (KeyRef (sprite, 0))->sprite) == "hd/eyes.duc");
+	CHECK (clip.key (KeyRef (sprite, 8))->sprite.kind == SpriteRef::NONE && clip.key (KeyRef (sprite, 12))->sprite.kind == SpriteRef::DEFAULT);
+	CHECK (! clip.setKey (sprite, 4, 1, EASING_STEP, why));
+	clip.removeKeys (std::vector<KeyRef> (1, KeyRef (sprite, 0)));
+	CHECK (clip.asset ().banks.empty ());
+	clip.commands ().undo ();
+	CHECK (clip.asset ().banks.size () == 1);
+
+	// Moving keys keeps their values and easings; onto a key of the same
+	// track, they replace it, and undo brings it back.
+	CHECK (clip.setKey (turn, 40, 99, EASING_LINEAR, why));
+	CHECK (clip.moveKeys (std::vector<KeyRef> (1, KeyRef (turn, 24)), 8, false, why));
+	CHECK (! clip.key (KeyRef (turn, 24)) && clip.key (KeyRef (turn, 32))->value == -10 && clip.key (KeyRef (turn, 32))->easing == EASING_STEP);
+	CHECK (clip.moveKeys (std::vector<KeyRef> (1, KeyRef (turn, 32)), 8, false, why));
+	CHECK (clip.key (KeyRef (turn, 40))->value == -10 && clip.track (turn)->keys.size () == 2);
+	clip.commands ().undo ();
+	CHECK (clip.key (KeyRef (turn, 40))->value == 99 && clip.key (KeyRef (turn, 32))->value == -10);
+	CHECK (clip.moveKeys (std::vector<KeyRef> (1, KeyRef (turn, 0)), 4, true, why));
+	CHECK (clip.key (KeyRef (turn, 0)) && clip.key (KeyRef (turn, 4))->value == 10 && clip.key (KeyRef (turn, 4))->easing == EASING_INOUT);
+	CHECK (clip.commands ().undoLabel () == "Copy Key");
+	std::vector<KeyRef> both;
+	both.push_back (KeyRef (turn, 0));
+	both.push_back (KeyRef (eyes, 4));
+	CHECK (! clip.moveKeys (both, -1, false, why) && clip.key (KeyRef (turn, 0)) && clip.key (KeyRef (eyes, 4)));
+	CHECK (clip.moveKeys (both, 2, false, why) && clip.key (KeyRef (turn, 2)) && clip.key (KeyRef (eyes, 6)));
+	CHECK (clip.commands ().undoLabel () == "Move Keys");
+	clip.commands ().undo ();
+	clip.removeKeys (both);
+	CHECK (! clip.key (KeyRef (turn, 0)) && ! clip.key (KeyRef (eyes, 4)) && clip.commands ().undoLabel () == "Remove Keys");
+	clip.commands ().undo ();
+	CHECK (clip.key (KeyRef (turn, 0)) && clip.key (KeyRef (eyes, 4)));
+
+	// Events, by the path of a sound or the name of a function.
+	EventId step, call;
+	CHECK (clip.addEvent (8, FrameEvent::SOUND, "sounds/step.wav", &step, why));
+	CHECK (clip.addEvent (30, FrameEvent::FUNCTION, "footstep", &call, why));
+	CHECK (! clip.addEvent (60, FrameEvent::SOUND, "step.wav", NULL, why));
+	CHECK (! clip.addEvent (4, FrameEvent::FUNCTION, "", NULL, why));
+	CHECK (clip.eventName (step) == "sounds/step.wav" && clip.eventName (call) == "footstep");
+	CHECK (clip.setEvent (call, 36, FrameEvent::FUNCTION, "jump", why) && clip.event (call)->time == 36 && clip.eventName (call) == "jump");
+	CHECK (! clip.setEvent (call, 49, FrameEvent::FUNCTION, "jump", why) && clip.event (call)->time == 36);
+	clip.removeEvent (step);
+	CHECK (! clip.event (step) && clip.eventName (call) == "jump");
+	clip.commands ().undo ();
+	CHECK (clip.eventName (step) == "sounds/step.wav");
+
+	// Shorter, it doesn't drop keys and events past its end, unless told to.
+	CHECK (clip.itemsPast (32) == 2);
+	CHECK (! clip.setLength (32, false, why) && clip.clip ().length == 48 && why.find ("2 keys") == 0);
+	CHECK (clip.setLength (32, true, why) && clip.clip ().length == 32 && clip.itemsPast (32) == 0);
+	CHECK (! clip.key (KeyRef (turn, 40)) && ! clip.event (call));
+	clip.commands ().undo ();
+	CHECK (clip.clip ().length == 48 && clip.key (KeyRef (turn, 40)) && clip.event (call));
+	CHECK (clip.setLength (96, false, why) && clip.clip ().length == 96);
+	clip.setLoop (false);
+	CHECK (! clip.clip ().loop);
+
+	// Keying a part, as a drag on the canvas: the track if it has none, the
+	// key at the tick, and one undo for the whole drag.
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 10, 5, why, 3));
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 10, 15, why, 3));
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 10, 25, why, 3));
+	clip.commands ().stopMerging ();
+	const Track * arm = clip.track ("arm", CHANNEL_ROTATION);
+	CHECK (arm && arm->keys.size () == 1 && arm->keys[0].value == 25 && arm->keys[0].easing == EASING_LINEAR);
+	clip.commands ().undo ();
+	CHECK (! clip.track ("arm", CHANNEL_ROTATION));
+	clip.commands ().redo ();
+	arm = clip.track ("arm", CHANNEL_ROTATION);
+	clip.setEasing (KeyRef (arm->id, 10), EASING_INOUT);
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 10, 30, why));
+	arm = clip.track ("arm", CHANNEL_ROTATION);
+	CHECK (arm->keys[0].value == 30 && arm->keys[0].easing == EASING_INOUT);
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 20, 40, why));
+	CHECK (clip.autoKey ("arm", CHANNEL_ROTATION, 5, 0, why));
+	arm = clip.track ("arm", CHANNEL_ROTATION);
+	CHECK (arm->keys.size () == 3 && arm->keys[2].easing == EASING_INOUT && arm->keys[0].easing == EASING_LINEAR);
+	CHECK (clip.track ("arm", CHANNEL_X) == NULL);
+	CHECK (! clip.autoKey ("arm", CHANNEL_SPRITE, 5, 0, why));
+
+	// Bound to a rig, it knows which of its parts the rig lacks.
+	RigDocument rig;
+	PartId head;
+	CHECK (rig.addPart (rig.rig ().parts[0].id, "head", &head, why));
+	clip.bindToRig (rig.asset ().id, "ego.rig");
+	CHECK (clip.isBoundTo (rig.asset ().id) && clip.asset ().rigPath == "ego.rig");
+	std::vector<std::string> missing = clip.missingParts (rig.rig ());
+	CHECK (missing.size () == 2 && missing[0] == "arm" && missing[1] == "eyes");
+
+	// Saved and opened again, the same to the byte.
+	CHECK (clip.save (folder + "walk.clp", &error));
+	ClipDocument opened;
+	CHECK (opened.load (folder + "walk.clp", &error));
+	CHECK (opened.asset ().id == clip.asset ().id && opened.isBoundTo (rig.asset ().id) && opened.eventName (call) == "jump");
+	CHECK (opened.save (folder + "again.clp", &error));
+	CHECK (readFile (folder + "walk.clp") == readFile (folder + "again.clp"));
+	CHECK (rig.save (folder + "ego2.rig", &error));
+	CHECK (! opened.load (folder + "ego2.rig", &error) && error.find ("rig") != std::string::npos);
+}
+
+// Renaming a part of a rig renames its tracks in the clips made for it, as
+// one change.
+static void testRenameAcross () {
+	std::string why, error;
+	RigDocument rig;
+	PartId head, eyes;
+	CHECK (rig.addPart (rig.rig ().parts[0].id, "head", &head, why));
+	CHECK (rig.addPart (head, "eyes", &eyes, why));
+	ClipDocument walk, blink;
+	TrackId t;
+	walk.bindToRig (rig.asset ().id, "ego.rig");
+	CHECK (walk.addTrack ("head", CHANNEL_ROTATION, &t, why) && walk.setKey (t, 0, 5, EASING_LINEAR, why));
+	CHECK (walk.addTrack ("head", CHANNEL_Y, &t, why));
+	blink.bindToRig (rig.asset ().id, "ego.rig");
+	CHECK (blink.addTrack ("eyes", CHANNEL_VISIBLE, &t, why));
+	CHECK (blink.addTrack ("head", CHANNEL_X, &t, why));
+	std::vector<ClipDocument *> clips;
+	clips.push_back (&walk);
+	clips.push_back (&blink);
+	std::vector<ClipDocument *> open = clips;
+	RigDocument::StillOpen stillOpen = [&open] (ClipDocument * c) { return std::find (open.begin (), open.end (), c) != open.end (); };
+
+	std::vector<ClipDocument *> renamed;
+	CHECK (rig.renamePart (head, "skull", clips, stillOpen, &renamed, why));
+	CHECK (rig.part (head)->name == "skull" && renamed.size () == 2);
+	CHECK (walk.track ("skull", CHANNEL_ROTATION) && walk.track ("skull", CHANNEL_Y) && ! walk.track ("head", CHANNEL_Y));
+	CHECK (blink.track ("skull", CHANNEL_X) && blink.track ("eyes", CHANNEL_VISIBLE));
+	CHECK (rig.commands ().undoLabel () == "Rename Part" && walk.commands ().undoLabel () == "Rename Part");
+
+	// One undo, in the rig, takes all back, and redo does it again.
+	rig.commands ().undo ();
+	CHECK (rig.part (head)->name == "head" && walk.track ("head", CHANNEL_ROTATION) && blink.track ("head", CHANNEL_X));
+	rig.commands ().redo ();
+	CHECK (rig.part (head)->name == "skull" && walk.track ("skull", CHANNEL_ROTATION) && blink.track ("skull", CHANNEL_X));
+
+	// A clip changed since, or closed, stays as it is.
+	walk.setLoop (false);
+	open.pop_back ();
+	rig.commands ().undo ();
+	CHECK (rig.part (head)->name == "head");
+	CHECK (walk.track ("skull", CHANNEL_ROTATION) && blink.track ("skull", CHANNEL_X));
+	open = clips;
+	rig.commands ().redo ();
+
+	// A clip with tracks of both names can't take it: nothing changes.
+	CHECK (blink.addTrack ("face", CHANNEL_X, &t, why));
+	CHECK (! rig.renamePart (head, "face", clips, stillOpen, &renamed, why) && why.find ("face") != std::string::npos);
+	CHECK (rig.part (head)->name == "skull" && walk.track ("skull", CHANNEL_ROTATION));
+
+	// The clips of a rig in a folder, and its folders.
+	mkdirs (folder + "clips/more");
+	CHECK (walk.save (folder + "clips/walk.clp", &error));
+	CHECK (blink.save (folder + "clips/more/blink.clp", &error));
+	ClipDocument unbound;
+	CHECK (unbound.save (folder + "clips/other.clp", &error));
+	std::vector<std::string> found = clipsOfRig (folder + "clips", rig.asset ().id);
+	CHECK (found.size () == 2);
+	CHECK (found.size () == 2 && found[0].find ("more/blink.clp") != std::string::npos && found[1].find ("walk.clp") != std::string::npos);
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1447,6 +1641,8 @@ int main (int argc, char ** argv) {
 	testSpriteBanks ();
 	testTranslations ();
 	testRigs ();
+	testClips ();
+	testRenameAcross ();
 	testFileMemory ();
 
 	if (failures) {

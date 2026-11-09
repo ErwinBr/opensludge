@@ -138,6 +138,7 @@ endif()
 # the editor, which knows nothing of SDL or ImGui; App is the program.
 if(SLUDGE_DEVKIT)
 	add_library(devkit-core STATIC
+		${DEVKIT_DIR}/Core/ClipDocument.cpp
 		${DEVKIT_DIR}/Core/CommandStack.cpp
 		${DEVKIT_DIR}/Core/CompileJob.cpp
 		${DEVKIT_DIR}/Core/Document.cpp

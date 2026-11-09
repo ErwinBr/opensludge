@@ -8,6 +8,8 @@
  * changed since it was saved.
  */
 
+#include <stdint.h>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -17,7 +19,12 @@ namespace devkit {
 
 class Command {
 public:
+	Command ();
 	virtual ~Command () {}
+
+	// A number that no other command of this run has, so that a change of
+	// one document can find its part in another (see undoIfLast).
+	uint64_t serial () const { return number; }
 
 	// What the menu says, after "Undo" or "Redo".
 	virtual std::string label () const = 0;
@@ -28,6 +35,9 @@ public:
 	// Take in a command that follows this one, such as the next step of a
 	// drag, so that they undo together. Returns false when it can't.
 	virtual bool mergeWith (const Command & next) { (void) next; return false; }
+
+private:
+	uint64_t number;
 };
 
 // A change from one value of some state to another, such as a hotspot or a
@@ -77,6 +87,12 @@ public:
 	std::string redoLabel () const;
 	void undo ();
 	void redo ();
+	// The serial of the command that undo would revert, or 0.
+	uint64_t lastSerial () const;
+	// Undo, or redo, only the command of that serial, if it is the one that
+	// undo, or redo, would take; false otherwise.
+	bool undoIfLast (uint64_t serial);
+	bool redoIfNext (uint64_t serial);
 
 	// Forget every command, after a change that we can't undo. A document
 	// that wasn't saved stays changed.

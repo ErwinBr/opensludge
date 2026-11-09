@@ -14,6 +14,7 @@
  * that can fail change nothing then, and say why.
  */
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,8 @@
 #include "animformat.h"
 
 namespace devkit {
+
+class ClipDocument;
 
 class RigDocument : public Document {
 public:
@@ -42,6 +45,15 @@ public:
 
 	bool addPart (PartId parent, const std::string & name, PartId * added, std::string & why);
 	bool renamePart (PartId part, const std::string & name, std::string & why);
+	// The same, and the part's tracks in clips: those made for this rig, which
+	// the caller has opened. It is one change: undo and redo take the clips'
+	// renames with them, as long as each is the last change of its clip,
+	// and its clip is still open (stillOpen). It fails, changing nothing,
+	// when a clip has tracks of the new name. renamed gets the clips that
+	// changed.
+	typedef std::function<bool (ClipDocument *)> StillOpen;
+	bool renamePart (PartId part, const std::string & name, const std::vector<ClipDocument *> & clips,
+		StillOpen stillOpen, std::vector<ClipDocument *> * renamed, std::string & why);
 	// With every part attached to it.
 	bool removePart (PartId part, std::string & why);
 	// Under parent, at position among its other parts (see animedit.h).

@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "ClipDocument.h"
 #include "RigDocument.h"
 #include "animedit.h"
 
@@ -88,6 +89,83 @@ bool RigDocument::renamePart (PartId id, const std::string & name, std::string &
 	if (! ::renamePart (after.rig, partWithId (state.rig, id), name, why)) return false;
 	if (part (id) -> name == name) return true;
 	change ("Rename Part", after);
+	return true;
+}
+
+namespace {
+
+// A rename of a part of a rig, with the renames of its tracks in clips,
+// each a command of its clip: undo and redo take those with them.
+class RenameEverywhere : public Command {
+public:
+	struct Clip {
+		ClipDocument * document;
+		uint64_t serial;
+	};
+	RenameEverywhere (const animformat::Asset & before, const animformat::Asset & after, animformat::Asset & state,
+			const std::vector<Clip> & clips, RigDocument::StillOpen stillOpen)
+		: before (before), after (after), state (state), clips (clips), stillOpen (stillOpen), first (true) {}
+
+	std::string label () const { return "Rename Part"; }
+	void apply () {
+		state = after;
+		// The first time, the clips have been renamed already.
+		if (first) {
+			first = false;
+			return;
+		}
+		for (size_t i = 0; i < clips.size (); i ++) {
+			if (stillOpen (clips[i].document)) clips[i].document->commands ().redoIfNext (clips[i].serial);
+		}
+	}
+	void revert () {
+		state = before;
+		for (size_t i = clips.size (); i -- > 0; ) {
+			if (stillOpen (clips[i].document)) clips[i].document->commands ().undoIfLast (clips[i].serial);
+		}
+	}
+
+private:
+	animformat::Asset before, after;
+	animformat::Asset & state;
+	std::vector<Clip> clips;
+	RigDocument::StillOpen stillOpen;
+	bool first;
+};
+
+}
+
+bool RigDocument::renamePart (PartId id, const std::string & name, const std::vector<ClipDocument *> & clips,
+		StillOpen stillOpen, std::vector<ClipDocument *> * renamed, std::string & why) {
+	if (renamed) renamed->clear ();
+	const RigPart * p = part (id);
+	if (! p) return fail (why, "There is no such part");
+	std::string from = p->name;
+	animformat::Asset after = state;
+	if (! ::renamePart (after.rig, partWithId (state.rig, id), name, why)) return false;
+	if (from == name) return true;
+	// A clip with tracks of both names can't take the rename: check them all
+	// before changing any.
+	for (size_t c = 0; c < clips.size (); c ++) {
+		const ClipDefinition & clip = clips[c]->clip ();
+		for (size_t t = 0; t < clip.tracks.size (); t ++) {
+			if (clip.tracks[t].part == from && clip.track (name, clip.tracks[t].channel)) {
+				why = fileNameOf (clips[c]->displayName ()) + " has tracks of \"" + name + "\" already";
+				return false;
+			}
+		}
+	}
+	std::vector<RenameEverywhere::Clip> changed;
+	for (size_t c = 0; c < clips.size (); c ++) {
+		uint64_t serial = 0;
+		std::string reason;
+		if (clips[c]->renamePart (from, name, &serial, reason) && serial) {
+			RenameEverywhere::Clip done = { clips[c], serial };
+			changed.push_back (done);
+			if (renamed) renamed->push_back (clips[c]);
+		}
+	}
+	commands ().run (new RenameEverywhere (state, after, state, changed, stillOpen));
 	return true;
 }
 

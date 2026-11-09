@@ -2,6 +2,11 @@
 
 namespace devkit {
 
+Command::Command () {
+	static uint64_t next = 0;
+	number = ++ next;
+}
+
 CommandStack::CommandStack ()
 	: position (0), savedKnown (true), savedPosition (0), merging (false) {}
 
@@ -54,6 +59,22 @@ void CommandStack::redo () {
 	position ++;
 	merging = false;
 	if (changed) changed ();
+}
+
+uint64_t CommandStack::lastSerial () const {
+	return canUndo () ? commands[position - 1]->serial () : 0;
+}
+
+bool CommandStack::undoIfLast (uint64_t serial) {
+	if (! serial || lastSerial () != serial) return false;
+	undo ();
+	return true;
+}
+
+bool CommandStack::redoIfNext (uint64_t serial) {
+	if (! serial || ! canRedo () || commands[position]->serial () != serial) return false;
+	redo ();
+	return true;
 }
 
 void CommandStack::clear () {

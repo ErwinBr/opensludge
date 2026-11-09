@@ -50,7 +50,7 @@ FileKind fileKind (const std::string & path) {
 	if (e == "png" || e == "tga" || e == "bmp" || e == "jpg" || e == "jpeg") return FILE_IMAGE;
 	if (e == "wav" || e == "ogg" || e == "flac") return FILE_AUDIO;
 	if (e == "mod" || e == "s3m" || e == "it" || e == "xm") return FILE_MODULE;
-	if (e == "flo" || e == "zbu" || e == "duc" || e == "slp" || e == "rig") return FILE_DOCUMENT;
+	if (e == "flo" || e == "zbu" || e == "duc" || e == "slp" || e == "rig" || e == "clp") return FILE_DOCUMENT;
 	return FILE_OTHER;
 }
 
