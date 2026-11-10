@@ -37,6 +37,7 @@
 #include "draw2d.h"
 #include "draw2d_gfx.h"
 
+#include "Icons.h"
 #include "InterfacePlatform.h"
 #include "Log.h"
 #include "PlatformSDL.h"
@@ -360,6 +361,7 @@ int main (int argc, char ** argv) {
 	// The editors have textures, which go before the renderer.
 	theWorkspace.reset ();
 	delete draw2d;
+	devkit::forgetIcons ();
 	ImGui_ImplGfx_Shutdown ();
 	ImGui_ImplSDL3_Shutdown ();
 	ImGui::DestroyContext ();

@@ -176,6 +176,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/CanvasView.cpp
 		${DEVKIT_DIR}/App/FileCheckWindow.cpp
 		${DEVKIT_DIR}/App/FloorView.cpp
+		${DEVKIT_DIR}/App/Icons.cpp
 		${DEVKIT_DIR}/Core/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/ProjectView.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
@@ -194,7 +195,7 @@ if(SLUDGE_DEVKIT)
 	# the build folder.
 	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/"
 		SLUDGE_SOURCE_FOLDER="${PROJECT_SOURCE_DIR}/")
-	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::png)
+	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::nanosvg sludge::png)
 	if(WIN32)
 		# The icon of the Project Manager of the old Dev Kits.
 		enable_language(RC)
@@ -274,6 +275,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-rig PROPERTIES LABELS capture)
+		# And its tools: a side handle that scales one axis, the pivot in the
+		# middle, and a locked part that a click goes through.
+		add_test(NAME capture-devkit-rig-tools
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig.rig
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/rig_tools_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig-tools.rig
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig-tools
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-rig-tools PROPERTIES LABELS capture)
 		# And for a clip: keyed by dragging a part at two ticks, a sprite bank
 		# dropped on it, an easing chosen and an event added.
 		add_test(NAME capture-devkit-clip

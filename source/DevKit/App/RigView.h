@@ -4,19 +4,23 @@
 /*
  * The character creator: the parts of a rig as a tree on the left, the
  * character in its rest pose in a canvas, and the selected part's sprite,
- * place, turn, scale, depth and pivot in the Inspector.
+ * position, rotation, scale, depth and pivot in the Inspector.
  *
  * On the canvas, a click selects the part whose sprite shows there, and a
  * drag moves it, which places it against its parent: so it places the
  * point where it is attached. The ring around the selected part's origin
- * turns it with its round knob and scales it with its square one; a drag
- * of the origin itself moves the pivot, the point the part turns about,
- * and leaves the sprite where it is. Places and pivots snap to whole
- * pixels, turns to whole degrees, and scales to whole percents.
+ * rotates it with its round knob. The squares on the corners of its
+ * sprite's box scale it, and those in the middles of the sides scale one
+ * axis when its axes scale apart (the lock of Scale in the Inspector). A
+ * drag of the origin itself moves the pivot, the point the part rotates
+ * about, and leaves the sprite where it is. Positions and pivots snap to
+ * whole pixels, rotations to whole degrees, and scales to whole percents.
  *
  * In the tree, dragging a part onto another attaches it there, where it
- * stays on screen; Move Up and Move Down order the parts of a parent, which
- * the engine draws in that order when their depths are the same.
+ * stays on screen; the arrows order the parts of a parent, which the engine
+ * draws in that order when their depths are the same. The lock at the end
+ * of a row locks its part: it can't be selected, so a click goes through
+ * to the part under it.
  *
  * The paths of sprite banks are from the open project's folder, as the
  * compiler finds them, or from the rig's own folder without a project.
@@ -76,6 +80,8 @@ private:
 	void addPart ();
 	void removeSelected ();
 	void moveSelected (int by);
+	bool canPick (int part) const;
+	void centrePivot (const RigPart & part);
 	void say (const std::string & text);
 	int selectedIndex () const;
 
@@ -93,6 +99,7 @@ private:
 	Drag drag;
 	float dragX, dragY;			// Where the drag started, on the canvas
 	PartPose dragRest;
+	ScaleHandle dragHandle;
 	float dragPivotX, dragPivotY;
 	Transform2D dragParent, dragWorld;
 

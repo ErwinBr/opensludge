@@ -22,6 +22,7 @@
  * With --update, we write the pictures as the new reference images.
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -391,7 +392,45 @@ static void testCharacterCreator () {
 	drawPoseOverlay (* draw, * rig, pose, 2, 1.0f);
 	draw->finish ();
 	check ("rig", v);
+
+	// The arm's axes scaled apart, with the handles of the sides too.
+	rig->parts[2].rest.scaleX = 2;
+	rig->parts[2].rest.scaleY = 0.75f;
+	evaluatePose (rig, ClipDefinitionRef (), TrackSamples (), Transform2D (), binding, pose);
+	draw->clear ();
+	drawPose (* draw, pose);
+	drawPoseOverlay (* draw, * rig, pose, 2, 1.0f, true);
+	draw->finish ();
+	check ("rig-stretched", v);
 	endView (v);
+
+	// Scale handles: a side's scales its axis by how far along it the mouse
+	// went, a corner both, and uniformly both by how far from the origin.
+	PartHandles h = partHandles (pose, 2, 40);
+	const PosedPart & arm = pose.parts[2];
+	float sx, sy;
+	// The middle of the right side, out twice as far from the origin.
+	const ScaleHandle & right = h.scale[7];
+	scaleFromHandle (pose.parts[1].world, rig->parts[2].rest, right, false,
+		arm.world.tx + (right.x - arm.world.tx) * 2, arm.world.ty + (right.y - arm.world.ty) * 2, sx, sy);
+	if (right.axes != ScaleHandle::X || fabsf (sx - 4) > 0.001f || sy != 0.75f) {
+		printf ("FAIL rig: a side handle scales %g, %g, not 4, 0.75\n", sx, sy);
+		failures ++;
+	}
+	const ScaleHandle & corner = h.scale[3];
+	scaleFromHandle (pose.parts[1].world, rig->parts[2].rest, corner, true,
+		arm.world.tx + (corner.x - arm.world.tx) * 0.6f, arm.world.ty + (corner.y - arm.world.ty) * 0.6f, sx, sy);
+	if (corner.axes != ScaleHandle::BOTH || fabsf (sx - 1.2f) > 0.001f || fabsf (sy - 0.45f) > 0.001f) {
+		printf ("FAIL rig: a corner scales uniformly %g, %g, not 1.2, 0.45\n", sx, sy);
+		failures ++;
+	}
+	scaleFromHandle (pose.parts[1].world, rig->parts[2].rest, corner, false,
+		arm.world.tx - (corner.x - arm.world.tx), arm.world.ty - (corner.y - arm.world.ty), sx, sy);
+	if (sx != 0.01f || sy != 0.01f) {
+		printf ("FAIL rig: past the origin, a corner scales %g, %g, not 1%%\n", sx, sy);
+		failures ++;
+	}
+	rig->parts[2].rest.scaleX = rig->parts[2].rest.scaleY = 1.5f;
 
 
 	// The animation editor's preview: a clip at a tick between its keys,

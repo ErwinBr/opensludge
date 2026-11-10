@@ -9,6 +9,8 @@
 #   sludge::webm   the WebM parser of libwebm (for movies, always from source)
 #   sludge::imgui  Dear ImGui with its SDL 3 platform backend (for the Dev
 #                  Kit, always from source)
+#   sludge::nanosvg  NanoSVG's headers, which draw the Dev Kit's icons
+#                  (always from source)
 #
 # By default, we use the libraries installed on the system, and we build
 # from source those that we don't find. With SLUDGE_BUNDLED_DEPS, we build
@@ -30,6 +32,7 @@ set(SLUDGE_DUMB_TAG 2.0.3)
 set(SLUDGE_VPX_TAG v1.17.0)
 set(SLUDGE_WEBM_TAG libwebm-1.0.0.32)
 set(SLUDGE_IMGUI_TAG v1.92.9b-docking)
+set(SLUDGE_NANOSVG_COMMIT 239e102ec2c691f2902e20ace2ed36ee4a35cfe6)
 
 if(NOT SLUDGE_BUNDLED_DEPS)
 	find_package(PkgConfig QUIET)
@@ -156,6 +159,18 @@ if(SLUDGE_DEVKIT)
 	target_compile_definitions(sludge_imgui_lib PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 	target_link_libraries(sludge_imgui_lib PUBLIC sludge::sdl3)
 	sludge_target(imgui sludge_imgui_lib)
+
+	# NanoSVG, two headers that parse and rasterize SVG. We take them only:
+	# SOURCE_SUBDIR names a folder without a CMakeLists.txt, so that its own
+	# isn't added.
+	FetchContent_Declare(nanosvg
+		GIT_REPOSITORY https://github.com/memononen/nanosvg.git
+		GIT_TAG ${SLUDGE_NANOSVG_COMMIT}
+		SOURCE_SUBDIR headers-only)
+	FetchContent_MakeAvailable(nanosvg)
+	add_library(sludge_nanosvg_lib INTERFACE)
+	target_include_directories(sludge_nanosvg_lib SYSTEM INTERFACE ${nanosvg_SOURCE_DIR}/src)
+	sludge_target(nanosvg sludge_nanosvg_lib)
 endif()
 
 if(NOT SLUDGE_ENGINE)

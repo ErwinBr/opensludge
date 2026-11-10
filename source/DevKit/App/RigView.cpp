@@ -11,6 +11,7 @@
 #include "draw2d_gfx.h"
 
 #include "imgui_impl_gfx.h"
+#include "Icons.h"
 #include "Platform.h"
 #include "Properties.h"
 #include "ClipDocument.h"
@@ -126,6 +127,22 @@ void RigView::moveSelected (int by) {
 	if (! rig->placePart (selected, rig->rig ().parts[parent].id, to, why)) say (why);
 }
 
+bool RigView::canPick (int part) const {
+	const RigDefinition & r = rig->rig ();
+	return part >= 0 && part < (int) r.parts.size () && ! rig->isLocked (r.parts[part].id);
+}
+
+void RigView::centrePivot (const RigPart & part) {
+	AnimBankRef b = bank (rig->bankOf (part.sprite));
+	if (! b || part.sprite.number >= b->animSpriteCount ()) return;
+	AnimSpriteSize s = b->animSpriteSize (part.sprite.number);
+	// The middle of the sprite, from its hotspot; a mirrored sprite is
+	// mirrored about its hotspot.
+	float x = s.width * 0.5f - s.xhot, y = s.height * 0.5f - s.yhot;
+	if (part.sprite.mirror) x = - x;
+	rig->setPivot (part.id, x, y, keepPivotInPlace);
+}
+
 void RigView::chooseBank () {
 	if (pending->waiting) return;
 	std::string base = baseFolder ();
@@ -187,11 +204,14 @@ void RigView::drawToolbar () {
 	if (ImGui::Button ("Remove")) removeSelected ();
 	ImGui::SetItemTooltip ("The selected part, and what is attached to it");
 	ImGui::SameLine ();
-	if (ImGui::Button ("Move Up")) moveSelected (-1);
-	ImGui::SetItemTooltip ("Before the part above it, under the same part: drawn first at the same depth");
+	// The arrows, if the font has them; ImGui's own (as in smoke tests)
+	// hasn't.
+	bool arrows = ImGui::GetFont ()->IsGlyphInFont (0x2191) && ImGui::GetFont ()->IsGlyphInFont (0x2193);
+	if (arrows ? ImGui::Button ("\xE2\x86\x91##up") : ImGui::ArrowButton ("##up", ImGuiDir_Up)) moveSelected (-1);
+	ImGui::SetItemTooltip ("Move Up: before the part above it, under the same part, drawn first at the same depth");
 	ImGui::SameLine ();
-	if (ImGui::Button ("Move Down")) moveSelected (1);
-	ImGui::SetItemTooltip ("After the part below it, under the same part: drawn later at the same depth");
+	if (arrows ? ImGui::Button ("\xE2\x86\x93##down") : ImGui::ArrowButton ("##down", ImGuiDir_Down)) moveSelected (1);
+	ImGui::SetItemTooltip ("Move Down: after the part below it, under the same part, drawn later at the same depth");
 	ImGui::EndDisabled ();
 	ImGui::SameLine (0, ImGui::GetFontSize () * 2);
 	canvas.drawZoomButtons ();
@@ -203,7 +223,8 @@ void RigView::drawTree (int index) {
 	const RigPart & part = r.parts[index];
 	std::vector<int> children = partChildren (r, index);
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
-		| ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
+		| ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap;
+	bool locked = rig->isLocked (part.id);
 	if (children.empty ()) flags |= ImGuiTreeNodeFlags_Leaf;
 	if (haveSelection && part.id == selected) flags |= ImGuiTreeNodeFlags_Selected;
 	std::string label = index == 0 ? std::string ("Character") : part.name;
@@ -213,12 +234,22 @@ void RigView::drawTree (int index) {
 	std::vector<PartId> ids;
 	for (size_t i = 0; i < children.size (); i ++) ids.push_back (r.parts[children[i]].id);
 	ImGui::PushID ((int) id);
+	// The lock goes at the end of the row, over the node.
+	float right = ImGui::GetCursorScreenPos ().x + ImGui::GetContentRegionAvail ().x;
+	float top = ImGui::GetCursorScreenPos ().y;
+	// The node ends before the lock.
+	float lockSide = ImGui::GetTextLineHeight ();
+	ImGui::PushClipRect (ImVec2 (ImGui::GetWindowPos ().x, top), ImVec2 (right - lockSide - ImGui::GetStyle ().ItemInnerSpacing.x, top + ImGui::GetFrameHeight ()), true);
+	// A locked part's name is dimmed.
+	if (locked) ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
 	bool open = ImGui::TreeNodeEx ("##part", flags, "%s", label.c_str ());
-	if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen ()) {
+	if (locked) ImGui::PopStyleColor ();
+	ImGui::PopClipRect ();
+	if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen () && ! locked) {
 		selected = id;
 		haveSelection = true;
 	}
-	if (index > 0 && ImGui::BeginDragDropSource ()) {
+	if (index > 0 && ! locked && ImGui::BeginDragDropSource ()) {
 		ImGui::SetDragDropPayload ("RIG_PART", &id, sizeof (id));
 		ImGui::Text ("Attach %s to...", part.name.c_str ());
 		ImGui::EndDragDropSource ();
@@ -230,6 +261,18 @@ void RigView::drawTree (int index) {
 			if (! rig->placePart (dragged, id, INT_MAX, why)) say (why);
 		}
 		ImGui::EndDragDropTarget ();
+	}
+	{
+		// On the node's line, at its end.
+		float side = lockSide;
+		ImGui::SameLine ();
+		ImGui::SetCursorScreenPos (ImVec2 (right - side, top));
+		if (iconButton ("lock", locked ? ICON_LOCKED : ICON_UNLOCKED,
+				locked ? "Locked: it can't be selected or changed. Click to unlock it." : "Lock it, so that it can't be selected or changed by accident",
+				side)) {
+			rig->setLocked (id, ! locked);
+			if (! locked && haveSelection && selected == id) haveSelection = false;
+		}
 	}
 	if (open) {
 		for (size_t i = 0; i < ids.size (); i ++) drawTree (partWithId (rig->rig (), ids[i]));
@@ -247,12 +290,32 @@ void RigView::handleMouse () {
 		if (at >= 0) {
 			PartHandles h = partHandles (restPose, at, canvas.pixelsOfPoints (RING_POINTS));
 			bool hasSprite = rig->rig ().parts[at].sprite.kind == SpriteRef::SPRITE;
-			if (distance (mx, my, h.turnX, h.turnY) < grab) drag = DRAG_TURN;
-			else if (distance (mx, my, h.scaleX, h.scaleY) < grab) drag = DRAG_SCALE;
-			else if (distance (mx, my, h.originX, h.originY) < grab) drag = hasSprite ? DRAG_PIVOT : DRAG_MOVE;
+			int handles = rig->scalesUniformly (selected) ? 4 : 8;
+			// The nearest handle within reach: the origin, then the knob,
+			// win a tie (a scale handle may lie on the origin).
+			float nearest = grab;
+			float d = distance (mx, my, h.originX, h.originY);
+			if (d < nearest) {
+				nearest = d;
+				drag = hasSprite ? DRAG_PIVOT : DRAG_MOVE;
+			}
+			d = distance (mx, my, h.turnX, h.turnY);
+			if (d < nearest) {
+				nearest = d;
+				drag = DRAG_TURN;
+			}
+			for (int i = 0; i < handles; i ++) {
+				d = distance (mx, my, h.scale[i].x, h.scale[i].y);
+				if (d < nearest) {
+					nearest = d;
+					drag = DRAG_SCALE;
+					dragHandle = h.scale[i];
+				}
+			}
 		}
 		if (drag == DRAG_NONE) {
-			int hit = partAt (restPose, mx, my);
+			RigView * self = this;
+			int hit = partAt (restPose, mx, my, [self] (int part) { return self->canPick (part); });
 			if (hit >= 0) {
 				selected = rig->rig ().parts[hit].id;
 				haveSelection = true;
@@ -298,14 +361,12 @@ void RigView::handleMouse () {
 			rest.rotation = wrapDegrees (floorf (dragRest.rotation + (float) turned + 0.5f));
 			rig->setRest (selected, rest, DRAG_KEY);
 		} else if (drag == DRAG_SCALE) {
-			float from = distance (dragX, dragY, dragWorld.tx, dragWorld.ty);
-			float to = distance (mx, my, dragWorld.tx, dragWorld.ty);
-			if (from > 0) {
-				PartPose rest = dragRest;
-				float percent = floorf (dragRest.scaleX * to / from * 100.0f + 0.5f);
-				rest.scaleX = rest.scaleY = (percent < 1 ? 1 : percent) / 100.0f;
-				rig->setRest (selected, rest, DRAG_KEY);
-			}
+			// From where the handle was, by as much as the mouse moved.
+			ScaleHandle from = dragHandle;
+			PartPose rest = dragRest;
+			scaleFromHandle (dragParent, dragRest, from, rig->scalesUniformly (selected),
+				from.x + dx, from.y + dy, rest.scaleX, rest.scaleY);
+			rig->setRest (selected, rest, DRAG_KEY);
 		} else if (drag == DRAG_PIVOT) {
 			// The origin follows the mouse: the pivot moves that much in the
 			// part's own space, and the sprite stays.
@@ -344,10 +405,11 @@ void RigView::drawCanvas () {
 	const RigDefinition & r = rig->rig ();
 	int at = selectedIndex ();
 	float pixel = canvas.pixelsOfPoints (1);
-	canvas.draw (size, [&p, &r, at, pixel] (Draw2D & draw) {
+	bool sides = at >= 0 && ! rig->scalesUniformly (selected);
+	canvas.draw (size, [&p, &r, at, pixel, sides] (Draw2D & draw) {
 		draw.clear ();
 		drawPose (draw, p);
-		drawPoseOverlay (draw, r, p, at, pixel);
+		drawPoseOverlay (draw, r, p, at, pixel, sides);
 		draw.finish ();
 	});
 	handleMouse ();
@@ -361,8 +423,8 @@ void RigView::drawCanvas () {
 
 void RigView::draw () {
 	handlePending ();
-	// Undo may have taken the selected part away.
-	if (selectedIndex () < 0) haveSelection = false;
+	// Undo may have taken the selected part away, or locked it.
+	if (selectedIndex () < 0 || (haveSelection && rig->isLocked (selected))) haveSelection = false;
 	pose ();
 
 	drawToolbar ();
@@ -470,25 +532,33 @@ void RigView::drawInspector () {
 		ImGui::EndTable ();
 	}
 
-	if (beginProperties ("Rest Pose")) {
+	if (beginProperties ("Transform")) {
 		PartPose rest = part.rest;
 		bool changed = false, done = false;
-		float scale = rest.scaleX * 100.0f;
-		propertyRow ("X", "Where its origin is, from its parent's, in its parent's pixels");
-		changed |= ImGui::DragFloat ("##x", &rest.x, 1.0f, 0, 0, "%g");
-		done |= ImGui::IsItemDeactivated ();
-		propertyRow ("Y", "+Y is down");
-		changed |= ImGui::DragFloat ("##y", &rest.y, 1.0f, 0, 0, "%g");
-		done |= ImGui::IsItemDeactivated ();
-		propertyRow ("Turn", "In degrees, clockwise, about its pivot");
+		propertyRow ("Position", "Where its origin is, from its parent's, in its parent's pixels; +Y is down");
+		changed |= xyFields ("position", &rest.x, &rest.y, 1.0f, "%g", 0, 0, &done);
+		propertyRow ("Rotation", "In degrees, clockwise, about its pivot");
 		changed |= ImGui::DragFloat ("##rotation", &rest.rotation, 1.0f, -360, 360, "%g\xC2\xB0");
 		done |= ImGui::IsItemDeactivated ();
-		propertyRow ("Scale", "In percent; the parts attached to it scale too");
-		if (ImGui::DragFloat ("##scale", &scale, 1.0f, 1, 10000, "%g%%")) {
-			rest.scaleX = rest.scaleY = (scale < 1 ? 1 : scale) / 100.0f;
+
+		bool uniform = rig->scalesUniformly (id);
+		float sx = rest.scaleX * 100.0f, sy = rest.scaleY * 100.0f;
+		propertyRow ("Scale", "In percent, along its own axes; the parts attached to it scale too");
+		if (xyFields ("scale", &sx, &sy, 1.0f, "%g%%", 1, 10000, &done, iconButtonWidth ())) {
+			float nx = (sx < 1 ? 1 : sx) / 100.0f, ny = (sy < 1 ? 1 : sy) / 100.0f;
+			// Together, either one sets both.
+			if (uniform) {
+				if (nx != rest.scaleX) ny = nx;
+				else nx = ny;
+			}
+			rest.scaleX = nx;
+			rest.scaleY = ny;
 			changed = true;
 		}
-		done |= ImGui::IsItemDeactivated ();
+		if (iconButton ("uniform", uniform ? ICON_LOCKED : ICON_UNLOCKED,
+				uniform ? "X and Y scale together. Click to scale them apart." : "X and Y scale apart. Click to scale them together (Y takes X's).")) {
+			rig->setUniformScale (id, ! uniform);
+		}
 		propertyRow ("Flip", "Mirrors it, and the parts attached to it");
 		changed |= ImGui::Checkbox ("##flip", &rest.flip);
 		propertyRow ("Visible", "Hidden, it hides the parts attached to it too");
@@ -505,14 +575,14 @@ void RigView::drawInspector () {
 	if (part.sprite.kind == SpriteRef::SPRITE && beginProperties ("Pivot")) {
 		float px = part.pivotX, py = part.pivotY;
 		bool changed = false, done = false;
-		propertyRow ("X", "The point it turns and scales about, from its sprite's hotspot, in the sprite's pixels");
-		changed |= ImGui::DragFloat ("##px", &px, 1.0f, 0, 0, "%g");
-		done |= ImGui::IsItemDeactivated ();
-		propertyRow ("Y");
-		changed |= ImGui::DragFloat ("##py", &py, 1.0f, 0, 0, "%g");
-		done |= ImGui::IsItemDeactivated ();
-		propertyRow ("Keep in place", "Moving the pivot leaves the sprite, and the parts attached to it, where they are");
-		ImGui::Checkbox ("##keep", &keepPivotInPlace);
+		propertyRow ("Pivot", "The point it rotates and scales about, from its sprite's hotspot, in the sprite's pixels");
+		changed |= xyFields ("pivot", &px, &py, 1.0f, "%g", 0, 0, &done);
+		propertyRow ("");
+		if (ImGui::Button ("Center")) centrePivot (part);
+		ImGui::SetItemTooltip ("The pivot in the middle of the sprite");
+		propertyRow ("");
+		ImGui::Checkbox ("Lock sprite position", &keepPivotInPlace);
+		ImGui::SetItemTooltip ("Moving the pivot leaves the sprite, and the parts attached to it, where they are");
 		if (changed) rig->setPivot (id, px, py, keepPivotInPlace, FIELD_KEY);
 		if (done) rig->commands ().stopMerging ();
 		ImGui::EndTable ();

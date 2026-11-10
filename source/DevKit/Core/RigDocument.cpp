@@ -195,7 +195,7 @@ void RigDocument::setRest (PartId id, const PartPose & rest, int mergeKey) {
 	after.rig.parts[i].rest = rest;
 	std::string why;
 	if (! validRig (after.rig, why)) return;
-	change (labelFor ("Rest Pose", id), after, mergeKey);
+	change (labelFor ("Transform", id), after, mergeKey);
 }
 
 void RigDocument::setDepth (PartId id, int depth, int mergeKey) {

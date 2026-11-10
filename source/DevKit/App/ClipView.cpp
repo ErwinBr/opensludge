@@ -470,8 +470,13 @@ void ClipView::handleCanvasMouse () {
 		if (at >= 0) {
 			PartHandles h = partHandles (shown, at, canvas.pixelsOfPoints (RING_POINTS));
 			if (distance (mx, my, h.turnX, h.turnY) < grab) drag = DRAG_TURN;
-			else if (distance (mx, my, h.scaleX, h.scaleY) < grab) drag = DRAG_SCALE;
-			else if (distance (mx, my, h.originX, h.originY) < grab) drag = DRAG_MOVE;
+			for (int i = 0; i < 4 && drag == DRAG_NONE; i ++) {
+				if (distance (mx, my, h.scale[i].x, h.scale[i].y) < grab) {
+					drag = DRAG_SCALE;
+					dragHandle = h.scale[i];
+				}
+			}
+			if (drag == DRAG_NONE && distance (mx, my, h.originX, h.originY) < grab) drag = DRAG_MOVE;
 		}
 		if (drag == DRAG_NONE) {
 			int hit = partAt (shown, mx, my);
@@ -522,12 +527,9 @@ void ClipView::handleCanvasMouse () {
 			ok = clip->autoKey (part, CHANNEL_ROTATION, tick, wrapDegrees (floorf (dragLocal.rotation + (float) turned + 0.5f)), why, DRAG_KEY);
 			keying = "Keying " + partLabel (part) + " > turn" + where;
 		} else if (drag == DRAG_SCALE) {
-			float from = distance (dragX, dragY, dragWorld.tx, dragWorld.ty);
-			float to = distance (mx, my, dragWorld.tx, dragWorld.ty);
-			if (from > 0) {
-				float percent = floorf (dragLocal.scaleX * to / from * 100.0f + 0.5f);
-				ok = clip->autoKey (part, CHANNEL_SCALE, tick, (percent < 1 ? 1 : percent) / 100.0f, why, DRAG_KEY);
-			}
+			float sx, sy;
+			scaleFromHandle (dragParent, dragLocal, dragHandle, true, dragHandle.x + mx - dragX, dragHandle.y + my - dragY, sx, sy);
+			ok = clip->autoKey (part, CHANNEL_SCALE, tick, sx, why, DRAG_KEY);
 			keying = "Keying " + partLabel (part) + " > scale" + where;
 		}
 		if (! ok) say (why);

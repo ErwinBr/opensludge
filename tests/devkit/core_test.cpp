@@ -1335,7 +1335,7 @@ static void testRigs () {
 	}
 	rig.commands ().stopMerging ();
 	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.rotation == 45);
-	CHECK (rig.commands ().undoLabel () == "Rest Pose of arm");
+	CHECK (rig.commands ().undoLabel () == "Transform of arm");
 	rig.commands ().undo ();
 	CHECK (rig.part (arm)->rest.x == 0 && rig.part (arm)->rest.rotation == 0);
 	rig.commands ().redo ();

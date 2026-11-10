@@ -89,9 +89,10 @@ void drawPose (Draw2D & draw, const Pose & pose) {
 	}
 }
 
-int partAt (const Pose & pose, float x, float y) {
+int partAt (const Pose & pose, float x, float y, const std::function<bool (int)> & canPick) {
 	for (size_t i = pose.drawOrder.size (); i -- > 0; ) {
 		int part = pose.drawOrder[i];
+		if (canPick && ! canPick (part)) continue;
 		const PosedPart & p = pose.parts[part];
 		const sprite * s = spriteOf (p);
 		if (! s || ! s -> width || ! s -> height || ! s -> data) continue;
@@ -113,7 +114,8 @@ PartHandles partHandles (const Pose & pose, int part, float radius) {
 	PartHandles h;
 	memset (& h, 0, sizeof (h));
 	if (part < 0 || part >= (int) pose.parts.size ()) return h;
-	const Transform2D & w = pose.parts[part].world;
+	const PosedPart & p = pose.parts[part];
+	const Transform2D & w = p.world;
 	h.originX = w.tx;
 	h.originY = w.ty;
 	h.radius = radius;
@@ -124,12 +126,71 @@ PartHandles partHandles (const Pose & pose, int part, float radius) {
 	if (lb > 0) { bx /= lb; by /= lb; } else { bx = 0; by = 1; }
 	h.turnX = h.originX + ax * radius;
 	h.turnY = h.originY + ay * radius;
-	h.scaleX = h.originX + bx * radius;
-	h.scaleY = h.originY + by * radius;
+
+	// The box: top left, top right, bottom left, bottom right, along the
+	// part's axes (its sprite's, which a mirrored sprite only flips).
+	float c[8];
+	if (spriteOf (p)) {
+		corners (p, c);
+	} else {
+		float r = radius * 0.7f;
+		const float sx[4] = { -1, 1, -1, 1 }, sy[4] = { -1, -1, 1, 1 };
+		for (int i = 0; i < 4; i ++) {
+			c[i * 2] = h.originX + (ax * sx[i] + bx * sy[i]) * r;
+			c[i * 2 + 1] = h.originY + (ay * sx[i] + by * sy[i]) * r;
+		}
+	}
+	for (int i = 0; i < 4; i ++) {
+		h.scale[i].x = c[i * 2];
+		h.scale[i].y = c[i * 2 + 1];
+		h.scale[i].axes = ScaleHandle::BOTH;
+	}
+	// The middles of the sides: top and bottom scale Y, left and right X.
+	const int sides[4][2] = { { 0, 1 }, { 2, 3 }, { 0, 2 }, { 1, 3 } };
+	const int axes[4] = { ScaleHandle::Y, ScaleHandle::Y, ScaleHandle::X, ScaleHandle::X };
+	for (int i = 0; i < 4; i ++) {
+		ScaleHandle & s = h.scale[4 + i];
+		s.x = (c[sides[i][0] * 2] + c[sides[i][1] * 2]) * 0.5f;
+		s.y = (c[sides[i][0] * 2 + 1] + c[sides[i][1] * 2 + 1]) * 0.5f;
+		s.axes = axes[i];
+	}
 	return h;
 }
 
-void drawPoseOverlay (Draw2D & draw, const RigDefinition & rig, const Pose & pose, int selected, float pixel) {
+void scaleFromHandle (const Transform2D & parent, const PartPose & start, const ScaleHandle & handle,
+		bool uniform, float mouseX, float mouseY, float & scaleX, float & scaleY) {
+	scaleX = start.scaleX;
+	scaleY = start.scaleY;
+	// The part's frame without its own scale: in it, a point of the part is
+	// its scales times where it is in the part.
+	PartPose frame = start;
+	frame.scaleX = frame.scaleY = 1;
+	Transform2D in;
+	if (! (parent * localTransform (frame)).inverse (in)) return;
+	float hx, hy, mx, my;
+	in.apply (handle.x, handle.y, hx, hy);
+	in.apply (mouseX, mouseY, mx, my);
+	float fx = 1, fy = 1;
+	if (uniform) {
+		float from = sqrtf (hx * hx + hy * hy), to = sqrtf (mx * mx + my * my);
+		if (from > 0) fx = fy = to / from;
+	} else {
+		// Along each axis, with a mouse on the other side of the origin
+		// kept to the smallest scale.
+		if ((handle.axes & ScaleHandle::X) && fabsf (hx) > 1e-4f) fx = mx / hx;
+		if ((handle.axes & ScaleHandle::Y) && fabsf (hy) > 1e-4f) fy = my / hy;
+	}
+	float px = floorf (start.scaleX * fx * 100.0f + 0.5f), py = floorf (start.scaleY * fy * 100.0f + 0.5f);
+	if (uniform) {
+		// The same percent for both, of X when they weren't the same.
+		py = floorf (start.scaleY * fx * 100.0f + 0.5f);
+		if (start.scaleX == start.scaleY) py = px;
+	}
+	scaleX = (px < 1 ? 1 : px) / 100.0f;
+	scaleY = (py < 1 ? 1 : py) / 100.0f;
+}
+
+void drawPoseOverlay (Draw2D & draw, const RigDefinition & rig, const Pose & pose, int selected, float pixel, bool sides) {
 	// Bones, from each part's origin to its parent's.
 	draw.setDrawingColour (0.35f, 0.8f, 1.0f, 0.6f);
 	for (size_t i = 1; i < pose.parts.size () && i < rig.parts.size (); i ++) {
@@ -165,11 +226,19 @@ void drawPoseOverlay (Draw2D & draw, const RigDefinition & rig, const Pose & pos
 	PartHandles h = partHandles (pose, selected, pixel * 40);
 	draw.setDrawingColour (1.0f, 0.85f, 0.2f, 0.8f);
 	circle (draw, h.originX, h.originY, h.radius);
-	const float axes[] = { h.originX, h.originY, h.turnX, h.turnY, h.originX, h.originY, h.scaleX, h.scaleY };
-	draw.drawLines (axes, 4);
+	const float axis[] = { h.originX, h.originY, h.turnX, h.turnY };
+	draw.drawLines (axis, 2);
 	draw.setDrawingColour (1.0f, 0.85f, 0.2f, 1.0f);
 	circle (draw, h.turnX, h.turnY, pixel * 5);
-	square (draw, h.scaleX, h.scaleY, pixel * 4);
+	// The scale handles: the corners, and with sides the middles of the
+	// sides; a joint's on a faint square of its own.
+	if (! spriteOf (p)) {
+		draw.setDrawingColour (1.0f, 0.85f, 0.2f, 0.5f);
+		const float box[] = { h.scale[0].x, h.scale[0].y, h.scale[1].x, h.scale[1].y, h.scale[3].x, h.scale[3].y, h.scale[2].x, h.scale[2].y };
+		draw.drawLineLoop (box, 4);
+		draw.setDrawingColour (1.0f, 0.85f, 0.2f, 1.0f);
+	}
+	for (int i = 0; i < (sides ? 8 : 4); i ++) square (draw, h.scale[i].x, h.scale[i].y, pixel * 3);
 	// The pivot: the origin, which a drag moves.
 	draw.setDrawingColour (1.0f, 0.3f, 0.3f, 1.0f);
 	circle (draw, h.originX, h.originY, pixel * 4);

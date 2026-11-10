@@ -140,6 +140,7 @@ private:
 	bool dragMoved;		// A click without a move keys nothing
 	float dragX, dragY;
 	PartPose dragLocal;
+	ScaleHandle dragHandle;
 	Transform2D dragParent, dragWorld;
 	std::string keying;
 

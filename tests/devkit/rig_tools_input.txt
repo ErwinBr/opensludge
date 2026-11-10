@@ -1,0 +1,57 @@
+# The tools of the character creator, on fixtures/rig.rig in the window of
+# a smoke test (1280 x 800): a part's axes scaled apart with a side handle,
+# its pivot put in the middle of its sprite, and a locked part that a click
+# goes through. The canvas shows the character at 172%, with its origin at
+# (733, 310); the alien's box is from (698, 219) to (767, 315).
+wait 3
+
+# A part with the alien.
+move 302 60
+down
+up
+wait 2
+drop ${FIXTURES}/alien-edited.duc
+wait 3
+
+# Its axes apart, with the lock of Scale in the Inspector.
+move 1261 396
+down
+up
+wait 2
+
+# Twice as wide, by the handle in the middle of its right side, 35 points
+# (20 pixels) from its origin.
+move 767 268
+down
+move 785 268
+move 802 268
+up
+wait 2
+
+# Its pivot in the middle of its sprite, which stays where it is.
+move 1154 550
+down
+up
+wait 2
+
+# A part on it, with the alien too, then locked in the tree.
+move 302 60
+down
+up
+wait 2
+drop ${FIXTURES}/alien-edited.duc
+wait 3
+move 429 129
+down
+up
+wait 2
+
+# A click on both of them selects the first, under the locked one, and a
+# drag moves it 20 points to the right.
+move 733 250
+down
+move 743 250
+move 753 250
+up
+wait 3
+save ${OUTPUT}
