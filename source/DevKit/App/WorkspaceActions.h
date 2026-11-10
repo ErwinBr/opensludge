@@ -16,6 +16,7 @@ class ClipDocument;
 struct ClipItem;
 class Document;
 class Platform;
+class SoundPreview;
 
 class WorkspaceActions {
 public:
@@ -56,6 +57,8 @@ public:
 	// with the preferences.
 	virtual float clipSplit () const = 0;
 	virtual void setClipSplit (float fraction) = 0;
+	// The sounds that clips' events play, for all of them.
+	virtual SoundPreview & sounds () = 0;
 };
 
 } // namespace devkit

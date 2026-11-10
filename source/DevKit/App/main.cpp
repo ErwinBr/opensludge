@@ -279,6 +279,8 @@ int main (int argc, char ** argv) {
 	CanvasGraphics graphics = { renderer, draw2d };
 	std::unique_ptr<Workspace> theWorkspace (new Workspace (platform, rendererName, graphics));
 	Workspace & workspace = *theWorkspace;
+	// Smoke tests stay silent: they log the sounds they would play.
+	if (smokeFile) workspace.sounds ().setEnabled (false);
 	workspace.openFiles (files);
 	if (smokeProject) {
 		workspace.openFiles (std::vector<std::string> (1, smokeProject));

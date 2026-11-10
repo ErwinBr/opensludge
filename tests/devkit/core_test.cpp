@@ -1794,6 +1794,55 @@ static void testClipPaste () {
 	CHECK (! clip.paste (std::vector<ClipItem> (), 0, NULL, &pasted, &pastedEvents, why));
 }
 
+// Compaction keeps each sprite on its own bank, whatever the order the
+// banks are used in: here B, A, B, of the banks A, B and C.
+static void testBankCompaction () {
+	std::string why, error;
+	animformat::Bytes bytes;
+
+	RigDocument rig;
+	PartId root = rig.rig ().parts[0].id, first, second, third;
+	CHECK (rig.addPart (root, "first", &first, why) && rig.addPart (root, "second", &second, why) && rig.addPart (root, "third", &third, why));
+	animformat::Asset a = rig.asset ();
+	a.banks = std::vector<std::string> { "a.duc", "b.duc", "c.duc" };
+	const PartId parts[3] = { first, second, third };
+	const int banks[3] = { 1, 0, 1 };
+	for (int i = 0; i < 3; i ++) {
+		SpriteRef & s = a.rig.parts[partWithId (a.rig, parts[i])].sprite;
+		s.kind = SpriteRef::SPRITE;
+		s.bankFile = banks[i];
+		s.number = i;
+	}
+	CHECK (animformat::encodeAsset (a, bytes, why));
+	writeFile (folder + "order.rig", std::string (bytes.begin (), bytes.end ()));
+	RigDocument rigBack;
+	CHECK (rigBack.load (folder + "order.rig", &error));
+	rigBack.setSprite (second, "a.duc", 5, false);
+	CHECK (rigBack.asset ().banks == (std::vector<std::string> { "b.duc", "a.duc" }));
+	CHECK (rigBack.bankOf (rigBack.part (first)->sprite) == "b.duc");
+	CHECK (rigBack.bankOf (rigBack.part (second)->sprite) == "a.duc" && rigBack.part (second)->sprite.number == 5);
+	CHECK (rigBack.bankOf (rigBack.part (third)->sprite) == "b.duc" && rigBack.part (third)->sprite.number == 2);
+
+	ClipDocument clip;
+	TrackId sprite;
+	CHECK (clip.addTrack ("arm", CHANNEL_SPRITE, &sprite, why));
+	CHECK (clip.setSpriteKey (sprite, 0, "b.duc", 0, false, false, why));
+	CHECK (clip.setSpriteKey (sprite, 8, "a.duc", 1, false, false, why));
+	CHECK (clip.setSpriteKey (sprite, 16, "b.duc", 2, false, false, why));
+	a = clip.asset ();
+	a.banks = std::vector<std::string> { "a.duc", "b.duc", "c.duc" };
+	for (size_t k = 0; k < a.clip.tracks[0].keys.size (); k ++) a.clip.tracks[0].keys[k].sprite.bankFile = banks[k];
+	CHECK (animformat::encodeAsset (a, bytes, why));
+	writeFile (folder + "order.clp", std::string (bytes.begin (), bytes.end ()));
+	ClipDocument clipBack;
+	CHECK (clipBack.load (folder + "order.clp", &error));
+	CHECK (clipBack.setSpriteKey (sprite, 8, "a.duc", 5, false, false, why));
+	CHECK (clipBack.asset ().banks == (std::vector<std::string> { "b.duc", "a.duc" }));
+	CHECK (clipBack.bankOf (clipBack.key (KeyRef (sprite, 0))->sprite) == "b.duc");
+	CHECK (clipBack.bankOf (clipBack.key (KeyRef (sprite, 8))->sprite) == "a.duc");
+	CHECK (clipBack.bankOf (clipBack.key (KeyRef (sprite, 16))->sprite) == "b.duc" && clipBack.key (KeyRef (sprite, 16))->sprite.number == 2);
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1821,6 +1870,7 @@ int main (int argc, char ** argv) {
 	testRenameAcross ();
 	testEditorParts ();
 	testClipPaste ();
+	testBankCompaction ();
 	testPreviewPlayer ();
 	testFileMemory ();
 

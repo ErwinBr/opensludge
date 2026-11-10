@@ -107,6 +107,11 @@ private:
 
 	int playhead () const;
 	void scrub (int tick);
+	// Pauses, and silences the sounds it was playing.
+	void pause ();
+	// Plays the sounds of events that playing passed.
+	void playSounds (const std::vector<const ClipEvent *> & passed);
+	std::set<std::string> soundsSaid;
 	void requestLength (int length);
 	void selectOnly (const KeyRef & key);
 	void removeSelection ();

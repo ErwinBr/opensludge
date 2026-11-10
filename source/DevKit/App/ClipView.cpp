@@ -17,6 +17,7 @@
 #include "PartTree.h"
 #include "Platform.h"
 #include "Properties.h"
+#include "SoundPreview.h"
 #include "RigDocument.h"
 #include "WorkspaceActions.h"
 
@@ -116,6 +117,7 @@ ClipView::ClipView (ClipDocument * c, WorkspaceActions & a, const CanvasGraphics
 }
 
 ClipView::~ClipView () {
+	if (player.playing ()) actions.sounds ().stopAll ();
 }
 
 bool ClipView::animating () const {
@@ -137,8 +139,23 @@ int ClipView::playhead () const {
 	return t < 0 ? 0 : t > clip->clip ().length ? clip->clip ().length : t;
 }
 
-void ClipView::scrub (int tick) {
+void ClipView::pause () {
+	actions.sounds ().stopAll ();
 	player.pause ();
+}
+
+void ClipView::playSounds (const std::vector<const ClipEvent *> & passed) {
+	for (size_t i = 0; i < passed.size (); i ++) {
+		if (passed[i]->what.kind != FrameEvent::SOUND) continue;
+		std::string name = clip->eventName (passed[i]->id), why;
+		if (name.empty ()) continue;
+		// A sound that can't play says so once, and playing carries on.
+		if (! actions.sounds ().play (baseFolder () + name, why) && soundsSaid.insert (name).second) say (why);
+	}
+}
+
+void ClipView::scrub (int tick) {
+	pause ();
 	player.scrub (tick < 0 ? 0 : tick > clip->clip ().length ? clip->clip ().length : tick);
 }
 
@@ -320,7 +337,7 @@ void ClipView::paste () {
 			return;
 		}
 	}
-	player.pause ();
+	pause ();
 	std::vector<KeyRef> keys;
 	std::vector<EventId> events;
 	if (! clip->paste (items, playhead (), onto ? &target : NULL, &keys, &events, why)) {
@@ -710,7 +727,7 @@ void ClipView::drawTransport () {
 	if (iconButton ("first", ICON_FIRST, "To the first tick")) scrub (0);
 	ImGui::SetCursorScreenPos (ImVec2 (x + side + gap, at.y));
 	if (iconButton ("play", player.playing () ? ICON_PAUSE : ICON_PLAY, player.playing () ? "Pause" : "Play")) {
-		if (player.playing ()) player.pause ();
+		if (player.playing ()) pause ();
 		else player.play ();
 	}
 	ImGui::SetCursorScreenPos (ImVec2 (x + (side + gap) * 2, at.y));
@@ -788,7 +805,7 @@ void ClipView::drawPartPanel (float height) {
 void ClipView::handleCanvasMouse () {
 	float mx = canvas.mouseX (), my = canvas.mouseY ();
 	if (canvas.pressed ()) {
-		player.pause ();
+		pause ();
 		drag = DRAG_NONE;
 		float grab = canvas.pixelsOfPoints (GRAB_POINTS);
 		int at = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
@@ -1338,7 +1355,9 @@ void ClipView::draw () {
 	if (lastTime >= 0) {
 		std::vector<const ClipEvent *> passed = player.advance ((now - lastTime) * 1000.0, actions.tickMilliseconds ());
 		for (size_t i = 0; i < passed.size (); i ++) flashes.push_back (std::make_pair (passed[i]->id, now + FLASH_SECONDS));
+		playSounds (passed);
 	}
+	actions.sounds ().update ();
 	lastTime = now;
 	for (size_t i = flashes.size (); i -- > 0; ) {
 		if (flashes[i].second <= now) flashes.erase (flashes.begin () + i);

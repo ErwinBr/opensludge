@@ -22,6 +22,7 @@
 #include "Preferences.h"
 #include "ProjectDocument.h"
 #include "RecentFiles.h"
+#include "SoundPreview.h"
 #include "WorkspaceActions.h"
 
 namespace devkit {
@@ -83,6 +84,7 @@ public:
 	void setAutoKey (bool on);
 	float clipSplit () const { return preferences.clipSplit; }
 	void setClipSplit (float fraction);
+	SoundPreview & sounds () { return soundPreview; }
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -126,6 +128,7 @@ private:
 	DocumentManager manager;
 	Preferences preferences;
 	std::vector<ClipItem> clipItems;
+	SoundPreview soundPreview;
 	std::map<std::string, ViewMaker> viewMakers;
 	std::map<Document *, std::unique_ptr<DocumentView> > views;
 	// The views of documents that closed in this frame. Their textures may

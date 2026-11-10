@@ -183,6 +183,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
 		${DEVKIT_DIR}/App/PlatformSDL.cpp
 		${DEVKIT_DIR}/App/SmokeInput.cpp
+		${DEVKIT_DIR}/App/SoundPreview.cpp
 		${DEVKIT_DIR}/App/ClipView.cpp
 		${DEVKIT_DIR}/App/PosePreview.cpp
 		${DEVKIT_DIR}/App/RigView.cpp
@@ -196,7 +197,7 @@ if(SLUDGE_DEVKIT)
 	# the build folder.
 	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/"
 		SLUDGE_SOURCE_FOLDER="${PROJECT_SOURCE_DIR}/")
-	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::nanosvg sludge::png)
+	target_link_libraries(sludge-devkit PRIVATE devkit-core devkit-view sludge-renderer sludge::imgui sludge::nanosvg sludge::png sludge::vorbis)
 	if(WIN32)
 		# The icon of the Project Manager of the old Dev Kits.
 		enable_language(RC)
@@ -349,6 +350,12 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-close
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-close PROPERTIES LABELS capture)
+
+		# The sounds of clips' events, decoded without a device.
+		add_executable(devkit_sound_test ${PROJECT_SOURCE_DIR}/tests/devkit/sound_test.cpp ${DEVKIT_DIR}/App/SoundPreview.cpp)
+		target_include_directories(devkit_sound_test PRIVATE ${DEVKIT_DIR}/App)
+		target_link_libraries(devkit_sound_test PRIVATE sludge::sdl3 sludge::vorbis)
+		add_test(NAME devkit_sound COMMAND devkit_sound_test ${CMAKE_CURRENT_BINARY_DIR}/sound_test)
 
 		# The core of the Dev Kit, without a display.
 		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp ${DEVKIT_DIR}/Core/InterfacePlatform.cpp)
