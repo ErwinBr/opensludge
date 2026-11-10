@@ -1,0 +1,44 @@
+# The animation editor's scales and locks, on fixtures/clip.clp (a clip of
+# 24 ticks of nothing, made for fixtures/rig-edited.rig) in the window of a
+# smoke test (1280 x 800). The canvas shows the rig at 215%, with part 2
+# turned a quarter to the right, its box from (622, 220) to (743, 307).
+wait 5
+
+# Select part 2, and scale its axes apart, with the lock by its name.
+move 690 265
+down
+up
+wait 2
+move 794 85
+down
+up
+wait 2
+
+# The middle of its right side, its own Y axis, dragged 30 points out: it
+# keys SCALE_Y at tick 0, and nothing else.
+move 743 263
+down
+move 758 263
+move 773 263
+up
+wait 2
+
+# Lock part 2 by its row of the timeline: a drag of its key doesn't move
+# it, nor does a drag on the canvas key it.
+move 450 478
+down
+up
+wait 2
+move 491 500
+down
+move 530 500
+move 575 500
+up
+wait 2
+move 690 265
+down
+move 700 265
+move 710 265
+up
+wait 3
+save ${OUTPUT}

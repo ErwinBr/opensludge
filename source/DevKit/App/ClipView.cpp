@@ -13,6 +13,7 @@
 
 #include "ClipView.h"
 #include "imgui_impl_gfx.h"
+#include "Icons.h"
 #include "Platform.h"
 #include "Properties.h"
 #include "RigDocument.h"
@@ -31,15 +32,17 @@ const float RING_POINTS = 40, GRAB_POINTS = 8;
 const double pi = 3.14159265358979323846;
 
 // The channels in the order of the panel.
-const Channel channelOrder[] = { CHANNEL_X, CHANNEL_Y, CHANNEL_ROTATION, CHANNEL_SCALE, CHANNEL_SPRITE,
-	CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
+const Channel channelOrder[] = { CHANNEL_X, CHANNEL_Y, CHANNEL_ROTATION, CHANNEL_SCALE, CHANNEL_SCALE_X, CHANNEL_SCALE_Y,
+	CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
 
 const char * channelLabel (Channel c) {
 	switch (c) {
 		case CHANNEL_X: return "Position X";
 		case CHANNEL_Y: return "Position Y";
-		case CHANNEL_ROTATION: return "Turn";
-		case CHANNEL_SCALE: return "Scale";
+		case CHANNEL_ROTATION: return "Rotation";
+		case CHANNEL_SCALE: return "Scale (both)";
+		case CHANNEL_SCALE_X: return "Scale X";
+		case CHANNEL_SCALE_Y: return "Scale Y";
 		case CHANNEL_SPRITE: return "Sprite";
 		case CHANNEL_VISIBLE: return "Visible";
 		case CHANNEL_DEPTH: return "Depth";
@@ -49,6 +52,13 @@ const char * channelLabel (Channel c) {
 }
 
 const char * easingLabels[] = { "Step: hold until the next key", "Linear: at a steady speed", "In and out: slow, fast, slow" };
+
+// "X" or "Y" before a field of one axis, which takes the rest of the row.
+void axisLabel (const char * axis) {
+	ImGui::TextUnformatted (axis);
+	ImGui::SameLine (0, ImGui::GetStyle ().ItemInnerSpacing.x);
+	ImGui::SetNextItemWidth (-FLT_MIN);
+}
 
 std::string partLabel (const std::string & part) {
 	return part.empty () ? std::string ("Character") : part;
@@ -186,6 +196,13 @@ void ClipView::pose () {
 	TrackSamples own;
 	evaluateClip (* posedClip, player.time (0), own);
 	evaluatePose (posedRig, posedClip, own, Transform2D (), keyBinding, keyed);
+}
+
+bool ClipView::uniform (const std::string & part) const {
+	animformat::EditorPart::Scaling s = clip->scaling (part);
+	if (s != animformat::EditorPart::SCALING_DEFAULT) return s == animformat::EditorPart::SCALING_UNIFORM;
+	int p = haveRig ? rigAsset.rig.findPart (part) : -1;
+	return p < 0 || rigAsset.editorPart (rigAsset.rig.parts[p].id).scaling != animformat::EditorPart::SCALING_FREE;
 }
 
 bool ClipView::partShown (int part) const {
@@ -455,9 +472,23 @@ void ClipView::drawToolbar () {
 		secondBlend = (LayerBlend) blend;
 		player.reset ();
 	}
-	ImGui::SetItemTooltip ("Override: the second clip sets what it keys. Additive: it adds to places and turns, and multiplies scales");
+	ImGui::SetItemTooltip ("Override: the second clip sets what it keys. Additive: it adds to positions and rotations, and multiplies scales");
 	ImGui::SameLine (0, ImGui::GetFontSize ());
 	canvas.drawZoomButtons ();
+	// How the selected part scales on the canvas.
+	int at = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
+	if (at >= 0) {
+		std::string name = posedRig->parts[at].name;
+		bool together = uniform (name);
+		ImGui::SameLine (0, ImGui::GetFontSize ());
+		ImGui::AlignTextToFramePadding ();
+		ImGui::Text ("%s: scale", partLabel (name).c_str ());
+		ImGui::SameLine ();
+		if (iconButton ("uniform", together ? ICON_LOCKED : ICON_UNLOCKED,
+				together ? "X and Y scale together on the canvas. Click to scale them apart." : "X and Y scale apart on the canvas. Click to scale them together.")) {
+			clip->setScaling (name, together ? animformat::EditorPart::SCALING_FREE : animformat::EditorPart::SCALING_UNIFORM);
+		}
+	}
 }
 
 void ClipView::handleCanvasMouse () {
@@ -469,17 +500,33 @@ void ClipView::handleCanvasMouse () {
 		int at = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
 		if (at >= 0) {
 			PartHandles h = partHandles (shown, at, canvas.pixelsOfPoints (RING_POINTS));
-			if (distance (mx, my, h.turnX, h.turnY) < grab) drag = DRAG_TURN;
-			for (int i = 0; i < 4 && drag == DRAG_NONE; i ++) {
-				if (distance (mx, my, h.scale[i].x, h.scale[i].y) < grab) {
+			int handles = uniform (posedRig->parts[at].name) ? 4 : 8;
+			// The nearest handle within reach: the origin, then the knob,
+			// win a tie (a scale handle may lie on the origin).
+			float nearest = grab;
+			float d = distance (mx, my, h.originX, h.originY);
+			if (d < nearest) {
+				nearest = d;
+				drag = DRAG_MOVE;
+			}
+			d = distance (mx, my, h.turnX, h.turnY);
+			if (d < nearest) {
+				nearest = d;
+				drag = DRAG_TURN;
+			}
+			for (int i = 0; i < handles; i ++) {
+				d = distance (mx, my, h.scale[i].x, h.scale[i].y);
+				if (d < nearest) {
+					nearest = d;
 					drag = DRAG_SCALE;
 					dragHandle = h.scale[i];
 				}
 			}
-			if (drag == DRAG_NONE && distance (mx, my, h.originX, h.originY) < grab) drag = DRAG_MOVE;
 		}
 		if (drag == DRAG_NONE) {
-			int hit = partAt (shown, mx, my);
+			ClipView * self = this;
+			RigDefinitionRef r = posedRig;
+			int hit = partAt (shown, mx, my, [self, r] (int part) { return ! self->locked (r->parts[part].name); });
 			if (hit >= 0) {
 				selectedPart = posedRig->parts[hit].id;
 				havePart = true;
@@ -525,11 +572,19 @@ void ClipView::handleCanvasMouse () {
 			double turned = (atan2 (my - oy, mx - ox) - atan2 (dragY - oy, dragX - ox)) * 180.0 / pi;
 			if (dragParent.mirrors ()) turned = - turned;
 			ok = clip->autoKey (part, CHANNEL_ROTATION, tick, wrapDegrees (floorf (dragLocal.rotation + (float) turned + 0.5f)), why, DRAG_KEY);
-			keying = "Keying " + partLabel (part) + " > turn" + where;
+			keying = "Keying " + partLabel (part) + " > rotation" + where;
 		} else if (drag == DRAG_SCALE) {
 			float sx, sy;
-			scaleFromHandle (dragParent, dragLocal, dragHandle, true, dragHandle.x + mx - dragX, dragHandle.y + my - dragY, sx, sy);
-			ok = clip->autoKey (part, CHANNEL_SCALE, tick, sx, why, DRAG_KEY);
+			bool together = uniform (part);
+			scaleFromHandle (dragParent, dragLocal, dragHandle, together, dragHandle.x + mx - dragX, dragHandle.y + my - dragY, sx, sy);
+			// A clip that scales the part with SCALE keeps doing so while
+			// its axes scale together; otherwise each axis has its track.
+			if (together && clip->track (part, CHANNEL_SCALE) && ! clip->track (part, CHANNEL_SCALE_X) && ! clip->track (part, CHANNEL_SCALE_Y)) {
+				ok = clip->autoKey (part, CHANNEL_SCALE, tick, sx, why, DRAG_KEY);
+			} else {
+				if (dragHandle.axes & ScaleHandle::X) ok = clip->autoKey (part, CHANNEL_SCALE_X, tick, sx, why, DRAG_KEY);
+				if (ok && (dragHandle.axes & ScaleHandle::Y)) ok = clip->autoKey (part, CHANNEL_SCALE_Y, tick, sy, why, DRAG_KEY);
+			}
 			keying = "Keying " + partLabel (part) + " > scale" + where;
 		}
 		if (! ok) say (why);
@@ -556,10 +611,11 @@ void ClipView::drawCanvas () {
 	const RigDefinition & r = * posedRig;
 	int at = havePart ? partWithId (r, selectedPart) : -1;
 	float pixel = canvas.pixelsOfPoints (1);
-	canvas.draw (size, [&p, &r, at, pixel] (Draw2D & draw) {
+	bool sides = at >= 0 && ! uniform (r.parts[at].name);
+	canvas.draw (size, [&p, &r, at, pixel, sides] (Draw2D & draw) {
 		draw.clear ();
 		drawPose (draw, p);
-		drawPoseOverlay (draw, r, p, at, pixel);
+		drawPoseOverlay (draw, r, p, at, pixel, sides);
 		draw.finish ();
 	});
 	// Whatever a drag on the canvas does, it keys: the frame says so.
@@ -630,20 +686,28 @@ void ClipView::drawTimeline () {
 			ImGui::SetItemTooltip ("Remove the track, and its keys");
 		} else {
 			bool open = ! collapsed.count (row.part);
+			bool isLocked = locked (row.part);
 			std::string label = std::string (open ? "v  " : ">  ") + partLabel (row.part);
 			if (row.missing) label += "  (not in the rig)";
 			if (row.missing) ImGui::PushStyleColor (ImGuiCol_Text, ImVec4 (1.0f, 0.6f, 0.3f, 1.0f));
-			if (ImGui::Selectable (label.c_str (), false, 0, ImVec2 (labelWidth - row.depth * ImGui::GetFontSize () - h * 1.2f, h))) {
+			else if (isLocked) ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
+			if (ImGui::Selectable (label.c_str (), false, 0, ImVec2 (labelWidth - row.depth * ImGui::GetFontSize () - h * 2.4f, h))) {
 				if (open) collapsed.insert (row.part);
 				else collapsed.erase (row.part);
 			}
-			if (row.missing) ImGui::PopStyleColor ();
+			if (row.missing || isLocked) ImGui::PopStyleColor ();
+			ImGui::SameLine ();
+			if (iconButton ("lock", isLocked ? ICON_LOCKED : ICON_UNLOCKED,
+					isLocked ? "Locked: it can't be selected or keyed on the canvas, nor its keys moved. Click to unlock it."
+						: "Lock it, so that it can't be keyed, nor its keys moved, by accident", h)) {
+				clip->setLocked (row.part, ! isLocked);
+			}
 			ImGui::SameLine ();
 			if (ImGui::SmallButton ("+")) ImGui::OpenPopup ("add");
 			ImGui::SetItemTooltip ("Add a track to the part");
 			if (ImGui::BeginPopup ("add")) {
-				const char * kinds[] = { "Position", "Turn", "Scale", "Sprite", "Visible", "Depth", "Flip" };
-				const Channel first[] = { CHANNEL_X, CHANNEL_ROTATION, CHANNEL_SCALE, CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
+				const char * kinds[] = { "Position", "Rotation", "Scale", "Sprite", "Visible", "Depth", "Flip" };
+				const Channel first[] = { CHANNEL_X, CHANNEL_ROTATION, CHANNEL_SCALE_X, CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
 				for (int k = 0; k < 7; k ++) {
 					bool has = clip->track (row.part, first[k]) != NULL;
 					if (ImGui::MenuItem (kinds[k], NULL, false, ! has)) {
@@ -652,6 +716,7 @@ void ClipView::drawTimeline () {
 						if (! clip->addTrack (row.part, first[k], &added, why)) say (why);
 						else currentTrack = added;
 						if (first[k] == CHANNEL_X && ! clip->track (row.part, CHANNEL_Y)) clip->addTrack (row.part, CHANNEL_Y, NULL, why);
+						if (first[k] == CHANNEL_SCALE_X && ! clip->track (row.part, CHANNEL_SCALE_Y)) clip->addTrack (row.part, CHANNEL_SCALE_Y, NULL, why);
 						collapsed.erase (row.part);
 					}
 				}
@@ -679,6 +744,7 @@ void ClipView::drawTimeline () {
 		float cy = rowsTop + h * r + h * 0.5f;
 		if (fabsf (my - cy) > h * 0.5f) continue;
 		const Track * t = clip->track (rows[r].track);
+		if (t && locked (t->part)) continue;
 		for (size_t k = 0; t && k < t->keys.size (); k ++) {
 			if (fabsf (mx - xOf (t->keys[k].time)) <= 5) {
 				hitKey = KeyRef (t->id, t->keys[k].time);
@@ -769,6 +835,7 @@ void ClipView::drawTimeline () {
 				float cy = rowsTop + h * r + h * 0.5f;
 				if (cy < by1 || cy > by2) continue;
 				const Track * t = clip->track (rows[r].track);
+				if (t && locked (t->part)) continue;
 				for (size_t k = 0; t && k < t->keys.size (); k ++) {
 					float kx = xOf (t->keys[k].time);
 					if (kx >= bx1 && kx <= bx2) selectedKeys.insert (KeyRef (t->id, t->keys[k].time));
@@ -833,6 +900,8 @@ void ClipView::drawTimeline () {
 		if (! rows[r].isTrack) continue;
 		const Track * t = clip->track (rows[r].track);
 		if (! t) continue;
+		// A locked part's keys are dimmed.
+		ImU32 dim = locked (t->part) ? 0x50FFFFFF : 0xFFFFFFFF;
 		float cy = y + h * 0.5f, s = h * 0.28f;
 		for (size_t k = 0; k + 1 < t->keys.size (); k ++) {
 			if (isDiscrete (t->channel) || t->keys[k].easing == EASING_STEP) continue;
@@ -842,7 +911,7 @@ void ClipView::drawTimeline () {
 			bool sel = selectedKeys.count (KeyRef (t->id, t->keys[k].time)) != 0;
 			float offset = sel && timelineDrag == TL_KEYS ? dragTicks * tickWidth : 0;
 			float x = xOf (t->keys[k].time) + offset;
-			ImU32 c = easingColour (t->keys[k].easing, sel);
+			ImU32 c = easingColour (t->keys[k].easing, sel) & dim;
 			if (isDiscrete (t->channel)) list->AddRectFilled (ImVec2 (x - s, cy - s), ImVec2 (x + s, cy + s), c);
 			else list->AddQuadFilled (ImVec2 (x, cy - s * 1.3f), ImVec2 (x + s * 1.3f, cy), ImVec2 (x, cy + s * 1.3f), ImVec2 (x - s * 1.3f, cy), c);
 			if (sel && timelineDrag == TL_KEYS && dragCopy && offset != 0) {
@@ -930,9 +999,10 @@ void ClipView::draw () {
 	for (size_t i = flashes.size (); i -- > 0; ) {
 		if (flashes[i].second <= now) flashes.erase (flashes.begin () + i);
 	}
-	// Undo may have taken away what was selected.
+	// Undo may have taken away what was selected, or a lock.
 	for (std::set<KeyRef>::iterator i = selectedKeys.begin (); i != selectedKeys.end (); ) {
-		if (! clip->key (* i)) selectedKeys.erase (i ++);
+		const Track * t = clip->track (i->track);
+		if (! clip->key (* i) || ! t || locked (t->part)) selectedKeys.erase (i ++);
 		else ++ i;
 	}
 	if (selectedEvent && ! clip->event (selectedEvent)) selectedEvent = 0;
@@ -940,6 +1010,10 @@ void ClipView::draw () {
 	if (player.ticks () > clip->clip ().length && ! player.playing ()) scrub (clip->clip ().length);
 
 	pose ();
+	if (havePart && posedRig) {
+		int p = partWithId (* posedRig, selectedPart);
+		if (p < 0 || locked (posedRig->parts[p].name)) havePart = false;
+	}
 	buildRows ();
 	drawToolbar ();
 	handleKeys ();
@@ -999,18 +1073,22 @@ void ClipView::drawInspector () {
 			switch (track.channel) {
 				case CHANNEL_X:
 				case CHANNEL_Y:
-					propertyRow ("Place", "Where its origin is, from its parent's, in its parent's pixels");
+					propertyRow ("Position", "Where its origin is, from its parent's, in its parent's pixels; +Y is down");
+					axisLabel (track.channel == CHANNEL_X ? "X" : "Y");
 					changed = ImGui::DragFloat ("##value", &value, 1.0f, 0, 0, "%g");
 					done = ImGui::IsItemDeactivated ();
 					break;
 				case CHANNEL_ROTATION:
-					propertyRow ("Turn", "In degrees, clockwise");
+					propertyRow ("Rotation", "In degrees, clockwise");
 					changed = ImGui::DragFloat ("##value", &value, 1.0f, -3600, 3600, "%g\xC2\xB0");
 					done = ImGui::IsItemDeactivated ();
 					break;
-				case CHANNEL_SCALE: {
+				case CHANNEL_SCALE:
+				case CHANNEL_SCALE_X:
+				case CHANNEL_SCALE_Y: {
 					float percent = value * 100.0f;
-					propertyRow ("Scale", "In percent");
+					propertyRow ("Scale", track.channel == CHANNEL_SCALE ? "In percent, of both of its axes" : "In percent, along its own axis");
+					if (track.channel != CHANNEL_SCALE) axisLabel (track.channel == CHANNEL_SCALE_X ? "X" : "Y");
 					if (ImGui::DragFloat ("##value", &percent, 1.0f, 1, 10000, "%g%%")) {
 						value = (percent < 1 ? 1 : percent) / 100.0f;
 						changed = true;

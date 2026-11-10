@@ -8,10 +8,14 @@
  * and the clip's events above them. The Inspector shows what is selected:
  * a key, an event, or the clip.
  *
- * On the canvas, moving, turning or scaling a part keys it at the playhead,
- * always: it makes the part's track if it has none, and its key there, or
- * changes the one there, as one change that undoes. The rest pose is the
- * rig's, in the character creator.
+ * On the canvas, moving, rotating or scaling a part keys it at the
+ * playhead, always: it makes the part's track if it has none, and its key
+ * there, or changes the one there, as one change that undoes. The rest pose
+ * is the rig's, in the character creator. Scale handles are on the corners
+ * of the selected sprite's box, and in the middles of its sides when its
+ * axes scale apart (the lock by the part's name in the toolbar). A locked
+ * part (the lock at the end of its row) can't be selected or keyed on the
+ * canvas, nor its keys selected or moved on the timeline.
  *
  * On the timeline, a click selects a key (Shift adds it), a drag of the
  * empty lanes selects the keys in its box, and a drag of keys moves them a
@@ -76,6 +80,10 @@ private:
 	void buildRows ();
 	void addRows (int part, int depth);
 	bool partShown (int part) const;
+	// Whether a part (by name) is locked, and whether its axes scale
+	// together: as the clip says, or as its rig's part does.
+	bool locked (const std::string & part) const { return clip->isLocked (part); }
+	bool uniform (const std::string & part) const;
 
 	void drawToolbar ();
 	void drawCanvas ();

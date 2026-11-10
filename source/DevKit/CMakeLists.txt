@@ -297,6 +297,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-clip PROPERTIES LABELS capture)
+		# And its scales and locks: a side handle that keys one axis, and a
+		# locked part whose key doesn't move and which the canvas doesn't key.
+		add_test(NAME capture-devkit-clip-tools
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip.clp
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/clip_tools_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip-tools.clp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-tools
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-clip-tools PROPERTIES LABELS capture)
 		# And for a translation: VerbCoin's German.
 		add_test(NAME capture-devkit-translation
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

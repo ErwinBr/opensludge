@@ -476,7 +476,7 @@ void RigView::drawInspector () {
 				}
 			}
 
-			propertyRow ("Attached to", "The part it hangs from: it turns, scales and flips with it");
+			propertyRow ("Attached to", "The part it hangs from: it rotates, scales and flips with it");
 			const RigDefinition & r = rig->rig ();
 			std::string current = part.parent == 0 ? std::string ("Character") : r.parts[part.parent].name;
 			if (ImGui::BeginCombo ("##parent", current.c_str ())) {
