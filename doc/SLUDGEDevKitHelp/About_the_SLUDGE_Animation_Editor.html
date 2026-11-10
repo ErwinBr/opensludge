@@ -45,7 +45,7 @@ The tracks are in the order of the rig's parts, each part under the part it is a
 </P>
 
 <P>
-The plus by a part adds a track to it: Position (a track for X and one for Y), Rotation, Scale (a track for X and one for Y), Sprite, Visible, Depth or Flip. The minus by a track removes it, with its keys. Clips made by scripts may have a Scale (both) track, which scales X and Y together (PART_SCALE of <a href="clipKey.html">clipKey</a>); the editor keeps it, and you can edit its keys.
+The plus by a part adds a track to it: Position (a track for X and one for Y), Rotation, Scale (a track for X and one for Y), Sprite, Visible, Depth, Flip, Modulate or Self Modulate. Modulate and Self Modulate each show as one row, whose keys are filled with their colour: underneath, they are a track each for red, green, blue and alpha (PART_MODULATE_R and so on, of <a href="clipKey.html">clipKey</a>), which the row keys, moves, copies and removes together. The minus by a track removes it, with its keys. Clips made by scripts may have a Scale (both) track, which scales X and Y together (PART_SCALE of <a href="clipKey.html">clipKey</a>); the editor keeps it, and you can edit its keys.
 </P>
 
 <P>
@@ -55,7 +55,7 @@ Tracks of parts that the rig doesn't have are at the end, in orange. They do not
 <H3>Keying a part</H3>
 
 <P>
-Put the playhead where you want a key, and select the part. The Inspector shows what of it you can key, as the clip has it at the playhead: Position, Rotation, Scale, Sprite, Visible, Depth and Flip. Where the clip doesn't key something, it is as in the rig: the part shows its own sprite, for example. Changing these never changes the rig itself.
+Put the playhead where you want a key, and select the part. The Inspector shows what of it you can key, as the clip has it at the playhead: Position, Rotation, Scale, Sprite, Visible, Depth, Flip, Modulate and Self Modulate. Click a colour to change it; its key button keys all four of its components (see the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> for what the colours do). Where the clip doesn't key something, it is as in the rig: the part shows its own sprite, for example. Changing these never changes the rig itself.
 </P>
 
 <P>
@@ -98,7 +98,7 @@ Click the name of a track to make it the current one, and press K to key it at t
 <H3>Values and easing</H3>
 
 <P>
-Below the selected part, the Inspector shows the selected key, under Keyframe and its part and property: its tick, its value and, for position, rotation and scale, its easing. The easing says how the value goes from this key to the next one: Step holds it until the next key, Linear goes at a steady speed, and In and out starts and ends slowly. The colours of the keys show their easing, and so do the lines between them: grey for Step, blue for Linear, and pink for In and out. Sprite, visibility, depth and flip keys always step.
+Below the selected part, the Inspector shows the selected key, under Keyframe and its part and property: its tick, its value and, for position, rotation, scale and the colours, its easing. The easing says how the value goes from this key to the next one: Step holds it until the next key, Linear goes at a steady speed, and In and out starts and ends slowly. The colours of the keys show their easing, and so do the lines between them: grey for Step, blue for Linear, and pink for In and out. Sprite, visibility, depth and flip keys always step.
 </P>
 
 <H3>Sprite keys</H3>
