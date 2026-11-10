@@ -48,11 +48,12 @@ inline bool xyFields (const char * id, float * x, float * y, float speed, const 
 }
 
 // A titled property grid; end it with ImGui::EndTable when it returns true.
-inline bool beginProperties (const char * title) {
+// The labels take labels of the width, the fields the rest.
+inline bool beginProperties (const char * title, float labels = 0.4f) {
 	ImGui::SeparatorText (title);
 	if (! ImGui::BeginTable (title, 2, ImGuiTableFlags_SizingStretchProp)) return false;
-	ImGui::TableSetupColumn ("label", ImGuiTableColumnFlags_WidthStretch, 0.4f);
-	ImGui::TableSetupColumn ("field", ImGuiTableColumnFlags_WidthStretch, 0.6f);
+	ImGui::TableSetupColumn ("label", ImGuiTableColumnFlags_WidthStretch, labels);
+	ImGui::TableSetupColumn ("field", ImGuiTableColumnFlags_WidthStretch, 1.0f - labels);
 	return true;
 }
 

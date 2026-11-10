@@ -13,6 +13,7 @@
 namespace devkit {
 
 class ClipDocument;
+struct ClipItem;
 class Document;
 class Platform;
 
@@ -44,6 +45,17 @@ public:
 	// (those of the project's folder, and those open already), for a
 	// rename of the part.
 	virtual std::vector<ClipDocument *> clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder) = 0;
+	// The animation editor's Auto key, a preference: whether a change to a
+	// part keys it at the playhead at once.
+	virtual bool autoKey () const = 0;
+	// What the animation editor copied, to paste into any clip.
+	virtual std::vector<ClipItem> & clipClipboard () = 0;
+	virtual const std::vector<ClipItem> & clipClipboard () const = 0;
+	virtual void setAutoKey (bool on) = 0;
+	// How much of the animation editor's height the picture takes; saved
+	// with the preferences.
+	virtual float clipSplit () const = 0;
+	virtual void setClipSplit (float fraction) = 0;
 };
 
 } // namespace devkit

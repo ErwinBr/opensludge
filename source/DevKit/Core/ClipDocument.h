@@ -42,6 +42,29 @@ struct KeyRef {
 	bool operator< (const KeyRef & o) const { return track < o.track || (track == o.track && time < o.time); }
 };
 
+// A key or an event, as copied from a clip to be pasted: with the paths and
+// names of what it refers to, so that it pastes into any clip.
+struct ClipItem {
+	bool isEvent;
+	int time;
+	// A key: of a channel of a part, with its value and easing, or for a
+	// sprite its kind, and the path of its bank, its number and mirror.
+	std::string part;
+	Channel channel;
+	float value;
+	Easing easing;
+	SpriteRef::Kind sprite;
+	std::string bank;
+	int number;
+	bool mirror;
+	// An event: a sound (its path) or a function (its name).
+	FrameEvent::Kind event;
+	std::string name;
+
+	ClipItem () : isEvent (false), time (0), channel (CHANNEL_X), value (0), easing (EASING_LINEAR),
+		sprite (SpriteRef::DEFAULT), number (0), mirror (false), event (FrameEvent::NONE) {}
+};
+
 class ClipDocument : public Document {
 public:
 	static DocumentType type ();
@@ -92,6 +115,16 @@ public:
 	bool moveKeys (const std::vector<KeyRef> & keys, int by, bool copy, std::string & why, int mergeKey = 0);
 	// Key a channel of a part at a tick, as a drag on the canvas does.
 	bool autoKey (const std::string & part, Channel channel, int time, float value, std::string & why, int mergeKey = 0);
+
+	// The selected keys and events, to copy.
+	std::vector<ClipItem> copy (const std::vector<KeyRef> & keys, const std::vector<EventId> & events) const;
+	// Paste them as one change, the first of them at tick at and the others
+	// as far from it as they were: onto the part onto, if it isn't NULL, or
+	// their own parts. A key on a tick of a key replaces it; the clip grows
+	// to hold what lands past its end. pastedKeys and pastedEvents get what
+	// was pasted.
+	bool paste (const std::vector<ClipItem> & items, int at, const std::string * onto, std::vector<KeyRef> * pastedKeys,
+		std::vector<EventId> * pastedEvents, std::string & why);
 
 	// An event that plays a sound (its path) or calls a function (its name).
 	bool addEvent (int time, FrameEvent::Kind kind, const std::string & name, EventId * added, std::string & why);

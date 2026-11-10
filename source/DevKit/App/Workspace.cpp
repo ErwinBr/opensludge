@@ -187,6 +187,20 @@ bool Workspace::isOpen (const Document * document) const {
 	return std::find (all.begin (), all.end (), document) != all.end ();
 }
 
+void Workspace::setAutoKey (bool on) {
+	if (preferences.autoKey == on) return;
+	preferences.autoKey = on;
+	if (! preferences.write (preferencesFile ())) Log::get ().add (LogLine::LOG_WARNING, "Can't save the preferences in %s\n", preferencesFile ().c_str ());
+}
+
+void Workspace::setClipSplit (float fraction) {
+	if (fraction < 0.1f) fraction = 0.1f;
+	if (fraction > 0.9f) fraction = 0.9f;
+	if (preferences.clipSplit == fraction) return;
+	preferences.clipSplit = fraction;
+	if (! preferences.write (preferencesFile ())) Log::get ().add (LogLine::LOG_WARNING, "Can't save the preferences in %s\n", preferencesFile ().c_str ());
+}
+
 std::vector<ClipDocument *> Workspace::clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder) {
 	std::vector<ClipDocument *> clips;
 	// Those open, saved or not.
@@ -473,6 +487,10 @@ void Workspace::drawMenuBar () {
 		std::string redo = commands && commands->canRedo () ? "Redo " + commands->redoLabel () : std::string ("Redo");
 		if (ImGui::MenuItem (undo.c_str (), shortcut ("Z").c_str (), false, commands && commands->canUndo ())) commands->undo ();
 		if (ImGui::MenuItem (redo.c_str (), shortcut ("Shift+Z").c_str (), false, commands && commands->canRedo ())) commands->redo ();
+		ImGui::Separator ();
+		DocumentView * editing = activeView ();
+		if (ImGui::MenuItem ("Copy", shortcut ("C").c_str (), false, editing && editing->canCopy ())) editing->copy ();
+		if (ImGui::MenuItem ("Paste", shortcut ("V").c_str (), false, editing && editing->canPaste ())) editing->pasteClipboard ();
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("Preferences...")) showPreferences = true;
 		ImGui::EndMenu ();

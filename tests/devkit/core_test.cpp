@@ -1666,6 +1666,14 @@ static void testPreviewPlayer () {
 	player.pause ();
 	player.scrub (8);
 	CHECK (player.ticks () == 8 && player.advance (100, 20).empty ());
+	// Scrubbed to the end of a loop, the playhead stays there while paused,
+	// and goes round from there when it plays.
+	player.scrub (10);
+	CHECK (player.ticks () == 10);
+	player.play ();
+	player.advance (40, 20);
+	CHECK (player.ticks () == 2);
+	player.pause ();
 
 	// A clip that doesn't loop stops at its end, and plays again from 0.
 	clip->loop = false;
@@ -1740,6 +1748,52 @@ static void testEditorParts () {
 	CHECK (clipBack.load (folder + "shown.clp", &error) && clipBack.isLocked ("arm"));
 }
 
+// Copy and paste of keys and events: at a tick, onto another part, growing
+// the clip, as one change.
+static void testClipPaste () {
+	std::string why;
+	ClipDocument clip;
+	CHECK (clip.setLength (24, false, why));
+	TrackId rot, sprite;
+	CHECK (clip.addTrack ("arm", CHANNEL_ROTATION, &rot, why));
+	CHECK (clip.setKey (rot, 2, 10, EASING_INOUT, why) && clip.setKey (rot, 6, 30, EASING_LINEAR, why));
+	CHECK (clip.addTrack ("arm", CHANNEL_SPRITE, &sprite, why));
+	CHECK (clip.setSpriteKey (sprite, 4, "ego/arm.duc", 3, true, false, why));
+	EventId wave;
+	CHECK (clip.addEvent (5, FrameEvent::FUNCTION, "wave", &wave, why));
+	std::vector<KeyRef> keys;
+	keys.push_back (KeyRef (rot, 2));
+	keys.push_back (KeyRef (rot, 6));
+	keys.push_back (KeyRef (sprite, 4));
+	std::vector<ClipItem> items = clip.copy (keys, std::vector<EventId> (1, wave));
+	CHECK (items.size () == 4 && items[2].bank == "ego/arm.duc" && items[2].number == 3 && items[2].mirror && items[3].name == "wave");
+
+	// At tick 20: from 20 to 24, and the clip grows to 24 + 4 - ... = 24.
+	std::vector<KeyRef> pasted;
+	std::vector<EventId> pastedEvents;
+	CHECK (clip.paste (items, 20, NULL, &pasted, &pastedEvents, why));
+	CHECK (clip.clip ().length == 24 && pasted.size () == 3 && pastedEvents.size () == 1);
+	CHECK (clip.key (KeyRef (rot, 20)) && clip.key (KeyRef (rot, 20))->value == 10 && clip.key (KeyRef (rot, 20))->easing == EASING_INOUT);
+	CHECK (clip.key (KeyRef (rot, 24)) && clip.key (KeyRef (rot, 24))->value == 30);
+	CHECK (clip.key (KeyRef (sprite, 22)) && clip.bankOf (clip.key (KeyRef (sprite, 22))->sprite) == "ego/arm.duc");
+	CHECK (clip.event (pastedEvents[0]) && clip.event (pastedEvents[0])->time == 23 && clip.eventName (pastedEvents[0]) == "wave");
+
+	// Past the end, the clip grows; one undo takes all of it back.
+	CHECK (clip.paste (items, 30, NULL, &pasted, &pastedEvents, why));
+	CHECK (clip.clip ().length == 34 && clip.key (KeyRef (rot, 34)) && clip.commands ().undoLabel () == "Paste 4 Items");
+	clip.commands ().undo ();
+	CHECK (clip.clip ().length == 24 && ! clip.key (KeyRef (rot, 30)));
+
+	// Onto a key, it replaces it; onto another part, its tracks are made.
+	CHECK (clip.setKey (rot, 10, 99, EASING_STEP, why));
+	CHECK (clip.paste (items, 10, NULL, &pasted, &pastedEvents, why) && clip.key (KeyRef (rot, 10))->value == 10);
+	std::string other = "leg";
+	CHECK (clip.paste (items, 0, &other, &pasted, &pastedEvents, why));
+	const Track * legRot = clip.track ("leg", CHANNEL_ROTATION);
+	CHECK (legRot && clip.key (KeyRef (legRot->id, 0)) && clip.key (KeyRef (legRot->id, 4)) && clip.track ("leg", CHANNEL_SPRITE));
+	CHECK (! clip.paste (std::vector<ClipItem> (), 0, NULL, &pasted, &pastedEvents, why));
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1766,6 +1820,7 @@ int main (int argc, char ** argv) {
 	testClips ();
 	testRenameAcross ();
 	testEditorParts ();
+	testClipPaste ();
 	testPreviewPlayer ();
 	testFileMemory ();
 

@@ -69,7 +69,7 @@ private:
 	void pose ();
 
 	void drawToolbar ();
-	void drawTree (int part);
+	void drawTree ();
 	void drawCanvas ();
 	void handleMouse ();
 	void handleKeys ();

@@ -12,6 +12,7 @@
 
 #include "imgui_impl_gfx.h"
 #include "Icons.h"
+#include "PartTree.h"
 #include "Platform.h"
 #include "Properties.h"
 #include "ClipDocument.h"
@@ -217,68 +218,23 @@ void RigView::drawToolbar () {
 	canvas.drawZoomButtons ();
 }
 
-void RigView::drawTree (int index) {
-	const RigDefinition & r = rig->rig ();
-	if (index < 0 || index >= (int) r.parts.size ()) return;
-	const RigPart & part = r.parts[index];
-	std::vector<int> children = partChildren (r, index);
-	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
-		| ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap;
-	bool locked = rig->isLocked (part.id);
-	if (children.empty ()) flags |= ImGuiTreeNodeFlags_Leaf;
-	if (haveSelection && part.id == selected) flags |= ImGuiTreeNodeFlags_Selected;
-	std::string label = index == 0 ? std::string ("Character") : part.name;
-	if (index > 0 && part.sprite.kind != SpriteRef::SPRITE) label += "  (joint)";
-	PartId id = part.id;
-	// A drop below changes the parts: we find the children again by their IDs.
-	std::vector<PartId> ids;
-	for (size_t i = 0; i < children.size (); i ++) ids.push_back (r.parts[children[i]].id);
-	ImGui::PushID ((int) id);
-	// The lock goes at the end of the row, over the node.
-	float right = ImGui::GetCursorScreenPos ().x + ImGui::GetContentRegionAvail ().x;
-	float top = ImGui::GetCursorScreenPos ().y;
-	// The node ends before the lock.
-	float lockSide = ImGui::GetTextLineHeight ();
-	ImGui::PushClipRect (ImVec2 (ImGui::GetWindowPos ().x, top), ImVec2 (right - lockSide - ImGui::GetStyle ().ItemInnerSpacing.x, top + ImGui::GetFrameHeight ()), true);
-	// A locked part's name is dimmed.
-	if (locked) ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
-	bool open = ImGui::TreeNodeEx ("##part", flags, "%s", label.c_str ());
-	if (locked) ImGui::PopStyleColor ();
-	ImGui::PopClipRect ();
-	if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen () && ! locked) {
-		selected = id;
-		haveSelection = true;
-	}
-	if (index > 0 && ! locked && ImGui::BeginDragDropSource ()) {
-		ImGui::SetDragDropPayload ("RIG_PART", &id, sizeof (id));
-		ImGui::Text ("Attach %s to...", part.name.c_str ());
-		ImGui::EndDragDropSource ();
-	}
-	if (ImGui::BeginDragDropTarget ()) {
-		if (const ImGuiPayload * payload = ImGui::AcceptDragDropPayload ("RIG_PART")) {
-			PartId dragged = * (const PartId *) payload->Data;
-			std::string why;
-			if (! rig->placePart (dragged, id, INT_MAX, why)) say (why);
-		}
-		ImGui::EndDragDropTarget ();
-	}
-	{
-		// On the node's line, at its end.
-		float side = lockSide;
-		ImGui::SameLine ();
-		ImGui::SetCursorScreenPos (ImVec2 (right - side, top));
-		if (iconButton ("lock", locked ? ICON_LOCKED : ICON_UNLOCKED,
-				locked ? "Locked: it can't be selected or changed. Click to unlock it." : "Lock it, so that it can't be selected or changed by accident",
-				side)) {
-			rig->setLocked (id, ! locked);
-			if (! locked && haveSelection && selected == id) haveSelection = false;
-		}
-	}
-	if (open) {
-		for (size_t i = 0; i < ids.size (); i ++) drawTree (partWithId (rig->rig (), ids[i]));
-		ImGui::TreePop ();
-	}
-	ImGui::PopID ();
+void RigView::drawTree () {
+	PartTree tree;
+	RigView * self = this;
+	tree.isLocked = [self] (PartId id) { return self->rig->isLocked (id); };
+	tree.setLocked = [self] (PartId id, bool locked) {
+		self->rig->setLocked (id, locked);
+		if (locked && self->haveSelection && self->selected == id) self->haveSelection = false;
+	};
+	tree.select = [self] (PartId id) {
+		self->selected = id;
+		self->haveSelection = true;
+	};
+	tree.drop = [self] (PartId dragged, PartId onto) {
+		std::string why;
+		if (! self->rig->placePart (dragged, onto, INT_MAX, why)) self->say (why);
+	};
+	drawPartTree (rig->rig (), haveSelection, selected, tree);
 }
 
 void RigView::handleMouse () {
@@ -431,7 +387,7 @@ void RigView::draw () {
 	handleKeys ();
 	float height = ImGui::GetContentRegionAvail ().y;
 	ImGui::BeginChild ("parts", ImVec2 (ImGui::GetFontSize () * 12, height), ImGuiChildFlags_ResizeX | ImGuiChildFlags_Borders);
-	drawTree (0);
+	drawTree ();
 	ImGui::EndChild ();
 	ImGui::SameLine ();
 	ImGui::BeginGroup ();

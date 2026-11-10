@@ -14,6 +14,7 @@
 #include "ClipView.h"
 #include "imgui_impl_gfx.h"
 #include "Icons.h"
+#include "PartTree.h"
 #include "Platform.h"
 #include "Properties.h"
 #include "RigDocument.h"
@@ -27,7 +28,7 @@ const double NOTICE_SECONDS = 5.0;
 // How long an event's marker flashes as playback passes it.
 const double FLASH_SECONDS = 0.3;
 // The merge keys: a drag on the canvas, the fields, a drag of an event.
-const int DRAG_KEY = 1, FIELD_KEY = 2, EVENT_KEY = 3;
+const int DRAG_KEY = 1, FIELD_KEY = 2, EVENT_KEY = 3, BUTTON_KEY = 4;
 const float RING_POINTS = 40, GRAB_POINTS = 8;
 const double pi = 3.14159265358979323846;
 
@@ -69,9 +70,11 @@ const ImU32 KEYING = IM_COL32 (255, 80, 80, 255);
 const ImU32 SOUND = IM_COL32 (255, 170, 60, 255);
 const ImU32 FUNCTION = IM_COL32 (190, 120, 255, 255);
 
+// The colour of a key by its easing: step grey, linear blue, in and out
+// pink; selected, green (as a key in the Inspector).
 ImU32 easingColour (Easing e, bool selected) {
-	ImU32 c = e == EASING_STEP ? IM_COL32 (190, 190, 190, 255) : e == EASING_INOUT ? IM_COL32 (110, 220, 140, 255) : IM_COL32 (100, 170, 255, 255);
-	return selected ? IM_COL32 (255, 230, 90, 255) : c;
+	ImU32 c = e == EASING_STEP ? IM_COL32 (190, 190, 190, 255) : e == EASING_INOUT ? IM_COL32 (255, 120, 200, 255) : IM_COL32 (100, 170, 255, 255);
+	return selected ? IM_COL32 (90, 220, 110, 255) : c;
 }
 
 float distance (float x1, float y1, float x2, float y2) {
@@ -106,10 +109,10 @@ bool loadAsset (const std::string & path, animformat::Asset & asset) {
 
 ClipView::ClipView (ClipDocument * c, WorkspaceActions & a, const CanvasGraphics & g)
 	: clip (c), actions (a), graphics (g), canvas (g), preview (g.draw), lastTime (-1), haveRig (false),
-	  haveSecond (false), secondBlend (LAYER_BLEND_OVERRIDE), onlyAnimated (true), selectedEvent (0), selectedPart (0),
+	  haveSecond (false), secondBlend (LAYER_BLEND_OVERRIDE), onlyAnimated (true), draggedEvent (0), selectedPart (0),
 	  havePart (false), currentTrack (0), timelineDrag (TL_NONE), dragStartX (0), dragStartY (0), dragTicks (0),
 	  dragCopy (false), dragEventTime (0), tickWidth (1), laneLeft (0), drag (DRAG_NONE), dragMoved (false), dragX (0), dragY (0),
-	  pendingLength (0), lengthDialog (false), functionDialog (false), pending (new Pending), noticeUntil (0) {
+	  pendingLength (0), lengthDialog (false), functionDialog (false), pending (new Pending), pendingPart (0), pendingTick (0), pendingBasis (0), split (0), noticeUntil (0) {
 }
 
 ClipView::~ClipView () {
@@ -184,7 +187,7 @@ void ClipView::pose () {
 	findRig ();
 	findSecond ();
 	posedRig = haveRig ? preview.rig (rigAsset, base) : RigDefinitionRef (std::make_shared<RigDefinition> ());
-	posedClip = preview.clip (clip->asset (), base);
+	posedClip = withPending (preview.clip (clip->asset (), base));
 	posedSecond = haveSecond ? preview.clip (secondAsset, base) : ClipDefinitionRef ();
 	player.setClip (0, posedClip, LAYER_BLEND_OVERRIDE);
 	player.setClip (1, posedSecond, secondBlend);
@@ -262,18 +265,70 @@ void ClipView::buildRows () {
 void ClipView::selectOnly (const KeyRef & key) {
 	selectedKeys.clear ();
 	selectedKeys.insert (key);
-	selectedEvent = 0;
+	selectedEvents.clear ();
 	currentTrack = key.track;
 }
 
 void ClipView::removeSelection () {
-	if (selectedEvent) {
-		clip->removeEvent (selectedEvent);
-		selectedEvent = 0;
-	} else if (! selectedKeys.empty ()) {
+	for (std::set<EventId>::const_iterator e = selectedEvents.begin (); e != selectedEvents.end (); ++ e) clip->removeEvent (* e);
+	selectedEvents.clear ();
+	if (! selectedKeys.empty ()) {
 		clip->removeKeys (std::vector<KeyRef> (selectedKeys.begin (), selectedKeys.end ()));
 		selectedKeys.clear ();
 	}
+}
+
+bool ClipView::canPaste () const {
+	return ! actions.clipClipboard ().empty ();
+}
+
+void ClipView::copySelection () {
+	std::vector<ClipItem> items = clip->copy (std::vector<KeyRef> (selectedKeys.begin (), selectedKeys.end ()),
+		std::vector<EventId> (selectedEvents.begin (), selectedEvents.end ()));
+	if (items.empty ()) return;
+	actions.clipClipboard () = items;
+	char text[64];
+	snprintf (text, sizeof (text), "Copied %d key%s and event%s.", (int) items.size (), items.size () == 1 ? "" : "s", items.size () == 1 ? "" : "s");
+	say (text);
+}
+
+void ClipView::paste () {
+	const std::vector<ClipItem> & items = actions.clipClipboard ();
+	std::string why;
+	if (items.empty ()) {
+		say ("Nothing to paste: copy keys or events first.");
+		return;
+	}
+	// Keys of one part go onto the selected part, if another is selected.
+	std::string onePart;
+	bool one = true, anyKey = false;
+	for (size_t i = 0; i < items.size (); i ++) {
+		if (items[i].isEvent) continue;
+		if (anyKey && items[i].part != onePart) one = false;
+		onePart = items[i].part;
+		anyKey = true;
+	}
+	int p = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
+	std::string target = p >= 0 ? posedRig->parts[p].name : std::string ();
+	bool onto = anyKey && one && p >= 0 && target != onePart;
+	// Locked parts take no keys.
+	for (size_t i = 0; i < items.size (); i ++) {
+		if (items[i].isEvent) continue;
+		const std::string & part = onto ? target : items[i].part;
+		if (locked (part)) {
+			say (partLabel (part) + " is locked: unlock it to paste keys on it.");
+			return;
+		}
+	}
+	player.pause ();
+	std::vector<KeyRef> keys;
+	std::vector<EventId> events;
+	if (! clip->paste (items, playhead (), onto ? &target : NULL, &keys, &events, why)) {
+		say (why);
+		return;
+	}
+	selectedKeys = std::set<KeyRef> (keys.begin (), keys.end ());
+	selectedEvents = std::set<EventId> (events.begin (), events.end ());
 }
 
 void ClipView::requestLength (int length) {
@@ -354,17 +409,22 @@ void ClipView::handlePending () {
 	std::string path = relativePathFrom (baseFolder (), pending->files[0]);
 	std::string why;
 	if (pending->what == Pending::SOUND) {
-		if (selectedEvent && clip->event (selectedEvent) && clip->event (selectedEvent)->what.kind == FrameEvent::SOUND) {
-			if (! clip->setEvent (selectedEvent, clip->event (selectedEvent)->time, FrameEvent::SOUND, path, why)) say (why);
+		EventId one = soleEvent ();
+		if (one && clip->event (one) && clip->event (one)->what.kind == FrameEvent::SOUND) {
+			if (! clip->setEvent (one, clip->event (one)->time, FrameEvent::SOUND, path, why)) say (why);
 		} else {
 			EventId added;
 			if (clip->addEvent (playhead (), FrameEvent::SOUND, path, &added, why)) {
-				selectedEvent = added;
+				selectedEvents.clear ();
+				selectedEvents.insert (added);
 				selectedKeys.clear ();
 			} else {
 				say (why);
 			}
 		}
+	} else if (pending->what == Pending::PART_BANK) {
+		int p = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
+		if (p >= 0) setSprite (posedRig->parts[p].name, SpriteRef::SPRITE, path, 0, false);
 	} else if (selectedKeys.size () == 1) {
 		KeyRef k = * selectedKeys.begin ();
 		const Key * key = clip->key (k);
@@ -383,17 +443,197 @@ bool ClipView::takeFile (const std::string & path) {
 		say ("Save the clip, or open its project, first: paths are from that folder.");
 		return true;
 	}
-	std::string why;
+	setSprite (part, SpriteRef::SPRITE, relativePathFrom (base, path), 0, false);
 	const Track * t = clip->track (part, CHANNEL_SPRITE);
-	TrackId id = t ? t->id : 0;
-	if (! t && ! clip->addTrack (part, CHANNEL_SPRITE, &id, why)) {
-		say (why);
-		return true;
-	}
-	int tick = playhead ();
-	if (clip->setSpriteKey (id, tick, relativePathFrom (base, path), 0, false, false, why)) selectOnly (KeyRef (id, tick));
-	else say (why);
+	if (t && clip->key (KeyRef (t->id, playhead ()))) selectOnly (KeyRef (t->id, playhead ()));
 	return true;
+}
+
+ClipView::PendingValue * ClipView::pendingValue (const std::string & part, Channel channel) {
+	for (size_t i = 0; i < pendingValues.size (); i ++) {
+		if (pendingValues[i].part == part && pendingValues[i].channel == channel) return &pendingValues[i];
+	}
+	return NULL;
+}
+
+void ClipView::forgetStalePending () {
+	if (pendingValues.empty ()) return;
+	if (player.playing () || playhead () != pendingTick || ! havePart || selectedPart != pendingPart
+		|| clip->commands ().lastSerial () != pendingBasis) {
+		pendingValues.clear ();
+	}
+}
+
+ClipDefinitionRef ClipView::withPending (const ClipDefinitionRef & c) {
+	if (pendingValues.empty () || ! c) return c;
+	std::shared_ptr<ClipDefinition> copy = std::make_shared<ClipDefinition> (* c);
+	for (size_t i = 0; i < pendingValues.size (); i ++) {
+		const PendingValue & p = pendingValues[i];
+		Key k;
+		k.time = pendingTick;
+		k.easing = EASING_LINEAR;
+		// As a key there would ease (ClipDocument::autoKey).
+		if (const Track * t = copy->track (p.part, p.channel)) {
+			for (size_t j = 0; j < t->keys.size () && t->keys[j].time <= pendingTick; j ++) k.easing = t->keys[j].easing;
+		}
+		if (isDiscrete (p.channel)) k.easing = EASING_STEP;
+		if (p.channel == CHANNEL_SPRITE) {
+			if (p.kind == SpriteRef::SPRITE) k.sprite = SpriteRef::sprite (preview.bank (baseFolder (), p.bank), -1, p.number, p.mirror);
+			else if (p.kind == SpriteRef::NONE) k.sprite = SpriteRef::none ();
+		} else {
+			k.value = p.value;
+		}
+		std::string why;
+		setKey (* copy, p.part, p.channel, k, why);
+	}
+	return copy;
+}
+
+void ClipView::setValue (const std::string & part, Channel channel, float value, int mergeKey) {
+	std::string why;
+	if (actions.autoKey ()) {
+		if (! clip->autoKey (part, channel, playhead (), value, why, mergeKey)) say (why);
+		return;
+	}
+	forgetStalePending ();
+	int p = posedRig ? posedRig->findPart (part) : -1;
+	if (p < 0) return;
+	pendingPart = posedRig->parts[p].id;
+	pendingTick = playhead ();
+	pendingBasis = clip->commands ().lastSerial ();
+	PendingValue * now = pendingValue (part, channel);
+	if (! now) {
+		PendingValue v;
+		v.part = part;
+		v.channel = channel;
+		v.kind = SpriteRef::DEFAULT;
+		v.number = 0;
+		v.mirror = false;
+		pendingValues.push_back (v);
+		now = &pendingValues.back ();
+	}
+	now->value = isDiscrete (channel) && channel != CHANNEL_DEPTH ? (value != 0 ? 1.0f : 0.0f) : value;
+}
+
+void ClipView::setSprite (const std::string & part, SpriteRef::Kind kind, const std::string & bank, int number, bool mirror) {
+	std::string why;
+	if (actions.autoKey ()) {
+		const Track * t = clip->track (part, CHANNEL_SPRITE);
+		TrackId id = t ? t->id : 0;
+		if (! t && ! clip->addTrack (part, CHANNEL_SPRITE, &id, why)) {
+			say (why);
+			return;
+		}
+		if (! clip->setSpriteKey (id, playhead (), kind == SpriteRef::SPRITE ? bank : std::string (), number, mirror, kind == SpriteRef::DEFAULT, why)) say (why);
+		return;
+	}
+	setValue (part, CHANNEL_SPRITE, 0, 0);
+	PendingValue * v = pendingValue (part, CHANNEL_SPRITE);
+	if (! v) return;
+	v->kind = kind;
+	v->bank = bank;
+	v->number = number;
+	v->mirror = mirror;
+}
+
+bool ClipView::keyedAt (const std::string & part, Channel channel) const {
+	const Track * t = clip->track (part, channel);
+	return t && clip->key (KeyRef (t->id, playhead ()));
+}
+
+float ClipView::valueOf (int part, Channel channel) const {
+	if (part < 0 || part >= (int) keyed.parts.size ()) return 0;
+	const PosedPart & p = keyed.parts[part];
+	switch (channel) {
+		case CHANNEL_X: return p.local.x;
+		case CHANNEL_Y: return p.local.y;
+		case CHANNEL_ROTATION: return p.local.rotation;
+		case CHANNEL_SCALE:
+		case CHANNEL_SCALE_X: return p.local.scaleX;
+		case CHANNEL_SCALE_Y: return p.local.scaleY;
+		case CHANNEL_VISIBLE: return p.local.visible ? 1.0f : 0.0f;
+		case CHANNEL_DEPTH: return (float) p.depth;
+		case CHANNEL_FLIP: return p.local.flip ? 1.0f : 0.0f;
+		default: return 0;
+	}
+}
+
+void ClipView::keyChannels (const std::string & part, const std::vector<Channel> & channels) {
+	int p = posedRig ? posedRig->findPart (part) : -1;
+	if (p < 0) return;
+	int tick = playhead ();
+	std::string why;
+	// Their values first: keying one changes the pose.
+	std::vector<PendingValue> values;
+	for (size_t i = 0; i < channels.size (); i ++) {
+		PendingValue * pending = pendingValue (part, channels[i]);
+		PendingValue v;
+		if (pending) {
+			v = * pending;
+		} else {
+			v.part = part;
+			v.channel = channels[i];
+			v.value = valueOf (p, channels[i]);
+			v.kind = SpriteRef::DEFAULT;
+			v.number = 0;
+			v.mirror = false;
+			if (channels[i] == CHANNEL_SPRITE) {
+				const SpriteRef * s = sampleSprite (clip->clip (), part, ticksToTime (tick));
+				if (s) {
+					v.kind = s->kind;
+					v.bank = clip->bankOf (* s);
+					v.number = s->number;
+					v.mirror = s->mirror;
+				}
+			}
+		}
+		values.push_back (v);
+	}
+	for (size_t i = 0; i < values.size (); i ++) {
+		const PendingValue & v = values[i];
+		bool ok = true;
+		if (v.channel == CHANNEL_SPRITE) {
+			const Track * t = clip->track (part, CHANNEL_SPRITE);
+			TrackId id = t ? t->id : 0;
+			ok = t || clip->addTrack (part, CHANNEL_SPRITE, &id, why);
+			if (ok) ok = clip->setSpriteKey (id, tick, v.kind == SpriteRef::SPRITE ? v.bank : std::string (), v.number, v.mirror, v.kind == SpriteRef::DEFAULT, why);
+		} else {
+			ok = clip->autoKey (part, v.channel, tick, v.value, why, BUTTON_KEY);
+		}
+		if (! ok) say (why);
+	}
+	clip->commands ().stopMerging ();
+	for (size_t i = pendingValues.size (); i -- > 0; ) {
+		for (size_t c = 0; c < channels.size (); c ++) {
+			if (pendingValues[i].part == part && pendingValues[i].channel == channels[c]) {
+				pendingValues.erase (pendingValues.begin () + i);
+				break;
+			}
+		}
+	}
+	pendingBasis = clip->commands ().lastSerial ();
+}
+
+void ClipView::keyButton (const char * id, const std::string & part, const std::vector<Channel> & channels, float rightX) {
+	bool pending = false, all = true;
+	for (size_t i = 0; i < channels.size (); i ++) {
+		pending = pending || pendingValue (part, channels[i]);
+		all = all && keyedAt (part, channels[i]);
+	}
+	// Yellow: changed, not keyed yet. Green: keyed there.
+	static const ImVec4 yellow (1.0f, 0.85f, 0.2f, 1.0f), green (0.35f, 0.86f, 0.43f, 1.0f);
+	IconStyle style;
+	if (pending) style.colour = &yellow;
+	else if (all) {
+		style.colour = &green;
+		style.enabled = false;
+	}
+	ImGui::SameLine ();
+	// At the end of the row.
+	if (rightX > 0) ImGui::SetCursorScreenPos (ImVec2 (rightX, ImGui::GetCursorScreenPos ().y));
+	if (iconButton (id, ICON_KEY, pending ? "Key the change at the playhead" : all ? "Keyed at the playhead" : "Key it at the playhead", 0, style)) {
+		keyChannels (part, channels);
+	}
 }
 
 void ClipView::drawToolbar () {
@@ -421,27 +661,10 @@ void ClipView::drawToolbar () {
 		ImGui::EndCombo ();
 	}
 	ImGui::SetItemTooltip ("The rig that the clip is made for, and that the preview shows");
-	ImGui::SameLine ();
-	if (ImGui::Button (player.playing () ? "Pause" : "Play")) {
-		if (player.playing ()) player.pause ();
-		else player.play ();
-	}
-	ImGui::SameLine ();
-	if (ImGui::Button ("Restart")) {
-		player.reset ();
-		player.play ();
-	}
-	ImGui::SameLine ();
-	bool loop = clip->clip ().loop;
-	if (ImGui::Checkbox ("Loop", &loop)) clip->setLoop (loop);
-	ImGui::SameLine ();
-	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 5);
-	int speed = player.speed ();
-	if (ImGui::SliderInt ("##speed", &speed, 10, 400, "%d%%")) player.setSpeed (speed);
-	ImGui::SetItemTooltip ("How fast the preview plays, of the game's speed: the keys stay where they are");
-
+	ImGui::SameLine (0, ImGui::GetFontSize ());
 	ImGui::AlignTextToFramePadding ();
-	ImGui::TextUnformatted ("Over it");
+	ImGui::TextUnformatted ("Preview layered clip");
+	ImGui::SetItemTooltip ("A clip to play over this one on a layer, as playClip does in a game: for the preview only, it isn't saved with the clip");
 	ImGui::SameLine ();
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 9);
 	std::string second = secondFile.empty () ? std::string ("No second clip") : relativePathFrom (base, secondFile);
@@ -463,7 +686,7 @@ void ClipView::drawToolbar () {
 		}
 		ImGui::EndCombo ();
 	}
-	ImGui::SetItemTooltip ("A clip to play over this one on a layer, as a character in a game would");
+	ImGui::SetItemTooltip ("A clip to play over this one on a layer, as playClip does in a game: for the preview only, it isn't saved with the clip");
 	ImGui::SameLine ();
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
 	int blend = secondBlend;
@@ -475,20 +698,91 @@ void ClipView::drawToolbar () {
 	ImGui::SetItemTooltip ("Override: the second clip sets what it keys. Additive: it adds to positions and rotations, and multiplies scales");
 	ImGui::SameLine (0, ImGui::GetFontSize ());
 	canvas.drawZoomButtons ();
-	// How the selected part scales on the canvas.
-	int at = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
-	if (at >= 0) {
-		std::string name = posedRig->parts[at].name;
-		bool together = uniform (name);
-		ImGui::SameLine (0, ImGui::GetFontSize ());
-		ImGui::AlignTextToFramePadding ();
-		ImGui::Text ("%s: scale", partLabel (name).c_str ());
-		ImGui::SameLine ();
-		if (iconButton ("uniform", together ? ICON_LOCKED : ICON_UNLOCKED,
-				together ? "X and Y scale together on the canvas. Click to scale them apart." : "X and Y scale apart on the canvas. Click to scale them together.")) {
-			clip->setScaling (name, together ? animformat::EditorPart::SCALING_FREE : animformat::EditorPart::SCALING_UNIFORM);
-		}
+}
+
+void ClipView::drawTransport () {
+	int length = clip->clip ().length;
+	ImVec2 at = ImGui::GetCursorScreenPos ();
+	float width = ImGui::GetContentRegionAvail ().x, side = iconButtonWidth (), gap = ImGui::GetFontSize () * 0.6f;
+	// The buttons that play, in the middle of the row.
+	float x = at.x + floorf ((width - (side * 3 + gap * 2)) * 0.5f);
+	ImGui::SetCursorScreenPos (ImVec2 (x, at.y));
+	if (iconButton ("first", ICON_FIRST, "To the first tick")) scrub (0);
+	ImGui::SetCursorScreenPos (ImVec2 (x + side + gap, at.y));
+	if (iconButton ("play", player.playing () ? ICON_PAUSE : ICON_PLAY, player.playing () ? "Pause" : "Play")) {
+		if (player.playing ()) player.pause ();
+		else player.play ();
 	}
+	ImGui::SetCursorScreenPos (ImVec2 (x + (side + gap) * 2, at.y));
+	if (iconButton ("last", ICON_LAST, "To the last tick")) scrub (length);
+
+	// Loop, Auto key and the speed, on the right.
+	float speedWidth = ImGui::GetFontSize () * 5, small = ImGui::GetStyle ().ItemSpacing.x;
+	float right = at.x + width - (side * 2 + small * 2 + gap + speedWidth);
+	ImGui::SetCursorScreenPos (ImVec2 (right, at.y));
+	bool loop = clip->clip ().loop;
+	IconStyle loopStyle;
+	loopStyle.on = loop;
+	if (iconButton ("loop", ICON_LOOP, loop ? "Loops: it goes round and round. Click to play it once." : "Plays once. Click to make it loop.", 0, loopStyle)) {
+		clip->setLoop (! loop);
+	}
+	ImGui::SetCursorScreenPos (ImVec2 (right + side + small, at.y));
+	bool autoKey = actions.autoKey ();
+	IconStyle keyStyle;
+	ImVec4 red (1.0f, 0.3f, 0.3f, 1.0f);
+	if (autoKey) keyStyle.colour = &red;
+	if (iconButton ("autokey", ICON_AUTOKEY, autoKey ? "Auto key is on: changes to parts are keyed at the playhead at once. Click to turn it off."
+			: "Auto key is off: changes to parts are a preview until you click their key buttons. Click to key them at once.", 0, keyStyle)) {
+		actions.setAutoKey (! autoKey);
+	}
+	ImGui::SetCursorScreenPos (ImVec2 (right + (side + small) * 2 + gap, at.y));
+	ImGui::SetNextItemWidth (speedWidth);
+	int speed = player.speed ();
+	if (ImGui::SliderInt ("##speed", &speed, 10, 400, "%d%%")) player.setSpeed (speed);
+	ImGui::SetItemTooltip ("How fast the preview plays, of the game's speed: the keys stay where they are");
+	// The row, as one item.
+	ImGui::SetCursorScreenPos (at);
+	ImGui::Dummy (ImVec2 (width, ImGui::GetFrameHeight ()));
+}
+
+void ClipView::drawSplitter (float total, float least) {
+	ImVec2 at = ImGui::GetCursorScreenPos ();
+	float width = ImGui::GetContentRegionAvail ().x, thick = ImGui::GetStyle ().ItemSpacing.y + 4;
+	ImGui::InvisibleButton ("##split", ImVec2 (width, thick));
+	bool hovered = ImGui::IsItemHovered (), active = ImGui::IsItemActive ();
+	if (hovered || active) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeNS);
+	ImGui::SetItemTooltip ("Drag to share the height between the picture and the timeline");
+	if (active && total > 0) {
+		float top = total * split + ImGui::GetIO ().MouseDelta.y;
+		if (top < least) top = least;
+		if (top > total - least) top = total - least;
+		split = top / total;
+	}
+	if (ImGui::IsItemDeactivated ()) actions.setClipSplit (split);
+	ImU32 colour = ImGui::GetColorU32 (active ? ImGuiCol_SeparatorActive : hovered ? ImGuiCol_SeparatorHovered : ImGuiCol_Separator);
+	float y = floorf (at.y + thick * 0.5f);
+	ImGui::GetWindowDrawList ()->AddLine (ImVec2 (at.x, y), ImVec2 (at.x + width, y), colour, active || hovered ? 2.0f : 1.0f);
+}
+
+void ClipView::selectPart (const std::string & name) {
+	int p = posedRig ? posedRig->findPart (name) : -1;
+	if (p < 0 || locked (name)) return;
+	selectedPart = posedRig->parts[p].id;
+	havePart = true;
+}
+
+void ClipView::drawPartPanel (float height) {
+	ImGui::BeginChild ("parts", ImVec2 (ImGui::GetFontSize () * 12, height), ImGuiChildFlags_ResizeX | ImGuiChildFlags_Borders);
+	if (posedRig) {
+		PartTree tree;
+		ClipView * self = this;
+		RigDefinitionRef r = posedRig;
+		tree.isLocked = [self, r] (PartId id) { int p = partWithId (* r, id); return p >= 0 && self->locked (r->parts[p].name); };
+		tree.setLocked = [self, r] (PartId id, bool on) { int p = partWithId (* r, id); if (p >= 0) self->clip->setLocked (r->parts[p].name, on); };
+		tree.select = [self, r] (PartId id) { int p = partWithId (* r, id); if (p >= 0) self->selectPart (r->parts[p].name); };
+		drawPartTree (* posedRig, havePart, selectedPart, tree);
+	}
+	ImGui::EndChild ();
 }
 
 void ClipView::handleCanvasMouse () {
@@ -556,22 +850,20 @@ void ClipView::handleCanvasMouse () {
 		int tick = playhead ();
 		char where[96];
 		snprintf (where, sizeof (where), " at tick %d", tick);
-		std::string why;
-		bool ok = true;
 		if (drag == DRAG_MOVE) {
 			Transform2D up;
 			if (linear (dragParent).inverse (up)) {
 				float lx, ly;
 				up.apply (mx - dragX, my - dragY, lx, ly);
-				ok = clip->autoKey (part, CHANNEL_X, tick, floorf (dragLocal.x + lx + 0.5f), why, DRAG_KEY)
-					&& clip->autoKey (part, CHANNEL_Y, tick, floorf (dragLocal.y + ly + 0.5f), why, DRAG_KEY);
+				setValue (part, CHANNEL_X, floorf (dragLocal.x + lx + 0.5f), DRAG_KEY);
+				setValue (part, CHANNEL_Y, floorf (dragLocal.y + ly + 0.5f), DRAG_KEY);
 			}
 			keying = "Keying " + partLabel (part) + " > position" + where;
 		} else if (drag == DRAG_TURN) {
 			float ox = dragWorld.tx, oy = dragWorld.ty;
 			double turned = (atan2 (my - oy, mx - ox) - atan2 (dragY - oy, dragX - ox)) * 180.0 / pi;
 			if (dragParent.mirrors ()) turned = - turned;
-			ok = clip->autoKey (part, CHANNEL_ROTATION, tick, wrapDegrees (floorf (dragLocal.rotation + (float) turned + 0.5f)), why, DRAG_KEY);
+			setValue (part, CHANNEL_ROTATION, wrapDegrees (floorf (dragLocal.rotation + (float) turned + 0.5f)), DRAG_KEY);
 			keying = "Keying " + partLabel (part) + " > rotation" + where;
 		} else if (drag == DRAG_SCALE) {
 			float sx, sy;
@@ -580,14 +872,14 @@ void ClipView::handleCanvasMouse () {
 			// A clip that scales the part with SCALE keeps doing so while
 			// its axes scale together; otherwise each axis has its track.
 			if (together && clip->track (part, CHANNEL_SCALE) && ! clip->track (part, CHANNEL_SCALE_X) && ! clip->track (part, CHANNEL_SCALE_Y)) {
-				ok = clip->autoKey (part, CHANNEL_SCALE, tick, sx, why, DRAG_KEY);
+				setValue (part, CHANNEL_SCALE, sx, DRAG_KEY);
 			} else {
-				if (dragHandle.axes & ScaleHandle::X) ok = clip->autoKey (part, CHANNEL_SCALE_X, tick, sx, why, DRAG_KEY);
-				if (ok && (dragHandle.axes & ScaleHandle::Y)) ok = clip->autoKey (part, CHANNEL_SCALE_Y, tick, sy, why, DRAG_KEY);
+				if (dragHandle.axes & ScaleHandle::X) setValue (part, CHANNEL_SCALE_X, sx, DRAG_KEY);
+				if (dragHandle.axes & ScaleHandle::Y) setValue (part, CHANNEL_SCALE_Y, sy, DRAG_KEY);
 			}
 			keying = "Keying " + partLabel (part) + " > scale" + where;
 		}
-		if (! ok) say (why);
+		if (! actions.autoKey ()) keying = "Not keyed: click the key icons, or turn Auto key on";
 	}
 	if (drag != DRAG_NONE && canvas.released ()) {
 		drag = DRAG_NONE;
@@ -596,9 +888,9 @@ void ClipView::handleCanvasMouse () {
 	}
 }
 
-void ClipView::drawCanvas () {
+void ClipView::drawCanvas (float height) {
 	ImVec2 size = ImGui::GetContentRegionAvail ();
-	size.y = floorf (size.y * 0.55f);
+	size.y = height - ImGui::GetTextLineHeightWithSpacing ();
 	float x1, y1, x2, y2;
 	if (! poseBounds (shown, x1, y1, x2, y2)) {
 		x1 = y1 = -100;
@@ -618,9 +910,10 @@ void ClipView::drawCanvas () {
 		drawPoseOverlay (draw, r, p, at, pixel, sides);
 		draw.finish ();
 	});
-	// Whatever a drag on the canvas does, it keys: the frame says so.
+	// With Auto key, a drag on the canvas keys: the frame says so.
+	bool autoKey = actions.autoKey ();
 	ImGui::GetWindowDrawList ()->AddRect (ImGui::GetItemRectMin (), ImGui::GetItemRectMax (),
-		drag != DRAG_NONE ? KEYING : IM_COL32 (255, 80, 80, 90), 0.0f, drag != DRAG_NONE ? 2.0f : 1.0f);
+		autoKey ? (drag != DRAG_NONE ? KEYING : IM_COL32 (255, 80, 80, 90)) : ImGui::GetColorU32 (ImGuiCol_Border), 0.0f, autoKey && drag != DRAG_NONE ? 2.0f : 1.0f);
 	handleCanvasMouse ();
 
 	char tick[48];
@@ -628,7 +921,7 @@ void ClipView::drawCanvas () {
 	ImGui::TextDisabled ("%s    %s", tick, canvas.status ().c_str ());
 	if (! keying.empty ()) {
 		ImGui::SameLine (0, ImGui::GetFontSize () * 2);
-		ImGui::TextColored (ImVec4 (1.0f, 0.35f, 0.35f, 1.0f), "%s", keying.c_str ());
+		ImGui::TextColored (actions.autoKey () ? ImVec4 (1.0f, 0.35f, 0.35f, 1.0f) : ImVec4 (1.0f, 0.6f, 0.2f, 1.0f), "%s", keying.c_str ());
 	} else if (! haveRig) {
 		ImGui::SameLine (0, ImGui::GetFontSize () * 2);
 		ImGui::TextColored (ImVec4 (1.0f, 0.8f, 0.3f, 1.0f), "%s", clip->asset ().rigId.isNull ()
@@ -644,8 +937,14 @@ void ClipView::drawTimeline () {
 	ImDrawList * list = ImGui::GetWindowDrawList ();
 	ImGuiIO & io = ImGui::GetIO ();
 	ImVec2 origin = ImGui::GetCursorScreenPos ();
-	float h = ImGui::GetFrameHeight ();
-	float labelWidth = ImGui::GetFontSize () * 14;
+	// A row's height, with room between rows; what is in it, as high as a
+	// field, is centred in it.
+	float h = ImGui::GetFrameHeightWithSpacing (), fh = ImGui::GetFrameHeight (), pad = (h - fh) * 0.5f;
+	// Wide enough for the parts' names, and for the buttons of the events.
+	const ImGuiStyle & style = ImGui::GetStyle ();
+	float buttons = ImGui::CalcTextSize ("Events").x + ImGui::CalcTextSize ("+ Sound").x + ImGui::CalcTextSize ("+ Function").x
+		+ style.FramePadding.x * 4 + style.ItemSpacing.x * 2 + 8;
+	float labelWidth = std::max (ImGui::GetFontSize () * 14, buttons);
 	float width = ImGui::GetContentRegionAvail ().x;
 	int length = clip->clip ().length;
 	laneLeft = origin.x + labelWidth + 8;
@@ -663,48 +962,67 @@ void ClipView::drawTimeline () {
 	ImGui::AlignTextToFramePadding ();
 	ImGui::TextUnformatted ("Events");
 	ImGui::SameLine ();
-	if (ImGui::SmallButton ("+ Sound")) askForFile (Pending::SOUND);
+	if (ImGui::Button ("+ Sound")) askForFile (Pending::SOUND);
 	ImGui::SameLine ();
-	if (ImGui::SmallButton ("+ Function")) {
+	if (ImGui::Button ("+ Function")) {
 		functionName.clear ();
 		functionDialog = true;
 	}
+	// The columns of the lock and the plus or minus, at the end of the rows.
+	float lockX = origin.x + labelWidth - fh * 2 - 4, signX = origin.x + labelWidth - fh;
+	int at = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
+	std::string selectedName = at >= 0 ? posedRig->parts[at].name : std::string ();
+	// Names centred in their fields' height, level with the arrows, as in the tree.
+	ImGui::PushStyleVar (ImGuiStyleVar_SelectableTextAlign, ImVec2 (0.0f, 0.5f));
 	for (size_t r = 0; r < rows.size (); r ++) {
 		const Row & row = rows[r];
-		float y = rowsTop + h * r;
+		float y = rowsTop + h * r + pad;
+		float x = origin.x + row.depth * style.IndentSpacing;
 		ImGui::PushID ((int) r);
-		ImGui::SetCursorScreenPos (ImVec2 (origin.x + row.depth * ImGui::GetFontSize (), y));
 		if (row.isTrack) {
+			// Its name: the current track, of the selected part.
 			bool current = row.track == currentTrack;
+			ImGui::SetCursorScreenPos (ImVec2 (x, y));
 			std::string label = std::string (channelLabel (row.channel));
-			if (ImGui::Selectable (label.c_str (), current, 0, ImVec2 (labelWidth - row.depth * ImGui::GetFontSize () - h * 1.2f, h))) currentTrack = row.track;
-			ImGui::SameLine ();
-			if (ImGui::SmallButton ("x")) {
+			if (ImGui::Selectable (label.c_str (), current, 0, ImVec2 (signX - x - 4, fh))) {
+				currentTrack = row.track;
+				selectPart (row.part);
+			}
+			ImGui::SetCursorScreenPos (ImVec2 (signX, y));
+			if (iconButton ("remove", ICON_MINUS, "Remove the track, and its keys", fh)) {
 				clip->removeTrack (row.track);
 				selectedKeys.clear ();
 			}
-			ImGui::SetItemTooltip ("Remove the track, and its keys");
 		} else {
 			bool open = ! collapsed.count (row.part);
 			bool isLocked = locked (row.part);
-			std::string label = std::string (open ? "v  " : ">  ") + partLabel (row.part);
-			if (row.missing) label += "  (not in the rig)";
-			if (row.missing) ImGui::PushStyleColor (ImGuiCol_Text, ImVec4 (1.0f, 0.6f, 0.3f, 1.0f));
-			else if (isLocked) ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
-			if (ImGui::Selectable (label.c_str (), false, 0, ImVec2 (labelWidth - row.depth * ImGui::GetFontSize () - h * 2.4f, h))) {
+			// The fold, then the name, which selects the part.
+			// The fold's arrow, as the rig's tree draws it.
+			ImGui::SetCursorScreenPos (ImVec2 (x, y));
+			if (foldArrow ("fold", open)) {
 				if (open) collapsed.insert (row.part);
 				else collapsed.erase (row.part);
 			}
+			ImGui::SetItemTooltip (open ? "Fold its tracks away" : "Show its tracks");
+			float nameX = x + foldWidth ();
+			ImGui::SetCursorScreenPos (ImVec2 (nameX, y));
+			std::string label = partLabel (row.part);
+			if (row.missing) label += "  (not in the rig)";
+			if (row.missing) ImGui::PushStyleColor (ImGuiCol_Text, ImVec4 (1.0f, 0.6f, 0.3f, 1.0f));
+			else if (isLocked) ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled));
+			if (ImGui::Selectable ((label + "##name").c_str (), ! row.missing && row.part == selectedName && at >= 0, 0,
+					ImVec2 (lockX - nameX - 4, fh))) {
+				selectPart (row.part);
+			}
 			if (row.missing || isLocked) ImGui::PopStyleColor ();
-			ImGui::SameLine ();
+			ImGui::SetCursorScreenPos (ImVec2 (lockX, y));
 			if (iconButton ("lock", isLocked ? ICON_LOCKED : ICON_UNLOCKED,
 					isLocked ? "Locked: it can't be selected or keyed on the canvas, nor its keys moved. Click to unlock it."
-						: "Lock it, so that it can't be keyed, nor its keys moved, by accident", h)) {
+						: "Lock it, so that it can't be keyed, nor its keys moved, by accident", fh)) {
 				clip->setLocked (row.part, ! isLocked);
 			}
-			ImGui::SameLine ();
-			if (ImGui::SmallButton ("+")) ImGui::OpenPopup ("add");
-			ImGui::SetItemTooltip ("Add a track to the part");
+			ImGui::SetCursorScreenPos (ImVec2 (signX, y));
+			if (iconButton ("add", ICON_PLUS, "Add a track to the part", fh)) ImGui::OpenPopup ("add");
 			if (ImGui::BeginPopup ("add")) {
 				const char * kinds[] = { "Position", "Rotation", "Scale", "Sprite", "Visible", "Depth", "Flip" };
 				const Channel first[] = { CHANNEL_X, CHANNEL_ROTATION, CHANNEL_SCALE_X, CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
@@ -725,6 +1043,7 @@ void ClipView::drawTimeline () {
 		}
 		ImGui::PopID ();
 	}
+	ImGui::PopStyleVar ();
 
 	// The lanes, and the mouse on them.
 	ImGui::SetCursorScreenPos (ImVec2 (laneLeft - 8, origin.y));
@@ -773,29 +1092,43 @@ void ClipView::drawTimeline () {
 				scrub (tickAt (mx));
 			}
 		} else if (my < rowsTop) {
-			if (hitEvent) {
-				selectedEvent = hitEvent;
-				selectedKeys.clear ();
+			if (hitEvent && io.KeyShift) {
+				// Shift adds it to the selection, or takes it out.
+				if (selectedEvents.count (hitEvent)) selectedEvents.erase (hitEvent);
+				else selectedEvents.insert (hitEvent);
+				timelineDrag = TL_NONE;
+			} else if (hitEvent) {
+				if (! selectedEvents.count (hitEvent)) {
+					selectedEvents.clear ();
+					selectedEvents.insert (hitEvent);
+					selectedKeys.clear ();
+				}
+				draggedEvent = hitEvent;
 				timelineDrag = TL_EVENT;
 				dragEventTime = clip->event (hitEvent)->time;
 			} else {
-				selectedEvent = 0;
-				timelineDrag = TL_NONE;
+				if (! io.KeyShift) {
+					selectedEvents.clear ();
+					selectedKeys.clear ();
+				}
+				timelineDrag = TL_BOX;
 			}
 		} else if (hit) {
 			if (io.KeyShift) {
 				if (selectedKeys.count (hitKey)) selectedKeys.erase (hitKey);
 				else selectedKeys.insert (hitKey);
-				selectedEvent = 0;
 				currentTrack = hitKey.track;
 			} else if (! selectedKeys.count (hitKey)) {
 				selectOnly (hitKey);
 			}
+			if (const Track * t = clip->track (hitKey.track)) selectPart (t->part);
 			timelineDrag = selectedKeys.count (hitKey) ? TL_KEYS : TL_NONE;
 			dragCopy = io.KeyAlt;
 		} else {
-			if (! io.KeyShift) selectedKeys.clear ();
-			selectedEvent = 0;
+			if (! io.KeyShift) {
+				selectedKeys.clear ();
+				selectedEvents.clear ();
+			}
 			timelineDrag = TL_BOX;
 		}
 	}
@@ -809,9 +1142,9 @@ void ClipView::drawTimeline () {
 		} else if (timelineDrag == TL_EVENT) {
 			int t = dragEventTime + (int) floorf ((mx - dragStartX) / tickWidth + 0.5f);
 			t = t < 0 ? 0 : t > length ? length : t;
-			const ClipEvent * e = clip->event (selectedEvent);
+			const ClipEvent * e = clip->event (draggedEvent);
 			std::string why;
-			if (e && e->time != t) clip->setEvent (selectedEvent, t, e->what.kind, clip->eventName (selectedEvent), why, EVENT_KEY);
+			if (e && e->time != t) clip->setEvent (draggedEvent, t, e->what.kind, clip->eventName (draggedEvent), why, EVENT_KEY);
 		}
 	}
 	if (ImGui::IsItemDeactivated ()) {
@@ -830,6 +1163,14 @@ void ClipView::drawTimeline () {
 		} else if (timelineDrag == TL_BOX) {
 			float bx1 = std::min (dragStartX, mx), bx2 = std::max (dragStartX, mx);
 			float by1 = std::min (dragStartY, my), by2 = std::max (dragStartY, my);
+			// The events, if the box takes in their lane.
+			float ey = origin.y + h * 1.5f;
+			if (ey >= by1 && ey <= by2) {
+				for (size_t e = 0; e < clip->clip ().events.size (); e ++) {
+					float ex = xOf (clip->clip ().events[e].time);
+					if (ex >= bx1 && ex <= bx2) selectedEvents.insert (clip->clip ().events[e].id);
+				}
+			}
 			for (size_t r = 0; r < rows.size (); r ++) {
 				if (! rows[r].isTrack) continue;
 				float cy = rowsTop + h * r + h * 0.5f;
@@ -881,11 +1222,11 @@ void ClipView::drawTimeline () {
 		float x = xOf (ev.time), cy = origin.y + h * 1.5f, r = h * 0.3f;
 		bool flashing = false;
 		for (size_t f = 0; f < flashes.size (); f ++) flashing = flashing || (flashes[f].first == ev.id && flashes[f].second > now);
-		ImU32 c = ev.what.kind == FrameEvent::SOUND ? SOUND : FUNCTION;
+		// Selected, in the yellow of a selected key.
+		ImU32 c = selectedEvents.count (ev.id) ? easingColour (EASING_STEP, true) : ev.what.kind == FrameEvent::SOUND ? SOUND : FUNCTION;
 		if (flashing) r *= 1.6f;
 		if (ev.what.kind == FrameEvent::SOUND) list->AddCircleFilled (ImVec2 (x, cy), r, c);
 		else list->AddQuadFilled (ImVec2 (x, cy - r), ImVec2 (x + r, cy), ImVec2 (x, cy + r), ImVec2 (x - r, cy), c);
-		if (ev.id == selectedEvent) list->AddCircle (ImVec2 (x, cy), r + 3, IM_COL32 (255, 230, 90, 255), 0, 2);
 		if (hovered && hitEvent == ev.id) {
 			std::string name = clip->eventName (ev.id);
 			ImGui::SetTooltip ("%s at tick %d: %s", ev.what.kind == FrameEvent::SOUND ? "Sound" : "Function", ev.time, name.c_str ());
@@ -922,11 +1263,11 @@ void ClipView::drawTimeline () {
 	}
 	if (timelineDrag == TL_BOX) {
 		list->AddRect (ImVec2 (std::min (dragStartX, mx), std::min (dragStartY, my)), ImVec2 (std::max (dragStartX, mx), std::max (dragStartY, my)),
-			IM_COL32 (255, 230, 90, 200));
+			easingColour (EASING_STEP, true) & 0xC8FFFFFF);
 	}
-	// The playhead, in the colour of keying: a drag on the canvas keys here.
+	// The playhead, in the colour of keying with Auto key: a change keys here.
 	float px = xOf (player.ticks ());
-	list->AddLine (ImVec2 (px, origin.y), ImVec2 (px, bottom > rowsTop ? bottom : rowsTop), KEYING, 2);
+	list->AddLine (ImVec2 (px, origin.y), ImVec2 (px, bottom > rowsTop ? bottom : rowsTop), actions.autoKey () ? KEYING : text, 2);
 
 	ImGui::SetCursorScreenPos (origin);
 	ImGui::Dummy (ImVec2 (width, (bottom > rowsTop ? bottom : rowsTop) - origin.y + h * 0.5f));
@@ -946,7 +1287,7 @@ void ClipView::drawLengthDialog () {
 			std::string why;
 			if (! clip->setLength (pendingLength, true, why)) say (why);
 			selectedKeys.clear ();
-			selectedEvent = 0;
+			selectedEvents.clear ();
 			ImGui::CloseCurrentPopup ();
 		}
 		ImGui::SameLine ();
@@ -969,7 +1310,8 @@ void ClipView::drawFunctionDialog () {
 			std::string why;
 			EventId added;
 			if (clip->addEvent (playhead (), FrameEvent::FUNCTION, functionName, &added, why)) {
-				selectedEvent = added;
+				selectedEvents.clear ();
+				selectedEvents.insert (added);
 				selectedKeys.clear ();
 				ImGui::CloseCurrentPopup ();
 			} else {
@@ -984,6 +1326,8 @@ void ClipView::handleKeys () {
 	if (! ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows) || ImGui::GetIO ().WantTextInput) return;
 	if (ImGui::Shortcut (ImGuiKey_Delete) || ImGui::Shortcut (ImGuiKey_Backspace)) removeSelection ();
 	if (ImGui::Shortcut (ImGuiKey_K) && currentTrack) addKeyAtPlayhead (currentTrack);
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_C)) copySelection ();
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_V)) paste ();
 	if (ImGui::Shortcut (ImGuiKey_LeftArrow, ImGuiInputFlags_Repeat)) scrub (playhead () - 1);
 	if (ImGui::Shortcut (ImGuiKey_RightArrow, ImGuiInputFlags_Repeat)) scrub (playhead () + 1);
 }
@@ -1005,9 +1349,13 @@ void ClipView::draw () {
 		if (! clip->key (* i) || ! t || locked (t->part)) selectedKeys.erase (i ++);
 		else ++ i;
 	}
-	if (selectedEvent && ! clip->event (selectedEvent)) selectedEvent = 0;
+	for (std::set<EventId>::iterator e = selectedEvents.begin (); e != selectedEvents.end (); ) {
+		if (! clip->event (* e)) selectedEvents.erase (e ++);
+		else ++ e;
+	}
 	if (currentTrack && ! clip->track (currentTrack)) currentTrack = 0;
 	if (player.ticks () > clip->clip ().length && ! player.playing ()) scrub (clip->clip ().length);
+	forgetStalePending ();
 
 	pose ();
 	if (havePart && posedRig) {
@@ -1017,17 +1365,321 @@ void ClipView::draw () {
 	buildRows ();
 	drawToolbar ();
 	handleKeys ();
-	drawCanvas ();
+	// The picture over the timeline, split where the bar between them says.
+	float total = ImGui::GetContentRegionAvail ().y, least = ImGui::GetTextLineHeightWithSpacing () * 6;
+	if (split <= 0) split = actions.clipSplit ();
+	float top = floorf (total * split);
+	if (top > total - least) top = total - least;
+	if (top < least) top = least;
+	drawPartPanel (top);
+	ImGui::SameLine ();
+	ImGui::BeginGroup ();
+	drawCanvas (top);
+	ImGui::EndGroup ();
+	drawSplitter (total, least);
+	drawTransport ();
 	drawTimeline ();
 	drawLengthDialog ();
 	drawFunctionDialog ();
 }
 
+void ClipView::drawPartInspector () {
+	int p = havePart && posedRig ? partWithId (* posedRig, selectedPart) : -1;
+	if (p < 0 || p >= (int) keyed.parts.size ()) return;
+	const std::string part = posedRig->parts[p].name;
+	int tick = playhead ();
+	float keyWidth = iconButtonWidth () + ImGui::GetStyle ().ItemSpacing.x;
+	// The fields of what is changed and not keyed are yellow; of what is
+	// keyed at the playhead, green.
+	static const ImVec4 orange (0.5f, 0.42f, 0.08f, 1.0f), keyedTint (0.13f, 0.36f, 0.17f, 1.0f);
+	// A pending value's field is orange.
+	auto pendingField = [this, &part] (Channel a, Channel b) {
+		if (pendingValue (part, a) || (b != NUM_CHANNELS && pendingValue (part, b))) {
+			ImGui::PushStyleColor (ImGuiCol_FrameBg, orange);
+			return true;
+		}
+		if (keyedAt (part, a) && (b == NUM_CHANNELS || keyedAt (part, b))) {
+			ImGui::PushStyleColor (ImGuiCol_FrameBg, keyedTint);
+			return true;
+		}
+		return false;
+	};
+	// Where the key buttons go: at the end of the field column.
+	auto right = [] () { return ImGui::GetCursorScreenPos ().x + ImGui::GetContentRegionAvail ().x - iconButtonWidth (); };
+	float keyX = 0;
+	char title[96];
+	snprintf (title, sizeof (title), "%s at tick %d", partLabel (part).c_str (), tick);
+	if (! beginProperties (title, 0.28f)) return;
+	bool done = false;
+
+	// Position.
+	{
+		float x = valueOf (p, CHANNEL_X), y = valueOf (p, CHANNEL_Y), nx = x, ny = y;
+		propertyRow ("Position", "Where its origin is, from its parent's, in its parent's pixels; +Y is down");
+		keyX = right ();
+		bool on = pendingField (CHANNEL_X, CHANNEL_Y);
+		if (xyFields ("position", &nx, &ny, 1.0f, "%g", 0, 0, &done, keyWidth)) {
+			if (nx != x) setValue (part, CHANNEL_X, nx, FIELD_KEY);
+			if (ny != y) setValue (part, CHANNEL_Y, ny, FIELD_KEY);
+		}
+		if (on) ImGui::PopStyleColor ();
+		keyButton ("keyposition", part, std::vector<Channel> { CHANNEL_X, CHANNEL_Y }, keyX);
+	}
+
+	// Rotation.
+	{
+		float r = valueOf (p, CHANNEL_ROTATION);
+		propertyRow ("Rotation", "In degrees, clockwise, about its pivot");
+		keyX = right ();
+		bool on = pendingField (CHANNEL_ROTATION, NUM_CHANNELS);
+		ImGui::SetNextItemWidth (ImGui::GetContentRegionAvail ().x - keyWidth);
+		if (ImGui::DragFloat ("##rotation", &r, 1.0f, -3600, 3600, "%.4g\xC2\xB0")) setValue (part, CHANNEL_ROTATION, r, FIELD_KEY);
+		done |= ImGui::IsItemDeactivated ();
+		if (on) ImGui::PopStyleColor ();
+		keyButton ("keyrotation", part, std::vector<Channel> { CHANNEL_ROTATION }, keyX);
+	}
+
+	// Scale: by SCALE where the clip keys it so and its axes scale together.
+	{
+		bool together = uniform (part);
+		bool both = together && clip->track (part, CHANNEL_SCALE) && ! clip->track (part, CHANNEL_SCALE_X) && ! clip->track (part, CHANNEL_SCALE_Y);
+		std::vector<Channel> channels = both ? std::vector<Channel> { CHANNEL_SCALE } : std::vector<Channel> { CHANNEL_SCALE_X, CHANNEL_SCALE_Y };
+		float sx = valueOf (p, CHANNEL_SCALE_X) * 100.0f, sy = valueOf (p, CHANNEL_SCALE_Y) * 100.0f, nx = sx, ny = sy;
+		propertyRow ("Scale", "In percent, along its own axes");
+		keyX = right ();
+		bool on = pendingField (both ? CHANNEL_SCALE : CHANNEL_SCALE_X, both ? NUM_CHANNELS : CHANNEL_SCALE_Y);
+		if (xyFields ("scale", &nx, &ny, 1.0f, "%g%%", 1, 10000, &done, keyWidth + iconButtonWidth () + ImGui::GetStyle ().ItemSpacing.x)) {
+			if (together) {
+				if (nx != sx) ny = nx;
+				else nx = ny;
+			}
+			float fx = (nx < 1 ? 1 : nx) / 100.0f, fy = (ny < 1 ? 1 : ny) / 100.0f;
+			if (both) {
+				setValue (part, CHANNEL_SCALE, fx, FIELD_KEY);
+			} else {
+				if (fx != sx / 100.0f) setValue (part, CHANNEL_SCALE_X, fx, FIELD_KEY);
+				if (fy != sy / 100.0f) setValue (part, CHANNEL_SCALE_Y, fy, FIELD_KEY);
+			}
+		}
+		if (on) ImGui::PopStyleColor ();
+		if (iconButton ("uniform", together ? ICON_LOCKED : ICON_UNLOCKED,
+				together ? "X and Y scale together. Click to scale them apart." : "X and Y scale apart. Click to scale them together.")) {
+			clip->setScaling (part, together ? animformat::EditorPart::SCALING_FREE : animformat::EditorPart::SCALING_UNIFORM);
+		}
+		keyButton ("keyscale", part, channels, keyX);
+	}
+
+	// Its sprite: as the clip has it there, or its own (the rig's).
+	{
+		PendingValue * pending = pendingValue (part, CHANNEL_SPRITE);
+		SpriteRef::Kind kind = SpriteRef::DEFAULT;
+		std::string bank;
+		int number = 0;
+		bool mirror = false;
+		if (pending) {
+			kind = pending->kind;
+			bank = pending->bank;
+			number = pending->number;
+			mirror = pending->mirror;
+		} else if (const SpriteRef * s = sampleSprite (clip->clip (), part, ticksToTime (tick))) {
+			kind = s->kind;
+			bank = clip->bankOf (* s);
+			number = s->number;
+			mirror = s->mirror;
+		}
+		propertyRow ("Sprite", "A sprite of a bank, nothing, or its own sprite, which the rig gives it");
+		keyX = right ();
+		bool tinted = pendingField (CHANNEL_SPRITE, NUM_CHANNELS);
+		ImGui::SetNextItemWidth (ImGui::GetContentRegionAvail ().x - keyWidth);
+		std::string shown = kind == SpriteRef::NONE ? std::string ("Nothing") : kind == SpriteRef::DEFAULT ? std::string ("Its own (from the rig)") : bank;
+		if (ImGui::BeginCombo ("##sprite", shown.c_str ())) {
+			if (ImGui::Selectable ("Its own (from the rig)", kind == SpriteRef::DEFAULT)) setSprite (part, SpriteRef::DEFAULT, "", 0, false);
+			if (ImGui::Selectable ("Nothing", kind == SpriteRef::NONE)) setSprite (part, SpriteRef::NONE, "", 0, false);
+			if (kind == SpriteRef::SPRITE) ImGui::Selectable (bank.c_str (), true);
+			if (ImGui::Selectable ("A sprite bank...")) askForFile (Pending::PART_BANK);
+			ImGui::EndCombo ();
+		}
+		if (tinted) ImGui::PopStyleColor ();
+		keyButton ("keysprite", part, std::vector<Channel> { CHANNEL_SPRITE }, keyX);
+		if (kind == SpriteRef::SPRITE) {
+			AnimBankRef b = preview.bank (baseFolder (), bank);
+			int n = number;
+			propertyRow ("Sprite number", "Its number in the bank");
+			keyX = right ();
+			if (ImGui::InputInt ("##spritenumber", &n) && n != number) {
+				int count = b ? b->animSpriteCount () : 0;
+				if (n >= count) n = count - 1;
+				if (n < 0) n = 0;
+				setSprite (part, SpriteRef::SPRITE, bank, n, mirror);
+			}
+			bool m = mirror;
+			propertyRow ("Mirror image");
+			keyX = right ();
+			if (ImGui::Checkbox ("##spritemirror", &m)) setSprite (part, SpriteRef::SPRITE, bank, number, m);
+		}
+		// What it shows there.
+		const SpriteRef & shows = keyed.parts[p].sprite;
+		if (shows.kind == SpriteRef::SPRITE && shows.bank && shows.number < shows.bank->animSpriteCount ()) {
+			const spriteBank * sprites = devkitBank (shows.bank);
+			gfx::Texture * texture = gfxPictureTexture (graphics.draw, sprites, shows.number, false);
+			const sprite & sp = sprites->sprites[shows.number];
+			float side = ImGui::GetFontSize () * 4;
+			float zoom = sp.width > sp.height ? side / sp.width : side / (sp.height ? sp.height : 1);
+			propertyRow ("");
+			if (texture) ImGui::Image (ImTextureRef (ImGui_ImplGfx_TextureID (texture)), ImVec2 (sp.width * zoom, sp.height * zoom));
+		}
+	}
+
+	// Visible, depth and flip.
+	{
+		bool visible = valueOf (p, CHANNEL_VISIBLE) != 0;
+		propertyRow ("Visible", "Hidden, it hides the parts attached to it too");
+		keyX = right ();
+		bool on = pendingField (CHANNEL_VISIBLE, NUM_CHANNELS);
+		if (ImGui::Checkbox ("##visible", &visible)) setValue (part, CHANNEL_VISIBLE, visible ? 1.0f : 0.0f, 0);
+		if (on) ImGui::PopStyleColor ();
+		keyButton ("keyvisible", part, std::vector<Channel> { CHANNEL_VISIBLE }, keyX);
+
+		int depth = (int) lrintf (valueOf (p, CHANNEL_DEPTH));
+		propertyRow ("Depth", "The order of drawing among the character's parts: higher is in front");
+		keyX = right ();
+		on = pendingField (CHANNEL_DEPTH, NUM_CHANNELS);
+		ImGui::SetNextItemWidth (ImGui::GetContentRegionAvail ().x - keyWidth);
+		if (ImGui::DragInt ("##depth", &depth, 0.1f)) setValue (part, CHANNEL_DEPTH, (float) depth, FIELD_KEY);
+		done |= ImGui::IsItemDeactivated ();
+		if (on) ImGui::PopStyleColor ();
+		keyButton ("keydepth", part, std::vector<Channel> { CHANNEL_DEPTH }, keyX);
+
+		bool flip = valueOf (p, CHANNEL_FLIP) != 0;
+		propertyRow ("Flip", "Mirrors it, and the parts attached to it");
+		keyX = right ();
+		on = pendingField (CHANNEL_FLIP, NUM_CHANNELS);
+		if (ImGui::Checkbox ("##flip", &flip)) setValue (part, CHANNEL_FLIP, flip ? 1.0f : 0.0f, 0);
+		if (on) ImGui::PopStyleColor ();
+		keyButton ("keyflip", part, std::vector<Channel> { CHANNEL_FLIP }, keyX);
+	}
+	if (done) clip->commands ().stopMerging ();
+	ImGui::EndTable ();
+}
+
+void ClipView::drawKeyInspector (const KeyRef & k) {
+	std::string why;
+	const Track * t = clip->track (k.track);
+	const Key * key = clip->key (k);
+	if (! t || ! key) return;
+	const Track track = * t;
+	const Key now = * key;
+	std::string title = "Keyframe " + partLabel (track.part) + " > " + channelLabel (track.channel);
+	if (beginProperties (title.c_str ())) {
+		propertyRow ("Tick", "Where the key is on the timeline");
+		int time = now.time;
+		if (ImGui::InputInt ("##tick", &time) && time != now.time) {
+			if (clip->moveKeys (std::vector<KeyRef> (1, k), time - now.time, false, why)) selectOnly (KeyRef (k.track, time));
+			else say (why);
+		}
+		float value = now.value;
+		bool changed = false, done = false;
+		switch (track.channel) {
+			case CHANNEL_X:
+			case CHANNEL_Y:
+				propertyRow ("Position", "Where its origin is, from its parent's, in its parent's pixels; +Y is down");
+				axisLabel (track.channel == CHANNEL_X ? "X" : "Y");
+				changed = ImGui::DragFloat ("##value", &value, 1.0f, 0, 0, "%g");
+				done = ImGui::IsItemDeactivated ();
+				break;
+			case CHANNEL_ROTATION:
+				propertyRow ("Rotation", "In degrees, clockwise");
+				changed = ImGui::DragFloat ("##value", &value, 1.0f, -3600, 3600, "%g\xC2\xB0");
+				done = ImGui::IsItemDeactivated ();
+				break;
+			case CHANNEL_SCALE:
+			case CHANNEL_SCALE_X:
+			case CHANNEL_SCALE_Y: {
+				float percent = value * 100.0f;
+				propertyRow ("Scale", track.channel == CHANNEL_SCALE ? "In percent, of both of its axes" : "In percent, along its own axis");
+				if (track.channel != CHANNEL_SCALE) axisLabel (track.channel == CHANNEL_SCALE_X ? "X" : "Y");
+				if (ImGui::DragFloat ("##value", &percent, 1.0f, 1, 10000, "%g%%")) {
+					value = (percent < 1 ? 1 : percent) / 100.0f;
+					changed = true;
+				}
+				done = ImGui::IsItemDeactivated ();
+				break;
+			}
+			case CHANNEL_VISIBLE:
+			case CHANNEL_FLIP: {
+				bool on = value != 0;
+				propertyRow (track.channel == CHANNEL_VISIBLE ? "Visible" : "Flipped");
+				if (ImGui::Checkbox ("##value", &on)) {
+					value = on ? 1.0f : 0.0f;
+					changed = true;
+				}
+				break;
+			}
+			case CHANNEL_DEPTH: {
+				int depth = (int) lrintf (value);
+				propertyRow ("Depth", "Higher is in front of the character's other parts");
+				if (ImGui::DragInt ("##value", &depth, 0.1f)) {
+					value = (float) depth;
+					changed = true;
+				}
+				done = ImGui::IsItemDeactivated ();
+				break;
+			}
+			default:
+				break;
+		}
+		if (changed && ! clip->setKey (k.track, k.time, value, now.easing, why, FIELD_KEY)) say (why);
+		if (done) clip->commands ().stopMerging ();
+		if (! isDiscrete (track.channel)) {
+			propertyRow ("Towards the next key", "How the value moves from this key to the next one; the last key's isn't used");
+			int easing = now.easing;
+			if (ImGui::Combo ("##easing", &easing, easingLabels, 3)) clip->setEasing (k, (Easing) easing);
+		}
+		if (track.channel == CHANNEL_SPRITE) {
+			std::string bank = clip->bankOf (now.sprite);
+			propertyRow ("Shows", "A sprite of a bank, nothing, or the part's own sprite");
+			ImGui::TextUnformatted (now.sprite.kind == SpriteRef::NONE ? "Nothing (an empty frame)"
+				: now.sprite.kind == SpriteRef::DEFAULT ? "The part's own sprite" : bank.c_str ());
+			propertyRow ("");
+			if (ImGui::Button ("Choose...")) askForFile (Pending::BANK);
+			ImGui::SameLine ();
+			if (ImGui::Button ("Nothing")) clip->setSpriteKey (k.track, k.time, "", 0, false, false, why);
+			ImGui::SameLine ();
+			if (ImGui::Button ("Own")) clip->setSpriteKey (k.track, k.time, "", 0, false, true, why);
+			if (now.sprite.kind == SpriteRef::SPRITE) {
+				AnimBankRef b = preview.bank (baseFolder (), bank);
+				int number = now.sprite.number;
+				propertyRow ("Sprite", "Its number in the bank");
+				if (ImGui::InputInt ("##sprite", &number)) {
+					int count = b ? b->animSpriteCount () : 0;
+					if (number >= count) number = count - 1;
+					if (number < 0) number = 0;
+					clip->setSpriteKey (k.track, k.time, bank, number, now.sprite.mirror, false, why);
+				}
+				bool mirror = now.sprite.mirror;
+				propertyRow ("Mirror image");
+				if (ImGui::Checkbox ("##mirror", &mirror)) clip->setSpriteKey (k.track, k.time, bank, now.sprite.number, mirror, false, why);
+				if (b && now.sprite.number < b->animSpriteCount ()) {
+					const spriteBank * sprites = devkitBank (b);
+					gfx::Texture * texture = gfxPictureTexture (graphics.draw, sprites, now.sprite.number, false);
+					const sprite & s = sprites->sprites[now.sprite.number];
+					float side = ImGui::GetFontSize () * 5;
+					float zoom = s.width > s.height ? side / s.width : side / (s.height ? s.height : 1);
+					propertyRow ("");
+					if (texture) ImGui::Image (ImTextureRef (ImGui_ImplGfx_TextureID (texture)), ImVec2 (s.width * zoom, s.height * zoom));
+				}
+			}
+		}
+		ImGui::EndTable ();
+	}
+	if (ImGui::Button ("Remove Key")) removeSelection ();
+}
+
 void ClipView::drawInspector () {
 	std::string why;
-	if (selectedEvent && clip->event (selectedEvent)) {
-		const ClipEvent ev = * clip->event (selectedEvent);
-		std::string name = clip->eventName (selectedEvent);
+	if (soleEvent () && selectedKeys.empty () && clip->event (soleEvent ())) {
+		const ClipEvent ev = * clip->event (soleEvent ());
+		std::string name = clip->eventName (soleEvent ());
 		if (beginProperties ("Event")) {
 			propertyRow ("Tick");
 			int time = ev.time;
@@ -1053,133 +1705,31 @@ void ClipView::drawInspector () {
 		return;
 	}
 
+	// The selected part's properties, then the selected keys.
+	if (havePart) drawPartInspector ();
 	if (selectedKeys.size () == 1) {
-		KeyRef k = * selectedKeys.begin ();
-		const Track * t = clip->track (k.track);
-		const Key * key = clip->key (k);
-		if (! t || ! key) return;
-		const Track track = * t;
-		const Key now = * key;
-		std::string title = partLabel (track.part) + " > " + channelLabel (track.channel);
-		if (beginProperties (title.c_str ())) {
-			propertyRow ("Tick", "Where the key is on the timeline");
-			int time = now.time;
-			if (ImGui::InputInt ("##tick", &time) && time != now.time) {
-				if (clip->moveKeys (std::vector<KeyRef> (1, k), time - now.time, false, why)) selectOnly (KeyRef (k.track, time));
-				else say (why);
-			}
-			float value = now.value;
-			bool changed = false, done = false;
-			switch (track.channel) {
-				case CHANNEL_X:
-				case CHANNEL_Y:
-					propertyRow ("Position", "Where its origin is, from its parent's, in its parent's pixels; +Y is down");
-					axisLabel (track.channel == CHANNEL_X ? "X" : "Y");
-					changed = ImGui::DragFloat ("##value", &value, 1.0f, 0, 0, "%g");
-					done = ImGui::IsItemDeactivated ();
-					break;
-				case CHANNEL_ROTATION:
-					propertyRow ("Rotation", "In degrees, clockwise");
-					changed = ImGui::DragFloat ("##value", &value, 1.0f, -3600, 3600, "%g\xC2\xB0");
-					done = ImGui::IsItemDeactivated ();
-					break;
-				case CHANNEL_SCALE:
-				case CHANNEL_SCALE_X:
-				case CHANNEL_SCALE_Y: {
-					float percent = value * 100.0f;
-					propertyRow ("Scale", track.channel == CHANNEL_SCALE ? "In percent, of both of its axes" : "In percent, along its own axis");
-					if (track.channel != CHANNEL_SCALE) axisLabel (track.channel == CHANNEL_SCALE_X ? "X" : "Y");
-					if (ImGui::DragFloat ("##value", &percent, 1.0f, 1, 10000, "%g%%")) {
-						value = (percent < 1 ? 1 : percent) / 100.0f;
-						changed = true;
-					}
-					done = ImGui::IsItemDeactivated ();
-					break;
-				}
-				case CHANNEL_VISIBLE:
-				case CHANNEL_FLIP: {
-					bool on = value != 0;
-					propertyRow (track.channel == CHANNEL_VISIBLE ? "Visible" : "Flipped");
-					if (ImGui::Checkbox ("##value", &on)) {
-						value = on ? 1.0f : 0.0f;
-						changed = true;
-					}
-					break;
-				}
-				case CHANNEL_DEPTH: {
-					int depth = (int) lrintf (value);
-					propertyRow ("Depth", "Higher is in front of the character's other parts");
-					if (ImGui::DragInt ("##value", &depth, 0.1f)) {
-						value = (float) depth;
-						changed = true;
-					}
-					done = ImGui::IsItemDeactivated ();
-					break;
-				}
-				default:
-					break;
-			}
-			if (changed && ! clip->setKey (k.track, k.time, value, now.easing, why, FIELD_KEY)) say (why);
-			if (done) clip->commands ().stopMerging ();
-			if (! isDiscrete (track.channel)) {
-				propertyRow ("Towards the next key", "How the value moves from this key to the next one; the last key's isn't used");
-				int easing = now.easing;
-				if (ImGui::Combo ("##easing", &easing, easingLabels, 3)) clip->setEasing (k, (Easing) easing);
-			}
-			if (track.channel == CHANNEL_SPRITE) {
-				std::string bank = clip->bankOf (now.sprite);
-				propertyRow ("Shows", "A sprite of a bank, nothing, or the part's own sprite");
-				ImGui::TextUnformatted (now.sprite.kind == SpriteRef::NONE ? "Nothing (an empty frame)"
-					: now.sprite.kind == SpriteRef::DEFAULT ? "The part's own sprite" : bank.c_str ());
-				propertyRow ("");
-				if (ImGui::Button ("Choose...")) askForFile (Pending::BANK);
-				ImGui::SameLine ();
-				if (ImGui::Button ("Nothing")) clip->setSpriteKey (k.track, k.time, "", 0, false, false, why);
-				ImGui::SameLine ();
-				if (ImGui::Button ("Own")) clip->setSpriteKey (k.track, k.time, "", 0, false, true, why);
-				if (now.sprite.kind == SpriteRef::SPRITE) {
-					AnimBankRef b = preview.bank (baseFolder (), bank);
-					int number = now.sprite.number;
-					propertyRow ("Sprite", "Its number in the bank");
-					if (ImGui::InputInt ("##sprite", &number)) {
-						int count = b ? b->animSpriteCount () : 0;
-						if (number >= count) number = count - 1;
-						if (number < 0) number = 0;
-						clip->setSpriteKey (k.track, k.time, bank, number, now.sprite.mirror, false, why);
-					}
-					bool mirror = now.sprite.mirror;
-					propertyRow ("Mirror image");
-					if (ImGui::Checkbox ("##mirror", &mirror)) clip->setSpriteKey (k.track, k.time, bank, now.sprite.number, mirror, false, why);
-					if (b && now.sprite.number < b->animSpriteCount ()) {
-						const spriteBank * sprites = devkitBank (b);
-						gfx::Texture * texture = gfxPictureTexture (graphics.draw, sprites, now.sprite.number, false);
-						const sprite & s = sprites->sprites[now.sprite.number];
-						float side = ImGui::GetFontSize () * 5;
-						float zoom = s.width > s.height ? side / s.width : side / (s.height ? s.height : 1);
-						propertyRow ("");
-						if (texture) ImGui::Image (ImTextureRef (ImGui_ImplGfx_TextureID (texture)), ImVec2 (s.width * zoom, s.height * zoom));
-					}
-				}
-			}
-			ImGui::EndTable ();
-		}
-		if (ImGui::Button ("Remove Key")) removeSelection ();
+		drawKeyInspector (* selectedKeys.begin ());
 		return;
 	}
 
-	if (selectedKeys.size () > 1) {
-		ImGui::SeparatorText ("Keys");
-		ImGui::Text ("%d keys", (int) selectedKeys.size ());
-		ImGui::TextUnformatted ("Towards the next key:");
-		for (int e = 0; e < 3; e ++) {
-			if (ImGui::Button (easingLabels[e])) {
-				for (std::set<KeyRef>::const_iterator i = selectedKeys.begin (); i != selectedKeys.end (); ++ i) clip->setEasing (* i, (Easing) e);
+	if (selectedKeys.size () > 1 || (! selectedEvents.empty () && (selectedEvents.size () > 1 || ! selectedKeys.empty ()))) {
+		char heading[48];
+		snprintf (heading, sizeof (heading), "Keyframes (%d)", (int) selectedKeys.size ());
+		ImGui::SeparatorText (heading);
+		if (! selectedEvents.empty ()) ImGui::Text ("And %d event%s", (int) selectedEvents.size (), selectedEvents.size () == 1 ? "" : "s");
+		if (selectedKeys.size () > 1) {
+			ImGui::TextUnformatted ("Towards the next key:");
+			for (int e = 0; e < 3; e ++) {
+				if (ImGui::Button (easingLabels[e])) {
+					for (std::set<KeyRef>::const_iterator i = selectedKeys.begin (); i != selectedKeys.end (); ++ i) clip->setEasing (* i, (Easing) e);
+				}
 			}
 		}
-		if (ImGui::Button ("Remove Keys")) removeSelection ();
+		if (ImGui::Button ("Remove Them")) removeSelection ();
 		return;
 	}
 
+	if (havePart) return;
 	if (beginProperties ("Clip")) {
 		propertyRow ("Rig", "The rig it is made for: choose it in the toolbar");
 		ImGui::TextUnformatted (clip->asset ().rigId.isNull () ? "None" : clip->asset ().rigPath.c_str ());
@@ -1201,7 +1751,7 @@ void ClipView::drawInspector () {
 			ImGui::TextColored (ImVec4 (1.0f, 0.6f, 0.3f, 1.0f), "The rig has no part of tracks of: %s. They do nothing.", list.c_str ());
 		}
 	}
-	ImGui::TextWrapped ("Drag a part on the canvas to key it at the playhead. Click a key to edit it, or the ruler to move the playhead; K keys the selected track there.");
+	ImGui::TextWrapped ("Select a part in the tree, on the canvas or on the timeline to see what of it can be keyed. Click a key to edit it, or the ruler to move the playhead; K keys the selected track there.");
 }
 
 } // namespace devkit

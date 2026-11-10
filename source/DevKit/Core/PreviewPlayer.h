@@ -44,7 +44,9 @@ public:
 	// Time to a tick of the edited clip, and the second with it.
 	void scrub (int tick);
 
-	// The time within the clip of a layer (see clipTime), and as ticks.
+	// The time within the clip of a layer (see clipTime), and as ticks. A
+	// paused playhead scrubbed to the very end of a loop stays there, rather
+	// than at its start, so that the editor shows and keys its last tick.
 	AnimationTime time (int layer) const;
 	double ticks () const { return (double) time (0) / timeSubTicks; }
 	// The layers, to pose: each with its samples at its time.

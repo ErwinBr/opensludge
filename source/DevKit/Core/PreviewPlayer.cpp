@@ -53,6 +53,7 @@ void PreviewPlayer::scrub (int tick) {
 
 AnimationTime PreviewPlayer::time (int layer) const {
 	if (layer < 0 || layer > 1 || ! clips[layer]) return 0;
+	if (! isPlaying && positions[layer] == ticksToTime (clips[layer]->length)) return positions[layer];
 	return clipTime (* clips[layer], positions[layer]);
 }
 

@@ -77,6 +77,12 @@ public:
 	Document * findDocument (const std::string & path) const { return manager.find (path); }
 	bool isOpen (const Document * document) const;
 	std::vector<ClipDocument *> clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder);
+	bool autoKey () const { return preferences.autoKey; }
+	std::vector<ClipItem> & clipClipboard () { return clipItems; }
+	const std::vector<ClipItem> & clipClipboard () const { return clipItems; }
+	void setAutoKey (bool on);
+	float clipSplit () const { return preferences.clipSplit; }
+	void setClipSplit (float fraction);
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -119,6 +125,7 @@ private:
 	FileMemory memory;
 	DocumentManager manager;
 	Preferences preferences;
+	std::vector<ClipItem> clipItems;
 	std::map<std::string, ViewMaker> viewMakers;
 	std::map<Document *, std::unique_ptr<DocumentView> > views;
 	// The views of documents that closed in this frame. Their textures may

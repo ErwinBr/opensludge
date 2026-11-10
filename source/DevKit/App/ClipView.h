@@ -52,6 +52,10 @@ public:
 	// A sprite bank becomes the selected part's sprite at the playhead.
 	bool takeFile (const std::string & path);
 	bool animating () const;
+	bool canCopy () const { return ! selectedKeys.empty () || ! selectedEvents.empty (); }
+	void copy () { copySelection (); }
+	bool canPaste () const;
+	void pasteClipboard () { paste (); }
 
 private:
 	// A row of the track panel: a part, or a track of one.
@@ -65,7 +69,7 @@ private:
 	};
 	struct Pending {
 		bool waiting, answered;
-		enum What { SOUND, BANK } what;
+		enum What { SOUND, BANK, PART_BANK } what;
 		std::vector<std::string> files;
 		Pending () : waiting (false), answered (false), what (SOUND) {}
 	};
@@ -86,7 +90,13 @@ private:
 	bool uniform (const std::string & part) const;
 
 	void drawToolbar ();
-	void drawCanvas ();
+	void drawTransport ();
+	// The bar between the picture and the timeline, which moves the split.
+	void drawSplitter (float total, float least);
+	void drawPartPanel (float height);
+	// Select the part of that name, unless it is locked or the rig lacks it.
+	void selectPart (const std::string & name);
+	void drawCanvas (float height);
 	void drawTimeline ();
 	void drawLengthDialog ();
 	void drawFunctionDialog ();
@@ -100,7 +110,38 @@ private:
 	void requestLength (int length);
 	void selectOnly (const KeyRef & key);
 	void removeSelection ();
+	void copySelection ();
+	void paste ();
 	void addKeyAtPlayhead (TrackId track);
+
+	// A change to the selected part: keyed at the playhead with Auto key, and
+	// otherwise pending, a preview until its key button keys it. Pending
+	// values go when the playhead moves, the clip plays or changes, or
+	// another part is selected.
+	struct PendingValue {
+		std::string part;
+		Channel channel;
+		float value;
+		SpriteRef::Kind kind;	// For SPRITE: its bank, number and mirror
+		std::string bank;
+		int number;
+		bool mirror;
+	};
+	void setValue (const std::string & part, Channel channel, float value, int mergeKey);
+	void setSprite (const std::string & part, SpriteRef::Kind kind, const std::string & bank, int number, bool mirror);
+	PendingValue * pendingValue (const std::string & part, Channel channel);
+	void forgetStalePending ();
+	// The clip with the pending values keyed in it, for the preview.
+	ClipDefinitionRef withPending (const ClipDefinitionRef & clip);
+	// Key the channels at the playhead: their pending values, or what they
+	// are there now.
+	void keyChannels (const std::string & part, const std::vector<Channel> & channels);
+	bool keyedAt (const std::string & part, Channel channel) const;
+	float valueOf (int part, Channel channel) const;
+	// A key button at the end of a row of the Inspector, for its channels.
+	void keyButton (const char * id, const std::string & part, const std::vector<Channel> & channels, float rightX = 0);
+	void drawPartInspector ();
+	void drawKeyInspector (const KeyRef & key);
 	void say (const std::string & text);
 
 	ClipDocument * clip;
@@ -131,7 +172,10 @@ private:
 	bool onlyAnimated;
 
 	std::set<KeyRef> selectedKeys;
-	EventId selectedEvent;
+	std::set<EventId> selectedEvents;
+	EventId draggedEvent;
+	// The one event selected, or 0.
+	EventId soleEvent () const { return selectedEvents.size () == 1 ? * selectedEvents.begin () : 0; }
 	PartId selectedPart;
 	bool havePart;
 	// The track of the panel that K keys at the playhead.
@@ -158,6 +202,11 @@ private:
 	bool functionDialog;
 	std::vector<std::pair<EventId, double> > flashes;
 	std::shared_ptr<Pending> pending;
+	float split;			// Of the height, the picture's; 0 until read
+	std::vector<PendingValue> pendingValues;
+	PartId pendingPart;
+	int pendingTick;
+	uint64_t pendingBasis;
 	std::string notice;
 	double noticeUntil;
 };

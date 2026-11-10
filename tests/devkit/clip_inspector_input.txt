@@ -1,0 +1,59 @@
+# Keying in the animation editor's Inspector, on fixtures/clip.clp (a clip
+# of 24 ticks of nothing, made for fixtures/rig-edited.rig) in the window
+# of a smoke test (1280 x 800). The Inspector shows the selected part's
+# Rotation at y 112, with its key button at x 1262.
+wait 5
+
+# Part 2, which has no tracks, selected in the hierarchy.
+move 352 143
+down
+up
+wait 2
+
+# Auto key is off: a drag on the canvas poses part 2 but keys nothing, nor
+# does a rotation typed in the Inspector.
+move 790 245
+down
+move 800 245
+move 810 245
+up
+wait 2
+move 1172 112
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type 45
+key Enter
+wait 2
+
+# The key button of Rotation keys it at tick 0, and only it.
+move 1262 112
+down
+up
+wait 2
+
+# The last tick forgets the pending position.
+move 669 371
+down
+up
+wait 2
+
+# With Auto key on, a rotation typed there keys it at once.
+move 911 371
+down
+up
+wait 2
+move 1172 112
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type -30
+key Enter
+wait 3
+save ${OUTPUT}

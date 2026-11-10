@@ -41,7 +41,7 @@ up
 wait 2
 drop ${FIXTURES}/alien-edited.duc
 wait 3
-move 429 129
+move 426 143
 down
 up
 wait 2

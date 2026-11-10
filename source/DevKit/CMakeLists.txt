@@ -177,6 +177,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/FileCheckWindow.cpp
 		${DEVKIT_DIR}/App/FloorView.cpp
 		${DEVKIT_DIR}/App/Icons.cpp
+		${DEVKIT_DIR}/App/PartTree.cpp
 		${DEVKIT_DIR}/Core/InterfacePlatform.cpp
 		${DEVKIT_DIR}/App/ProjectView.cpp
 		${DEVKIT_DIR}/App/imgui_impl_gfx.cpp
@@ -308,6 +309,27 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-tools
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-clip-tools PROPERTIES LABELS capture)
+		# And keying in its Inspector: Auto key off, a change is a preview until
+		# its key button keys it; on, it keys at once.
+		add_test(NAME capture-devkit-clip-inspector
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip.clp
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/clip_inspector_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip-inspector.clp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-inspector
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-clip-inspector PROPERTIES LABELS capture)
+		# And copy and paste: two keys pasted near the end, which grows the clip.
+		add_test(NAME capture-devkit-clip-paste
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip.clp
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/clip_paste_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip-paste.clp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-paste
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-clip-paste PROPERTIES LABELS capture)
 		# And for a translation: VerbCoin's German.
 		add_test(NAME capture-devkit-translation
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

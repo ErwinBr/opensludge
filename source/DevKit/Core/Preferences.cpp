@@ -7,7 +7,7 @@
 namespace devkit {
 
 Preferences::Preferences ()
-	: keepImages (true), writeStrings (false), verbose (true), searchSensitive (false) {}
+	: keepImages (true), writeStrings (false), verbose (true), searchSensitive (false), autoKey (false), clipSplit (0.55f) {}
 
 bool Preferences::read (const std::string & file) {
 	FILE * fp = fopen (file.c_str (), "rb");
@@ -28,6 +28,11 @@ bool Preferences::read (const std::string & file) {
 		else if (key == "ImageViewer") imageViewer = value;
 		else if (key == "AudioPlayer") audioPlayer = value;
 		else if (key == "ModPlayer") modPlayer = value;
+		else if (key == "AutoKey") autoKey = atoi (value.c_str ()) != 0;
+		else if (key == "ClipSplit") {
+			float f = (float) atof (value.c_str ());
+			if (f >= 0.1f && f <= 0.9f) clipSplit = f;
+		}
 		else otherKeys[key] = value;
 	}
 	fclose (fp);
@@ -46,6 +51,8 @@ bool Preferences::write (const std::string & file) const {
 	fprintf (fp, "ImageViewer=%s\r\n", imageViewer.c_str ());
 	fprintf (fp, "AudioPlayer=%s\r\n", audioPlayer.c_str ());
 	fprintf (fp, "ModPlayer=%s\r\n", modPlayer.c_str ());
+	fprintf (fp, "AutoKey=%d\r\n", autoKey ? 1 : 0);
+	fprintf (fp, "ClipSplit=%.3f\r\n", clipSplit);
 	for (std::map<std::string, std::string>::const_iterator i = otherKeys.begin (); i != otherKeys.end (); ++ i) {
 		fprintf (fp, "%s=%s\r\n", i->first.c_str (), i->second.c_str ());
 	}

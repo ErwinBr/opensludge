@@ -27,6 +27,11 @@ public:
 	virtual bool takeFile (const std::string & path) { (void) path; return false; }
 	// Whether the view needs another frame soon, such as during a drag.
 	virtual bool animating () const { return false; }
+	// Edit > Copy and Paste, for the views that have them.
+	virtual bool canCopy () const { return false; }
+	virtual void copy () {}
+	virtual bool canPaste () const { return false; }
+	virtual void pasteClipboard () {}
 };
 
 } // namespace devkit

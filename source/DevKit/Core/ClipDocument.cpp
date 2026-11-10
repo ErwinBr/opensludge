@@ -346,6 +346,102 @@ bool ClipDocument::autoKey (const std::string & part, Channel channel, int time,
 	return true;
 }
 
+std::vector<ClipItem> ClipDocument::copy (const std::vector<KeyRef> & keys, const std::vector<EventId> & events) const {
+	std::vector<ClipItem> items;
+	for (size_t i = 0; i < keys.size (); i ++) {
+		const Track * t = track (keys[i].track);
+		const Key * k = key (keys[i]);
+		if (! t || ! k) continue;
+		ClipItem item;
+		item.time = k->time;
+		item.part = t->part;
+		item.channel = t->channel;
+		item.value = k->value;
+		item.easing = k->easing;
+		if (t->channel == CHANNEL_SPRITE) {
+			item.sprite = k->sprite.kind;
+			item.bank = bankOf (k->sprite);
+			item.number = k->sprite.number;
+			item.mirror = k->sprite.mirror;
+		}
+		items.push_back (item);
+	}
+	for (size_t i = 0; i < events.size (); i ++) {
+		const ClipEvent * e = event (events[i]);
+		if (! e) continue;
+		ClipItem item;
+		item.isEvent = true;
+		item.time = e->time;
+		item.event = e->what.kind;
+		item.name = eventName (events[i]);
+		items.push_back (item);
+	}
+	return items;
+}
+
+bool ClipDocument::paste (const std::vector<ClipItem> & items, int at, const std::string * onto, std::vector<KeyRef> * pastedKeys,
+		std::vector<EventId> * pastedEvents, std::string & why) {
+	if (pastedKeys) pastedKeys->clear ();
+	if (pastedEvents) pastedEvents->clear ();
+	if (items.empty ()) return fail (why, "Nothing to paste: copy keys or events first");
+	if (at < 0) at = 0;
+	int first = items[0].time, last = items[0].time;
+	for (size_t i = 1; i < items.size (); i ++) {
+		if (items[i].time < first) first = items[i].time;
+		if (items[i].time > last) last = items[i].time;
+	}
+	int by = at - first;
+	animformat::Asset after = state;
+	// The clip grows to hold them.
+	if (last + by > after.clip.length) after.clip.length = last + by;
+	std::vector<std::pair<std::string, std::pair<Channel, int> > > keys;
+	for (size_t i = 0; i < items.size (); i ++) {
+		const ClipItem & item = items[i];
+		if (item.isEvent) continue;
+		Key k;
+		k.time = item.time + by;
+		k.value = item.value;
+		k.easing = isDiscrete (item.channel) ? EASING_STEP : item.easing;
+		if (item.channel == CHANNEL_SPRITE) {
+			if (item.sprite == SpriteRef::NONE) {
+				k.sprite = SpriteRef::none ();
+			} else if (item.sprite == SpriteRef::SPRITE && ! item.bank.empty ()) {
+				int index = -1;
+				for (size_t b = 0; b < after.banks.size (); b ++) {
+					if (after.banks[b] == item.bank) index = (int) b;
+				}
+				if (index < 0) {
+					index = (int) after.banks.size ();
+					after.banks.push_back (item.bank);
+				}
+				k.sprite = SpriteRef::sprite (AnimBankRef (), index, item.number, item.mirror);
+			}
+		}
+		std::string part = onto ? * onto : item.part;
+		if (! ::setKey (after.clip, part, item.channel, k, why)) return false;
+		keys.push_back (std::make_pair (part, std::make_pair (item.channel, k.time)));
+	}
+	size_t eventsBefore = after.clip.events.size ();
+	for (size_t i = 0; i < items.size (); i ++) {
+		const ClipItem & item = items[i];
+		if (! item.isEvent) continue;
+		if (item.event != FrameEvent::SOUND && item.event != FrameEvent::FUNCTION) continue;
+		FrameEvent what;
+		what.kind = item.event;
+		if (! ::addEvent (after.clip, item.time + by, what, why)) return false;
+		after.eventNames.push_back (item.name);
+	}
+	compactBanks (after);
+	if (! check (after, why)) return false;
+	change (items.size () == 1 ? "Paste" : "Paste " + std::to_string (items.size ()) + " Items", after);
+	for (size_t i = 0; pastedKeys && i < keys.size (); i ++) {
+		const Track * t = track (keys[i].first, keys[i].second.first);
+		if (t) pastedKeys->push_back (KeyRef (t->id, keys[i].second.second));
+	}
+	for (size_t e = eventsBefore; pastedEvents && e < state.clip.events.size (); e ++) pastedEvents->push_back (state.clip.events[e].id);
+	return true;
+}
+
 bool ClipDocument::addEvent (int time, FrameEvent::Kind kind, const std::string & name, EventId * added, std::string & why) {
 	if (kind != FrameEvent::SOUND && kind != FrameEvent::FUNCTION) return fail (why, "An event plays a sound or calls a function");
 	if (name.empty ()) return fail (why, kind == FrameEvent::SOUND ? "Choose a sound" : "Name a function");

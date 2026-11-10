@@ -1,0 +1,57 @@
+# Copy and paste in the animation editor, on fixtures/clip.clp (a clip of
+# 24 ticks of nothing, made for fixtures/rig-edited.rig) in the window of
+# a smoke test (1280 x 800). The ruler is at y 401, from tick 0 at x 509 to
+# 24 at x 995; the Inspector shows Rotation at y 112.
+wait 5
+
+# Auto key on, part 2 selected, and its rotation keyed at ticks 0 and 4.
+move 911 371
+down
+up
+wait 2
+move 352 143
+down
+up
+wait 2
+move 1172 112
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type 45
+key Enter
+wait 2
+move 590 401
+down
+up
+wait 2
+move 1172 112
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type 60
+key Enter
+wait 2
+
+# Both keys in a box, copied, and pasted at tick 22: at 22 and 26, so the
+# clip grows to 26 ticks.
+move 620 520
+down
+move 560 535
+move 500 542
+up
+wait 1
+key ctrl+C
+wait 1
+move 954 401
+down
+up
+wait 1
+key ctrl+V
+wait 3
+save ${OUTPUT}

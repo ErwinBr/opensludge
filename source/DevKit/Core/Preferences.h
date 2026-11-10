@@ -27,6 +27,11 @@ struct Preferences {
 	std::string audioPlayer;
 	std::string modPlayer;
 
+	// Of the animation editor: whether a change to a part keys it at once.
+	bool autoKey;
+	// How much of its height the picture takes, over the timeline.
+	float clipSplit;
+
 	Preferences ();
 
 	// Read the file, or keep the defaults when there is none.
