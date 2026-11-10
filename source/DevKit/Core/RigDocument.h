@@ -69,6 +69,15 @@ public:
 	// sprite (a joint) with an empty path.
 	void setSprite (PartId part, const std::string & bank, int number, bool mirror);
 
+	// How the editor shows a part, saved with the rig and undone like any
+	// change, though games don't use it. A locked part can't be selected
+	// or changed on the canvas. Its X and Y scale together (uniformly) by
+	// default; making them so again gives Y the scale of X.
+	bool isLocked (PartId part) const { return state.editorPart (part).locked; }
+	bool scalesUniformly (PartId part) const { return state.editorPart (part).scaling != animformat::EditorPart::SCALING_FREE; }
+	void setLocked (PartId part, bool locked);
+	void setUniformScale (PartId part, bool uniform);
+
 protected:
 	bool read (const std::string & path, std::string * error);
 	bool write (const std::string & path, std::string * error);

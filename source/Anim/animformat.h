@@ -80,6 +80,13 @@ bool decode (const unsigned char * data, size_t size, Document & doc, std::strin
  *   "EVNM":  a clip's only: count (4), then per event its ID (4) and the path
  *            of its sound or the name of its function; every event has one,
  *            and the events' numbers mean nothing in an asset
+ *   "EDIT":  how the Dev Kit shows parts, which games don't use: count (4),
+ *            then per part, a rig's by its ID (4) and a clip's by its name,
+ *            flags (1: locked, 2: scales of X and Y apart, 4: scaled
+ *            uniformly; a clip's part with neither follows its rig).
+ *            Only parts that aren't as by default (unlocked, following the
+ *            rig or uniform) are written, and none at all leaves the chunk
+ *            out.
  *
  * A game has no files of paths and names: the compiler turns an asset into a
  * file of the format above, with the numbers of the game's
@@ -101,6 +108,18 @@ struct AssetId {
 // A new, random identity.
 AssetId newAssetId ();
 
+// How the Dev Kit shows a part of a rig or clip ("EDIT" above).
+struct EditorPart {
+	enum Scaling { SCALING_DEFAULT, SCALING_UNIFORM, SCALING_FREE };
+	PartId id;			// A rig's part
+	std::string name;	// A clip's part ("" is the character)
+	bool locked;		// It can't be selected or changed on the canvas
+	Scaling scaling;	// How the canvas and fields scale it
+
+	EditorPart () : id (0), locked (false), scaling (SCALING_DEFAULT) {}
+	bool isDefault () const { return ! locked && scaling == SCALING_DEFAULT; }
+};
+
 struct Asset {
 	enum Kind { RIG, CLIP };
 	Kind kind;
@@ -113,8 +132,16 @@ struct Asset {
 	// CLIP: of each event of clip, in the order of clip.events, the path of
 	// its sound or the name of its function.
 	std::vector<std::string> eventNames;
+	// One per part at most; written only for parts that a rig has (any name
+	// of a clip's), and that aren't as by default.
+	std::vector<EditorPart> editor;
 
 	Asset () : kind (RIG) {}
+	// Of a rig's part, or a clip's: as by default when it has none.
+	EditorPart editorPart (PartId id) const;
+	EditorPart editorPart (const std::string & name) const;
+	// Set it, or forget it when it is as by default.
+	void setEditorPart (const EditorPart & part);
 };
 
 // False, with why, if the asset isn't whole: a valid rig or clip, a

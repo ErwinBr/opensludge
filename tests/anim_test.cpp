@@ -568,6 +568,64 @@ static void testSeparateScales () {
 	CHECK (! animformat::decode (c3.data (), c3.size (), back, why), "a file before version 3 has no SCALE_Y");
 }
 
+// How the Dev Kit shows parts ("EDIT"): round-trips, games skip it, and
+// none leaves it out.
+static void testEditorParts () {
+	animformat::Asset rig = rigAsset (), clip = clipAsset (), back;
+	animformat::Bytes plain, bytes;
+	CHECK (animformat::encodeAsset (rig, plain, why), "a rig asset");
+
+	PartId arm = rig.rig.parts[2].id;
+	animformat::EditorPart e = rig.editorPart (arm);
+	CHECK (e.isDefault () && e.id == arm, "a part shows as by default");
+	e.locked = true;
+	e.scaling = animformat::EditorPart::SCALING_FREE;
+	rig.setEditorPart (e);
+	animformat::EditorPart root = rig.editorPart (rig.rig.parts[0].id);
+	root.scaling = animformat::EditorPart::SCALING_UNIFORM;
+	rig.setEditorPart (root);
+	CHECK (rig.editor.size () == 1, "a rig's parts are uniform by default: saying so is the default");
+	CHECK (animformat::encodeAsset (rig, bytes, why) && bytes.size () == plain.size () + 8 + 4 + 5, "a chunk of one part");
+	CHECK (animformat::decodeAsset (bytes.data (), bytes.size (), back, why), "decodes");
+	CHECK (back.editorPart (arm).locked && back.editorPart (arm).scaling == animformat::EditorPart::SCALING_FREE, "the part comes back");
+	CHECK (! back.editorPart (rig.rig.parts[1].id).locked, "the others as by default");
+	animformat::Document doc;
+	CHECK (animformat::decode (bytes.data (), bytes.size (), doc, why) && doc.rigs.size () == 1, "games skip it");
+
+	// Forgotten when as by default again, and for parts the rig hasn't.
+	e.locked = false;
+	e.scaling = animformat::EditorPart::SCALING_DEFAULT;
+	rig.setEditorPart (e);
+	CHECK (rig.editor.empty (), "as by default, forgotten");
+	animformat::EditorPart gone;
+	gone.id = 999;
+	gone.locked = true;
+	rig.setEditorPart (gone);
+	CHECK (animformat::encodeAsset (rig, bytes, why) && bytes == plain, "parts the rig hasn't aren't written");
+
+	// A clip's, by name, the character's ("") too; uniform is its own.
+	animformat::EditorPart c1 = clip.editorPart (std::string ("legs")), c2 = clip.editorPart (std::string ());
+	c1.scaling = animformat::EditorPart::SCALING_UNIFORM;
+	c2.locked = true;
+	clip.setEditorPart (c1);
+	clip.setEditorPart (c2);
+	CHECK (clip.editor.size () == 2, "a clip's uniform is its own setting");
+	CHECK (animformat::encodeAsset (clip, bytes, why) && animformat::decodeAsset (bytes.data (), bytes.size (), back, why), "a clip's round-trips");
+	CHECK (back.editorPart (std::string ("legs")).scaling == animformat::EditorPart::SCALING_UNIFORM && back.editorPart (std::string ()).locked
+		&& ! back.editorPart (std::string ("legs")).locked, "by name");
+
+	// Cut or damaged, it fails cleanly or decodes whole.
+	for (size_t n = 0; n < bytes.size (); n ++) {
+		animformat::Bytes again;
+		if (animformat::decodeAsset (bytes.data (), n, back, why)) CHECK (animformat::encodeAsset (back, again, why), "a cut asset that decodes is whole");
+	}
+	for (size_t at = 0; at < bytes.size (); at ++) {
+		animformat::Bytes damaged = bytes, again;
+		damaged[at] ^= 0x06;
+		if (animformat::decodeAsset (damaged.data (), damaged.size (), back, why)) CHECK (animformat::encodeAsset (back, again, why), "a damaged asset that decodes is whole");
+	}
+}
+
 int main () {
 	testPoseOfTransform ();
 	testRenameAndRemove ();
@@ -580,6 +638,7 @@ int main () {
 	testAssetRoundTrip ();
 	testWholeAssets ();
 	testDamagedAssets ();
+	testEditorParts ();
 	if (failures) {
 		fprintf (stderr, "%d animation library test(s) failed\n", failures);
 		return 1;

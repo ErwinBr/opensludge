@@ -398,11 +398,40 @@ bool ClipDocument::renamePart (const std::string & from, const std::string & to,
 		track.part = to;
 		renamed ++;
 	}
+	// How the part shows goes with it, over any of the new name's.
+	animformat::EditorPart shows = state.editorPart (from);
+	if (! shows.isDefault ()) {
+		animformat::EditorPart gone;
+		gone.name = from;
+		after.setEditorPart (gone);
+		shows.name = to;
+		after.setEditorPart (shows);
+		renamed ++;
+	}
 	if (! renamed) return true;
 	if (! check (after, why)) return false;
 	change ("Rename Part", after);
 	if (serial) * serial = commands ().lastSerial ();
 	return true;
+}
+
+void ClipDocument::setLocked (const std::string & part, bool locked) {
+	if (isLocked (part) == locked) return;
+	animformat::Asset after = state;
+	animformat::EditorPart e = after.editorPart (part);
+	e.locked = locked;
+	after.setEditorPart (e);
+	change (std::string (locked ? "Lock " : "Unlock ") + (part.empty () ? std::string ("the Character") : part), after);
+}
+
+void ClipDocument::setScaling (const std::string & part, animformat::EditorPart::Scaling s) {
+	if (scaling (part) == s) return;
+	animformat::Asset after = state;
+	animformat::EditorPart e = after.editorPart (part);
+	e.scaling = s;
+	after.setEditorPart (e);
+	change (std::string (s == animformat::EditorPart::SCALING_FREE ? "Separate Scales of " : "Uniform Scale of ")
+		+ (part.empty () ? std::string ("the Character") : part), after);
 }
 
 bool ClipDocument::read (const std::string & path, std::string * error) {

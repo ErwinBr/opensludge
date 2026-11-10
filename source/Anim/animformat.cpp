@@ -1,4 +1,5 @@
 #include "animformat.h"
+#include "animedit.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -18,6 +19,7 @@ const char assetIdTag[4] = { 'A', 'S', 'I', 'D' };
 const char banksTag[4] = { 'B', 'A', 'N', 'K' };
 const char rigRefTag[4] = { 'R', 'R', 'E', 'F' };
 const char eventNamesTag[4] = { 'E', 'V', 'N', 'M' };
+const char editorTag[4] = { 'E', 'D', 'I', 'T' };
 
 // The fewest bytes that a part, track, key and event take, to check counts.
 const size_t minPart = 4 + 2 + 4 + 16 + 1 + 4 + 1;
@@ -340,6 +342,38 @@ AssetId newAssetId () {
 	return id;
 }
 
+EditorPart Asset::editorPart (PartId id) const {
+	for (size_t i = 0; i < editor.size (); i ++) {
+		if (editor[i].id == id) return editor[i];
+	}
+	EditorPart p;
+	p.id = id;
+	return p;
+}
+
+EditorPart Asset::editorPart (const std::string & name) const {
+	for (size_t i = 0; i < editor.size (); i ++) {
+		if (editor[i].name == name) return editor[i];
+	}
+	EditorPart p;
+	p.name = name;
+	return p;
+}
+
+void Asset::setEditorPart (const EditorPart & p) {
+	// A rig's parts scale uniformly by default.
+	EditorPart part = p;
+	if (kind == RIG && part.scaling == EditorPart::SCALING_UNIFORM) part.scaling = EditorPart::SCALING_DEFAULT;
+	for (size_t i = 0; i < editor.size (); i ++) {
+		if (kind == RIG ? editor[i].id == part.id : editor[i].name == part.name) {
+			if (part.isDefault ()) editor.erase (editor.begin () + i);
+			else editor[i] = part;
+			return;
+		}
+	}
+	if (! part.isDefault ()) editor.push_back (part);
+}
+
 namespace {
 
 // What a string of the format may be: up to 65535 bytes, without a 0 byte.
@@ -382,6 +416,20 @@ bool wholeAsset (const Asset & a, std::string & why) {
 	return true;
 }
 
+// The parts of "EDIT" that are written: not as by default, and of a rig's
+// parts (a clip's may have any name, of parts its rig lacks too).
+std::vector<EditorPart> editorPartsToWrite (const Asset & a) {
+	std::vector<EditorPart> out;
+	for (size_t i = 0; i < a.editor.size (); i ++) {
+		const EditorPart & p = a.editor[i];
+		if (p.isDefault ()) continue;
+		if (a.kind == Asset::RIG && partWithId (a.rig, p.id) < 0) continue;
+		if (a.kind == Asset::CLIP && ! storable (p.name)) continue;
+		out.push_back (p);
+	}
+	return out;
+}
+
 void writeAssetId (Writer & w, const AssetId & id) {
 	for (int i = 0; i < 16; i ++) w.u8 (id.bytes[i]);
 }
@@ -406,6 +454,18 @@ bool encodeAsset (const Asset & asset, Bytes & out, std::string & why) {
 	w.u32 ((uint32_t) asset.banks.size ());
 	for (size_t i = 0; i < asset.banks.size (); i ++) w.str (asset.banks[i]);
 	w.end (at);
+	std::vector<EditorPart> editor = editorPartsToWrite (asset);
+	if (! editor.empty ()) {
+		at = w.start (editorTag);
+		w.u32 ((uint32_t) editor.size ());
+		for (size_t i = 0; i < editor.size (); i ++) {
+			if (asset.kind == Asset::RIG) w.u32 (editor[i].id);
+			else w.str (editor[i].name);
+			int scaling = editor[i].scaling == EditorPart::SCALING_FREE ? 2 : editor[i].scaling == EditorPart::SCALING_UNIFORM ? 4 : 0;
+			w.u8 ((editor[i].locked ? 1 : 0) | scaling);
+		}
+		w.end (at);
+	}
 	if (asset.kind == Asset::RIG) {
 		writeRig (w, asset.rig, v);
 		return true;
@@ -435,8 +495,10 @@ bool decodeAsset (const unsigned char * data, size_t size, Asset & asset, std::s
 	if (! r.bytes (m, 4) || memcmp (m, magic, 4) || ! r.u16 (v)) return fail (why, "Not a file of rigs and clips");
 	if (v < 1 || v > version) return fail (why, "A file of rigs and clips of a version that this program doesn't know");
 	int definitions = 0;
-	bool haveId = false, haveBanks = false, haveRigRef = false, haveNames = false;
+	bool haveId = false, haveBanks = false, haveRigRef = false, haveNames = false, haveEditor = false;
 	std::map<EventId, std::string> names;
+	// "EDIT" comes before the rig or clip, which says how to read it.
+	Bytes editorChunk;
 	while (r.remaining ()) {
 		char tag[4];
 		uint32_t chunkSize;
@@ -481,6 +543,11 @@ bool decodeAsset (const unsigned char * data, size_t size, Asset & asset, std::s
 				if (! c.u32 (id) || ! c.str (name)) return fail (why, "The sound or function of an event is damaged");
 				if (! names.insert (std::make_pair (id, name)).second) return fail (why, "An event has one sound or function");
 			}
+		} else if (! memcmp (tag, editorTag, 4)) {
+			if (haveEditor) return fail (why, "An asset has one list of how its parts show");
+			haveEditor = true;
+			editorChunk.assign (r.here (), r.here () + chunkSize);
+			known = false;
 		} else {
 			known = false;
 		}
@@ -489,6 +556,25 @@ bool decodeAsset (const unsigned char * data, size_t size, Asset & asset, std::s
 	}
 	if (definitions != 1) return fail (why, "An asset is of one rig or one clip");
 	if (! haveId) return fail (why, "An asset needs an identity");
+	if (haveEditor) {
+		Reader c (editorChunk.data (), editorChunk.size ());
+		size_t n;
+		if (! c.count (n, asset.kind == Asset::RIG ? 4 + 1 : 2 + 1)) return fail (why, "How the parts show is cut off");
+		for (size_t i = 0; i < n; i ++) {
+			EditorPart p;
+			int flags;
+			if (! (asset.kind == Asset::RIG ? c.u32 (p.id) : c.str (p.name)) || ! c.u8 (flags) || flags > 7 || (flags & 6) == 6)
+				return fail (why, "How a part shows is damaged");
+			p.locked = (flags & 1) != 0;
+			p.scaling = (flags & 2) ? EditorPart::SCALING_FREE : (flags & 4) ? EditorPart::SCALING_UNIFORM : EditorPart::SCALING_DEFAULT;
+			bool twice = asset.kind == Asset::RIG ? ! asset.editorPart (p.id).isDefault () : ! asset.editorPart (p.name).isDefault ();
+			if (twice) return fail (why, "A part shows one way");
+			// Parts that the rig no longer has are forgotten.
+			if (asset.kind == Asset::RIG && partWithId (asset.rig, p.id) < 0) continue;
+			asset.setEditorPart (p);
+		}
+		if (c.remaining ()) return fail (why, "A chunk is longer than what it holds");
+	}
 	if (asset.kind == Asset::RIG && (haveRigRef || haveNames)) return fail (why, "Only a clip is bound to a rig, and has events");
 	if (asset.kind == Asset::CLIP) {
 		if (names.size () != asset.clip.events.size ()) return fail (why, "Every event of a clip needs a sound or a function");

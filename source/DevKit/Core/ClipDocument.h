@@ -104,6 +104,15 @@ public:
 	// when there were none of that name.
 	bool renamePart (const std::string & from, const std::string & to, uint64_t * serial, std::string & why);
 
+	// How the editor shows a part (by name), saved with the clip and undone
+	// like any change: locked, it can't be selected or keyed on the canvas,
+	// nor its keys moved on the timeline. Its scaling is that of its rig's
+	// part until the clip sets its own.
+	bool isLocked (const std::string & part) const { return state.editorPart (part).locked; }
+	animformat::EditorPart::Scaling scaling (const std::string & part) const { return state.editorPart (part).scaling; }
+	void setLocked (const std::string & part, bool locked);
+	void setScaling (const std::string & part, animformat::EditorPart::Scaling scaling);
+
 protected:
 	bool read (const std::string & path, std::string * error);
 	bool write (const std::string & path, std::string * error);

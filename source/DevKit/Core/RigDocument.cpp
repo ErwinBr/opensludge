@@ -245,6 +245,26 @@ void RigDocument::setSprite (PartId id, const std::string & bank, int number, bo
 	change (labelFor ("Sprite", id), after);
 }
 
+void RigDocument::setLocked (PartId id, bool locked) {
+	if (! part (id) || isLocked (id) == locked) return;
+	animformat::Asset after = state;
+	animformat::EditorPart e = after.editorPart (id);
+	e.locked = locked;
+	after.setEditorPart (e);
+	change (labelFor (locked ? "Lock" : "Unlock", id), after);
+}
+
+void RigDocument::setUniformScale (PartId id, bool uniform) {
+	int i = partWithId (state.rig, id);
+	if (i < 0 || scalesUniformly (id) == uniform) return;
+	animformat::Asset after = state;
+	animformat::EditorPart e = after.editorPart (id);
+	e.scaling = uniform ? animformat::EditorPart::SCALING_DEFAULT : animformat::EditorPart::SCALING_FREE;
+	after.setEditorPart (e);
+	if (uniform) after.rig.parts[i].rest.scaleY = after.rig.parts[i].rest.scaleX;
+	change (labelFor (uniform ? "Uniform Scale" : "Separate Scales", id), after);
+}
+
 bool RigDocument::read (const std::string & path, std::string * error) {
 	FILE * f = fopen (path.c_str (), "rb");
 	if (! f) {

@@ -205,6 +205,8 @@ std::vector<ClipDocument *> Workspace::clipsForRename (const animformat::AssetId
 		if (! probe.load (files[i], &error)) continue;
 		bool hasPart = false;
 		for (size_t t = 0; t < probe.clip ().tracks.size (); t ++) hasPart = hasPart || probe.clip ().tracks[t].part == part;
+		// Or that shows it in its own way, as locked.
+		hasPart = hasPart || ! probe.asset ().editorPart (part).isDefault ();
 		if (! hasPart) continue;
 		ClipDocument * c = dynamic_cast<ClipDocument *> (manager.open (files[i]));
 		if (c) clips.push_back (c);

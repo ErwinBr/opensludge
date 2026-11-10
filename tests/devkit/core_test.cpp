@@ -1609,6 +1609,20 @@ static void testRenameAcross () {
 	CHECK (! rig.renamePart (head, "face", clips, stillOpen, &renamed, why) && why.find ("face") != std::string::npos);
 	CHECK (rig.part (head)->name == "skull" && walk.track ("skull", CHANNEL_ROTATION));
 
+	// How a part shows goes with its rename, in a clip that only locks it.
+	ClipDocument shown;
+	shown.bindToRig (rig.asset ().id, "ego.rig");
+	shown.setLocked ("skull", true);
+	clips.push_back (&shown);
+	open = clips;
+	CHECK (rig.renamePart (head, "cranium", clips, stillOpen, &renamed, why) && renamed.size () == 3);
+	CHECK (shown.isLocked ("cranium") && ! shown.isLocked ("skull"));
+	rig.commands ().undo ();
+	CHECK (shown.isLocked ("skull") && ! shown.isLocked ("cranium"));
+	rig.commands ().redo ();
+	clips.pop_back ();
+	open = clips;
+
 	// The clips of a rig in a folder, and its folders.
 	mkdirs (folder + "clips/more");
 	CHECK (walk.save (folder + "clips/walk.clp", &error));
@@ -1678,6 +1692,54 @@ static void testPreviewPlayer () {
 	CHECK (player.ticks () == 0 && player.time (1) == 0);
 }
 
+// How the editors show parts: locks and uniform scales, as commands, saved
+// with the documents.
+static void testEditorParts () {
+	std::string why, error;
+	RigDocument rig;
+	PartId arm;
+	CHECK (rig.addPart (rig.rig ().parts[0].id, "arm", &arm, why));
+	CHECK (! rig.isLocked (arm) && rig.scalesUniformly (arm));
+	rig.setLocked (arm, true);
+	CHECK (rig.isLocked (arm) && rig.commands ().undoLabel () == "Lock of arm" && rig.isModified ());
+	rig.setLocked (rig.rig ().parts[0].id, true);
+	CHECK (rig.isLocked (rig.rig ().parts[0].id) && rig.commands ().undoLabel () == "Lock of the Character");
+	rig.commands ().undo ();
+	CHECK (! rig.isLocked (rig.rig ().parts[0].id) && rig.isLocked (arm));
+
+	PartPose p = rig.part (arm)->rest;
+	p.scaleX = 1.5f;
+	rig.setUniformScale (arm, false);
+	rig.setRest (arm, p);
+	p.scaleY = 0.5f;
+	rig.setRest (arm, p);
+	CHECK (! rig.scalesUniformly (arm) && rig.part (arm)->rest.scaleY == 0.5f);
+	rig.setUniformScale (arm, true);
+	CHECK (rig.scalesUniformly (arm) && rig.part (arm)->rest.scaleY == 1.5f);
+	rig.commands ().undo ();
+	CHECK (! rig.scalesUniformly (arm) && rig.part (arm)->rest.scaleY == 0.5f);
+
+	CHECK (rig.save (folder + "shown.rig", &error));
+	RigDocument back;
+	CHECK (back.load (folder + "shown.rig", &error));
+	CHECK (back.isLocked (arm) && ! back.scalesUniformly (arm) && back.part (arm)->rest.scaleY == 0.5f);
+
+	// Removed, a part's state isn't saved.
+	CHECK (back.removePart (arm, why) && back.save (folder + "shown.rig", &error));
+	RigDocument plain;
+	CHECK (plain.load (folder + "shown.rig", &error) && plain.asset ().editor.empty ());
+
+	ClipDocument clip;
+	clip.setLocked ("arm", true);
+	clip.setScaling ("arm", animformat::EditorPart::SCALING_FREE);
+	CHECK (clip.isLocked ("arm") && clip.scaling ("arm") == animformat::EditorPart::SCALING_FREE && clip.scaling ("leg") == animformat::EditorPart::SCALING_DEFAULT);
+	clip.commands ().undo ();
+	CHECK (clip.scaling ("arm") == animformat::EditorPart::SCALING_DEFAULT && clip.isLocked ("arm"));
+	CHECK (clip.save (folder + "shown.clp", &error));
+	ClipDocument clipBack;
+	CHECK (clipBack.load (folder + "shown.clp", &error) && clipBack.isLocked ("arm"));
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1703,6 +1765,7 @@ int main (int argc, char ** argv) {
 	testRigs ();
 	testClips ();
 	testRenameAcross ();
+	testEditorParts ();
 	testPreviewPlayer ();
 	testFileMemory ();
 
