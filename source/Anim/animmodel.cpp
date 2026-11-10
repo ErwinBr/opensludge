@@ -135,8 +135,20 @@ bool validName (const std::string & n) {
 	return n.size () <= 65535 && n.find ('\0') == std::string::npos;
 }
 
+namespace {
+
+bool validColour (float c) {
+	return finite (c) && c >= 0 && c <= MAX_MODULATE;
+}
+
+}
+
 bool validPose (const PartPose & p) {
-	return finite (p.x) && finite (p.y) && finite (p.rotation) && finite (p.scaleX) && finite (p.scaleY);
+	if (! finite (p.x) || ! finite (p.y) || ! finite (p.rotation) || ! finite (p.scaleX) || ! finite (p.scaleY)) return false;
+	for (int c = 0; c < 4; c ++) {
+		if (! validColour (p.modulate[c]) || ! validColour (p.selfModulate[c])) return false;
+	}
+	return true;
 }
 
 bool validSprite (const SpriteRef & s) {
@@ -178,6 +190,7 @@ bool setKey (ClipDefinition & clip, const std::string & part, Channel channel, c
 	if (key.easing < 0 || key.easing >= NUM_EASINGS) return fail (why, "Not an easing");
 	if (isDiscrete (channel) && key.easing != EASING_STEP) return fail (why, "Sprites, visibility, depth and flipping can only step");
 	if (channel == CHANNEL_SPRITE ? ! validSprite (key.sprite) : ! finite (key.value)) return fail (why, "Not a value for a key");
+	if (isColour (channel) && ! validColour (key.value)) return fail (why, "A colour goes from 0 to 200%");
 
 	Track * t = NULL;
 	for (size_t i = 0; i < clip.tracks.size (); i ++) {
@@ -254,6 +267,7 @@ bool validClip (const ClipDefinition & clip, std::string & why) {
 			if (key.easing < 0 || key.easing >= NUM_EASINGS) return fail (why, "Not an easing");
 			if (isDiscrete (t.channel) && key.easing != EASING_STEP) return fail (why, "Discrete channels can only step");
 			if (t.channel == CHANNEL_SPRITE ? ! validSprite (key.sprite) : ! finite (key.value)) return fail (why, "Not a value for a key");
+			if (isColour (t.channel) && ! validColour (key.value)) return fail (why, "A colour goes from 0 to 200%");
 		}
 	}
 	std::set<EventId> eventIds;
@@ -352,17 +366,23 @@ void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples
 		TrackSample s;
 		s.track = & track;
 		int k = keyAt (keys, time);
-		if (k < 0) k = 0;
-		s.sprite = & keys[k].sprite;
-		s.value = keys[k].value;
-		if (! isDiscrete (track.channel) && k + 1 < (int) keys.size ()) {
-			AnimationTime t0 = ticksToTime (keys[k].time), t1 = ticksToTime (keys[k + 1].time);
-			if (time > t0 && t1 > t0) {
-				s.value = ease (keys[k].easing, keys[k].value, keys[k + 1].value, (double) (time - t0) / (double) (t1 - t0));
-			}
-		}
+		s.sprite = & keys[k < 0 ? 0 : k].sprite;
+		s.value = sampleTrack (track, time);
 		out.push_back (s);
 	}
+}
+
+float sampleTrack (const Track & track, AnimationTime time) {
+	const std::vector<Key> & keys = track.keys;
+	if (keys.empty ()) return 0;
+	int k = keyAt (keys, time);
+	if (k < 0) k = 0;
+	float value = keys[k].value;
+	if (! isDiscrete (track.channel) && k + 1 < (int) keys.size ()) {
+		AnimationTime t0 = ticksToTime (keys[k].time), t1 = ticksToTime (keys[k + 1].time);
+		if (time > t0 && t1 > t0) value = ease (keys[k].easing, keys[k].value, keys[k + 1].value, (double) (time - t0) / (double) (t1 - t0));
+	}
+	return value;
 }
 
 const SpriteRef * sampleSprite (const ClipDefinition & clip, const std::string & part, AnimationTime time) {

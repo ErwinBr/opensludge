@@ -85,6 +85,7 @@ struct FragmentUniforms {
 	int32_t zBuffer;
 	int32_t modulateColor;
 	float padding[2];
+	float tint[4];
 };
 
 // The fragment shader of each program, with its number of samplers and
@@ -778,6 +779,7 @@ void GPURenderer::pushFragmentUniforms (Program program, const DrawUniforms & u)
 	f.useLightTexture = u.useLightTexture;
 	f.zBuffer = u.zBuffer;
 	f.modulateColor = u.modulateColor;
+	memcpy (f.tint, u.tint, sizeof (f.tint));
 	SDL_PushGPUFragmentUniformData (cmd, 0, &f, sizeof (f));
 }
 

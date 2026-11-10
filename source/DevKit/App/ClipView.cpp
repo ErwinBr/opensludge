@@ -49,8 +49,29 @@ const char * channelLabel (Channel c) {
 		case CHANNEL_VISIBLE: return "Visible";
 		case CHANNEL_DEPTH: return "Depth";
 		case CHANNEL_FLIP: return "Flip";
+		case CHANNEL_MODULATE_R: return "Modulate R";
+		case CHANNEL_MODULATE_G: return "Modulate G";
+		case CHANNEL_MODULATE_B: return "Modulate B";
+		case CHANNEL_MODULATE_A: return "Modulate A";
+		case CHANNEL_SELF_MODULATE_R: return "Self Modulate R";
+		case CHANNEL_SELF_MODULATE_G: return "Self Modulate G";
+		case CHANNEL_SELF_MODULATE_B: return "Self Modulate B";
+		case CHANNEL_SELF_MODULATE_A: return "Self Modulate A";
 		default: return "?";
 	}
+}
+
+// The name of a row of a channel: of a colour, of all four.
+const char * rowLabel (Channel c) {
+	if (isModulate (c)) return "Modulate";
+	if (isSelfModulate (c)) return "Self Modulate";
+	return channelLabel (c);
+}
+
+// The four channels of a colour.
+std::vector<Channel> colourChannels (Channel c) {
+	Channel first = colourGroup (c);
+	return std::vector<Channel> { first, (Channel) (first + 1), (Channel) (first + 2), (Channel) (first + 3) };
 }
 
 const char * easingLabels[] = { "Step: hold until the next key", "Linear: at a steady speed", "In and out: slow, fast, slow" };
@@ -242,15 +263,31 @@ void ClipView::addRows (int part, int depth) {
 	const std::string & name = r.parts[part].name;
 	Row header = { false, name, 0, CHANNEL_X, depth, false };
 	rows.push_back (header);
-	if (collapsed.count (name)) return;
-	for (size_t i = 0; i < sizeof (channelOrder) / sizeof (channelOrder[0]); i ++) {
-		const Track * t = clip->track (name, channelOrder[i]);
-		if (! t) continue;
-		Row row = { true, name, t->id, t->channel, depth + 1, false };
-		rows.push_back (row);
-	}
+	if (! collapsed.count (name)) addTrackRows (name, depth + 1, false);
 	std::vector<int> children = partChildren (r, part);
 	for (size_t i = 0; i < children.size (); i ++) addRows (children[i], depth + 1);
+}
+
+void ClipView::addTrackRows (const std::string & part, int depth, bool missing) {
+	for (size_t i = 0; i < sizeof (channelOrder) / sizeof (channelOrder[0]); i ++) {
+		const Track * t = clip->track (part, channelOrder[i]);
+		if (! t) continue;
+		Row row = { true, part, t->id, t->channel, depth, missing };
+		row.tracks.push_back (t->id);
+		rows.push_back (row);
+	}
+	// A row for each colour, of whichever of its channels it has.
+	const Channel colours[] = { CHANNEL_MODULATE_R, CHANNEL_SELF_MODULATE_R };
+	for (int g = 0; g < 2; g ++) {
+		Row row = { true, part, 0, colours[g], depth, missing };
+		for (int c = 0; c < 4; c ++) {
+			const Track * t = clip->track (part, (Channel) (colours[g] + c));
+			if (! t) continue;
+			if (! row.track) row.track = t->id;
+			row.tracks.push_back (t->id);
+		}
+		if (row.track) rows.push_back (row);
+	}
 }
 
 void ClipView::buildRows () {
@@ -269,13 +306,7 @@ void ClipView::buildRows () {
 	for (size_t m = 0; m < missing.size (); m ++) {
 		Row header = { false, missing[m], 0, CHANNEL_X, 0, haveRig };
 		rows.push_back (header);
-		if (collapsed.count (missing[m])) continue;
-		for (size_t i = 0; i < sizeof (channelOrder) / sizeof (channelOrder[0]); i ++) {
-			const Track * t = clip->track (missing[m], channelOrder[i]);
-			if (! t) continue;
-			Row row = { true, missing[m], t->id, t->channel, 1, haveRig };
-			rows.push_back (row);
-		}
+		if (! collapsed.count (missing[m])) addTrackRows (missing[m], 1, haveRig);
 	}
 }
 
@@ -284,6 +315,57 @@ void ClipView::selectOnly (const KeyRef & key) {
 	selectedKeys.insert (key);
 	selectedEvents.clear ();
 	currentTrack = key.track;
+}
+
+void ClipView::selectOnly (const std::vector<KeyRef> & keys) {
+	selectedKeys.clear ();
+	selectedKeys.insert (keys.begin (), keys.end ());
+	selectedEvents.clear ();
+	if (! keys.empty ()) currentTrack = keys[0].track;
+}
+
+bool ClipView::soleKey (std::vector<KeyRef> & refs) const {
+	refs.assign (selectedKeys.begin (), selectedKeys.end ());
+	if (refs.size () == 1) return true;
+	if (refs.empty () || refs.size () > 4) return false;
+	// The keys of one colour of one part, at one tick.
+	const Track * first = clip->track (refs[0].track);
+	if (! first || ! isColour (first->channel)) return false;
+	for (size_t i = 1; i < refs.size (); i ++) {
+		const Track * t = clip->track (refs[i].track);
+		if (! t || t->part != first->part || colourGroup (t->channel) != colourGroup (first->channel) || refs[i].time != refs[0].time) return false;
+	}
+	return true;
+}
+
+std::vector<ClipView::RowKey> ClipView::rowKeys (const Row & row) const {
+	std::vector<RowKey> keys;
+	for (size_t i = 0; i < row.tracks.size (); i ++) {
+		const Track * t = clip->track (row.tracks[i]);
+		if (! t) continue;
+		for (size_t k = 0; k < t->keys.size (); k ++) {
+			size_t at = 0;
+			while (at < keys.size () && keys[at].time < t->keys[k].time) at ++;
+			if (at == keys.size () || keys[at].time != t->keys[k].time) {
+				RowKey key;
+				key.time = t->keys[k].time;
+				key.easing = t->keys[k].easing;
+				for (int c = 0; c < 4; c ++) key.colour[c] = 1;
+				keys.insert (keys.begin () + at, key);
+			}
+			keys[at].refs.push_back (KeyRef (t->id, t->keys[k].time));
+		}
+	}
+	// A colour's components there, as the clip has them.
+	if (isColour (row.channel)) {
+		for (size_t k = 0; k < keys.size (); k ++) {
+			for (int c = 0; c < 4; c ++) {
+				const Track * t = clip->track (row.part, (Channel) (colourGroup (row.channel) + c));
+				if (t) keys[k].colour[c] = sampleTrack (* t, ticksToTime (keys[k].time));
+			}
+		}
+	}
+	return keys;
 }
 
 void ClipView::removeSelection () {
@@ -366,6 +448,18 @@ void ClipView::addKeyAtPlayhead (TrackId id) {
 	int tick = playhead ();
 	std::string why;
 	bool ok = true;
+	if (isColour (t->channel)) {
+		// All four of the colour, as its row shows them.
+		std::string part = t->part;
+		std::vector<Channel> channels = colourChannels (t->channel);
+		keyChannels (part, channels);
+		std::vector<KeyRef> refs;
+		for (size_t c = 0; c < channels.size (); c ++) {
+			if (const Track * ct = clip->track (part, channels[c])) refs.push_back (KeyRef (ct->id, tick));
+		}
+		selectOnly (refs);
+		return;
+	}
 	if (t->channel == CHANNEL_SPRITE) {
 		const SpriteRef * s = sampleSprite (clip->clip (), t->part, ticksToTime (tick));
 		if (s && s->kind == SpriteRef::SPRITE) ok = clip->setSpriteKey (id, tick, clip->bankOf (* s), s->number, s->mirror, false, why);
@@ -571,7 +665,10 @@ float ClipView::valueOf (int part, Channel channel) const {
 		case CHANNEL_VISIBLE: return p.local.visible ? 1.0f : 0.0f;
 		case CHANNEL_DEPTH: return (float) p.depth;
 		case CHANNEL_FLIP: return p.local.flip ? 1.0f : 0.0f;
-		default: return 0;
+		default:
+			if (isModulate (channel)) return p.local.modulate[channel - CHANNEL_MODULATE_R];
+			if (isSelfModulate (channel)) return p.local.selfModulate[channel - CHANNEL_SELF_MODULATE_R];
+			return 0;
 	}
 }
 
@@ -998,16 +1095,16 @@ void ClipView::drawTimeline () {
 		ImGui::PushID ((int) r);
 		if (row.isTrack) {
 			// Its name: the current track, of the selected part.
-			bool current = row.track == currentTrack;
+			bool current = std::find (row.tracks.begin (), row.tracks.end (), currentTrack) != row.tracks.end ();
 			ImGui::SetCursorScreenPos (ImVec2 (x, y));
-			std::string label = std::string (channelLabel (row.channel));
+			std::string label = std::string (rowLabel (row.channel));
 			if (ImGui::Selectable (label.c_str (), current, 0, ImVec2 (signX - x - 4, fh))) {
 				currentTrack = row.track;
 				selectPart (row.part);
 			}
 			ImGui::SetCursorScreenPos (ImVec2 (signX, y));
 			if (iconButton ("remove", ICON_MINUS, "Remove the track, and its keys", fh)) {
-				clip->removeTrack (row.track);
+				clip->removeTracks (row.tracks);
 				selectedKeys.clear ();
 			}
 		} else {
@@ -1041,10 +1138,25 @@ void ClipView::drawTimeline () {
 			ImGui::SetCursorScreenPos (ImVec2 (signX, y));
 			if (iconButton ("add", ICON_PLUS, "Add a track to the part", fh)) ImGui::OpenPopup ("add");
 			if (ImGui::BeginPopup ("add")) {
-				const char * kinds[] = { "Position", "Rotation", "Scale", "Sprite", "Visible", "Depth", "Flip" };
-				const Channel first[] = { CHANNEL_X, CHANNEL_ROTATION, CHANNEL_SCALE_X, CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP };
-				for (int k = 0; k < 7; k ++) {
+				const char * kinds[] = { "Position", "Rotation", "Scale", "Sprite", "Visible", "Depth", "Flip", "Modulate", "Self Modulate" };
+				const Channel first[] = { CHANNEL_X, CHANNEL_ROTATION, CHANNEL_SCALE_X, CHANNEL_SPRITE, CHANNEL_VISIBLE, CHANNEL_DEPTH, CHANNEL_FLIP,
+					CHANNEL_MODULATE_R, CHANNEL_SELF_MODULATE_R };
+				for (int k = 0; k < 9; k ++) {
 					bool has = clip->track (row.part, first[k]) != NULL;
+					if (isColour (first[k])) {
+						// The colour's four tracks, as one.
+						std::vector<Channel> channels = colourChannels (first[k]);
+						has = false;
+						for (size_t c = 0; c < channels.size (); c ++) has = has || clip->track (row.part, channels[c]);
+						if (ImGui::MenuItem (kinds[k], NULL, false, ! has)) {
+							std::string why;
+							TrackId added;
+							if (! clip->addTracks (row.part, channels, &added, why)) say (why);
+							else currentTrack = added;
+							collapsed.erase (row.part);
+						}
+						continue;
+					}
 					if (ImGui::MenuItem (kinds[k], NULL, false, ! has)) {
 						std::string why;
 						TrackId added;
@@ -1072,23 +1184,26 @@ void ClipView::drawTimeline () {
 		int t = (int) floorf ((x - laneLeft) / tickWidth + 0.5f);
 		return t < 0 ? 0 : t > length ? length : t;
 	};
-	// The key under the mouse, if any.
-	KeyRef hitKey;
+	// The key under the mouse, if any: of a colour, its four.
+	std::vector<KeyRef> hitKeys;
 	bool hit = false;
 	for (size_t r = 0; r < rows.size () && ! hit; r ++) {
-		if (! rows[r].isTrack) continue;
+		if (! rows[r].isTrack || locked (rows[r].part)) continue;
 		float cy = rowsTop + h * r + h * 0.5f;
 		if (fabsf (my - cy) > h * 0.5f) continue;
-		const Track * t = clip->track (rows[r].track);
-		if (t && locked (t->part)) continue;
-		for (size_t k = 0; t && k < t->keys.size (); k ++) {
-			if (fabsf (mx - xOf (t->keys[k].time)) <= 5) {
-				hitKey = KeyRef (t->id, t->keys[k].time);
+		std::vector<RowKey> keys = rowKeys (rows[r]);
+		for (size_t k = 0; k < keys.size (); k ++) {
+			if (fabsf (mx - xOf (keys[k].time)) <= 5) {
+				hitKeys = keys[k].refs;
 				hit = true;
 				break;
 			}
 		}
 	}
+	auto allSelected = [this] (const std::vector<KeyRef> & refs) {
+		for (size_t i = 0; i < refs.size (); i ++) if (! selectedKeys.count (refs[i])) return false;
+		return ! refs.empty ();
+	};
 	EventId hitEvent = 0;
 	if (fabsf (my - (origin.y + h * 1.5f)) <= h * 0.5f) {
 		for (size_t e = 0; e < clip->clip ().events.size (); e ++) {
@@ -1132,14 +1247,17 @@ void ClipView::drawTimeline () {
 			}
 		} else if (hit) {
 			if (io.KeyShift) {
-				if (selectedKeys.count (hitKey)) selectedKeys.erase (hitKey);
-				else selectedKeys.insert (hitKey);
-				currentTrack = hitKey.track;
-			} else if (! selectedKeys.count (hitKey)) {
-				selectOnly (hitKey);
+				bool all = allSelected (hitKeys);
+				for (size_t i = 0; i < hitKeys.size (); i ++) {
+					if (all) selectedKeys.erase (hitKeys[i]);
+					else selectedKeys.insert (hitKeys[i]);
+				}
+				currentTrack = hitKeys[0].track;
+			} else if (! allSelected (hitKeys)) {
+				selectOnly (hitKeys);
 			}
-			if (const Track * t = clip->track (hitKey.track)) selectPart (t->part);
-			timelineDrag = selectedKeys.count (hitKey) ? TL_KEYS : TL_NONE;
+			if (const Track * t = clip->track (hitKeys[0].track)) selectPart (t->part);
+			timelineDrag = allSelected (hitKeys) ? TL_KEYS : TL_NONE;
 			dragCopy = io.KeyAlt;
 		} else {
 			if (! io.KeyShift) {
@@ -1189,14 +1307,13 @@ void ClipView::drawTimeline () {
 				}
 			}
 			for (size_t r = 0; r < rows.size (); r ++) {
-				if (! rows[r].isTrack) continue;
+				if (! rows[r].isTrack || locked (rows[r].part)) continue;
 				float cy = rowsTop + h * r + h * 0.5f;
 				if (cy < by1 || cy > by2) continue;
-				const Track * t = clip->track (rows[r].track);
-				if (t && locked (t->part)) continue;
-				for (size_t k = 0; t && k < t->keys.size (); k ++) {
-					float kx = xOf (t->keys[k].time);
-					if (kx >= bx1 && kx <= bx2) selectedKeys.insert (KeyRef (t->id, t->keys[k].time));
+				std::vector<RowKey> keys = rowKeys (rows[r]);
+				for (size_t k = 0; k < keys.size (); k ++) {
+					float kx = xOf (keys[k].time);
+					if (kx >= bx1 && kx <= bx2) selectedKeys.insert (keys[k].refs.begin (), keys[k].refs.end ());
 				}
 			}
 		} else if (timelineDrag == TL_EVENT) {
@@ -1256,24 +1373,37 @@ void ClipView::drawTimeline () {
 		float y = rowsTop + h * r;
 		if (r % 2) list->AddRectFilled (ImVec2 (laneLeft - 8, y), ImVec2 (laneRight + 12, y + h), IM_COL32 (255, 255, 255, 8));
 		if (! rows[r].isTrack) continue;
-		const Track * t = clip->track (rows[r].track);
-		if (! t) continue;
+		const Row & row = rows[r];
+		bool discrete = isDiscrete (row.channel), colour = isColour (row.channel);
+		std::vector<RowKey> keys = rowKeys (row);
 		// A locked part's keys are dimmed.
-		ImU32 dim = locked (t->part) ? 0x50FFFFFF : 0xFFFFFFFF;
+		ImU32 dim = locked (row.part) ? 0x50FFFFFF : 0xFFFFFFFF;
 		float cy = y + h * 0.5f, s = h * 0.28f;
-		for (size_t k = 0; k + 1 < t->keys.size (); k ++) {
-			if (isDiscrete (t->channel) || t->keys[k].easing == EASING_STEP) continue;
-			list->AddLine (ImVec2 (xOf (t->keys[k].time), cy), ImVec2 (xOf (t->keys[k + 1].time), cy), easingColour (t->keys[k].easing, false) & 0x60FFFFFF, 2);
+		for (size_t k = 0; k + 1 < keys.size (); k ++) {
+			if (discrete || keys[k].easing == EASING_STEP) continue;
+			list->AddLine (ImVec2 (xOf (keys[k].time), cy), ImVec2 (xOf (keys[k + 1].time), cy), easingColour (keys[k].easing, false) & 0x60FFFFFF, 2);
 		}
-		for (size_t k = 0; k < t->keys.size (); k ++) {
-			bool sel = selectedKeys.count (KeyRef (t->id, t->keys[k].time)) != 0;
+		for (size_t k = 0; k < keys.size (); k ++) {
+			bool sel = allSelected (keys[k].refs);
 			float offset = sel && timelineDrag == TL_KEYS ? dragTicks * tickWidth : 0;
-			float x = xOf (t->keys[k].time) + offset;
-			ImU32 c = easingColour (t->keys[k].easing, sel) & dim;
-			if (isDiscrete (t->channel)) list->AddRectFilled (ImVec2 (x - s, cy - s), ImVec2 (x + s, cy + s), c);
-			else list->AddQuadFilled (ImVec2 (x, cy - s * 1.3f), ImVec2 (x + s * 1.3f, cy), ImVec2 (x, cy + s * 1.3f), ImVec2 (x - s * 1.3f, cy), c);
+			float x = xOf (keys[k].time) + offset;
+			ImU32 c = easingColour (keys[k].easing, sel) & dim;
+			ImVec2 top (x, cy - s * 1.3f), right (x + s * 1.3f, cy), down (x, cy + s * 1.3f), left (x - s * 1.3f, cy);
+			if (discrete) {
+				list->AddRectFilled (ImVec2 (x - s, cy - s), ImVec2 (x + s, cy + s), c);
+			} else if (colour) {
+				// Filled with the colour there, over a checker for its alpha,
+				// and outlined by the easing (or the selection).
+				const float * v = keys[k].colour;
+				ImVec4 shown (v[0] < 1 ? v[0] : 1, v[1] < 1 ? v[1] : 1, v[2] < 1 ? v[2] : 1, v[3] < 1 ? v[3] : 1);
+				list->AddQuadFilled (top, right, down, left, IM_COL32 (90, 90, 90, 255) & dim);
+				list->AddQuadFilled (top, right, down, left, ImGui::GetColorU32 (shown) & dim);
+				list->AddQuad (top, right, down, left, c, sel ? 3.0f : 2.0f);
+			} else {
+				list->AddQuadFilled (top, right, down, left, c);
+			}
 			if (sel && timelineDrag == TL_KEYS && dragCopy && offset != 0) {
-				float x0 = xOf (t->keys[k].time);
+				float x0 = xOf (keys[k].time);
 				list->AddQuad (ImVec2 (x0, cy - s * 1.3f), ImVec2 (x0 + s * 1.3f, cy), ImVec2 (x0, cy + s * 1.3f), ImVec2 (x0 - s * 1.3f, cy), c);
 			}
 		}
@@ -1577,15 +1707,87 @@ void ClipView::drawPartInspector () {
 		if (on) ImGui::PopStyleColor ();
 		keyButton ("keyflip", part, std::vector<Channel> { CHANNEL_FLIP }, keyX);
 	}
+
+	// Modulate and Self Modulate: four channels each, keyed together.
+	{
+		const Channel firsts[2] = { CHANNEL_MODULATE_R, CHANNEL_SELF_MODULATE_R };
+		const char * labels[2] = { "Modulate", "Self Modulate" };
+		const char * tips[2] = { "Its colour, and the colour of the parts attached to it: each component a factor, from 0 to 200%",
+			"Its own colour only, over Modulate: each component a factor, from 0 to 200%" };
+		const char * ids[2] = { "modulate", "selfmodulate" };
+		const char * keyIds[2] = { "keymodulate", "keyselfmodulate" };
+		for (int g = 0; g < 2; g ++) {
+			std::vector<Channel> channels = colourChannels (firsts[g]);
+			float now[4], edited[4];
+			for (int c = 0; c < 4; c ++) now[c] = edited[c] = valueOf (p, channels[c]);
+			propertyRow (labels[g], tips[g]);
+			keyX = right ();
+			if (colourField (ids[g], edited, MAX_MODULATE, &done, keyWidth)) {
+				for (int c = 0; c < 4; c ++) {
+					if (edited[c] != now[c]) setValue (part, channels[c], edited[c], FIELD_KEY);
+				}
+			}
+			keyButton (keyIds[g], part, channels, keyX);
+		}
+	}
 	if (done) clip->commands ().stopMerging ();
 	ImGui::EndTable ();
 }
 
-void ClipView::drawKeyInspector (const KeyRef & k) {
+void ClipView::drawKeyInspector (const std::vector<KeyRef> & refs) {
 	std::string why;
+	if (refs.empty ()) return;
+	const KeyRef k = refs[0];
 	const Track * t = clip->track (k.track);
 	const Key * key = clip->key (k);
 	if (! t || ! key) return;
+	if (isColour (t->channel)) {
+		// A colour's key: the keys of its channels at the tick.
+		const std::string part = t->part;
+		const Channel group = colourGroup (t->channel);
+		std::vector<Channel> channels = colourChannels (group);
+		const Easing easing = key->easing;
+		const int time = k.time;
+		auto keysAt = [this, &part, &channels] (int at) {
+			std::vector<KeyRef> found;
+			for (size_t c = 0; c < channels.size (); c ++) {
+				const Track * ct = clip->track (part, channels[c]);
+				if (ct && clip->key (KeyRef (ct->id, at))) found.push_back (KeyRef (ct->id, at));
+			}
+			return found;
+		};
+		std::string title = "Keyframe " + partLabel (part) + " > " + rowLabel (group);
+		if (beginProperties (title.c_str ())) {
+			propertyRow ("Tick", "Where the key is on the timeline");
+			int moved = time;
+			if (ImGui::InputInt ("##tick", &moved) && moved != time) {
+				if (clip->moveKeys (refs, moved - time, false, why)) selectOnly (keysAt (moved));
+				else say (why);
+			}
+			float now[4], edited[4];
+			for (int c = 0; c < 4; c ++) {
+				const Track * ct = clip->track (part, channels[c]);
+				now[c] = edited[c] = ct && ! ct->keys.empty () ? sampleTrack (* ct, ticksToTime (time)) : 1.0f;
+			}
+			bool done = false;
+			propertyRow (rowLabel (group), isModulate (group) ? "The part's colour, and its attached parts': each component from 0 to 200%"
+				: "The part's own colour: each component from 0 to 200%");
+			if (colourField ("colour", edited, MAX_MODULATE, &done)) {
+				// Each of the four keyed, so that the key holds the colour.
+				bool ok = true;
+				for (int c = 0; c < 4 && ok; c ++) ok = clip->autoKey (part, channels[c], time, edited[c], why, FIELD_KEY);
+				if (! ok) say (why);
+				selectOnly (keysAt (time));
+			}
+			if (done) clip->commands ().stopMerging ();
+			propertyRow ("Towards the next key", "How the colour moves from this key to the next one; the last key's isn't used");
+			int e = easing;
+			if (ImGui::Combo ("##easing", &e, easingLabels, 3)) clip->setEasings (keysAt (time), (Easing) e);
+			ImGui::EndTable ();
+		}
+		if (ImGui::Button ("Remove Key")) removeSelection ();
+		return;
+	}
 	const Track track = * t;
 	const Key now = * key;
 	std::string title = "Keyframe " + partLabel (track.part) + " > " + channelLabel (track.channel);
@@ -1726,21 +1928,28 @@ void ClipView::drawInspector () {
 
 	// The selected part's properties, then the selected keys.
 	if (havePart) drawPartInspector ();
-	if (selectedKeys.size () == 1) {
-		drawKeyInspector (* selectedKeys.begin ());
+	std::vector<KeyRef> sole;
+	if (soleKey (sole)) {
+		drawKeyInspector (sole);
 		return;
 	}
 
 	if (selectedKeys.size () > 1 || (! selectedEvents.empty () && (selectedEvents.size () > 1 || ! selectedKeys.empty ()))) {
+		// As the timeline shows them: a colour's keys at a tick are one.
+		std::set<std::pair<std::string, std::pair<int, int> > > shown;
+		for (std::set<KeyRef>::const_iterator i = selectedKeys.begin (); i != selectedKeys.end (); ++ i) {
+			const Track * t = clip->track (i->track);
+			if (t) shown.insert (std::make_pair (t->part, std::make_pair ((int) colourGroup (t->channel), i->time)));
+		}
 		char heading[48];
-		snprintf (heading, sizeof (heading), "Keyframes (%d)", (int) selectedKeys.size ());
+		snprintf (heading, sizeof (heading), "Keyframes (%d)", (int) shown.size ());
 		ImGui::SeparatorText (heading);
 		if (! selectedEvents.empty ()) ImGui::Text ("And %d event%s", (int) selectedEvents.size (), selectedEvents.size () == 1 ? "" : "s");
 		if (selectedKeys.size () > 1) {
 			ImGui::TextUnformatted ("Towards the next key:");
 			for (int e = 0; e < 3; e ++) {
 				if (ImGui::Button (easingLabels[e])) {
-					for (std::set<KeyRef>::const_iterator i = selectedKeys.begin (); i != selectedKeys.end (); ++ i) clip->setEasing (* i, (Easing) e);
+					clip->setEasings (std::vector<KeyRef> (selectedKeys.begin (), selectedKeys.end ()), (Easing) e);
 				}
 			}
 		}

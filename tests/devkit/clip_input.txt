@@ -41,11 +41,11 @@ move 509 530
 down
 up
 wait 2
-move 1200 455
+move 1200 505
 down
 up
 wait 2
-move 1200 520
+move 1200 570
 down
 up
 wait 2

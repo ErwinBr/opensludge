@@ -568,6 +568,117 @@ static void testSeparateScales () {
 	CHECK (! animformat::decode (c3.data (), c3.size (), back, why), "a file before version 3 has no SCALE_Y");
 }
 
+// Colours: MODULATE tints a part and what is attached to it, SELF_MODULATE
+// the part only; they multiply down the rig, ease, multiply in additive
+// layers, stay within 0 to 2, and are in files from version 4.
+static void testColours () {
+	std::shared_ptr<RigDefinition> r = std::make_shared<RigDefinition> ();
+	SpriteRef arm = SpriteRef::sprite (testBank (), 3, 1, false);
+	PartPose tinted = pose (0, 0);
+	tinted.modulate[0] = 0.5f;
+	tinted.selfModulate[1] = 0.25f;
+	CHECK (! tinted.white () && pose (0, 0).white (), "white () tells them apart");
+	CHECK (addPart (* r, "body", "", tinted, arm, why), "a tinted body");
+	PartPose half = pose (0, 10);
+	half.modulate[3] = 0.5f;
+	CHECK (addPart (* r, "arm", "body", half, arm, why) && addPart (* r, "hand", "arm", pose (0, 10), arm, why), "an arm and a hand");
+	Pose p = restPose (* r);
+	const PosedPart & body = p.parts[1], & armPart = p.parts[2], & hand = p.parts[3];
+	CHECK (near (body.colour[0], 0.5f) && near (body.colour[1], 0.25f) && near (body.colour[2], 1) && near (body.colour[3], 1),
+		"the body has its modulate and its self modulate");
+	CHECK (near (armPart.colour[0], 0.5f) && near (armPart.colour[1], 1) && near (armPart.colour[3], 0.5f),
+		"the arm inherits the body's modulate, not its self modulate, times its own");
+	CHECK (near (hand.colour[0], 0.5f) && near (hand.colour[3], 0.5f), "and so does the hand, from both");
+	CHECK (near (p.parts[0].colour[0], 1), "the root is white");
+
+	// Keys ease; additive layers multiply; values stay within 0 to 2.
+	for (int blend = 0; blend < NUM_LAYER_BLENDS; blend ++) {
+		std::shared_ptr<ClipDefinition> c = std::make_shared<ClipDefinition> ();
+		c -> length = 10;
+		Key k;
+		k.easing = EASING_LINEAR;
+		k.value = 0;
+		CHECK (setKey (* c, "body", CHANNEL_MODULATE_B, k, why), "a key of blue");
+		k.time = 10;
+		k.value = 2;
+		setKey (* c, "body", CHANNEL_MODULATE_B, k, why);
+		k.time = 0;
+		k.value = 1.5f;
+		setKey (* c, "arm", CHANNEL_SELF_MODULATE_R, k, why);
+		k.value = 2;
+		setKey (* c, "body", CHANNEL_MODULATE_R, k, why);
+		TrackSamples samples;
+		evaluateClip (* c, ticksToTime (5), samples);
+		PoseBinding b;
+		std::vector<LayerSamples> layers;
+		LayerSamples l = { c, & samples, (LayerBlend) blend, & b };
+		layers.push_back (l);
+		Pose out;
+		evaluatePose (r, layers, std::vector<PartOverride> (), Transform2D (), out);
+		CHECK (near (out.parts[1].colour[2], 1), "blue eases from 0 to 2: 1 half way");
+		CHECK (near (out.parts[3].colour[2], 1), "and the hand inherits it");
+		bool add = blend == LAYER_BLEND_ADD;
+		// The body's red: the rig's 0.5 replaced by 2, or multiplied by it.
+		float red = add ? 1.0f : 2.0f;
+		CHECK (near (out.parts[1].local.modulate[0], red), "an additive layer multiplies what the rig has");
+		CHECK (near (out.parts[2].colour[0], red * 1.5f), "self modulate over the inherited red");
+		CHECK (near (out.parts[3].colour[0], red), "which the hand doesn't get");
+	}
+	std::vector<PartOverride> overrides;
+	PartOverride high = { "body", CHANNEL_MODULATE_G, 5 }, low = { "arm", CHANNEL_MODULATE_A, -1 };
+	overrides.push_back (high);
+	overrides.push_back (low);
+	Pose clamped;
+	evaluatePose (r, std::vector<LayerSamples> (), overrides, Transform2D (), clamped);
+	CHECK (near (clamped.parts[1].local.modulate[1], MAX_MODULATE) && near (clamped.parts[2].local.modulate[3], 0), "overrides stay within 0 to 2");
+	ClipDefinition bad;
+	bad.length = 4;
+	Key over;
+	over.value = 2.5f;
+	CHECK (! setKey (bad, "body", CHANNEL_MODULATE_R, over, why), "a key above 200% is refused");
+	CHECK (isColour (CHANNEL_SELF_MODULATE_A) && ! isColour (CHANNEL_SCALE_Y) && ! isDiscrete (CHANNEL_MODULATE_R)
+		&& isPercent (CHANNEL_MODULATE_G) && isPercent (CHANNEL_SCALE) && ! isPercent (CHANNEL_X)
+		&& colourGroup (CHANNEL_SELF_MODULATE_B) == CHANNEL_SELF_MODULATE_R && colourGroup (CHANNEL_X) == CHANNEL_X,
+		"the colours are continuous percents, in groups of four");
+
+	// Files: version 4 for a colour, as before otherwise.
+	animformat::Document doc;
+	doc.rigs.push_back (armRig ());
+	animformat::Bytes before, v4;
+	CHECK (animformat::encode (doc, before, why) && before[4] == 1, "white: still version 1");
+	doc.rigs[0].parts[2].rest.selfModulate[3] = 0.75f;
+	CHECK (animformat::encode (doc, v4, why) && v4[4] == 4 && v4[5] == 0, "a colour: version 4");
+	CHECK (v4.size () == before.size () + 4 * (4 + 8 + 32), "Y, the pivot and eight colours a part");
+	animformat::Document back;
+	CHECK (animformat::decode (v4.data (), v4.size (), back, why) && back.rigs.size () == 1, "version 4 decodes");
+	CHECK (near (back.rigs[0].parts[2].rest.selfModulate[3], 0.75f) && back.rigs[0].parts[1].rest.white (), "with its colours");
+	for (size_t n = 7; n < v4.size (); n ++) {
+		if (animformat::decode (v4.data (), n, back, why)) {
+			CHECK (false, "a cut file of version 4 decodes");
+			break;
+		}
+	}
+	ClipDefinition clip;
+	clip.length = 10;
+	Key k;
+	k.value = 0.5f;
+	k.easing = EASING_INOUT;
+	setKey (clip, "arm", CHANNEL_SCALE_Y, k, why);
+	animformat::Document clips;
+	clips.clips.push_back (clip);
+	animformat::Bytes c3, c4;
+	CHECK (animformat::encode (clips, c3, why) && c3[4] == 3, "a clip of SCALE_Y: still version 3");
+	setKey (clips.clips[0], "arm", CHANNEL_MODULATE_A, k, why);
+	CHECK (animformat::encode (clips, c4, why) && c4[4] == 4, "a clip of a colour: version 4");
+	CHECK (animformat::decode (c4.data (), c4.size (), back, why) && back.clips[0].track ("arm", CHANNEL_MODULATE_A)
+		&& back.clips[0].track ("arm", CHANNEL_MODULATE_A) -> keys[0].easing == EASING_INOUT, "and its track comes back");
+	c4[4] = 3;
+	CHECK (! animformat::decode (c4.data (), c4.size (), back, why), "a file before version 4 has no colours");
+	Track t;
+	t.channel = CHANNEL_MODULATE_R;
+	CHECK (sampleTrack (t, 0) == 0, "a track without keys samples 0");
+}
+
 // How the Dev Kit shows parts ("EDIT"): round-trips, games skip it, and
 // none leaves it out.
 static void testEditorParts () {
@@ -639,6 +750,7 @@ int main () {
 	testWholeAssets ();
 	testDamagedAssets ();
 	testEditorParts ();
+	testColours ();
 	if (failures) {
 		fprintf (stderr, "%d animation library test(s) failed\n", failures);
 		return 1;

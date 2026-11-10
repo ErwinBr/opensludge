@@ -194,6 +194,40 @@ bool ClipDocument::addTrack (const std::string & part, Channel channel, TrackId 
 	return true;
 }
 
+bool ClipDocument::addTracks (const std::string & part, const std::vector<Channel> & channels, TrackId * added, std::string & why) {
+	if (added) * added = 0;
+	animformat::Asset after = state;
+	for (size_t i = 0; i < channels.size (); i ++) {
+		if (channels[i] < 0 || channels[i] >= NUM_CHANNELS) return fail (why, "Not a channel");
+		bool has = false;
+		for (size_t t = 0; t < after.clip.tracks.size (); t ++) {
+			has = has || (after.clip.tracks[t].part == part && after.clip.tracks[t].channel == channels[i]);
+		}
+		if (has) continue;
+		Track t;
+		t.id = after.clip.nextTrackId ++;
+		t.part = part;
+		t.channel = channels[i];
+		after.clip.tracks.push_back (t);
+		if (added && ! * added) * added = t.id;
+	}
+	if (after.clip.tracks.size () == state.clip.tracks.size ()) return fail (why, "The part has those tracks already");
+	if (! check (after, why)) return false;
+	change ("Add Track", after);
+	return true;
+}
+
+void ClipDocument::removeTracks (const std::vector<TrackId> & ids) {
+	animformat::Asset after = state;
+	for (size_t i = 0; i < ids.size (); i ++) {
+		int at = trackIndex (after, ids[i]);
+		if (at >= 0) after.clip.tracks.erase (after.clip.tracks.begin () + at);
+	}
+	if (after.clip.tracks.size () == state.clip.tracks.size ()) return;
+	compactBanks (after);
+	change (ids.size () == 1 ? "Remove Track" : "Remove Tracks", after);
+}
+
 void ClipDocument::removeTrack (TrackId id) {
 	int i = trackIndex (state, id);
 	if (i < 0) return;
@@ -261,6 +295,21 @@ void ClipDocument::setEasing (const KeyRef & ref, Easing easing) {
 	Track & changed = after.clip.tracks[trackIndex (after, ref.track)];
 	changed.keys[keyIndex (changed, ref.time)].easing = easing;
 	change ("Easing", after);
+}
+
+void ClipDocument::setEasings (const std::vector<KeyRef> & keys, Easing easing) {
+	if (easing < 0 || easing >= NUM_EASINGS) return;
+	animformat::Asset after = state;
+	bool changed = false;
+	for (size_t i = 0; i < keys.size (); i ++) {
+		int t = trackIndex (after, keys[i].track);
+		if (t < 0 || isDiscrete (after.clip.tracks[t].channel)) continue;
+		int k = keyIndex (after.clip.tracks[t], keys[i].time);
+		if (k < 0 || after.clip.tracks[t].keys[k].easing == easing) continue;
+		after.clip.tracks[t].keys[k].easing = easing;
+		changed = true;
+	}
+	if (changed) change ("Easing", after);
 }
 
 void ClipDocument::removeKeys (const std::vector<KeyRef> & keys) {

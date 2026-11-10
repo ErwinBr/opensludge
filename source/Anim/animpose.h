@@ -87,6 +87,11 @@ struct PosedPart {
 	// What its sprite is drawn through, with the sprite's hotspot at the
 	// origin: world, moved back by the part's pivot.
 	Transform2D spriteWorld;
+	// What its sprite is multiplied by, R, G, B and A: the modulates of it
+	// and the parts it is attached to, and its self modulate.
+	float colour[4] = { 1, 1, 1, 1 };
+	// The modulates only, which the parts attached to it inherit.
+	float inherited[4] = { 1, 1, 1, 1 };
 };
 
 struct Pose {

@@ -905,6 +905,14 @@ void initBuiltInFunc ()
 	addToStringArray (typeDefFrom, "PART_FLIP");		addToStringArray (typeDefTo, "7");
 	addToStringArray (typeDefFrom, "PART_SCALE_X");	addToStringArray (typeDefTo, "8");
 	addToStringArray (typeDefFrom, "PART_SCALE_Y");	addToStringArray (typeDefTo, "9");
+	addToStringArray (typeDefFrom, "PART_MODULATE_R");	addToStringArray (typeDefTo, "10");
+	addToStringArray (typeDefFrom, "PART_MODULATE_G");	addToStringArray (typeDefTo, "11");
+	addToStringArray (typeDefFrom, "PART_MODULATE_B");	addToStringArray (typeDefTo, "12");
+	addToStringArray (typeDefFrom, "PART_MODULATE_A");	addToStringArray (typeDefTo, "13");
+	addToStringArray (typeDefFrom, "PART_SELF_MODULATE_R");	addToStringArray (typeDefTo, "14");
+	addToStringArray (typeDefFrom, "PART_SELF_MODULATE_G");	addToStringArray (typeDefTo, "15");
+	addToStringArray (typeDefFrom, "PART_SELF_MODULATE_B");	addToStringArray (typeDefTo, "16");
+	addToStringArray (typeDefFrom, "PART_SELF_MODULATE_A");	addToStringArray (typeDefTo, "17");
 	addToStringArray (typeDefFrom, "EASE_STEP");		addToStringArray (typeDefTo, "0");
 	addToStringArray (typeDefFrom, "EASE_LINEAR");	addToStringArray (typeDefTo, "1");
 	addToStringArray (typeDefFrom, "EASE_INOUT");	addToStringArray (typeDefTo, "2");

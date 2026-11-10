@@ -85,8 +85,10 @@ void drawPose (Draw2D & draw, const Pose & pose) {
 		if (! s || ! s -> width || ! s -> height || ! s -> data) continue;
 		float c[8];
 		corners (p, c);
+		draw.setTint (p.colour[0], p.colour[1], p.colour[2], p.colour[3]);
 		draw.drawPictureQuad (devkitBank (p.sprite.bank), p.sprite.number, false, c);
 	}
+	draw.setTint (1, 1, 1, 1);
 }
 
 int partAt (const Pose & pose, float x, float y, const std::function<bool (int)> & canPick) {

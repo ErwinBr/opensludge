@@ -129,6 +129,10 @@ void writeRig (Writer & w, const RigDefinition & rig, int version) {
 			w.f32 (p.pivotX);
 			w.f32 (p.pivotY);
 		}
+		if (version >= 4) {
+			for (int c = 0; c < 4; c ++) w.f32 (p.rest.modulate[c]);
+			for (int c = 0; c < 4; c ++) w.f32 (p.rest.selfModulate[c]);
+		}
 	}
 	w.end (at);
 }
@@ -165,10 +169,13 @@ void writeClip (Writer & w, const ClipDefinition & clip) {
 	w.end (at);
 }
 
-// The version a rig needs: 3 with a part of different X and Y scales, 2
-// with a pivot, 1 otherwise.
+// The version a rig needs: 4 with a part of a colour, 3 with a part of
+// different X and Y scales, 2 with a pivot, 1 otherwise.
 int versionFor (const RigDefinition & rig) {
 	int v = 1;
+	for (size_t p = 0; p < rig.parts.size (); p ++) {
+		if (! rig.parts[p].rest.white ()) return 4;
+	}
 	for (size_t p = 0; p < rig.parts.size (); p ++) {
 		if (! rig.parts[p].rest.uniform ()) return 3;
 		if (rig.parts[p].pivotX != 0 || rig.parts[p].pivotY != 0) v = 2;
@@ -176,9 +183,12 @@ int versionFor (const RigDefinition & rig) {
 	return v;
 }
 
-// The version a clip needs: 3 with a track of SCALE_X or SCALE_Y, 1
-// otherwise.
+// The version a clip needs: 4 with a track of a colour, 3 with a track of
+// SCALE_X or SCALE_Y, 1 otherwise.
 int versionFor (const ClipDefinition & clip) {
+	for (size_t t = 0; t < clip.tracks.size (); t ++) {
+		if (isColour (clip.tracks[t].channel)) return 4;
+	}
 	for (size_t t = 0; t < clip.tracks.size (); t ++) {
 		if (clip.tracks[t].channel == CHANNEL_SCALE_X || clip.tracks[t].channel == CHANNEL_SCALE_Y) return 3;
 	}
@@ -187,7 +197,7 @@ int versionFor (const ClipDefinition & clip) {
 
 // The channels that files of a version have.
 int channelsOf (int version) {
-	return version >= 3 ? NUM_CHANNELS : CHANNEL_FLIP + 1;
+	return version >= 4 ? NUM_CHANNELS : version >= 3 ? CHANNEL_SCALE_Y + 1 : CHANNEL_FLIP + 1;
 }
 
 bool readRig (Reader & r, RigDefinition & rig, int version, std::string & why) {
@@ -203,6 +213,12 @@ bool readRig (Reader & r, RigDefinition & rig, int version, std::string & why) {
 			|| ! r.u8 (flags) || flags > 3 || ! r.i32 (p.depth) || ! r.sprite (p.sprite)
 			|| (version >= 2 && (! r.f32 (p.pivotX) || ! r.f32 (p.pivotY))))
 			return fail (why, "A part of a rig is damaged");
+		if (version >= 4) {
+			bool ok = true;
+			for (int c = 0; c < 4; c ++) ok = ok && r.f32 (p.rest.modulate[c]);
+			for (int c = 0; c < 4; c ++) ok = ok && r.f32 (p.rest.selfModulate[c]);
+			if (! ok) return fail (why, "A part of a rig is damaged");
+		}
 		if (version < 3) p.rest.scaleY = p.rest.scaleX;
 		p.rest.flip = (flags & 1) != 0;
 		p.rest.visible = (flags & 2) != 0;

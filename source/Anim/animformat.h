@@ -21,10 +21,12 @@
  *            rotation, scale x (floats), from version 3 scale y (float;
  *            before, the same as x), flags (1: flip, 2: visible), depth
  *            (4, signed), sprite; from version 2, then the pivot x, y
- *            (floats)
+ *            (floats); from version 4, then modulate R, G, B, A and self
+ *            modulate R, G, B, A (floats, 0 to 2)
  *   "CLIP":  length (4, signed), flags (1: loop), next track ID (4), next
  *            event ID (4), track count (4), then per track: ID (4), part
- *            name, channel byte (SCALE_X and SCALE_Y from version 3),
+ *            name, channel byte (SCALE_X and SCALE_Y from version 3, the
+ *            MODULATE and SELF_MODULATE channels from version 4),
  *            key count (4), then per key: time (4,
  *            signed), easing byte, and a sprite for SPRITE tracks, a float
  *            for the others; then the event count (4), and per event: ID
@@ -51,8 +53,9 @@ namespace animformat {
 // The version encode writes: the lowest that holds what it writes, so that
 // what was written before stays the same to the byte. 1; 2 when a part of a
 // rig has a pivot; 3 when a part has different X and Y scales, or a clip
-// has a track of SCALE_X or SCALE_Y. decode reads them all.
-const int version = 3;
+// has a track of SCALE_X or SCALE_Y; 4 when a part of a rig has a colour,
+// or a clip a track of one. decode reads them all.
+const int version = 4;
 
 typedef std::vector<unsigned char> Bytes;
 

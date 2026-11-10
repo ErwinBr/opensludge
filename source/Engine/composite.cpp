@@ -99,10 +99,12 @@ struct PartQuad {
 	const AtlasPage * page;
 	float corners[8];
 	spritebank::TexRect r;
+	float colour[4];	// The part's (PosedPart::colour)
 };
 
 static PartQuad partQuad (const PosedPart & part, const Transform2D & m) {
 	PartQuad q;
+	for (int c = 0; c < 4; c ++) q.colour[c] = part.colour[c];
 	const spriteBank & bank = engineBank (part.sprite.bank) -> bank;
 	q.s = & bank.sprites[part.sprite.number];
 	q.page = & bank.pages[q.s -> texNum];
@@ -178,9 +180,13 @@ bool drawRiggedPerson (const onScreenPerson * p) {
 
 		gfx::Texture * const textures[3] = { q.page -> tex.get (), uniforms.useLightTexture ? lightMap.tex : NULL, NULL };
 		gfx::Quad quad = { vertices, { texCoords, ltexCoords, NULL } };
-		gfx::renderer->draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA, gfx::DEPTH_TEST), uniforms, textures, quad);
+		// The part's own colour, over the character's.
+		gfx::DrawUniforms tinted = uniforms;
+		for (int c = 0; c < 4; c ++) tinted.tint[c] = q.colour[c];
+		gfx::renderer->draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA, gfx::DEPTH_TEST), tinted, textures, quad);
 
-		if (! over && ! (p -> extra & EXTRA_RECTANGULAR)) over = mouseOverPart (part, screen, panel);
+		// A part faded away entirely isn't under the mouse.
+		if (! over && ! (p -> extra & EXTRA_RECTANGULAR) && q.colour[3] > 0) over = mouseOverPart (part, screen, panel);
 	}
 	setSecondaryColor (0., 0., 0., 1.);
 
@@ -264,6 +270,7 @@ static void pastePart (const onScreenPerson * p, const PartQuad & q, GLfloat z, 
 			};
 			gfx::DrawUniforms uniforms = engineUniforms ();
 			uniforms.useLightTexture = light && lightMapMode == LIGHTMAPMODE_PIXEL && lightMap.data;
+			for (int c = 0; c < 4; c ++) uniforms.tint[c] = q.colour[c];
 			gfx::Texture * const textures[3] = { q.page -> tex.get (), uniforms.useLightTexture ? lightMap.tex : NULL, copy };
 			gfx::Quad quad = { vertices2, { texCoords, ltexCoords, btexCoords } };
 			gfx::renderer->draw (gfx::PipelineState (gfx::PROG_PASTE, gfx::BLEND_OFF, useZB ? gfx::DEPTH_TEST : gfx::DEPTH_OFF), uniforms, textures, quad);

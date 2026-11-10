@@ -100,7 +100,12 @@ public:
 	bool setLength (int length, bool removePast, std::string & why);
 
 	bool addTrack (const std::string & part, Channel channel, TrackId * added, std::string & why);
+	// The tracks of channels that the part hasn't yet, as one change (the
+	// four of a colour): added gets the first new one, or 0.
+	bool addTracks (const std::string & part, const std::vector<Channel> & channels, TrackId * added, std::string & why);
 	void removeTrack (TrackId id);
+	// Tracks and their keys, as one change.
+	void removeTracks (const std::vector<TrackId> & ids);
 	// Set or replace the key of a track at a tick: a value of a continuous or
 	// discrete channel (the model's units: a factor for SCALE, 0 or 1 for
 	// VISIBLE and FLIP), with an easing towards the next key (always STEP
@@ -110,6 +115,8 @@ public:
 	// empty path NONE (an empty frame) or, with useDefault, the part's own.
 	bool setSpriteKey (TrackId id, int time, const std::string & bank, int number, bool mirror, bool useDefault, std::string & why);
 	void setEasing (const KeyRef & key, Easing easing);
+	// The easing of keys, as one change; discrete ones are left as they are.
+	void setEasings (const std::vector<KeyRef> & keys, Easing easing);
 	void removeKeys (const std::vector<KeyRef> & keys);
 	// Move, or copy, keys by ticks: false if one would leave the clip.
 	bool moveKeys (const std::vector<KeyRef> & keys, int by, bool copy, std::string & why, int mergeKey = 0);

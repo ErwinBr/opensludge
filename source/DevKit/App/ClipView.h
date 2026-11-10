@@ -66,7 +66,21 @@ private:
 		Channel channel;
 		int depth;
 		bool missing;		// A part that the rig doesn't have
+		// Its tracks: one, or of a colour, those of its four channels that
+		// the clip has (track is the first of them).
+		std::vector<TrackId> tracks;
 	};
+	// A key as a row shows it: of a colour, the keys of its channels at a
+	// tick, with the colour there and the easing of the first.
+	struct RowKey {
+		int time;
+		std::vector<KeyRef> refs;
+		Easing easing;
+		float colour[4];
+	};
+	std::vector<RowKey> rowKeys (const Row & row) const;
+	// The rows of a part's tracks.
+	void addTrackRows (const std::string & part, int depth, bool missing);
 	struct Pending {
 		bool waiting, answered;
 		enum What { SOUND, BANK, PART_BANK } what;
@@ -114,6 +128,10 @@ private:
 	std::set<std::string> soundsSaid;
 	void requestLength (int length);
 	void selectOnly (const KeyRef & key);
+	void selectOnly (const std::vector<KeyRef> & keys);
+	// The selected keys, when they are one key of a row: one key, or the
+	// keys of a colour at a tick.
+	bool soleKey (std::vector<KeyRef> & refs) const;
 	void removeSelection ();
 	void copySelection ();
 	void paste ();
@@ -146,7 +164,7 @@ private:
 	// A key button at the end of a row of the Inspector, for its channels.
 	void keyButton (const char * id, const std::string & part, const std::vector<Channel> & channels, float rightX = 0);
 	void drawPartInspector ();
-	void drawKeyInspector (const KeyRef & key);
+	void drawKeyInspector (const std::vector<KeyRef> & keys);
 	void say (const std::string & text);
 
 	ClipDocument * clip;

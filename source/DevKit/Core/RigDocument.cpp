@@ -188,9 +188,7 @@ bool RigDocument::placePart (PartId id, PartId parent, int position, std::string
 void RigDocument::setRest (PartId id, const PartPose & rest, int mergeKey) {
 	int i = partWithId (state.rig, id);
 	if (i < 0) return;
-	const PartPose & now = state.rig.parts[i].rest;
-	if (now.x == rest.x && now.y == rest.y && now.rotation == rest.rotation && now.scaleX == rest.scaleX && now.scaleY == rest.scaleY
-		&& now.flip == rest.flip && now.visible == rest.visible) return;
+	if (state.rig.parts[i].rest == rest) return;
 	animformat::Asset after = state;
 	after.rig.parts[i].rest = rest;
 	std::string why;

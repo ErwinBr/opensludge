@@ -103,12 +103,33 @@ enum Channel : int {
 	CHANNEL_FLIP,		// 1 mirrors the part and what is attached to it
 	CHANNEL_SCALE_X,	// A factor of the part's own X axis
 	CHANNEL_SCALE_Y,	// A factor of its Y axis
+	// Factors of the part's colour, 0 to 2 (1 leaves it as it is): MODULATE
+	// tints the part and what is attached to it, SELF_MODULATE the part only.
+	CHANNEL_MODULATE_R,
+	CHANNEL_MODULATE_G,
+	CHANNEL_MODULATE_B,
+	CHANNEL_MODULATE_A,
+	CHANNEL_SELF_MODULATE_R,
+	CHANNEL_SELF_MODULATE_G,
+	CHANNEL_SELF_MODULATE_B,
+	CHANNEL_SELF_MODULATE_A,
 	NUM_CHANNELS
 };
 
 bool isDiscrete (Channel c);
 // SCALE, SCALE_X or SCALE_Y: factors, which scripts give in percent.
 inline bool isScale (Channel c) { return c == CHANNEL_SCALE || c == CHANNEL_SCALE_X || c == CHANNEL_SCALE_Y; }
+inline bool isModulate (Channel c) { return c >= CHANNEL_MODULATE_R && c <= CHANNEL_MODULATE_A; }
+inline bool isSelfModulate (Channel c) { return c >= CHANNEL_SELF_MODULATE_R && c <= CHANNEL_SELF_MODULATE_A; }
+inline bool isColour (Channel c) { return isModulate (c) || isSelfModulate (c); }
+// The first channel of a colour's four (R), or c itself.
+inline Channel colourGroup (Channel c) {
+	return isModulate (c) ? CHANNEL_MODULATE_R : isSelfModulate (c) ? CHANNEL_SELF_MODULATE_R : c;
+}
+// Factors, which scripts give in percent: the scales and the colours.
+inline bool isPercent (Channel c) { return isScale (c) || isColour (c); }
+// The highest factor of a colour.
+const float MAX_MODULATE = 2.0f;
 
 enum Easing : int {
 	EASING_STEP,		// The value of the key, until the next
@@ -143,9 +164,24 @@ struct PartPose {
 	float scaleX, scaleY;
 	bool flip;
 	bool visible;
+	// R, G, B and A factors: modulate of the part and what is attached to
+	// it, selfModulate of the part only. White (1) leaves them as they are.
+	float modulate[4], selfModulate[4];
 
-	PartPose () : x (0), y (0), rotation (0), scaleX (1), scaleY (1), flip (false), visible (true) {}
+	PartPose () : x (0), y (0), rotation (0), scaleX (1), scaleY (1), flip (false), visible (true),
+		modulate { 1, 1, 1, 1 }, selfModulate { 1, 1, 1, 1 } {}
 	bool uniform () const { return scaleX == scaleY; }
+	bool white () const {
+		for (int i = 0; i < 4; i ++) if (modulate[i] != 1 || selfModulate[i] != 1) return false;
+		return true;
+	}
+	bool operator== (const PartPose & o) const {
+		if (x != o.x || y != o.y || rotation != o.rotation || scaleX != o.scaleX || scaleY != o.scaleY
+			|| flip != o.flip || visible != o.visible) return false;
+		for (int i = 0; i < 4; i ++) if (modulate[i] != o.modulate[i] || selfModulate[i] != o.selfModulate[i]) return false;
+		return true;
+	}
+	bool operator!= (const PartPose & o) const { return ! (* this == o); }
 };
 
 struct RigPart {
@@ -313,6 +349,10 @@ typedef std::vector<TrackSample> TrackSamples;
 // straight to the next key's; INOUT eases in and out (smoothstep).
 // Discrete channels always step.
 void evaluateClip (const ClipDefinition & clip, AnimationTime time, TrackSamples & out);
+
+// The value of one track (not SPRITE) at time, as evaluateClip has it; 0
+// without keys.
+float sampleTrack (const Track & track, AnimationTime time);
 
 // The sprite of one track at time, as evaluateClip has it: NULL when the
 // clip has no SPRITE track of that part, or it has no keys.

@@ -44,7 +44,7 @@ struct ProgramInfo {
 	GLuint program;
 	GLint matrix, color, secondaryColor;
 	GLint useLightTexture, antialias, scale;
-	GLint zBuffer, zBufferLayer, modulateColor;
+	GLint zBuffer, zBufferLayer, modulateColor, tint;
 	GLint vertex, texCoords[3], vertexColor;
 };
 
@@ -152,6 +152,7 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 	info.zBuffer = glGetUniformLocation (program, "zBuffer");
 	info.zBufferLayer = glGetUniformLocation (program, "zBufferLayer");
 	info.modulateColor = glGetUniformLocation (program, "modulateColor");
+	info.tint = glGetUniformLocation (program, "tint");
 	info.vertex = glGetAttribLocation (program, "myVertex");
 	info.texCoords[0] = glGetAttribLocation (program, "myUV0");
 	info.texCoords[1] = glGetAttribLocation (program, "myUV1");
@@ -394,6 +395,7 @@ void GLRenderer::setUniforms (const ProgramInfo & info, const DrawUniforms & u) 
 	if (info.matrix >= 0) glUniformMatrix4fv (info.matrix, 1, GL_FALSE, u.matrix);
 	if (info.color >= 0) glUniform4f (info.color, u.color[0], u.color[1], u.color[2], u.color[3]);
 	if (info.secondaryColor >= 0) glUniform4f (info.secondaryColor, u.secondaryColor[0], u.secondaryColor[1], u.secondaryColor[2], u.secondaryColor[3]);
+	if (info.tint >= 0) glUniform4f (info.tint, u.tint[0], u.tint[1], u.tint[2], u.tint[3]);
 	if (info.useLightTexture >= 0) glUniform1i (info.useLightTexture, u.useLightTexture);
 	if (info.antialias >= 0) glUniform1i (info.antialias, u.antialias);
 	if (info.scale >= 0) glUniform1f (info.scale, antialiasScale);

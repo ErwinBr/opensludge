@@ -1843,6 +1843,70 @@ static void testBankCompaction () {
 	CHECK (clipBack.bankOf (clipBack.key (KeyRef (sprite, 16))->sprite) == "b.duc" && clipBack.key (KeyRef (sprite, 16))->sprite.number == 2);
 }
 
+// Colours: their four tracks added and removed as one change, keyed,
+// eased, moved and pasted together, and a rig's rest colour saved.
+static void testColourKeys () {
+	std::string why, error;
+	ClipDocument clip;
+	CHECK (clip.setLength (24, false, why));
+	std::vector<Channel> rgba { CHANNEL_MODULATE_R, CHANNEL_MODULATE_G, CHANNEL_MODULATE_B, CHANNEL_MODULATE_A };
+	TrackId first;
+	CHECK (clip.addTracks ("arm", rgba, &first, why) && first && clip.clip ().tracks.size () == 4);
+	CHECK (clip.commands ().undoLabel () == "Add Track" && ! clip.addTracks ("arm", rgba, NULL, why));
+	clip.commands ().undo ();
+	CHECK (clip.clip ().tracks.empty ());
+	clip.commands ().redo ();
+
+	// Keyed together, as the editor's key button does.
+	std::vector<KeyRef> keys;
+	const float colour[4] = { 0.5f, 1, 1.5f, 0.25f };
+	for (int c = 0; c < 4; c ++) {
+		CHECK (clip.autoKey ("arm", rgba[c], 4, colour[c], why, 9));
+		keys.push_back (KeyRef (clip.track ("arm", rgba[c])->id, 4));
+	}
+	clip.commands ().stopMerging ();
+	CHECK (clip.key (keys[2])->value == 1.5f);
+	CHECK (! clip.autoKey ("arm", CHANNEL_MODULATE_R, 8, 2.5f, why) && ! why.empty ());
+	clip.setEasings (keys, EASING_INOUT);
+	CHECK (clip.key (keys[0])->easing == EASING_INOUT && clip.key (keys[3])->easing == EASING_INOUT && clip.commands ().undoLabel () == "Easing");
+	clip.commands ().undo ();
+	CHECK (clip.key (keys[0])->easing == EASING_LINEAR && clip.key (keys[3])->easing == EASING_LINEAR);
+
+	// Moved and pasted as one.
+	CHECK (clip.moveKeys (keys, 6, false, why));
+	std::vector<KeyRef> moved;
+	for (size_t i = 0; i < keys.size (); i ++) moved.push_back (KeyRef (keys[i].track, 10));
+	CHECK (clip.key (moved[1]) && ! clip.key (keys[1]));
+	std::vector<ClipItem> items = clip.copy (moved, std::vector<EventId> ());
+	std::string onto = "leg";
+	std::vector<KeyRef> pasted;
+	CHECK (clip.paste (items, 20, &onto, &pasted, NULL, why) && pasted.size () == 4);
+	CHECK (clip.track ("leg", CHANNEL_MODULATE_A) && clip.key (KeyRef (clip.track ("leg", CHANNEL_MODULATE_A)->id, 20))->value == 0.25f);
+
+	// Removed as one change, and saved as version 4.
+	CHECK (clip.save (folder + "colour.clp", &error));
+	ClipDocument back;
+	CHECK (back.load (folder + "colour.clp", &error) && back.track ("arm", CHANNEL_MODULATE_B));
+	std::vector<TrackId> legs;
+	for (int c = 0; c < 4; c ++) legs.push_back (clip.track ("leg", rgba[c])->id);
+	clip.removeTracks (legs);
+	CHECK (! clip.track ("leg", CHANNEL_MODULATE_R) && clip.commands ().undoLabel () == "Remove Tracks");
+	clip.commands ().undo ();
+	CHECK (clip.track ("leg", CHANNEL_MODULATE_R) && clip.track ("leg", CHANNEL_MODULATE_A));
+
+	RigDocument rig;
+	PartId arm;
+	CHECK (rig.addPart (rig.rig ().parts[0].id, "arm", &arm, why));
+	PartPose rest = rig.part (arm)->rest;
+	rest.selfModulate[1] = 0.5f;
+	rest.modulate[3] = 2;
+	rig.setRest (arm, rest);
+	CHECK (rig.save (folder + "colour.rig", &error));
+	RigDocument rigBack;
+	CHECK (rigBack.load (folder + "colour.rig", &error));
+	CHECK (rigBack.part (arm)->rest.selfModulate[1] == 0.5f && rigBack.part (arm)->rest.modulate[3] == 2);
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -1871,6 +1935,7 @@ int main (int argc, char ** argv) {
 	testEditorParts ();
 	testClipPaste ();
 	testBankCompaction ();
+	testColourKeys ();
 	testPreviewPlayer ();
 	testFileMemory ();
 

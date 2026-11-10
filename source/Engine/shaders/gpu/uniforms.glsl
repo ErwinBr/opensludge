@@ -9,4 +9,5 @@ layout(set = 3, binding = 0) uniform Draw {
 	int useLightTexture;
 	int zBuffer;
 	int modulateColor;
+	vec4 tint;
 };

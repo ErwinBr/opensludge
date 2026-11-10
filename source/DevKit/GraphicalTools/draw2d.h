@@ -35,6 +35,9 @@ public:
 	// Set the colour of what we draw next. We multiply the colours of a
 	// picture by it. We blend what we draw with what is there, by its alpha.
 	virtual void setDrawingColour (float r, float g, float b, float a) = 0;
+	// A colour over the drawing colour, whose components may go above 1 to
+	// brighten, as a part's colour does in the game. White until changed.
+	virtual void setTint (float r, float g, float b, float a) = 0;
 
 	// Draw count points, given as x, y pairs: as separate lines between pairs
 	// of points, as a closed line through all of them, or as a filled convex

@@ -93,9 +93,13 @@ struct DrawUniforms {
 	bool zBuffer;			// PROG_TEXTURE
 	float zBufferLayer;		// PROG_TEXTURE
 	bool modulateColor;		// PROG_TEXTURE
+	// What PROG_SMART_SCALER and PROG_PASTE multiply their result by, after
+	// the light and the colours above: a part's colour (components above 1
+	// brighten).
+	float tint[4];
 
 	// The identity matrix, white, transparent black as the secondary
-	// colour, and false and 0 for the rest. The engine starts from
+	// colour, a white tint, and false and 0 for the rest. The engine starts from
 	// engineUniforms () in graphics.h instead.
 	DrawUniforms ();
 };

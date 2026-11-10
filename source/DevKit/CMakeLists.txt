@@ -321,6 +321,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-inspector
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-clip-inspector PROPERTIES LABELS capture)
+		# And a colour: Modulate set in the Inspector's popup, then keyed, as
+		# four tracks in one row.
+		add_test(NAME capture-devkit-clip-colour
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip.clp
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/clip_colour_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/clip-colour.clp
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-clip-colour
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-clip-colour PROPERTIES LABELS capture)
 		# And copy and paste: two keys pasted near the end, which grows the clip.
 		add_test(NAME capture-devkit-clip-paste
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

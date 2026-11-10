@@ -51,5 +51,5 @@ void main()
 		col = color.rgb * c11.rgb;
 	}
 	col += vec3(secondaryColor);
-	fragColor = vec4 (col, color.a * c11.a);
+	fragColor = vec4 (col * tint.rgb, color.a * c11.a * tint.a);
 }

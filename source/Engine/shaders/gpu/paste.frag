@@ -28,7 +28,7 @@ void main()
 		col = color.rgb * texture0.rgb;
 	}
 	col += vec3(secondaryColor);
-	vec4 c = vec4 (col, color.a * texture0.a);
+	vec4 c = vec4 (col * tint.rgb, color.a * texture0.a * tint.a);
 	col = mix (texture2.rgb, c.rgb, c.a);
 	fragColor = vec4 (col, max(texture0.a, texture2.a));
 }

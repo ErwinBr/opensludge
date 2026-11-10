@@ -10,6 +10,9 @@ varying vec2 varCoord1;
 varying vec4 color;
 varying vec4 secondaryColor;
 
+// A part's colour, over everything else (gfx::DrawUniforms::tint).
+uniform vec4 tint;
+
 void main()
 {
 	vec4 c11 = texture2D(Texture, varCoord0.xy);
@@ -26,6 +29,6 @@ void main()
 		col = color.rgb * c11.rgb;
 	}
 	col += vec3(secondaryColor);
-	gl_FragColor = vec4 (col, color.a * c11.a);
+	gl_FragColor = vec4 (col * tint.rgb, color.a * c11.a * tint.a);
 }
 

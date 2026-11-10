@@ -137,8 +137,9 @@ SpriteRef shown (const SpriteRef & s, const SpriteRef & own) {
 	return SpriteRef::none ();
 }
 
-// A value of a channel onto a part: added (multiplied for the scales) by
-// an additive layer to X, Y, ROTATION and the scales; replaced otherwise.
+// A value of a channel onto a part: added (multiplied for the scales and
+// the colours) by an additive layer to X, Y, ROTATION, the scales and the
+// colours; replaced otherwise.
 void apply (PosedPart & p, Channel channel, float value, bool add) {
 	switch (channel) {
 		case CHANNEL_X: p.local.x = add ? p.local.x + value : value; break;
@@ -153,7 +154,14 @@ void apply (PosedPart & p, Channel channel, float value, bool add) {
 		case CHANNEL_VISIBLE: p.local.visible = value != 0; break;
 		case CHANNEL_DEPTH: p.depth = (int) lrintf (value); break;
 		case CHANNEL_FLIP: p.local.flip = value != 0; break;
-		default: break;
+		default:
+			if (isColour (channel)) {
+				float & c = isModulate (channel) ? p.local.modulate[channel - CHANNEL_MODULATE_R]
+					: p.local.selfModulate[channel - CHANNEL_SELF_MODULATE_R];
+				c = add ? c * value : value;
+				c = c < 0 ? 0 : c > MAX_MODULATE ? MAX_MODULATE : c;
+			}
+			break;
 	}
 }
 
@@ -226,6 +234,10 @@ void evaluatePose (const RigDefinitionRef & rig, const std::vector<LayerSamples>
 		p.spriteWorld = parts[i].pivotX == 0 && parts[i].pivotY == 0 ? p.world
 			: p.world * Transform2D::translation (- parts[i].pivotX, - parts[i].pivotY);
 		p.shown = p.local.visible && (parent < 0 || out.parts[parent].shown);
+		for (int c = 0; c < 4; c ++) {
+			p.inherited[c] = (parent < 0 ? 1.0f : out.parts[parent].inherited[c]) * p.local.modulate[c];
+			p.colour[c] = p.inherited[c] * p.local.selfModulate[c];
+		}
 		if (p.shown && p.sprite.kind == SpriteRef::SPRITE) out.drawOrder.push_back ((int) i);
 	}
 	std::stable_sort (out.drawOrder.begin (), out.drawOrder.end (),

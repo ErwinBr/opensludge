@@ -38,6 +38,7 @@ public:
 	explicit GfxDraw2D (gfx::Renderer * r) : renderer (r), pixel (1.0f), originX (0.0f), originY (0.0f), down (-1.0f),
 		viewLeft (-1e30f), viewRight (1e30f), viewBottom (-1e30f), viewTop (1e30f) {
 		colour[0] = colour[1] = colour[2] = colour[3] = 255;
+		tint[0] = tint[1] = tint[2] = tint[3] = 1.0f;
 		gfx::DrawUniforms identity;
 		memcpy (matrix, identity.matrix, sizeof (matrix));
 	}
@@ -47,6 +48,7 @@ public:
 	void setViewArea (int x, int y, int w, int h, float zmul);
 	void setSpriteViewArea (int x, int y, int w, int h, float zmul);
 	void setDrawingColour (float r, float g, float b, float a);
+	void setTint (float r, float g, float b, float a);
 	void drawLines (const float * points, int count);
 	void drawLineLoop (const float * points, int count);
 	void drawPolygon (const float * points, int count);
@@ -74,6 +76,7 @@ private:
 	gfx::Renderer * renderer;
 	float matrix[16];
 	unsigned char colour[4];
+	float tint[4];
 	// How much of the picture one pixel of the view covers, and where the
 	// edges of the pixels are: at the origin and whole pixels from it.
 	float pixel;
@@ -86,6 +89,7 @@ private:
 	struct Batch {
 		gfx::Texture * texture;
 		float matrix[16];
+		float tint[4];
 		size_t firstVertex, firstIndex, vertexCount, indexCount;
 	};
 	std::vector<Batch> batches;
@@ -162,10 +166,17 @@ void GfxDraw2D::setDrawingColour (float r, float g, float b, float a) {
 	colour[3] = toByte (a);
 }
 
+void GfxDraw2D::setTint (float r, float g, float b, float a) {
+	tint[0] = r;
+	tint[1] = g;
+	tint[2] = b;
+	tint[3] = a;
+}
+
 unsigned short GfxDraw2D::startBatch (gfx::Texture * texture, size_t count) {
 	if (! batches.empty ()) {
 		Batch & last = batches.back ();
-		if (last.texture == texture && ! memcmp (last.matrix, matrix, sizeof (matrix))
+		if (last.texture == texture && ! memcmp (last.matrix, matrix, sizeof (matrix)) && ! memcmp (last.tint, tint, sizeof (tint))
 				&& last.vertexCount + count <= MAX_BATCH_VERTICES) {
 			unsigned short first = (unsigned short) last.vertexCount;
 			last.vertexCount += count;
@@ -175,6 +186,7 @@ unsigned short GfxDraw2D::startBatch (gfx::Texture * texture, size_t count) {
 	Batch batch;
 	batch.texture = texture;
 	memcpy (batch.matrix, matrix, sizeof (matrix));
+	memcpy (batch.tint, tint, sizeof (tint));
 	batch.firstVertex = vertices.size ();
 	batch.firstIndex = indices.size ();
 	batch.vertexCount = count;
@@ -335,6 +347,7 @@ void GfxDraw2D::finish () {
 		const Batch & batch = batches[i];
 		gfx::DrawUniforms uniforms;
 		memcpy (uniforms.matrix, batch.matrix, sizeof (uniforms.matrix));
+		memcpy (uniforms.color, batch.tint, sizeof (uniforms.color));
 		renderer->drawMesh (state, uniforms, batch.texture, mesh,
 			(int) batch.firstIndex, (int) batch.indexCount, (int) batch.firstVertex);
 	}

@@ -1,0 +1,46 @@
+# A colour keyed in the animation editor, on fixtures/clip.clp (a clip of
+# 24 ticks of nothing, made for fixtures/rig-edited.rig) in the window of
+# a smoke test (1280 x 800), with Auto key off: part 2 selected in the
+# hierarchy, its Modulate swatch (at y 326 in the Inspector) opened, its red
+# set to 50% and its blue to 150% in the popup's fields (at y 508), the
+# popup closed, and Modulate's key button pressed: four tracks, keyed at 0.
+wait 5
+move 352 143
+down
+up
+wait 2
+move 1170 326
+down
+up
+wait 2
+
+move 1088 508
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type 50
+key Enter
+wait 2
+move 1196 508
+down
+up
+down
+up
+wait 1
+key ctrl+A
+type 150
+key Enter
+wait 2
+
+move 1150 700
+down
+up
+wait 2
+move 1261 326
+down
+up
+wait 3
+save ${OUTPUT}

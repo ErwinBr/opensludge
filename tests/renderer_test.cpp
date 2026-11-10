@@ -2,7 +2,7 @@
  * Test the meshes of the renderers (gfx::Renderer::createFrameMesh and
  * drawMesh), which the Dev Kit draws with: vertex colours, a texture, the
  * first index and base vertex, the uniform colour, blending and the
- * scissor rectangle, over two frames.
+ * scissor rectangle, over two frames; and the tint of the sprite program.
  *
  * Usage: renderer_test gl|gpu
  */
@@ -220,6 +220,42 @@ int main (int argc, char ** argv) {
 		r->setTarget (NULL);
 		r->present ();
 		r->destroyTexture (pageTex);
+	}
+
+	// The tint of the sprite program (a part's colour): over the texture,
+	// with components above 1 brightening, and alpha that blends. White
+	// leaves the sprite as it is.
+	{
+		unsigned char texel[2 * 2 * 4];
+		for (int i = 0; i < 4; i ++) {
+			texel[i * 4] = 200;
+			texel[i * 4 + 1] = 100;
+			texel[i * 4 + 2] = 50;
+			texel[i * 4 + 3] = 255;
+		}
+		gfx::Texture * sprite = r->createTexture (2, 2, gfx::TEX_RGBA8, texel);
+		r->setTextureFilter (sprite, gfx::FILTER_NEAREST, gfx::FILTER_NEAREST);
+		r->setTarget (target);
+		r->setViewport (0, 0, W, H);
+		r->clear (true, false);
+		const float tints[3][4] = { { 1, 1, 1, 1 }, { 0.5f, 1, 2, 1 }, { 1, 1, 1, 0.5f } };
+		for (int q = 0; q < 3; q ++) {
+			float x = q * 16.0f;
+			const float corners[12] = { x, 0, 0, x + 16, 0, 0, x, 16, 0, x + 16, 16, 0 };
+			const float uv[8] = { 0, 0, 1, 0, 0, 1, 1, 1 };
+			gfx::Quad quad = { corners, { uv, uv, NULL } };
+			gfx::Texture * const textures[3] = { sprite, NULL, NULL };
+			gfx::DrawUniforms tinted = u;
+			for (int c = 0; c < 4; c ++) tinted.tint[c] = tints[q][c];
+			r->draw (gfx::PipelineState (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA), tinted, textures, quad);
+		}
+		r->readPixels (0, 0, W, H, pixels);
+		expect (pixels, 8, 8, 200, 100, 50, 255, "a white tint leaves the sprite");
+		expect (pixels, 24, 8, 100, 100, 100, 255, "a tint halves red and doubles blue");
+		expect (pixels, 40, 8, 100, 50, 25, 128, "a tint of half alpha blends over black");
+		r->setTarget (NULL);
+		r->present ();
+		r->destroyTexture (sprite);
 	}
 
 	delete [] pixels;

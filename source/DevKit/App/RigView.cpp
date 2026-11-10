@@ -524,6 +524,16 @@ void RigView::drawInspector () {
 		propertyRow ("Depth", "The order of drawing among the character's parts: higher is in front");
 		if (ImGui::DragInt ("##depth", &depth, 0.1f)) rig->setDepth (id, depth, FIELD_KEY);
 		done |= ImGui::IsItemDeactivated ();
+		// The colours, last, as in the animation editor.
+		if (const RigPart * now = rig->part (id)) {
+			PartPose coloured = now->rest;
+			bool recoloured = false;
+			propertyRow ("Modulate", "Its colour, and the colour of the parts attached to it: each component a factor, from 0 to 200%");
+			recoloured |= colourField ("modulate", coloured.modulate, MAX_MODULATE, &done);
+			propertyRow ("Self Modulate", "Its own colour only, over Modulate: each component a factor, from 0 to 200%");
+			recoloured |= colourField ("selfmodulate", coloured.selfModulate, MAX_MODULATE, &done);
+			if (recoloured) rig->setRest (id, coloured, FIELD_KEY);
+		}
 		if (done) rig->commands ().stopMerging ();
 		ImGui::EndTable ();
 	}
