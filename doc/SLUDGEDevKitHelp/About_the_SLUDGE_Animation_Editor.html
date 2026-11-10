@@ -11,7 +11,7 @@
 <HR>
 
 <P>
-Use the Animation Editor to animate the parts of a <a href="Composite_Characters.html">Composite Character</a>. What you make is an animation <b>clip</b>: for each part that moves, <b>tracks</b> of its place, turn, scale, sprite, visibility, depth or flip, with <b>keys</b> that set them at points in time, and <b>events</b> that play sounds or call functions. A character can play several clips at once, such as a walk and a blink (see <a href="Animation_Clips.html">Animation Clips</a>). This is how it looks with the clip of a walk of the aliens of the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>:
+Use the Animation Editor to animate the parts of a <a href="Composite_Characters.html">Composite Character</a>. What you make is an animation <b>clip</b>: for each part that moves, <b>tracks</b> of its position, rotation, scale, sprite, visibility, depth or flip, with <b>keys</b> that set them at points in time, and <b>events</b> that play sounds or call functions. A character can play several clips at once, such as a walk and a blink (see <a href="Animation_Clips.html">Animation Clips</a>). This is how it looks with the walk of the man in a suit of the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, at tick 20, with a key of his torso selected and his legs locked:
 </P>
 
 <P>
@@ -39,7 +39,7 @@ The tracks are in the order of the rig's parts, each part under the part it is a
 </P>
 
 <P>
-The + by a part adds a track to it: Position (a track for X and one for Y), Turn, Scale, Sprite, Visible, Depth or Flip. The x by a track removes it, with its keys.
+The + by a part adds a track to it: Position (a track for X and one for Y), Rotation, Scale (a track for X and one for Y), Sprite, Visible, Depth or Flip. The x by a track removes it, with its keys. Clips made by scripts may have a Scale (both) track, which scales X and Y together (PART_SCALE of <a href="clipKey.html">clipKey</a>); the editor keeps it, and you can edit its keys.
 </P>
 
 <P>
@@ -49,7 +49,11 @@ Tracks of parts that the rig doesn't have are at the end, in orange. They do not
 <H3>Keying parts in the picture</H3>
 
 <P>
-Put the playhead where you want a key, and move a part in the picture: drag it to move it, or drag the round or square knob on its ring to turn or scale it. That makes a key at the playhead, or changes the key that is there. If the part has no track for it yet, the editor makes one. A move keys the place only, a turn the turn, a scale the scale. The red frame of the picture, and the line under it, say what you are keying.
+Put the playhead where you want a key, and move a part in the picture: drag it to move it, drag the round knob on its ring to rotate it, or drag a yellow square on its sprite's box to scale it. That makes a key at the playhead, or changes the key that is there. If the part has no track for it yet, the editor makes one. A move keys the position only, a rotation the rotation, and a scale the scale. The red frame of the picture, and the line under it, say what you are keying.
+</P>
+
+<P>
+As in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, the corner squares scale X and Y together, unless they scale apart: the lock by the selected part's name in the toolbar says which, and it starts as the part does in the rig. When they scale apart, the squares in the middle of the sides key only the X or the Y scale.
 </P>
 
 <P>
@@ -69,7 +73,7 @@ Click the name of a track to make it the current one, and press K to key it at t
 <H3>Values and easing</H3>
 
 <P>
-The Inspector shows the selected key: its tick, its value and, for place, turn and scale, its easing. The easing says how the value goes from this key to the next one: Step holds it until the next key, Linear goes at a steady speed, and In and out starts and ends slowly. The colours of the keys show their easing, and so do the lines between them. Sprite, visibility, depth and flip keys always step.
+The Inspector shows the selected key: its tick, its value and, for position, rotation and scale, its easing. The easing says how the value goes from this key to the next one: Step holds it until the next key, Linear goes at a steady speed, and In and out starts and ends slowly. The colours of the keys show their easing, and so do the lines between them. Sprite, visibility, depth and flip keys always step.
 </P>
 
 <H3>Sprite keys</H3>
@@ -107,13 +111,19 @@ Click or drag in the ruler to move the playhead, or use the Left and Right arrow
 <H3>A second clip on top</H3>
 
 <P>
-In a game, a character can play a clip on a layer over its costume (see <a href="playClip.html">playClip</a>). To see how two clips go together, choose another clip of your project in Over it. Override lets the second clip set what it keys, over the first; Additive adds its places and turns to those of the first, and multiplies its scales.
+In a game, a character can play a clip on a layer over its costume (see <a href="playClip.html">playClip</a>). To see how two clips go together, choose another clip of your project in Over it. Override lets the second clip set what it keys, over the first; Additive adds its positions and rotations to those of the first, and multiplies its scales.
+</P>
+
+<H3>Locking parts</H3>
+
+<P>
+Click the lock by a part's name in the tracks to lock the part. A locked part can't be selected or keyed in the picture, and its keys, dimmed, can't be selected, moved or removed on the timeline: a click on it in the picture selects the part under it instead. Click the lock again to unlock it. Locks are saved with the clip, apart from the rig's, and they don't change the clip in a game.
 </P>
 
 <H3>Renaming parts</H3>
 
 <P>
-When you rename a part in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, its tracks in the clips made for the rig are renamed too. The editor opens those clips, so that you can save them with the rig. Undo in the rig undoes the rename in the clips as well.
+When you rename a part in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, its tracks in the clips made for the rig are renamed too, and so are their locks. The editor opens those clips, so that you can save them with the rig. Undo in the rig undoes the rename in the clips as well.
 </P>
 
 <H3>Using the clip in a game</H3>

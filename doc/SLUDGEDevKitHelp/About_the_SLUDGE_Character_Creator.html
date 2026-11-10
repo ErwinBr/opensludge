@@ -11,7 +11,7 @@
 <HR>
 
 <P>
-Use the Character Creator to build a <a href="Composite_Characters.html">Composite Character</a>: a character made of parts, such as a body, a head and arms, each with a sprite of its own. What you make is a <b>rig</b>: the parts, what each part is attached to, and how the character stands when no animation moves it, its <b>rest pose</b>. The <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> then animates the parts. This is how it looks with a rig of two aliens of the verb coin example, the small one standing on the big one's shoulder:
+Use the Character Creator to build a <a href="Composite_Characters.html">Composite Character</a>: a character made of parts, such as a body, a head and arms, each with a sprite of its own. What you make is a <b>rig</b>: the parts, what each part is attached to, and how the character stands when no animation moves it, its <b>rest pose</b>. The <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> then animates the parts. This is how it looks with the rig of a man in a suit, one arm turned and selected, and his legs locked:
 </P>
 
 <P>
@@ -19,7 +19,7 @@ Use the Character Creator to build a <a href="Composite_Characters.html">Composi
 </P>
 
 <P>
-The parts are on the left, as a tree: each part is under the part it is attached to. The top of the tree, Character, is the character itself. The middle shows the character in its rest pose, and the Inspector on the right shows the part that you select. Click a part in the tree, or click its sprite in the picture, to select it.
+The parts are on the left, as a tree: each part is under the part it is attached to. The top of the tree, Character, is the character itself. The middle shows the character in its rest pose, and the Inspector on the right shows the part that you select. Click a part in the tree, or click its sprite in the picture, to select it. The lock at the end of each row locks a part, so that you can't change it by accident (see Locking parts below).
 </P>
 
 <H3>Opening and creating rigs</H3>
@@ -45,11 +45,11 @@ Remove takes the selected part away, with every part attached to it. Delete does
 <H3>Attaching parts</H3>
 
 <P>
-Drag a part in the tree onto another part to attach it there, or choose the part in the Inspector's Attached to. The part stays where it is on the screen: it then moves, turns, scales and flips with its new parent.
+Drag a part in the tree onto another part to attach it there, or choose the part in the Inspector's Attached to. The part stays where it is on the screen: it then moves, rotates, scales and flips with its new parent.
 </P>
 
 <P>
-Move Up and Move Down change the order of the parts that hang from the same part. Parts of the same depth are drawn in that order: the first one first, behind the others.
+The arrows &uarr; and &darr; (Move Up and Move Down) change the order of the parts that hang from the same part. Parts of the same depth are drawn in that order: the first one first, behind the others.
 </P>
 
 <H3>Choosing a part's sprite</H3>
@@ -69,17 +69,25 @@ The names of the sprite banks are kept from the folder of your project, as the c
 <H3>Placing parts</H3>
 
 <P>
-Drag a part in the picture to move it. Where you drop it is where it is attached: its <b>origin</b>, the point where the part hangs from its parent. X and Y in the Inspector are the same place in numbers. They are measured from the origin of the parent, in the parent's pixels: +X is to the right, and +Y is down.
+Drag a part in the picture to move it. Where you drop it is where it is attached: its <b>origin</b>, the point where the part hangs from its parent. Position X and Y, under Transform in the Inspector, are the same place in numbers. They are measured from the origin of the parent, in the parent's pixels: +X is to the right, and +Y is down.
 </P>
 
 <P>
 The lines between the parts show which part hangs from which: from each part's origin to its parent's.
 </P>
 
-<H3>Turning, scaling, flipping and hiding parts</H3>
+<H3>Rotating, scaling, flipping and hiding parts</H3>
 
 <P>
-The selected part has a ring around its origin. Drag the round knob on the ring to turn the part, and the square knob to scale it. The parts attached to it turn and scale with it. In the Inspector, Turn is in degrees, clockwise, and Scale in percent.
+The selected part has a ring around its origin. Drag the round knob on the ring to rotate the part. The parts attached to it rotate with it. In the Inspector, Rotation is in degrees, clockwise.
+</P>
+
+<P>
+To scale the part, drag one of the small yellow squares on the corners of its sprite's box. A part's X and Y scale together, so it keeps its shape. Click the lock after Scale in the Inspector to let them scale apart: squares then appear in the middle of each side too, and a square on a side scales only that axis, to make a part wider or taller. A corner square then scales X and Y freely. Click the lock again to scale them together again: Y then takes the scale of X.
+</P>
+
+<P>
+Scale X and Y in the Inspector are in percent, along the part's own axes, so they turn with the part. The parts attached to it scale with it. When a part's X and Y scale apart, a rotated part attached to it is stretched along those axes too, and may be skewed.
 </P>
 
 <P>
@@ -87,7 +95,7 @@ Flip mirrors the part, and the parts attached to it. When Visible is off, the pa
 </P>
 
 <P>
-In the picture, places snap to whole pixels, turns to whole degrees and scales to whole percents. Type other values in the Inspector.
+In the picture, positions snap to whole pixels, rotations to whole degrees and scales to whole percents. Type other values in the Inspector.
 </P>
 
 <H3>Depth</H3>
@@ -99,11 +107,21 @@ Depth sets which parts are drawn in front of the others: a part with a higher de
 <H3>The pivot</H3>
 
 <P>
-A part turns and scales about its <b>pivot</b>, which is also its origin. Normally that is the hotspot of its sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. But the hotspot of a sprite doesn't always suit the part: an arm whose hotspot is in its middle should turn at its shoulder. Rather than changing the sprite bank, which other parts or characters may use too, you give the part a pivot of its own.
+A part rotates and scales about its <b>pivot</b>, which is also its origin. Normally that is the hotspot of its sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. But the hotspot of a sprite doesn't always suit the part: an arm whose hotspot is in its middle should rotate at its shoulder. Rather than changing the sprite bank, which other parts or characters may use too, you give the part a pivot of its own.
 </P>
 
 <P>
-Drag the red circle at the selected part's origin to move its pivot, or type it in the Inspector, in the sprite's pixels from its hotspot. With Keep in place on, the sprite and the parts attached to it stay where they are on the screen: only the point that the part turns about moves.
+Drag the red circle at the selected part's origin to move its pivot, or type it in the Inspector, in the sprite's pixels from its hotspot. Center puts the pivot in the middle of the sprite. With Lock sprite position on, the sprite and the parts attached to it stay where they are on the screen: only the point that the part rotates about moves.
+</P>
+
+<H3>Locking parts</H3>
+
+<P>
+Click the lock at the end of a part's row in the tree to lock the part. A locked part can't be selected, moved, rotated or scaled: its name is dimmed, and a click on it in the picture selects the part under it instead. That is useful when parts lie on top of each other, such as a hand over the body. Click the lock again to unlock it. The Character has a lock too, for the character itself. Each lock is for its own part only: the parts attached to a locked part can still be changed.
+</P>
+
+<P>
+Locks are saved with the rig, but they only matter in the Character Creator: they don't change the rig in a game.
 </P>
 
 <H3>Using the rig in a game</H3>
