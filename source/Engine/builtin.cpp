@@ -3113,7 +3113,8 @@ builtIn(setCharacterRig)
 
 // clipKey (clip, part, property, tick, value [, easing]): from tick on, the
 // part's property moves towards value: PART_X and PART_Y in pixels,
-// PART_ROTATION in degrees (clockwise), PART_SCALE in percent, PART_DEPTH,
+// PART_ROTATION in degrees (clockwise), PART_SCALE (both axes), PART_SCALE_X
+// and PART_SCALE_Y in percent, PART_DEPTH,
 // and PART_VISIBLE and PART_FLIP as TRUE or FALSE. The easing (towards the
 // next key) is EASE_LINEAR unless given: EASE_STEP holds the value until
 // the next key, EASE_INOUT eases in and out. Depth, visibility and
@@ -3142,7 +3143,7 @@ builtIn(clipKey)
 	if (! getValueType (property, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (property < 0 || property >= NUM_CHANNELS || property == CHANNEL_SPRITE) {
-		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_DEPTH, PART_VISIBLE or PART_FLIP (and clipSprite for sprites).");
+		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_SCALE_X, PART_SCALE_Y, PART_DEPTH, PART_VISIBLE or PART_FLIP (and clipSprite for sprites).");
 		return BR_ERROR;
 	}
 	std::string part;
@@ -3154,7 +3155,7 @@ builtIn(clipKey)
 	Channel channel = (Channel) property;
 	Key key;
 	key.time = tick;
-	key.value = channel == CHANNEL_SCALE ? value / 100.0f : (float) value;
+	key.value = isScale (channel) ? value / 100.0f : (float) value;
 	if (channel == CHANNEL_VISIBLE || channel == CHANNEL_FLIP) key.value = value ? 1.0f : 0.0f;
 	key.easing = isDiscrete (channel) ? EASING_STEP : (Easing) easing;
 	std::string why;
@@ -3228,7 +3229,7 @@ static bool getPartProperty (loadedFunction * fun, std::string & part, Channel &
 	if (! getValueType (property, SVT_INT, fun -> stack -> thisVar)) return false;
 	trimStack (fun -> stack);
 	if (property < 0 || property >= NUM_CHANNELS || property == CHANNEL_SPRITE) {
-		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_DEPTH, PART_VISIBLE or PART_FLIP.");
+		fatal ("Not a property of a part: use PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_SCALE_X, PART_SCALE_Y, PART_DEPTH, PART_VISIBLE or PART_FLIP.");
 		return false;
 	}
 	channel = (Channel) property;
@@ -3251,7 +3252,7 @@ builtIn(setPartProperty)
 	if (! getPartProperty (fun, part, channel)) return BR_ERROR;
 	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	float v = channel == CHANNEL_SCALE ? value / 100.0f : (float) value;
+	float v = isScale (channel) ? value / 100.0f : (float) value;
 	if (channel == CHANNEL_VISIBLE || channel == CHANNEL_FLIP) v = value ? 1.0f : 0.0f;
 	setVariable (fun -> reg, SVT_INT, setPersonOverride (obj, part, channel, v));
 	return BR_CONTINUE;

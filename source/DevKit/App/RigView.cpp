@@ -302,8 +302,8 @@ void RigView::handleMouse () {
 			float to = distance (mx, my, dragWorld.tx, dragWorld.ty);
 			if (from > 0) {
 				PartPose rest = dragRest;
-				float percent = floorf (dragRest.scale * to / from * 100.0f + 0.5f);
-				rest.scale = (percent < 1 ? 1 : percent) / 100.0f;
+				float percent = floorf (dragRest.scaleX * to / from * 100.0f + 0.5f);
+				rest.scaleX = rest.scaleY = (percent < 1 ? 1 : percent) / 100.0f;
 				rig->setRest (selected, rest, DRAG_KEY);
 			}
 		} else if (drag == DRAG_PIVOT) {
@@ -473,7 +473,7 @@ void RigView::drawInspector () {
 	if (beginProperties ("Rest Pose")) {
 		PartPose rest = part.rest;
 		bool changed = false, done = false;
-		float scale = rest.scale * 100.0f;
+		float scale = rest.scaleX * 100.0f;
 		propertyRow ("X", "Where its origin is, from its parent's, in its parent's pixels");
 		changed |= ImGui::DragFloat ("##x", &rest.x, 1.0f, 0, 0, "%g");
 		done |= ImGui::IsItemDeactivated ();
@@ -485,7 +485,7 @@ void RigView::drawInspector () {
 		done |= ImGui::IsItemDeactivated ();
 		propertyRow ("Scale", "In percent; the parts attached to it scale too");
 		if (ImGui::DragFloat ("##scale", &scale, 1.0f, 1, 10000, "%g%%")) {
-			rest.scale = (scale < 1 ? 1 : scale) / 100.0f;
+			rest.scaleX = rest.scaleY = (scale < 1 ? 1 : scale) / 100.0f;
 			changed = true;
 		}
 		done |= ImGui::IsItemDeactivated ();

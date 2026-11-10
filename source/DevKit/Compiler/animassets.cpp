@@ -35,7 +35,7 @@ std::string extension (const std::string & name) {
 }
 
 const char * channelName (Channel c) {
-	static const char * names[NUM_CHANNELS] = { "x", "y", "rotation", "scale", "sprite", "visibility", "depth", "flip" };
+	static const char * names[NUM_CHANNELS] = { "x", "y", "rotation", "scale", "sprite", "visibility", "depth", "flip", "scale x", "scale y" };
 	return c >= 0 && c < NUM_CHANNELS ? names[c] : "?";
 }
 

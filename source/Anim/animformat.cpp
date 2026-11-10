@@ -118,7 +118,8 @@ void writeRig (Writer & w, const RigDefinition & rig, int version) {
 		w.f32 (p.rest.x);
 		w.f32 (p.rest.y);
 		w.f32 (p.rest.rotation);
-		w.f32 (p.rest.scale);
+		w.f32 (p.rest.scaleX);
+		if (version >= 3) w.f32 (p.rest.scaleY);
 		w.u8 ((p.rest.flip ? 1 : 0) | (p.rest.visible ? 2 : 0));
 		w.i32 (p.depth);
 		w.sprite (p.sprite);
@@ -162,12 +163,29 @@ void writeClip (Writer & w, const ClipDefinition & clip) {
 	w.end (at);
 }
 
-// The version a rig needs: 2 with a pivot, 1 otherwise.
+// The version a rig needs: 3 with a part of different X and Y scales, 2
+// with a pivot, 1 otherwise.
 int versionFor (const RigDefinition & rig) {
+	int v = 1;
 	for (size_t p = 0; p < rig.parts.size (); p ++) {
-		if (rig.parts[p].pivotX != 0 || rig.parts[p].pivotY != 0) return 2;
+		if (! rig.parts[p].rest.uniform ()) return 3;
+		if (rig.parts[p].pivotX != 0 || rig.parts[p].pivotY != 0) v = 2;
+	}
+	return v;
+}
+
+// The version a clip needs: 3 with a track of SCALE_X or SCALE_Y, 1
+// otherwise.
+int versionFor (const ClipDefinition & clip) {
+	for (size_t t = 0; t < clip.tracks.size (); t ++) {
+		if (clip.tracks[t].channel == CHANNEL_SCALE_X || clip.tracks[t].channel == CHANNEL_SCALE_Y) return 3;
 	}
 	return 1;
+}
+
+// The channels that files of a version have.
+int channelsOf (int version) {
+	return version >= 3 ? NUM_CHANNELS : CHANNEL_FLIP + 1;
 }
 
 bool readRig (Reader & r, RigDefinition & rig, int version, std::string & why) {
@@ -178,17 +196,19 @@ bool readRig (Reader & r, RigDefinition & rig, int version, std::string & why) {
 		RigPart & p = rig.parts[i];
 		int flags;
 		if (! r.u32 (p.id) || ! r.str (p.name) || ! r.i32 (p.parent)
-			|| ! r.f32 (p.rest.x) || ! r.f32 (p.rest.y) || ! r.f32 (p.rest.rotation) || ! r.f32 (p.rest.scale)
+			|| ! r.f32 (p.rest.x) || ! r.f32 (p.rest.y) || ! r.f32 (p.rest.rotation) || ! r.f32 (p.rest.scaleX)
+			|| (version >= 3 && ! r.f32 (p.rest.scaleY))
 			|| ! r.u8 (flags) || flags > 3 || ! r.i32 (p.depth) || ! r.sprite (p.sprite)
 			|| (version >= 2 && (! r.f32 (p.pivotX) || ! r.f32 (p.pivotY))))
 			return fail (why, "A part of a rig is damaged");
+		if (version < 3) p.rest.scaleY = p.rest.scaleX;
 		p.rest.flip = (flags & 1) != 0;
 		p.rest.visible = (flags & 2) != 0;
 	}
 	return validRig (rig, why);
 }
 
-bool readClip (Reader & r, ClipDefinition & clip, std::string & why) {
+bool readClip (Reader & r, ClipDefinition & clip, int version, std::string & why) {
 	int loop;
 	size_t n;
 	if (! r.i32 (clip.length) || ! r.u8 (loop) || loop > 1 || ! r.u32 (clip.nextTrackId) || ! r.u32 (clip.nextEventId)
@@ -201,7 +221,7 @@ bool readClip (Reader & r, ClipDefinition & clip, std::string & why) {
 		Track & track = clip.tracks[t];
 		int channel;
 		size_t keys;
-		if (! r.u32 (track.id) || ! r.str (track.part) || ! r.u8 (channel) || channel >= NUM_CHANNELS || ! r.count (keys, minKey))
+		if (! r.u32 (track.id) || ! r.str (track.part) || ! r.u8 (channel) || channel >= channelsOf (version) || ! r.count (keys, minKey))
 			return fail (why, "A track of a clip is damaged");
 		track.channel = (Channel) channel;
 		track.keys.assign (keys, Key ());
@@ -239,6 +259,7 @@ bool encode (const Document & doc, Bytes & out, std::string & why) {
 	}
 	int v = 1;
 	for (size_t i = 0; i < doc.rigs.size (); i ++) v = std::max (v, versionFor (doc.rigs[i]));
+	for (size_t i = 0; i < doc.clips.size (); i ++) v = std::max (v, versionFor (doc.clips[i]));
 	out.clear ();
 	Writer w (out);
 	w.tag (magic);
@@ -266,7 +287,7 @@ bool decode (const unsigned char * data, size_t size, Document & doc, std::strin
 			if (! readRig (c, doc.rigs.back (), v, why)) return false;
 		} else if (! memcmp (tag, clipTag, 4)) {
 			doc.clips.push_back (ClipDefinition ());
-			if (! readClip (c, doc.clips.back (), why)) return false;
+			if (! readClip (c, doc.clips.back (), v, why)) return false;
 		} else {
 			known = false;
 		}
@@ -376,7 +397,7 @@ bool encodeAsset (const Asset & asset, Bytes & out, std::string & why) {
 	out.clear ();
 	Writer w (out);
 	w.tag (magic);
-	int v = asset.kind == Asset::RIG ? versionFor (asset.rig) : 1;
+	int v = asset.kind == Asset::RIG ? versionFor (asset.rig) : versionFor (asset.clip);
 	w.u16 (v);
 	size_t at = w.start (assetIdTag);
 	writeAssetId (w, asset.id);
@@ -429,7 +450,7 @@ bool decodeAsset (const unsigned char * data, size_t size, Asset & asset, std::s
 				if (! readRig (c, asset.rig, v, why)) return false;
 			} else {
 				asset.kind = Asset::CLIP;
-				if (! readClip (c, asset.clip, why)) return false;
+				if (! readClip (c, asset.clip, v, why)) return false;
 			}
 		} else if (! memcmp (tag, assetIdTag, 4)) {
 			if (haveId) return fail (why, "An asset has one identity");

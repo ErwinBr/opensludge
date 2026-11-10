@@ -18,12 +18,14 @@
  *
  *   "RIG ":  next part ID (4), part count (4), then per part: ID (4),
  *            name, parent index (4, signed: -1 for the root), x, y,
- *            rotation, scale (floats), flags (1: flip, 2: visible), depth
+ *            rotation, scale x (floats), from version 3 scale y (float;
+ *            before, the same as x), flags (1: flip, 2: visible), depth
  *            (4, signed), sprite; from version 2, then the pivot x, y
  *            (floats)
  *   "CLIP":  length (4, signed), flags (1: loop), next track ID (4), next
  *            event ID (4), track count (4), then per track: ID (4), part
- *            name, channel byte, key count (4), then per key: time (4,
+ *            name, channel byte (SCALE_X and SCALE_Y from version 3),
+ *            key count (4), then per key: time (4,
  *            signed), easing byte, and a sprite for SPRITE tracks, a float
  *            for the others; then the event count (4), and per event: ID
  *            (4), time (4, signed), kind byte (1 sound, 2 function), number
@@ -46,10 +48,11 @@
 
 namespace animformat {
 
-// The version encode writes: 1 when no part of any rig has a pivot, so that
-// what was written before pivots stays the same to the byte; 2 otherwise.
-// decode reads both.
-const int version = 2;
+// The version encode writes: the lowest that holds what it writes, so that
+// what was written before stays the same to the byte. 1; 2 when a part of a
+// rig has a pivot; 3 when a part has different X and Y scales, or a clip
+// has a track of SCALE_X or SCALE_Y. decode reads them all.
+const int version = 3;
 
 typedef std::vector<unsigned char> Bytes;
 

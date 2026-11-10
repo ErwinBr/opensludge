@@ -136,7 +136,7 @@ bool validName (const std::string & n) {
 }
 
 bool validPose (const PartPose & p) {
-	return finite (p.x) && finite (p.y) && finite (p.rotation) && finite (p.scale);
+	return finite (p.x) && finite (p.y) && finite (p.rotation) && finite (p.scaleX) && finite (p.scaleY);
 }
 
 bool validSprite (const SpriteRef & s) {

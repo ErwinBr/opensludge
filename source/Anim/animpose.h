@@ -11,7 +11,7 @@
  * degrees clockwise; a part's origin is its sprite's hotspot. A part's
  * local transform is
  *
- *     L = T (x, y) . R (rotation) . S (scale) . F (flip)
+ *     L = T (x, y) . R (rotation) . S (scaleX, scaleY) . F (flip)
  *
  * where F mirrors local X (x -> -x), and its world transform is
  * W (part) = W (parent) . L (part), with W of the root's parent the
@@ -62,6 +62,7 @@ struct Transform2D {
 	static Transform2D translation (float x, float y);
 	static Transform2D rotation (float degrees);		// Clockwise on screen
 	static Transform2D scaling (float s);
+	static Transform2D scaling (float sx, float sy);
 	static Transform2D flipX ();
 
 	// This, after other: (this * other) (p) = this (other (p)).

@@ -59,13 +59,21 @@ Transform2D restWorld (const RigDefinition & rig, int part) {
 }
 
 bool poseOfTransform (const Transform2D & t, PartPose & out) {
-	// T R S F: the first column is s f (cos, sin), the second s (-sin, cos).
-	double s = sqrt ((double) t.c * t.c + (double) t.d * t.d);
-	if (! (s > 1e-9) || ! isfinite (s)) return false;
+	// T R S F: the first column is sx f (cos, sin), the second sy (-sin,
+	// cos). A skew (of a turned part under one of different scales) has no
+	// pose: what is left of the first column once the second gives the turn
+	// is dropped, keeping the area (the determinant).
+	double sy = sqrt ((double) t.c * t.c + (double) t.d * t.d);
+	if (! (sy > 1e-9) || ! isfinite (sy)) return false;
+	double sx = fabs ((double) t.a * t.d - (double) t.b * t.c) / sy;
+	if (! (sx > 1e-9) || ! isfinite (sx)) return false;
 	out.x = t.tx;
 	out.y = t.ty;
 	out.rotation = (float) (atan2 (- (double) t.c, (double) t.d) * 180.0 / pi);
-	out.scale = (float) s;
+	out.scaleX = (float) sx;
+	out.scaleY = (float) sy;
+	// A whole number of percents stays one, rather than a float near it.
+	if (fabs (out.scaleX - out.scaleY) < 1e-6f * out.scaleY) out.scaleX = out.scaleY;
 	out.flip = t.mirrors ();
 	return true;
 }

@@ -366,7 +366,7 @@ static void testCharacterCreator () {
 	rest.x = 4;
 	rest.y = -40;
 	rest.rotation = 30;
-	rest.scale = 1.5f;
+	rest.scaleX = rest.scaleY = 1.5f;
 	rest.flip = true;
 	addPart (* rig, "arm", "body", rest, SpriteRef::sprite (bank, 0, 1, false), why);
 	rig->parts[2].pivotX = 0;

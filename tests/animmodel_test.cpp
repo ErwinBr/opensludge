@@ -71,7 +71,7 @@ static RigDefinition heroRig () {
 	rig.parts[rig.findPart ("head")].rest.rotation = 5.5f;
 	rig.parts[rig.findPart ("eyes")].rest.flip = true;
 	rig.parts[rig.findPart ("rightArm")].rest.visible = false;
-	rig.parts[rig.findPart ("rightArm")].rest.scale = 0.75f;
+	rig.parts[rig.findPart ("rightArm")].rest.scaleX = rig.parts[rig.findPart ("rightArm")].rest.scaleY = 0.75f;
 	return rig;
 }
 
@@ -183,7 +183,7 @@ static void testRigs () {
 	bad.parts[0].name = "root";
 	CHECK (! validRig (bad, why), "the root has no name");
 	bad = rig;
-	bad.parts[2].rest.scale = INFINITY;
+	bad.parts[2].rest.scaleY = INFINITY;
 	CHECK (! validRig (bad, why), "numbers are finite");
 }
 
@@ -278,7 +278,7 @@ static void testResolve () {
 
 // Field by field.
 static bool samePose (const PartPose & a, const PartPose & b) {
-	return a.x == b.x && a.y == b.y && a.rotation == b.rotation && a.scale == b.scale && a.flip == b.flip && a.visible == b.visible;
+	return a.x == b.x && a.y == b.y && a.rotation == b.rotation && a.scaleX == b.scaleX && a.scaleY == b.scaleY && a.flip == b.flip && a.visible == b.visible;
 }
 
 static bool sameRig (const RigDefinition & a, const RigDefinition & b) {
@@ -354,7 +354,7 @@ static void testFormat () {
 	CHECK (again == bytes, "and encode to the same bytes");
 
 	// Rotations and scales that aren't whole numbers keep every bit.
-	CHECK (back.rigs.size () && back.rigs[0].parts[3].rest.rotation == 5.5f && back.rigs[0].parts[5].rest.scale == 0.75f, "floats exactly");
+	CHECK (back.rigs.size () && back.rigs[0].parts[3].rest.rotation == 5.5f && back.rigs[0].parts[5].rest.scaleX == 0.75f, "floats exactly");
 
 	// A chunk this engine doesn't know is skipped.
 	animformat::Bytes extra = bytes;
@@ -863,7 +863,7 @@ static void testTransforms () {
 	p.x = 3;
 	p.y = 4;
 	p.rotation = 90;
-	p.scale = 2;
+	p.scaleX = p.scaleY = 2;
 	p.flip = true;
 	localTransform (p).apply (1, 0, x, y);
 	CHECK (near2 (x, y, 3, 2), "local: flip, scale, turn, then move");
@@ -1044,7 +1044,7 @@ static void testBlending () {
 	std::shared_ptr<RigDefinition> rig = std::make_shared<RigDefinition> ();
 	addPart (* rig, "body", "", at (10, 20), realSprite (0), why);
 	rig -> parts[1].rest.rotation = 30;
-	rig -> parts[1].rest.scale = 2;
+	rig -> parts[1].rest.scaleX = rig -> parts[1].rest.scaleY = 2;
 	rig -> parts[1].depth = 1;
 	RigDefinitionRef r = rig;
 	const PosedPart * body;
@@ -1074,7 +1074,7 @@ static void testBlending () {
 		bool add = blend == LAYER_BLEND_ADD;
 		CHECK (body -> local.x == (add ? 15 : 5) && body -> local.y == (add ? 13 : -7), add ? "an additive layer adds to X and Y" : "an override layer replaces X and Y");
 		CHECK (body -> local.rotation == (add ? 45 : 15), add ? "adds to ROTATION" : "replaces ROTATION");
-		CHECK (body -> local.scale == (add ? 3 : 1.5f), add ? "multiplies SCALE" : "replaces SCALE");
+		CHECK (body -> local.scaleX == (add ? 3 : 1.5f) && body -> local.scaleY == (add ? 3 : 1.5f), add ? "multiplies SCALE" : "replaces SCALE");
 		CHECK (body -> sprite.number == 2, "either replaces SPRITE");
 		CHECK (! body -> local.visible && body -> depth == 4 && body -> local.flip, "either replaces VISIBLE, DEPTH and FLIP");
 	}
@@ -1109,7 +1109,7 @@ static void testBlending () {
 
 	// No layers: the rest pose.
 	evaluatePose (r, std::vector<LayerSamples> (), std::vector<PartOverride> (), Transform2D (), pose);
-	CHECK (pose.parts[1].local.x == 10 && pose.parts[1].local.rotation == 30 && pose.parts[1].local.scale == 2, "the rest pose");
+	CHECK (pose.parts[1].local.x == 10 && pose.parts[1].local.rotation == 30 && pose.parts[1].local.scaleX == 2, "the rest pose");
 	(void) b0;
 }
 

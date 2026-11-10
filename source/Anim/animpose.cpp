@@ -41,6 +41,13 @@ Transform2D Transform2D::scaling (float s) {
 	return t;
 }
 
+Transform2D Transform2D::scaling (float sx, float sy) {
+	Transform2D t;
+	t.a = sx;
+	t.d = sy;
+	return t;
+}
+
 Transform2D Transform2D::flipX () {
 	Transform2D t;
 	t.a = -1;
@@ -78,7 +85,7 @@ bool Transform2D::inverse (Transform2D & out) const {
 Transform2D localTransform (const PartPose & p) {
 	Transform2D t = Transform2D::translation (p.x, p.y);
 	if (p.rotation != 0) t = t * Transform2D::rotation (p.rotation);
-	if (p.scale != 1) t = t * Transform2D::scaling (p.scale);
+	if (p.scaleX != 1 || p.scaleY != 1) t = t * Transform2D::scaling (p.scaleX, p.scaleY);
 	if (p.flip) t = t * Transform2D::flipX ();
 	return t;
 }
@@ -130,14 +137,19 @@ SpriteRef shown (const SpriteRef & s, const SpriteRef & own) {
 	return SpriteRef::none ();
 }
 
-// A value of a channel onto a part: added (multiplied for SCALE) by an
-// additive layer to X, Y, ROTATION and SCALE; replaced otherwise.
+// A value of a channel onto a part: added (multiplied for the scales) by
+// an additive layer to X, Y, ROTATION and the scales; replaced otherwise.
 void apply (PosedPart & p, Channel channel, float value, bool add) {
 	switch (channel) {
 		case CHANNEL_X: p.local.x = add ? p.local.x + value : value; break;
 		case CHANNEL_Y: p.local.y = add ? p.local.y + value : value; break;
 		case CHANNEL_ROTATION: p.local.rotation = add ? p.local.rotation + value : value; break;
-		case CHANNEL_SCALE: p.local.scale = add ? p.local.scale * value : value; break;
+		case CHANNEL_SCALE:
+			p.local.scaleX = add ? p.local.scaleX * value : value;
+			p.local.scaleY = add ? p.local.scaleY * value : value;
+			break;
+		case CHANNEL_SCALE_X: p.local.scaleX = add ? p.local.scaleX * value : value; break;
+		case CHANNEL_SCALE_Y: p.local.scaleY = add ? p.local.scaleY * value : value; break;
 		case CHANNEL_VISIBLE: p.local.visible = value != 0; break;
 		case CHANNEL_DEPTH: p.depth = (int) lrintf (value); break;
 		case CHANNEL_FLIP: p.local.flip = value != 0; break;
@@ -182,19 +194,27 @@ void evaluatePose (const RigDefinitionRef & rig, const std::vector<LayerSamples>
 		const TrackSamples & samples = * layers[l].samples;
 		bool add = layers[l].blend == LAYER_BLEND_ADD;
 		const std::vector<int> & partOf = layers[l].binding -> bind (clip, rig);
-		for (size_t s = 0; s < samples.size (); s ++) {
-			const Track * t = samples[s].track;
-			if (t < clip -> tracks.data () || t >= clip -> tracks.data () + clip -> tracks.size ()) continue;
-			int part = partOf[t - clip -> tracks.data ()];
-			if (part < 0) continue;
-			if (t -> channel == CHANNEL_SPRITE) out.parts[part].sprite = shown (* samples[s].sprite, parts[part].sprite);
-			else apply (out.parts[part], t -> channel, samples[s].value, add);
+		// SCALE first, so that SCALE_X and SCALE_Y of the clip go over it,
+		// whatever the order of its tracks.
+		for (int pass = 0; pass < 2; pass ++) {
+			for (size_t s = 0; s < samples.size (); s ++) {
+				const Track * t = samples[s].track;
+				if (t < clip -> tracks.data () || t >= clip -> tracks.data () + clip -> tracks.size ()) continue;
+				if ((t -> channel == CHANNEL_SCALE) != (pass == 0)) continue;
+				int part = partOf[t - clip -> tracks.data ()];
+				if (part < 0) continue;
+				if (t -> channel == CHANNEL_SPRITE) out.parts[part].sprite = shown (* samples[s].sprite, parts[part].sprite);
+				else apply (out.parts[part], t -> channel, samples[s].value, add);
+			}
 		}
 	}
-	for (size_t o = 0; o < overrides.size (); o ++) {
-		int part = rig -> findPart (overrides[o].part);
-		if (part < 0 || overrides[o].channel == CHANNEL_SPRITE) continue;
-		apply (out.parts[part], overrides[o].channel, overrides[o].value, false);
+	for (int pass = 0; pass < 2; pass ++) {
+		for (size_t o = 0; o < overrides.size (); o ++) {
+			if ((overrides[o].channel == CHANNEL_SCALE) != (pass == 0)) continue;
+			int part = rig -> findPart (overrides[o].part);
+			if (part < 0 || overrides[o].channel == CHANNEL_SPRITE) continue;
+			apply (out.parts[part], overrides[o].channel, overrides[o].value, false);
+		}
 	}
 
 	// Parents come before their children.

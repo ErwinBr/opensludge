@@ -1340,12 +1340,12 @@ static void testRigs () {
 	CHECK (rig.part (arm)->rest.x == 0 && rig.part (arm)->rest.rotation == 0);
 	rig.commands ().redo ();
 	p = rig.part (arm)->rest;
-	p.scale = 1.5f;
+	p.scaleX = p.scaleY = 1.5f;
 	p.flip = true;
 	rig.setRest (arm, p);
 	p.x = NAN;
 	rig.setRest (arm, p);
-	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.scale == 1.5f && rig.part (arm)->rest.flip);
+	CHECK (rig.part (arm)->rest.x == 30 && rig.part (arm)->rest.scaleX == 1.5f && rig.part (arm)->rest.flip);
 
 	// The same pose again, as a click without a drag, changes nothing.
 	size_t undoable = 0;

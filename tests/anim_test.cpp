@@ -47,7 +47,7 @@ static PartPose pose (float x, float y, float rotation = 0, float scale = 1, boo
 	p.x = x;
 	p.y = y;
 	p.rotation = rotation;
-	p.scale = scale;
+	p.scaleX = p.scaleY = scale;
 	p.flip = flip;
 	return p;
 }
@@ -182,7 +182,7 @@ static void testPivotFormat () {
 		}
 	}
 	animformat::Bytes wrong = v2;
-	wrong[4] = 3;
+	wrong[4] = 4;
 	CHECK (! animformat::decode (wrong.data (), wrong.size (), back, why), "a later version doesn't decode");
 	wrong[4] = 0;
 	CHECK (! animformat::decode (wrong.data (), wrong.size (), back, why), "nor version 0");
@@ -372,7 +372,7 @@ static void testPoseOfTransform () {
 			for (int f = 0; f < 2; f ++) {
 				PartPose p = pose (12, -7, angles[a], scales[s], f == 1), back;
 				CHECK (poseOfTransform (localTransform (p), back), "a pose of a transform");
-				CHECK (near (back.x, 12) && near (back.y, -7) && near (back.rotation, angles[a]) && near (back.scale, scales[s])
+				CHECK (near (back.x, 12) && near (back.y, -7) && near (back.rotation, angles[a]) && near (back.scaleX, scales[s]) && near (back.scaleY, scales[s])
 					&& back.flip == (f == 1), "is the pose it was made of");
 			}
 		}
@@ -430,6 +430,144 @@ static void testPlacePart () {
 	CHECK (rig.parts.size () == before.size (), "nothing is lost");
 }
 
+// Separate X and Y scales: along the part's own axes, inherited (so a
+// turned part under a stretched one skews), and in files from version 3.
+static void testSeparateScales () {
+	// An arm, 10 wide and 60 high from its hotspot at 5, 5, twice as wide and
+	// half as high: from -10 to 10 across, and -2.5 to 27.5 down.
+	RigDefinition rig;
+	SpriteRef arm = SpriteRef::sprite (testBank (), 3, 1, false);
+	PartPose stretched = pose (0, 0);
+	stretched.scaleX = 2;
+	stretched.scaleY = 0.5f;
+	CHECK (! stretched.uniform () && pose (0, 0, 0, 3).uniform (), "uniform () tells them apart");
+	CHECK (addPart (rig, "arm", "", stretched, arm, why), "a stretched arm");
+	float x1, y1, x2, y2;
+	CHECK (poseBounds (restPose (rig), x1, y1, x2, y2), "has bounds");
+	CHECK (near (x1, -10) && near (x2, 10) && near (y1, -2.5f) && near (y2, 27.5f), "stretched along its own axes");
+
+	// Turned a quarter, its own X axis is down the screen.
+	rig.parts[1].rest.rotation = 90;
+	CHECK (poseBounds (restPose (rig), x1, y1, x2, y2), "turned, has bounds");
+	CHECK (near (x1, -27.5f) && near (x2, 2.5f) && near (y1, -10) && near (y2, 10), "its stretch turns with it");
+
+	// A hand under it, turned 45 degrees in its space: skewed by the arm's
+	// stretch, as the arm's own pixels are.
+	CHECK (addPart (rig, "hand", "arm", pose (0, 40, 45), arm, why), "a hand");
+	Pose p = restPose (rig);
+	const Transform2D & h = p.parts[2].world;
+	float ax = h.a, ay = h.b, bx = h.c, by = h.d;
+	CHECK (fabsf (ax * bx + ay * by) > 0.1f, "a turned part under a stretched one is skewed");
+
+	// Moving the pivot of a stretched, turned and flipped part leaves every
+	// sprite where it was.
+	RigDefinition armed;
+	CHECK (addPart (armed, "body", "", pose (100, 200), SpriteRef::sprite (testBank (), 3, 0, false), why), "a body");
+	PartPose odd = pose (12, -80, 30, 1, true);
+	odd.scaleX = 1.75f;
+	odd.scaleY = 0.6f;
+	CHECK (addPart (armed, "arm", "body", odd, arm, why), "an odd arm");
+	CHECK (addPart (armed, "hand", "arm", pose (0, 50, -20, 0.8f), arm, why), "a hand");
+	std::vector<float> before = spriteCornersOf (armed);
+	movePivot (armed, armed.findPart ("arm"), 3, 40);
+	std::vector<float> after = spriteCornersOf (armed);
+	bool same = before.size () == after.size ();
+	for (size_t i = 0; same && i < before.size (); i ++) same = near (before[i], after[i]);
+	CHECK (same, "moving the pivot of a part of different scales leaves every sprite where it was");
+
+	// A pose of a transform of different scales, without a skew.
+	const float angles[] = { 0, 30, -75, 179 };
+	for (int a = 0; a < 4; a ++) {
+		for (int f = 0; f < 2; f ++) {
+			PartPose q = pose (3, 4, angles[a], 1, f == 1), back;
+			q.scaleX = 0.4f;
+			q.scaleY = 2.5f;
+			CHECK (poseOfTransform (localTransform (q), back), "a pose of a transform of two scales");
+			CHECK (near (back.rotation, angles[a]) && near (back.scaleX, 0.4f) && near (back.scaleY, 2.5f) && back.flip == (f == 1),
+				"is the pose it was made of");
+		}
+	}
+	PartPose whole;
+	CHECK (poseOfTransform (Transform2D::rotation (40) * Transform2D::scaling (1.5f), whole) && whole.uniform (), "a uniform scale stays uniform");
+
+	// SCALE sets both; SCALE_X and SCALE_Y one each, over SCALE whatever the
+	// order of the tracks; additive layers multiply.
+	std::shared_ptr<RigDefinition> r = std::make_shared<RigDefinition> ();
+	addPart (* r, "body", "", pose (0, 0, 0, 2), arm, why);
+	for (int order = 0; order < 2; order ++) {
+		for (int blend = 0; blend < NUM_LAYER_BLENDS; blend ++) {
+			std::shared_ptr<ClipDefinition> c = std::make_shared<ClipDefinition> ();
+			c -> length = 10;
+			Key k;
+			k.easing = EASING_LINEAR;
+			k.value = 1.5f;
+			if (order == 0) setKey (* c, "body", CHANNEL_SCALE, k, why);
+			k.value = 3;
+			setKey (* c, "body", CHANNEL_SCALE_X, k, why);
+			k.value = 1.5f;
+			if (order == 1) setKey (* c, "body", CHANNEL_SCALE, k, why);
+			TrackSamples samples;
+			evaluateClip (* c, 0, samples);
+			PoseBinding b;
+			std::vector<LayerSamples> layers;
+			LayerSamples l = { c, & samples, (LayerBlend) blend, & b };
+			layers.push_back (l);
+			Pose out;
+			evaluatePose (r, layers, std::vector<PartOverride> (), Transform2D (), out);
+			bool add = blend == LAYER_BLEND_ADD;
+			CHECK (near (out.parts[1].local.scaleY, add ? 3 : 1.5f), "SCALE scales Y");
+			CHECK (near (out.parts[1].local.scaleX, add ? 9 : 3), "SCALE_X goes over SCALE, in either order");
+		}
+	}
+	std::vector<PartOverride> overrides;
+	PartOverride oy = { "body", CHANNEL_SCALE_Y, 0.5f }, both = { "body", CHANNEL_SCALE, 4 };
+	overrides.push_back (oy);
+	overrides.push_back (both);
+	Pose out;
+	evaluatePose (r, std::vector<LayerSamples> (), overrides, Transform2D (), out);
+	CHECK (out.parts[1].local.scaleX == 4 && out.parts[1].local.scaleY == 0.5f, "overrides of SCALE_Y go over SCALE too");
+	CHECK (! isDiscrete (CHANNEL_SCALE_X) && ! isDiscrete (CHANNEL_SCALE_Y) && isScale (CHANNEL_SCALE_Y) && ! isScale (CHANNEL_X),
+		"the new scales are continuous");
+
+	// Files: version 3 for different scales, as before otherwise.
+	animformat::Document doc;
+	doc.rigs.push_back (armRig ());
+	animformat::Bytes before1, v3;
+	CHECK (animformat::encode (doc, before1, why) && before1[4] == 1, "uniform scales: still version 1");
+	doc.rigs[0].parts[2].rest.scaleY = 0.25f;
+	CHECK (animformat::encode (doc, v3, why) && v3[4] == 3 && v3[5] == 0, "different scales: version 3");
+	CHECK (v3.size () == before1.size () + 4 * 4 + 4 * 8, "4 bytes more a part for Y, and the pivots of version 2");
+	animformat::Document back;
+	CHECK (animformat::decode (v3.data (), v3.size (), back, why) && back.rigs.size () == 1, "version 3 decodes");
+	CHECK (back.rigs[0].parts[2].rest.scaleX == 1.5f && back.rigs[0].parts[2].rest.scaleY == 0.25f
+		&& back.rigs[0].parts[3].rest.scaleY == 0.8f, "with both scales");
+	CHECK (animformat::decode (before1.data (), before1.size (), back, why) && back.rigs[0].parts[2].rest.scaleY == 1.5f,
+		"before version 3, Y is X");
+	for (size_t n = 7; n < v3.size (); n ++) {
+		if (animformat::decode (v3.data (), n, back, why)) {
+			CHECK (false, "a cut file of version 3 decodes");
+			break;
+		}
+	}
+
+	ClipDefinition clip;
+	clip.length = 10;
+	Key k;
+	k.value = 2;
+	k.easing = EASING_LINEAR;
+	setKey (clip, "arm", CHANNEL_SCALE, k, why);
+	animformat::Document clips;
+	clips.clips.push_back (clip);
+	animformat::Bytes c1, c3;
+	CHECK (animformat::encode (clips, c1, why) && c1[4] == 1, "a clip of SCALE: version 1");
+	setKey (clips.clips[0], "arm", CHANNEL_SCALE_Y, k, why);
+	CHECK (animformat::encode (clips, c3, why) && c3[4] == 3, "a clip of SCALE_Y: version 3");
+	CHECK (animformat::decode (c3.data (), c3.size (), back, why) && back.clips.size () == 1
+		&& back.clips[0].track ("arm", CHANNEL_SCALE_Y), "and its track comes back");
+	c3[4] = 2;
+	CHECK (! animformat::decode (c3.data (), c3.size (), back, why), "a file before version 3 has no SCALE_Y");
+}
+
 int main () {
 	testPoseOfTransform ();
 	testRenameAndRemove ();
@@ -437,6 +575,7 @@ int main () {
 	testPivotDrawing ();
 	testMovePivot ();
 	testPivotFormat ();
+	testSeparateScales ();
 	testAssetIds ();
 	testAssetRoundTrip ();
 	testWholeAssets ();

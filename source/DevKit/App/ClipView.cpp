@@ -291,13 +291,15 @@ void ClipView::addKeyAtPlayhead (TrackId id) {
 				case CHANNEL_X: value = part.local.x; break;
 				case CHANNEL_Y: value = part.local.y; break;
 				case CHANNEL_ROTATION: value = part.local.rotation; break;
-				case CHANNEL_SCALE: value = part.local.scale; break;
+				case CHANNEL_SCALE:
+				case CHANNEL_SCALE_X: value = part.local.scaleX; break;
+				case CHANNEL_SCALE_Y: value = part.local.scaleY; break;
 				case CHANNEL_VISIBLE: value = part.local.visible ? 1 : 0; break;
 				case CHANNEL_DEPTH: value = (float) part.depth; break;
 				case CHANNEL_FLIP: value = part.local.flip ? 1 : 0; break;
 				default: break;
 			}
-		} else if (t->channel == CHANNEL_SCALE || t->channel == CHANNEL_VISIBLE) {
+		} else if (isScale (t->channel) || t->channel == CHANNEL_VISIBLE) {
 			value = 1;
 		}
 		ok = clip->autoKey (t->part, t->channel, tick, value, why);
@@ -523,7 +525,7 @@ void ClipView::handleCanvasMouse () {
 			float from = distance (dragX, dragY, dragWorld.tx, dragWorld.ty);
 			float to = distance (mx, my, dragWorld.tx, dragWorld.ty);
 			if (from > 0) {
-				float percent = floorf (dragLocal.scale * to / from * 100.0f + 0.5f);
+				float percent = floorf (dragLocal.scaleX * to / from * 100.0f + 0.5f);
 				ok = clip->autoKey (part, CHANNEL_SCALE, tick, (percent < 1 ? 1 : percent) / 100.0f, why, DRAG_KEY);
 			}
 			keying = "Keying " + partLabel (part) + " > scale" + where;

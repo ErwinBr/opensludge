@@ -32,8 +32,9 @@ bool partIsUnder (const RigDefinition & rig, int part, int root);
 // origin, unscaled.
 Transform2D restWorld (const RigDefinition & rig, int part);
 
-// The place, turn, scale and flip of a transform of them (as localTransform
-// makes): false if it has none, as when it is scaled to 0.
+// The place, turn, scales and flip of a transform of them (as
+// localTransform makes): false if it has none, as when it is scaled to 0.
+// A skew, which no pose has, is left out.
 bool poseOfTransform (const Transform2D & t, PartPose & out);
 
 // Rename a part (not the root), to a name no other part has.

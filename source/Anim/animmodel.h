@@ -87,21 +87,28 @@ typedef uint32_t PartId;
 typedef uint32_t TrackId;
 typedef uint32_t EventId;
 
-// What a track changes. X, Y, ROTATION and SCALE are continuous, and ease
-// between keys; the others are discrete, and step.
+// What a track changes. X, Y, ROTATION and the scales are continuous, and
+// ease between keys; the others are discrete, and step. SCALE sets both of
+// a part's scales; SCALE_X and SCALE_Y one each, over SCALE of the same
+// clip. (New channels go at the end: files and saved games keep their
+// numbers.)
 enum Channel : int {
 	CHANNEL_X,			// Pixels
 	CHANNEL_Y,			// Pixels
 	CHANNEL_ROTATION,	// Degrees, clockwise
-	CHANNEL_SCALE,		// A factor: 1 is the sprite's size
+	CHANNEL_SCALE,		// A factor of both axes: 1 is the sprite's size
 	CHANNEL_SPRITE,		// Keys hold a SpriteRef
 	CHANNEL_VISIBLE,	// 0 hides the part and what is attached to it
 	CHANNEL_DEPTH,		// Drawing order within the character
 	CHANNEL_FLIP,		// 1 mirrors the part and what is attached to it
+	CHANNEL_SCALE_X,	// A factor of the part's own X axis
+	CHANNEL_SCALE_Y,	// A factor of its Y axis
 	NUM_CHANNELS
 };
 
 bool isDiscrete (Channel c);
+// SCALE, SCALE_X or SCALE_Y: factors, which scripts give in percent.
+inline bool isScale (Channel c) { return c == CHANNEL_SCALE || c == CHANNEL_SCALE_X || c == CHANNEL_SCALE_Y; }
 
 enum Easing : int {
 	EASING_STEP,		// The value of the key, until the next
@@ -131,11 +138,14 @@ struct SpriteRef {
 struct PartPose {
 	float x, y;
 	float rotation;		// Degrees, clockwise
-	float scale;		// Uniform; inherited by what is attached
+	// Along the part's own axes (before it turns); inherited by what is
+	// attached, which a turned part under one of different scales skews.
+	float scaleX, scaleY;
 	bool flip;
 	bool visible;
 
-	PartPose () : x (0), y (0), rotation (0), scale (1), flip (false), visible (true) {}
+	PartPose () : x (0), y (0), rotation (0), scaleX (1), scaleY (1), flip (false), visible (true) {}
+	bool uniform () const { return scaleX == scaleY; }
 };
 
 struct RigPart {
