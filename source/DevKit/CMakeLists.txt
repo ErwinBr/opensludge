@@ -204,6 +204,18 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/ZBufferView.cpp
 	)
 	target_include_directories(sludge-devkit PRIVATE ${DEVKIT_DIR}/App ${SOURCE_DIR}/CommonCode)
+	# The font of the script editor, JetBrains Mono (under the SIL Open Font
+	# License, App/fonts/JetBrainsMono-OFL.txt), built into the Dev Kit so
+	# that it is the same on every system.
+	set(CODE_FONT ${DEVKIT_DIR}/App/fonts/JetBrainsMono-VariableFont_wght.ttf)
+	set(CODE_FONT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/codefont.h)
+	add_custom_command(OUTPUT ${CODE_FONT_HEADER}
+		COMMAND ${CMAKE_COMMAND} -DINPUT=${CODE_FONT} -DOUTPUT=${CODE_FONT_HEADER} -DNAME=codeFontData
+			-P ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+		DEPENDS ${CODE_FONT} ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+		COMMENT "Embedding the font of the script editor")
+	target_sources(sludge-devkit PRIVATE ${CODE_FONT_HEADER})
+	target_include_directories(sludge-devkit PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 	# Where the Dev Kit finds the engine and the compiler when it runs from
 	# the build folder.
 	target_compile_definitions(sludge-devkit PRIVATE SLUDGE_BUILD_FOLDER="${CMAKE_BINARY_DIR}/"
@@ -221,6 +233,8 @@ if(SLUDGE_DEVKIT)
 		endif()
 	endif()
 	install(TARGETS sludge-devkit RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+	# The licence of the font goes with it, also without the help.
+	install(FILES ${DEVKIT_DIR}/App/fonts/JetBrainsMono-OFL.txt DESTINATION ${SLUDGE_DOCDIR})
 	# On Linux and the like: the menu entry, the types of the files that the
 	# Dev Kit opens, their icons, and the syntax of the scripts for the text
 	# editors that use GtkSourceView, such as GNOME Text Editor and gedit.

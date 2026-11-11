@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <set>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <SDL3/SDL_stdinc.h>
 
@@ -55,7 +57,7 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	: thePlatform (p), rendererName (renderer), graphics (g),
 	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
 	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
-	  manager (p, recent), compiles (0), nextDiskIndex (0), projectIndexed (false), buildPanel (*this), findPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
+	  manager (p, recent), compiles (0), nextDiskIndex (0), projectIndexed (false), looseFontSize (0), buildPanel (*this), findPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true), showFind (false), focusFind (false),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -485,6 +487,28 @@ std::vector<BuildMessage> Workspace::buildMessagesFor (const std::string & path,
 		if (ScriptIndex::key (p->fullPath (message.file)) == wanted) list.push_back (message);
 	}
 	return list;
+}
+
+// The key of the size of the scripts in what we remember of a project.
+static const char * const SCRIPT_FONT_SIZE = "scriptFontSize";
+
+float Workspace::scriptFontSize () const {
+	ProjectDocument * p = project ();
+	if (! p || p->path ().empty ()) return looseFontSize;
+	return (float) atof (memory.get (p->path (), SCRIPT_FONT_SIZE).c_str ());
+}
+
+void Workspace::setScriptFontSize (float size) {
+	if (size < 0) size = 0;
+	ProjectDocument * p = project ();
+	if (! p || p->path ().empty ()) {
+		looseFontSize = size;
+		return;
+	}
+	char text[32];
+	snprintf (text, sizeof (text), "%g", size);
+	// The size of the interface is no size of its own.
+	memory.set (p->path (), SCRIPT_FONT_SIZE, size > 0 ? text : "");
 }
 
 bool Workspace::knowsAllNames (const std::string & path) const {
@@ -944,6 +968,7 @@ void Workspace::drawAboutWindow () {
 		ImGui::Separator ();
 		ImGui::Text ("Renderer: %s", rendererName.c_str ());
 		ImGui::Text ("Dear ImGui %s", ImGui::GetVersion ());
+		ImGui::TextUnformatted ("Scripts in JetBrains Mono, under the SIL Open Font License 1.1.");
 		ImGui::Spacing ();
 		if (ImGui::Button ("Close")) showAbout = false;
 	}

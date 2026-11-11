@@ -16,6 +16,8 @@
 namespace devkit {
 
 static const int TAB_SIZE = 4;
+// How big the text of the script editors can be, in points.
+static const float SMALLEST_SIZE = 8.0f, BIGGEST_SIZE = 40.0f;
 // How long a notice stays, in seconds, and how often we look at the file.
 static const double NOTICE_SECONDS = 6.0;
 static const double DISK_CHECK_SECONDS = 1.0;
@@ -50,32 +52,51 @@ static const ScriptTheme & theme () {
 	static bool made = false;
 	if (! made) {
 		made = true;
+		// The light ones are the dark ones darker, for at least 4.5:1 on
+		// white, and more for the text that most of a script is.
 		const unsigned int darkTokens[TOKEN_KIND_COUNT] = {
-			0xD4D4D4,	// space
-			0x6A9955,	// comment
-			0xCE9178,	// string
-			0xD7BA7D,	// escape
-			0xE2A86B,	// file
-			0xB5CEA8,	// number
-			0x569CD6,	// keyword
-			0x9CDCFE,	// element
-			0xD4D4D4,	// operator
-			0xC8C8C8,	// bracket
-			0xA0A0A0,	// punctuation
-			0xD4D4D4,	// identifier
-			0xDCDCAA,	// function
-			0x4FC1FF,	// constant
-			0xF0C674,	// sub
+			0xABC9FF,	// space
+			0x7C8EA2,	// comment
+			0xFFEDA1,	// string
+			0xABC9FF,	// escape
+			0x63C259,	// file
+			0xA2FFE0,	// number
+			0xFF7085,	// keyword
+			0x56B0FB,	// element
+			0xABC9FF,	// operator
+			0xABC9FF,	// bracket
+			0xABC9FF,	// punctuation
+			0xABC9FF,	// identifier
+			0x58B2FF,	// function
+			0xFF7085,	// constant
+			0x67E5FF,	// sub
 			0x4EC9B0,	// object type
-			0x9CDCFE,	// variable
-			0x4FC1FF,	// definition
-			0xC586C0,	// flag
-			0xF44747,	// error
+			0x56B0FB,	// variable
+			0xFF7085,	// definition
+			0x43FFC2,	// flag
+			0xFF3434,	// error
 		};
 		const unsigned int lightTokens[TOKEN_KIND_COUNT] = {
-			0x1F1F1F, 0x008000, 0xA31515, 0xEE0000, 0xB35900, 0x098658, 0x0000FF, 0x0451A5,
-			0x1F1F1F, 0x303030, 0x606060, 0x1F1F1F, 0x795E26, 0x0070C1, 0x8A5A00, 0x267F99,
-			0x001080, 0x0070C1, 0xAF00DB, 0xE51400,
+			0x24467E,	// space
+			0x64778C,	// comment
+			0x8A6F00,	// string
+			0x24467E,	// escape
+			0x3A7F32,	// file
+			0x4A7A6C,	// number
+			0xC4314B,	// keyword
+			0x0A6DC2,	// element
+			0x24467E,	// operator
+			0x24467E,	// bracket
+			0x24467E,	// punctuation
+			0x24467E,	// identifier
+			0x0A6DC2,	// function
+			0xC4314B,	// constant
+			0x007A92,	// sub
+			0x237A68,	// object type
+			0x0A6DC2,	// variable
+			0xC4314B,	// definition
+			0x00754E,	// flag
+			0xD50000,	// error
 		};
 		for (int k = 0; k < TOKEN_KIND_COUNT; k ++) {
 			dark.token[k] = rgb (darkTokens[k]);
@@ -91,7 +112,7 @@ static const ScriptTheme & theme () {
 		dark.match = rgb (0x623315, 200);
 		dark.bracket = rgb (0x888888, 70);
 		dark.caret = rgb (0xAEAFAD);
-		dark.error = rgb (0xF44747);
+		dark.error = rgb (0xFF3434);
 		dark.warning = rgb (0xCCA700);
 		light.background = rgb (0xFFFFFF);
 		light.gutter = rgb (0xFFFFFF);
@@ -103,7 +124,7 @@ static const ScriptTheme & theme () {
 		light.match = rgb (0xF8C9AB);
 		light.bracket = rgb (0xB9B9B9, 90);
 		light.caret = rgb (0x000000);
-		light.error = rgb (0xE51400);
+		light.error = rgb (0xD50000);
 		light.warning = rgb (0xBF8803);
 	}
 	const ImVec4 & bg = ImGui::GetStyle ().Colors[ImGuiCol_WindowBg];
@@ -239,6 +260,22 @@ void ScriptView::goTo (TextPos at, int length) {
 	wantFocus = true;
 }
 
+void ScriptView::zoom (int step) {
+	if (step == 0) {
+		actions.setScriptFontSize (0);
+	} else {
+		float size = actions.scriptFontSize ();
+		if (size <= 0) size = ImGui::GetStyle ().FontSizeBase;
+		size = floorf (size + 0.5f) + step;
+		if (size < SMALLEST_SIZE) size = SMALLEST_SIZE;
+		if (size > BIGGEST_SIZE) size = BIGGEST_SIZE;
+		// The size of the interface is no size of its own.
+		actions.setScriptFontSize (size == ImGui::GetStyle ().FontSizeBase ? 0 : size);
+	}
+	scrollToCursor = true;
+	hoverPlace = TextPos (-1, 0);
+}
+
 void ScriptView::copy () {
 	std::string text = editing::selectedText (*script);
 	if (! text.empty ()) ImGui::SetClipboardText (text.c_str ());
@@ -301,6 +338,10 @@ void ScriptView::drawEditMenu () {
 		nextProblem (false);
 		chose = true;
 	}
+	ImGui::Separator ();
+	if (ImGui::MenuItem ("Bigger Text", keys ("+").c_str ())) zoom (1);
+	if (ImGui::MenuItem ("Smaller Text", keys ("-").c_str ())) zoom (-1);
+	if (ImGui::MenuItem ("Text of the Usual Size", keys ("0").c_str (), false, actions.scriptFontSize () > 0)) zoom (0);
 	ImGui::Separator ();
 	if (ImGui::MenuItem ("Toggle Comment", keys ("/").c_str ())) {
 		editing::toggleComment (*script);
@@ -595,6 +636,10 @@ void ScriptView::handleKeys () {
 			editing::toggleComment (*script);
 		}
 		if (shift && ImGui::IsKeyPressed (ImGuiKey_K, false)) editing::deleteLines (*script);
+		// Bigger and smaller, as the editors of pictures zoom.
+		if (ImGui::IsKeyPressed (ImGuiKey_Equal) || ImGui::IsKeyPressed (ImGuiKey_KeypadAdd)) zoom (1);
+		if (ImGui::IsKeyPressed (ImGuiKey_Minus) || ImGui::IsKeyPressed (ImGuiKey_KeypadSubtract)) zoom (-1);
+		if (ImGui::IsKeyPressed (ImGuiKey_0, false) || ImGui::IsKeyPressed (ImGuiKey_Keypad0, false)) zoom (0);
 	}
 
 	// What was typed. Ctrl (Cmd on macOS) makes shortcuts, but Ctrl+Alt is
@@ -955,9 +1000,10 @@ static bool beginFloating (const char * name, const ImVec2 & at, const ImVec2 & 
 	return ImGui::Begin (name, NULL, flags);
 }
 
-// The font of the interface, for docs, while the code's is pushed.
+// The font of the interface, at its size, for docs, while the code's is
+// pushed, perhaps bigger or smaller.
 static void pushTextFont () {
-	ImGui::PushFont (ImGui::GetIO ().Fonts->Fonts[0], 0.0f);
+	ImGui::PushFont (ImGui::GetIO ().Fonts->Fonts[0], ImGui::GetStyle ().FontSizeBase);
 }
 
 // Some text cut to a number of characters, with ... after it.
@@ -1507,8 +1553,10 @@ void ScriptView::drawStatus () {
 	char indent[32];
 	if (unit == "\t") snprintf (indent, sizeof (indent), "Tabs");
 	else snprintf (indent, sizeof (indent), "Spaces: %d", (int) unit.size ());
-	char right[96];
-	snprintf (right, sizeof (right), "%s    %s    %s", indent, text.mixedLineEnds () ? (text.crlf ? "Mixed, CRLF" : "Mixed, LF") : text.crlf ? "CRLF" : "LF",
+	char size[32] = "";
+	if (actions.scriptFontSize () > 0) snprintf (size, sizeof (size), "%g pt    ", actions.scriptFontSize ());
+	char right[128];
+	snprintf (right, sizeof (right), "%s%s    %s    %s", size, indent, text.mixedLineEnds () ? (text.crlf ? "Mixed, CRLF" : "Mixed, LF") : text.crlf ? "CRLF" : "LF",
 		text.bom ? "UTF-8 with BOM" : "UTF-8");
 	float width = ImGui::CalcTextSize (right).x;
 	ImGui::SameLine ();
@@ -1539,7 +1587,8 @@ void ScriptView::draw () {
 	float statusHeight = ImGui::GetTextLineHeightWithSpacing ();
 	ImGui::PushStyleVar (ImGuiStyleVar_WindowPadding, ImVec2 (0, 0));
 	ImGui::PushStyleColor (ImGuiCol_ChildBg, theme ().background);
-	if (codeFont) ImGui::PushFont (codeFont, 0.0f);
+	// The project's size, or the interface's.
+	ImGui::PushFont (codeFont, actions.scriptFontSize ());
 	bool open = ImGui::BeginChild ("##code", ImVec2 (0, - statusHeight), ImGuiChildFlags_None,
 		ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoNavInputs);
 	// The child has its padding and colour now; the windows that the text
@@ -1548,7 +1597,7 @@ void ScriptView::draw () {
 	ImGui::PopStyleVar ();
 	if (open) drawText ();
 	ImGui::EndChild ();
-	if (codeFont) ImGui::PopFont ();
+	ImGui::PopFont ();
 	drawStatus ();
 }
 

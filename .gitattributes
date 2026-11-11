@@ -18,3 +18,6 @@ tests/devkit/fixtures/init-utf8.slu -text
 # Rigs and clips of the Dev Kit (source/Anim/animformat.h) are binary.
 *.rig binary
 *.clp binary
+
+# Fonts that the Dev Kit builds into itself.
+*.ttf binary

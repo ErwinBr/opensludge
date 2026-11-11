@@ -71,6 +71,11 @@ public:
 	// The messages of the last compile about a file, and a number that
 	// changes when they do.
 	virtual std::vector<BuildMessage> buildMessagesFor (const std::string & path, unsigned int * serial) const = 0;
+	// The size of the text of the script editors, in points, which the open
+	// project remembers (on this computer, not in its file); 0 for the size
+	// of the interface.
+	virtual float scriptFontSize () const = 0;
+	virtual void setScriptFontSize (float size) = 0;
 	// Whether a script is of the open project, and the index has every
 	// script of it, so that a name that it doesn't know is nothing.
 	virtual bool knowsAllNames (const std::string & path) const = 0;

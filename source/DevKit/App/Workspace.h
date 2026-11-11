@@ -93,6 +93,8 @@ public:
 	void openHelpPage (const std::string & page);
 	std::vector<BuildMessage> buildMessagesFor (const std::string & path, unsigned int * serial) const;
 	bool knowsAllNames (const std::string & path) const;
+	float scriptFontSize () const;
+	void setScriptFontSize (float size);
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -155,6 +157,7 @@ private:
 	double nextDiskIndex;		// When we look at the project's scripts on disk again
 	std::set<std::string> projectScripts;	// Their names in the index
 	bool projectIndexed;		// The index has all of them
+	float looseFontSize;		// The size of the scripts without a project
 	BuildPanel buildPanel;
 	FindPanel findPanel;
 	FileCheckWindow fileCheck;

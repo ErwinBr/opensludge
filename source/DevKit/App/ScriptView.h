@@ -54,8 +54,8 @@ public:
 	// while it has none.
 	static std::string indexName (const ScriptDocument * script);
 
-	// The monospaced font of every script editor, or NULL for the font of
-	// the interface.
+	// The font of every script editor, JetBrains Mono (which main.cpp builds
+	// in), or NULL for the font of the interface.
 	static void setFont (ImFont * font);
 
 private:
@@ -102,6 +102,9 @@ private:
 	bool handleCompletionKeys ();
 	void goToDefinition (TextPos at);
 	void openHelpAt (TextPos at);
+	// Make the text a point bigger (1) or smaller (-1), or 0 for the size
+	// of the interface.
+	void zoom (int step);
 	void openFind (bool replace);
 	void findAgain (bool backwards);
 	void updateMatches ();
