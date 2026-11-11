@@ -153,8 +153,10 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 		${DEVKIT_DIR}/Core/RigDocument.cpp
+		${DEVKIT_DIR}/Core/ScriptAssist.cpp
 		${DEVKIT_DIR}/Core/ScriptCatalog.cpp
 		${DEVKIT_DIR}/Core/ScriptDocument.cpp
+		${DEVKIT_DIR}/Core/ScriptIndex.cpp
 		${DEVKIT_DIR}/Core/ScriptLexer.cpp
 		${DEVKIT_DIR}/Core/SpriteBankDocument.cpp
 		${DEVKIT_DIR}/Core/TextBuffer.cpp
@@ -384,6 +386,16 @@ if(SLUDGE_DEVKIT)
 		target_include_directories(devkit_sound_test PRIVATE ${DEVKIT_DIR}/App)
 		target_link_libraries(devkit_sound_test PRIVATE sludge::sdl3 sludge::vorbis)
 		add_test(NAME devkit_sound COMMAND devkit_sound_test ${CMAKE_CURRENT_BINARY_DIR}/sound_test)
+
+		# The docs of the built-ins that the script editor shows, from the
+		# help, are in the repository; the test checks that they are current.
+		add_executable(make_script_catalog ${PROJECT_SOURCE_DIR}/tests/devkit/make_script_catalog.cpp)
+		add_test(NAME script_catalog_current
+			COMMAND ${CMAKE_COMMAND} -DMAKER=$<TARGET_FILE:make_script_catalog>
+				-DHELP=${PROJECT_SOURCE_DIR}/doc/SLUDGEDevKitHelp
+				-DEXPECTED=${DEVKIT_DIR}/Core/ScriptCatalogData.inc
+				-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/ScriptCatalogData.inc
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/catalog_test.cmake)
 
 		# The core of the Dev Kit, without a display.
 		add_executable(devkit_core_test ${PROJECT_SOURCE_DIR}/tests/devkit/core_test.cpp ${DEVKIT_DIR}/Core/InterfacePlatform.cpp)

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <set>
 #include <string.h>
 #include <SDL3/SDL_stdinc.h>
 
@@ -53,7 +54,7 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	: thePlatform (p), rendererName (renderer), graphics (g),
 	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
 	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
-	  manager (p, recent), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
+	  manager (p, recent), compiles (0), nextDiskIndex (0), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
 	  showProject (true), showBuild (true), showInspector (true), showLog (true),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
@@ -110,6 +111,8 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 		std::map<std::string, ViewMaker>::iterator maker = viewMakers.find (document->kind ());
 		if (maker != viewMakers.end ()) views[document].reset (maker->second (document));
 		focusDocument = document;
+		// A project's scripts go into the index at once.
+		nextDiskIndex = 0;
 	};
 	manager.closing = [this] (Document * document) {
 		std::map<Document *, std::unique_ptr<DocumentView> >::iterator view = views.find (document);
@@ -280,22 +283,37 @@ std::string Workspace::findProgram (const std::string & name) {
 	return file;
 }
 
-void Workspace::openHelp () {
+std::string Workspace::helpFile (const std::string & page) {
 	std::string here = thePlatform.programFolder ();
 	std::vector<std::string> places;
 	// Next to the Dev Kit on Windows, and in the Resources of the app on
 	// macOS, which is the folder of the program for SDL.
-	places.push_back (here + "Help/SLUDGE_Help.html");
+	places.push_back (here + "Help/");
 	// Installed on Linux, with -DSLUDGE_DOC=ON.
-	places.push_back (here + "../share/doc/sludge/SLUDGE_Help.html");
+	places.push_back (here + "../share/doc/sludge/");
 #if defined(SLUDGE_SOURCE_FOLDER)
-	places.push_back (std::string (SLUDGE_SOURCE_FOLDER) + "doc/SLUDGE_Help.html");
+	places.push_back (std::string (SLUDGE_SOURCE_FOLDER) + "doc/");
 #endif
 	for (size_t i = 0; i < places.size (); i ++) {
-		if (fileExists (places[i])) {
-			thePlatform.openWithSystem (places[i]);
-			return;
-		}
+		if (fileExists (places[i] + page)) return places[i] + page;
+	}
+	return std::string ();
+}
+
+void Workspace::openHelpPage (const std::string & page) {
+	std::string file = helpFile ("SLUDGEDevKitHelp/" + page);
+	if (file.empty ()) {
+		openHelp ();
+		return;
+	}
+	thePlatform.openWithSystem (file);
+}
+
+void Workspace::openHelp () {
+	std::string file = helpFile ("SLUDGE_Help.html");
+	if (! file.empty ()) {
+		thePlatform.openWithSystem (file);
+		return;
 	}
 	thePlatform.showMessage (Platform::MESSAGE_INFORMATION, "No help",
 		"The help of the Dev Kit isn't installed here. It is in the doc folder of the source of SLUDGE.");
@@ -337,6 +355,7 @@ void Workspace::startCompile () {
 	options.writeStrings = preferences.writeStrings;
 	options.verbose = preferences.verbose;
 	job.reset (new CompileJob (thePlatform));
+	compiles ++;
 	std::string compiler = findProgram ("sludge-compiler");
 	Log::get ().add (LogLine::LOG_DEBUG, "The compiler is %s\n", compiler.c_str ());
 	job->start (compiler, p->path (), options);
@@ -387,15 +406,11 @@ void Workspace::openFile (const std::string & path, int line) {
 		return;
 	}
 	switch (fileKind (path)) {
-		case FILE_SCRIPT: {
+		case FILE_SCRIPT:
 			// In the script editor, at the line.
-			Document * document = manager.open (path);
-			if (! document) break;
-			focusDocument = document;
-			ScriptView * view = dynamic_cast<ScriptView *> (views[document].get ());
-			if (view && line > 0) view->goToLine (line);
+			if (line > 0) showInScript (path, line - 1, -1);
+			else showInScript (path, -1, -1);
 			break;
-		}
 		case FILE_IMAGE:
 			openWith (preferences.imageViewer, path, line);
 			break;
@@ -413,6 +428,64 @@ void Workspace::openFile (const std::string & path, int line) {
 	}
 }
 
+void Workspace::showInScript (const std::string & path, int line, int column) {
+	Document * document = manager.open (path);
+	if (! document) return;
+	focusDocument = document;
+	ScriptView * view = dynamic_cast<ScriptView *> (views[document].get ());
+	if (! view || line < 0) return;
+	if (column < 0) view->goToLine (line + 1);
+	else view->goTo (TextPos (line, column));
+}
+
+std::vector<BuildMessage> Workspace::buildMessagesFor (const std::string & path, unsigned int * serial) const {
+	std::vector<BuildMessage> list;
+	ProjectDocument * p = project ();
+	// A new number when a compile starts and when it ends.
+	*serial = job ? compiles * 2 + (job->finished ? 1 : 0) : 0;
+	if (! job || ! p || ! job->finished) return list;
+	std::string wanted = ScriptIndex::key (path);
+	for (size_t m = 0; m < job->messages.size (); m ++) {
+		const BuildMessage & message = job->messages[m];
+		if (message.file.empty () || message.line <= 0) continue;
+		if (ScriptIndex::key (p->fullPath (message.file)) == wanted) list.push_back (message);
+	}
+	return list;
+}
+
+void Workspace::updateScriptIndex () {
+	// The open scripts as they are, typed but not saved too.
+	std::set<std::string> wanted;
+	const std::vector<Document *> & open = manager.documents ();
+	for (size_t i = 0; i < open.size (); i ++) {
+		ScriptDocument * script = dynamic_cast<ScriptDocument *> (open[i]);
+		if (! script) continue;
+		std::string file = ScriptView::indexName (script);
+		index.update (file, script->buffer (), script->buffer ().version ());
+		wanted.insert (ScriptIndex::key (file));
+	}
+	// Now and then, the project's from disk, and we forget the rest.
+	double now = ImGui::GetTime ();
+	if (now < nextDiskIndex) return;
+	nextDiskIndex = now + 2.0;
+	if (ProjectDocument * p = project ()) {
+		const std::vector<std::string> & files = p->files ();
+		for (size_t f = 0; f < files.size (); f ++) {
+			std::string extension = extensionOf (files[f]);
+			if (extension != "slu" && extension != "sld") continue;
+			std::string full = p->fullPath (files[f]);
+			std::string key = ScriptIndex::key (full);
+			if (wanted.count (key)) continue;
+			index.updateFromDisk (full);
+			wanted.insert (key);
+		}
+	}
+	std::vector<std::string> known = index.files ();
+	for (size_t k = 0; k < known.size (); k ++) {
+		if (! wanted.count (known[k])) index.forget (known[k]);
+	}
+}
+
 std::string Workspace::title () const {
 	Document * document = manager.active ();
 	if (! document) return "SLUDGE Dev Kit";
@@ -421,6 +494,7 @@ std::string Workspace::title () const {
 
 void Workspace::draw () {
 	if (job) job->update ();
+	updateScriptIndex ();
 	handleShortcuts ();
 	drawMenuBar ();
 	drawDockSpace ();

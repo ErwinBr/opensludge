@@ -22,6 +22,7 @@
 #include "Preferences.h"
 #include "ProjectDocument.h"
 #include "RecentFiles.h"
+#include "ScriptIndex.h"
 #include "SoundPreview.h"
 #include "WorkspaceActions.h"
 
@@ -85,6 +86,10 @@ public:
 	float clipSplit () const { return preferences.clipSplit; }
 	void setClipSplit (float fraction);
 	SoundPreview & sounds () { return soundPreview; }
+	const ScriptIndex & scriptIndex () const { return index; }
+	void showInScript (const std::string & path, int line, int column);
+	void openHelpPage (const std::string & page);
+	std::vector<BuildMessage> buildMessagesFor (const std::string & path, unsigned int * serial) const;
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -102,6 +107,10 @@ private:
 	void startCompile ();
 	// Open the help of the Dev Kit, which comes with it, in the browser.
 	void openHelp ();
+	// The file of the help, or empty when it isn't installed.
+	std::string helpFile (const std::string & page);
+	// Keep the index of the scripts as the open ones and the project are.
+	void updateScriptIndex ();
 	// Start the program of a preference for a file, or the system's.
 	void openWith (const std::string & command, const std::string & path, int line);
 
@@ -135,6 +144,9 @@ private:
 	// still be in what ImGui has to draw, so they go when it is presented.
 	std::vector<std::unique_ptr<DocumentView> > closedViews;
 	std::unique_ptr<CompileJob> job;
+	unsigned int compiles;		// Started, for buildMessagesFor
+	ScriptIndex index;
+	double nextDiskIndex;		// When we look at the project's scripts on disk again
 	BuildPanel buildPanel;
 	FileCheckWindow fileCheck;
 

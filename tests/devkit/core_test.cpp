@@ -44,7 +44,9 @@
 #include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
+#include "ScriptAssist.h"
 #include "ScriptCatalog.h"
+#include "ScriptIndex.h"
 #include "ScriptDocument.h"
 #include "ScriptLexer.h"
 #include "TextBuffer.h"
@@ -660,6 +662,165 @@ static void testScriptLexer () {
 	CHECK (catalog.constant ("NORTHEAST") && catalog.constant ("NORTHEAST")->value == "45");
 	CHECK (catalog.constant ("dequeue") && catalog.constant ("dequeue")->isFunctionName ());
 	CHECK (! catalog.function ("nothing") && ! catalog.constant ("nothing"));
+}
+
+// The docs of the built-ins, from the help.
+static void testScriptCatalog () {
+	const ScriptCatalog & catalog = ScriptCatalog::get ();
+	const BuiltinFunction * f = catalog.function ("addCharacter");
+	CHECK (f && f->page == "addCharacter.html" && f->signatures.size () == 1);
+	CHECK (f && f->signatures[0].parameters.size () == 4 && f->signatures[0].parameters[3] == "thisCostume");
+	CHECK (f && f->accepts (4) && ! f->accepts (3) && f->purpose.compare (0, 12, "Adds a chara") == 0 && f->returns == "No return value.");
+	f = catalog.function ("anim");
+	CHECK (f && f->signatures[0].minArguments == 2 && f->signatures[0].maxArguments == -1 && f->accepts (9) && ! f->accepts (1));
+	f = catalog.function ("moveCharacter");
+	CHECK (f && f->signatures.size () == 2 && f->accepts (2) && f->accepts (3) && ! f->accepts (4));
+	CHECK (catalog.function ("setCharacterColourise") && ! catalog.function ("setCharacterColourise")->purpose.empty ());
+	CHECK (catalog.functionCalled ("setStatusColor") == catalog.function ("setStatusColour"));
+	const BuiltinConstant * c = catalog.constant ("NORTH");
+	CHECK (c && c->group == "Directions" && c->about.find ("degrees") != std::string::npos);
+	CHECK (catalog.constant ("PART_MODULATE_R") && catalog.constant ("PART_MODULATE_R")->group == "Parts of characters");
+	Signature s = Signature::parse ("newClip (length [, loop])");
+	CHECK (s.minArguments == 1 && s.maxArguments == 2 && s.parameters.size () == 1 && s.parameters[0] == "length [, loop]");
+	s = Signature::parse ("onKeyboard ()");
+	CHECK (s.parameters.empty () && s.accepts (0) && ! s.accepts (1));
+	CHECK (ScriptCatalog::keywordDoc ("walkSpeed") && ScriptCatalog::keywordDoc ("sub"));
+}
+
+// The names of a project, read from its scripts.
+static void testScriptIndex () {
+	ScriptIndex index;
+	ProjectDocument project;
+	std::string error;
+	CHECK (project.load (examples + "VerbCoin/VerbCoin.slp", &error));
+	for (size_t f = 0; f < project.files ().size (); f ++) {
+		std::string name = project.files ()[f];
+		if (extensionOf (name) == "slu" || extensionOf (name) == "sld") CHECK (index.updateFromDisk (project.fullPath (name)));
+	}
+	std::string ego = project.fullPath ("ego/ego.slu"), inventory = project.fullPath ("iface/inventory.slu");
+	CHECK (index.has (ego) && index.has (inventory));
+	CHECK (ScriptIndex::key ("/a/./b/../c\\d.slu") == "/a/c/d.slu");
+	const ScriptSymbol * type = index.objectType ("ego");
+	CHECK (type && type->detail == "Egor the ego" && type->at == TextPos (2, 11));
+	CHECK (type && type->doc.find ("The main character.") == 0);
+	std::vector<const ScriptSymbol *> found = index.find ("makeEgoAnim");
+	CHECK (found.size () == 1 && found[0]->kind == SYMBOL_SUB && found[0]->at.line == 21);
+	found = index.find ("currentInvItem");
+	CHECK (found.size () == 1 && found[0]->kind == SYMBOL_VARIABLE && found[0]->detail == "NULL");
+	CHECK (index.find ("icon").size () == 1);
+	// Events, and where the code of one is.
+	std::vector<const ScriptSymbol *> members = index.membersOf ("inventoryIcon");
+	CHECK (members.size () == 2 && members[0]->kind == SYMBOL_EVENT && members[0]->detail == "arrowTarget");
+	const ScriptScope * scope = index.scopeAt (inventory, TextPos (9, 4));
+	CHECK (scope && scope->name == "event onlyAction" && scope->owner == "inventoryIcon");
+	CHECK (scope && scope->locals.size () >= 4 && scope->locals[0].name == "rowsNeeded" && scope->locals[2].name == "y");
+	CHECK (index.placeAt (inventory, TextPos (9, 4)) == PLACE_CODE);
+	CHECK (index.placeAt (inventory, TextPos (6, 0)) == PLACE_OBJECT_TYPE);
+	CHECK (index.placeAt (inventory, TextPos (4, 0)) == PLACE_TOP);
+	CHECK (index.ownerAt (inventory, TextPos (6, 0)) == "inventoryIcon");
+	CHECK (index.kindOf ("ego") == TOKEN_OBJECT_TYPE && index.kindOf ("invGo") == TOKEN_SUB && index.kindOf ("inventory") == TOKEN_VARIABLE);
+	CHECK (index.kindOf ("nothing") == TOKEN_IDENTIFIER);
+
+	// A script that is being typed: members, flags, definitions, and
+	// what changes the names.
+	TextBuffer text;
+	text.setText ("flag HEAVY;\nobjectType coins (\"bag of \\\"coins\\\"\") {\n\tvar total = 10;\n\tflags SHINY, ROUND;\n"
+		"\t# Adds coins.\n\tsub collect (num) {\n\t\ttotal += num;\n\t}\n}\nsub broken ( {\nsub after () {}\n");
+	uint64_t before = index.version ();
+	CHECK (index.update ("/tmp/coins.slu", text, 1) && ! index.update ("/tmp/coins.slu", text, 1));
+	CHECK (index.version () != before);
+	type = index.objectType ("coins");
+	CHECK (type && type->detail == "bag of \\\"coins\\\"");
+	members = index.membersOf ("coins");
+	CHECK (members.size () == 2 && members[0]->name == "total" && members[1]->name == "collect" && members[1]->doc == "Adds coins.");
+	CHECK (members.size () == 2 && members[1]->parameters.size () == 1 && members[1]->parameters[0] == "num");
+	CHECK (index.kindOf ("HEAVY") == TOKEN_FLAG && index.kindOf ("SHINY") == TOKEN_FLAG && index.kindOf ("collect") == TOKEN_SUB);
+	CHECK (index.find ("broken").size () == 1);
+	text.setText ("ANSWER = 42\n# Not this = one\n");
+	CHECK (index.update ("/tmp/answers.sld", text, 1));
+	found = index.find ("ANSWER");
+	CHECK (found.size () == 1 && found[0]->kind == SYMBOL_DEFINITION && found[0]->detail == "42" && index.find ("Not").empty ());
+	before = index.version ();
+	index.forget ("/tmp/answers.sld");
+	CHECK (index.version () != before && index.kindOf ("ANSWER") == TOKEN_IDENTIFIER);
+}
+
+// Completion, signatures, hover and definitions.
+static void testScriptAssist () {
+	CHECK (assist::matchScore ("addC", "addCharacter") > assist::matchScore ("addc", "addCharacter"));
+	CHECK (assist::matchScore ("aC", "addCharacter") > 0 && assist::matchScore ("aC", "addCharacter") < assist::matchScore ("ad", "addCharacter"));
+	CHECK (assist::matchScore ("ss", "setScale") > 0 && assist::matchScore ("sxx", "setScale") == 0);
+	CHECK (assist::matchScore ("adr", "addCharacter") > 0 && assist::matchScore ("dd", "addCharacter") == 0);
+
+	ScriptIndex index;
+	TextBuffer text;
+	std::string file = "/tmp/game.slu";
+	text.setText ("var score = 0;\n"
+		"objectType ego (\"Ego\") {\n"
+		"\tvar money = 5;\n"
+		"\t# Walks somewhere.\n"
+		"\tsub walk (x, y) {\n"
+		"\t\tvar steps = x + y;\n"
+		"\t\tst\n"
+		"\t}\n"
+		"\t\n"
+		"}\n"
+		"sub init () {\n"
+		"\taddCharacter (ego, 10, \n"
+		"\tego.\n"
+		"\tego.walk (1, \n"
+		"}\n"
+		"\n");
+	index.update (file, text, 1);
+
+	CompletionList list = assist::complete (text, TextPos (6, 4), index, file, false);
+	CHECK (list.from == TextPos (6, 2) && list.typed == "st");
+	CHECK (! list.items.empty () && list.items[0].label == "steps");
+	bool hasBuiltin = false, hasGlobal = false;
+	for (size_t i = 0; i < list.items.size (); i ++) {
+		if (list.items[i].label == "stopMusic") hasBuiltin = true;
+		if (list.items[i].label == "score") hasGlobal = true;
+	}
+	CHECK (hasBuiltin && ! hasGlobal);
+	list = assist::complete (text, TextPos (6, 3), index, file, false);
+	for (size_t i = 0; i < list.items.size (); i ++) if (list.items[i].label == "score") hasGlobal = true;
+	CHECK (hasGlobal && list.items[0].label == "steps");
+	// After a dot, the members.
+	list = assist::complete (text, TextPos (12, 5), index, file, false);
+	CHECK (list.items.size () == 2 && list.items[0].label == "walk" && list.items[1].label == "money");
+	// In an objectType, its elements; at the top, the declarations.
+	list = assist::complete (text, TextPos (8, 1), index, file, true);
+	bool hasWalkSpeed = false;
+	for (size_t i = 0; i < list.items.size (); i ++) if (list.items[i].label == "walkSpeed") hasWalkSpeed = true;
+	CHECK (hasWalkSpeed);
+	list = assist::complete (text, TextPos (15, 0), index, file, true);
+	CHECK (list.items.size () == 5);
+	// Nothing in a string, nor before a word is started.
+	CHECK (assist::complete (text, TextPos (1, 18), index, file, false).items.empty ());
+	CHECK (assist::complete (text, TextPos (11, 1), index, file, false).items.empty ());
+
+	SignatureHelp help;
+	CHECK (assist::signatureAt (text, TextPos (11, 25), index, file, &help));
+	CHECK (help.name == "addCharacter" && help.argument == 2 && help.signatures.size () == 1);
+	CHECK (assist::signatureAt (text, TextPos (13, 14), index, file, &help));
+	CHECK (help.name == "ego.walk" && help.argument == 1 && help.signatures[0].parameters.size () == 2 && help.doc == "Walks somewhere.");
+	CHECK (! assist::signatureAt (text, TextPos (6, 4), index, file, &help));
+
+	HoverInfo info;
+	CHECK (assist::hoverAt (text, TextPos (11, 3), index, file, &info));
+	CHECK (info.title == "addCharacter (thisObject, atX, atY, thisCostume)" && info.page == "addCharacter.html");
+	CHECK (assist::hoverAt (text, TextPos (13, 7), index, file, &info));
+	CHECK (info.title == "sub ego.walk (x, y)" && info.body == "Walks somewhere." && info.where == "game.slu, line 5");
+	CHECK (info.range == TextSelection (TextPos (13, 5), TextPos (13, 9)));
+	CHECK (assist::hoverAt (text, TextPos (5, 14), index, file, &info) && info.title == "x" && info.body == "A parameter of walk.");
+	CHECK (assist::hoverAt (text, TextPos (0, 1), index, file, &info) && info.title == "var name = value;");
+	CHECK (! assist::hoverAt (text, TextPos (1, 18), index, file, &info));
+
+	Definition definition;
+	CHECK (assist::definitionAt (text, TextPos (13, 6), index, file, &definition));
+	CHECK (definition.file == file && definition.at == TextPos (4, 5));
+	CHECK (assist::definitionAt (text, TextPos (11, 15), index, file, &definition) && definition.at == TextPos (1, 11));
+	CHECK (! assist::definitionAt (text, TextPos (11, 3), index, file, &definition));
 }
 
 static void testProjects () {
@@ -2227,6 +2388,9 @@ int main (int argc, char ** argv) {
 	testScriptFiles ();
 	testTextEditing ();
 	testScriptLexer ();
+	testScriptCatalog ();
+	testScriptIndex ();
+	testScriptAssist ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);

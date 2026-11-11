@@ -1,4 +1,4 @@
-# The script editor with the keys, on tests/devkit/fixtures/script.slu in
+# The script editor with the keys and its completion, on tests/devkit/fixtures/script.slu in
 # the window of a smoke test (1280 x 800). The editor has the keyboard as
 # soon as the script opens. With Replace open, its field is at (380, 85)
 # and Replace All at (632, 85).
@@ -25,7 +25,18 @@ wait 2
 key ctrl+Z
 wait 2
 
+# Completion: two letters of a built-in show it, and Tab puts it in.
+key Enter
+type addCh
+wait 3
+key Tab
+wait 2
+type (ego);
+wait 2
+
 # Comment out the say line.
+key UpArrow
+wait 1
 key UpArrow
 wait 1
 key UpArrow

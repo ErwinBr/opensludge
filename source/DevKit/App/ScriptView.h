@@ -13,7 +13,9 @@
 #include <string>
 #include <vector>
 
+#include "CompileJob.h"
 #include "DocumentView.h"
+#include "ScriptAssist.h"
 #include "ScriptDocument.h"
 #include "ScriptLexer.h"
 #include "TextEditing.h"
@@ -39,9 +41,14 @@ public:
 	void pasteClipboard ();
 	void drawEditMenu ();
 
-	// Put the cursor at the start of a line (from 1), in the middle of the
-	// view, and give the editor the keyboard.
+	// Put the cursor at the start of a line (from 1), or at a place, in the
+	// middle of the view, and give the editor the keyboard.
 	void goToLine (int line);
+	void goTo (TextPos at);
+
+	// The name of a script in the index: its file, or a name of its own
+	// while it has none.
+	static std::string indexName (const ScriptDocument * script);
 
 	// The monospaced font of every script editor, or NULL for the font of
 	// the interface.
@@ -71,6 +78,19 @@ private:
 	void moveTo (TextPos at, bool select, bool keepColumn = false);
 	void moveVertically (int lines, bool select);
 	TextPos lineStart (TextPos at) const;
+	void drawCompletion (const ImVec2 & origin);
+	void drawSignature (const ImVec2 & origin);
+	void drawHover (const ImVec2 & origin, bool hovered);
+	void drawOutline ();
+	void updateMarkers ();
+	// Completion: start it, keep it up to date as the user types, and put
+	// in the chosen name.
+	void startCompletion (bool everything);
+	void updateCompletion ();
+	void acceptCompletion ();
+	bool handleCompletionKeys ();
+	void goToDefinition (TextPos at);
+	void openHelpAt (TextPos at);
 	void openFind (bool replace);
 	void findAgain (bool backwards);
 	void updateMatches ();
@@ -104,6 +124,41 @@ private:
 
 	bool goToOpen;
 	int goToLineNumber;
+
+	// The names of the index that the colours of lineTokens are of.
+	uint64_t namesVersion;
+
+	// Completion.
+	bool completing, completeEverything;
+	CompletionList completion;
+	int selectedItem, firstItem;
+	float popupX0, popupY0, popupX1, popupY1;	// Where it was drawn, on screen
+	uint64_t completedVersion;					// Of the text that it is of
+
+	// Signature help, for a version of the text and a place.
+	bool signatureShown, signatureHidden;
+	SignatureHelp signature;
+	uint64_t signatureVersion;
+	TextPos signatureAt;
+	float signatureHeight;		// Of its window, the last time
+
+	// Hovering a name.
+	TextPos hoverPlace;
+	double hoverSince;
+	HoverInfo hover;
+	bool hoverFound;
+	uint64_t hoverVersion;
+
+	// The messages of the last compile, on the lines as they were then:
+	// gone once the line changes.
+	struct Marker {
+		uint64_t stamp;
+		bool error;
+		std::string text;
+	};
+	std::vector<Marker> markers;
+	unsigned int markersSerial;
+	int framesDrawn;
 
 	// When the file changed on disk while we had changes.
 	bool diskChanged;

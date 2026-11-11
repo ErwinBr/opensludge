@@ -30,8 +30,16 @@ void ScriptView::setFont (ImFont * font) {
 struct ScriptTheme {
 	ImU32 token[TOKEN_KIND_COUNT];
 	ImU32 background, gutter, lineNumber, currentLineNumber, currentLine;
-	ImU32 selection, inactiveSelection, match, bracket, caret, error;
+	ImU32 selection, inactiveSelection, match, bracket, caret, error, warning;
 };
+
+// A wavy line under some text.
+static void wavyLine (ImDrawList * draw, float x0, float x1, float base, ImU32 colour) {
+	for (float x = x0; x < x1; x += 4) {
+		draw->AddLine (ImVec2 (x, base), ImVec2 (x + 2 < x1 ? x + 2 : x1, base - 2), colour);
+		if (x + 2 < x1) draw->AddLine (ImVec2 (x + 2, base - 2), ImVec2 (x + 4 < x1 ? x + 4 : x1, base), colour);
+	}
+}
 
 static ImU32 rgb (unsigned int c, int alpha = 255) {
 	return IM_COL32 ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, alpha);
@@ -84,6 +92,7 @@ static const ScriptTheme & theme () {
 		dark.bracket = rgb (0x888888, 70);
 		dark.caret = rgb (0xAEAFAD);
 		dark.error = rgb (0xF44747);
+		dark.warning = rgb (0xCCA700);
 		light.background = rgb (0xFFFFFF);
 		light.gutter = rgb (0xFFFFFF);
 		light.lineNumber = rgb (0x6E7681);
@@ -95,6 +104,7 @@ static const ScriptTheme & theme () {
 		light.bracket = rgb (0xB9B9B9, 90);
 		light.caret = rgb (0x000000);
 		light.error = rgb (0xE51400);
+		light.warning = rgb (0xBF8803);
 	}
 	const ImVec4 & bg = ImGui::GetStyle ().Colors[ImGuiCol_WindowBg];
 	float luminance = 0.299f * bg.x + 0.587f * bg.y + 0.114f * bg.z;
@@ -106,7 +116,19 @@ ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a)
 	  widestColumns (0), widestVersion (0), wantFocus (true), scrollToCursor (false), centreCursor (false),
 	  wantColumn (-1), dragging (false), dragUnit (1),
 	  findOpen (false), replaceOpen (false), focusFind (false), matchesVersion (0), matchesCase (false), matchesWord (false),
-	  goToOpen (false), goToLineNumber (1), diskChanged (false), nextDiskCheck (0), noticeUntil (0) {}
+	  goToOpen (false), goToLineNumber (1), namesVersion (0),
+	  completing (false), completeEverything (false), selectedItem (0), firstItem (0),
+	  popupX0 (0), popupY0 (0), popupX1 (0), popupY1 (0), completedVersion (0),
+	  signatureShown (false), signatureHidden (false), signatureVersion (0), signatureAt (-1, 0), signatureHeight (0),
+	  hoverPlace (-1, 0), hoverSince (0), hoverFound (false), hoverVersion (0), markersSerial (0), framesDrawn (0),
+	  diskChanged (false), nextDiskCheck (0), noticeUntil (0) {}
+
+std::string ScriptView::indexName (const ScriptDocument * script) {
+	if (! script->path ().empty ()) return script->path ();
+	char name[48];
+	snprintf (name, sizeof (name), "Untitled Script %u.slu", script->id ());
+	return name;
+}
 
 void ScriptView::say (const std::string & text) {
 	notice = text;
@@ -114,15 +136,23 @@ void ScriptView::say (const std::string & text) {
 }
 
 bool ScriptView::animating () const {
-	return dragging;
+	// While the mouse rests on a name, until its docs show.
+	bool hoverWaits = hoverPlace.line >= 0 && ImGui::GetTime () - hoverSince < 0.6;
+	return dragging || hoverWaits;
 }
 
 const std::vector<Token> & ScriptView::tokensOf (int line) {
 	const TextBuffer & text = script->buffer ();
+	const ScriptIndex & index = actions.scriptIndex ();
+	// New names of the project colour every line again.
+	if (namesVersion != index.version ()) {
+		lineTokens.clear ();
+		namesVersion = index.version ();
+	}
 	if ((int) lineTokens.size () != text.lineCount ()) lineTokens.resize (text.lineCount ());
 	LineTokens & cached = lineTokens[line];
 	if (cached.stamp != text.lineStamp (line)) {
-		cached.tokens = lexLine (text.line (line), NULL);
+		cached.tokens = lexLine (text.line (line), &index);
 		cached.stamp = text.lineStamp (line);
 	}
 	return cached.tokens;
@@ -136,8 +166,10 @@ float ScriptView::xOf (TextPos at) const {
 
 TextPos ScriptView::placeAt (float x, float y) const {
 	const TextBuffer & text = script->buffer ();
+	// Before converting, as the mouse is at -FLT_MAX when it is nowhere.
+	if (! (y >= 0)) return TextPos (0, 0);
+	if (y >= text.lineCount () * lineHeight) return text.end ();
 	int line = (int) floorf (y / lineHeight);
-	if (line < 0) return TextPos (0, 0);
 	if (line >= text.lineCount ()) return text.end ();
 	const std::string & l = text.line (line);
 	// The nearer side of the character under the point.
@@ -186,6 +218,13 @@ void ScriptView::goToLine (int line) {
 	if (line > text.lineCount ()) line = text.lineCount ();
 	const std::string & l = text.line (line - 1);
 	script->setSelection (TextSelection (TextPos (line - 1, (int) editing::indentOf (l).size ())));
+	wantColumn = -1;
+	scrollToCursor = centreCursor = true;
+	wantFocus = true;
+}
+
+void ScriptView::goTo (TextPos at) {
+	script->setSelection (TextSelection (script->buffer ().clamp (at)));
 	wantColumn = -1;
 	scrollToCursor = centreCursor = true;
 	wantFocus = true;
@@ -240,6 +279,15 @@ void ScriptView::drawEditMenu () {
 		chose = true;
 	}
 	if (ImGui::MenuItem ("Go to Line...", keys (osx ? "L" : "G").c_str ())) goToOpen = true;
+	if (ImGui::MenuItem ("Go to Definition", "F12")) {
+		goToDefinition (script->selection ().cursor);
+		chose = true;
+	}
+	if (ImGui::MenuItem ("Show Completions", "Ctrl+Space")) {
+		startCompletion (true);
+		chose = true;
+	}
+	if (ImGui::MenuItem ("Help on the Word", "F1")) openHelpAt (script->selection ().cursor);
 	ImGui::Separator ();
 	if (ImGui::MenuItem ("Toggle Comment", keys ("/").c_str ())) {
 		editing::toggleComment (*script);
@@ -429,6 +477,21 @@ void ScriptView::handleKeys () {
 	TextSelection s = script->selection ();
 	TextPos cursor = s.cursor;
 
+	// While the list of completions is open, it has the keys that move in
+	// it and that choose.
+	if (completing && handleCompletionKeys ()) {
+		io.InputQueueCharacters.resize (0);
+		return;
+	}
+	// Ctrl+Space (Ctrl, not Cmd, on macOS too) shows every name that fits.
+	if ((ctrl || io.KeySuper) && ImGui::IsKeyPressed (ImGuiKey_Space, false)) {
+		startCompletion (true);
+		io.InputQueueCharacters.resize (0);
+		return;
+	}
+	if (ImGui::IsKeyPressed (ImGuiKey_F12, false)) goToDefinition (cursor);
+	if (ImGui::IsKeyPressed (ImGuiKey_F1, false)) openHelpAt (cursor);
+
 	if (ImGui::IsKeyPressed (ImGuiKey_LeftArrow)) {
 		if (osx && ctrl) moveTo (lineStart (cursor), shift);
 		else if (word) moveTo (text.wordLeft (cursor), shift);
@@ -483,7 +546,8 @@ void ScriptView::handleKeys () {
 		scrollToCursor = true;
 	}
 	if (ImGui::IsKeyPressed (ImGuiKey_Escape, false)) {
-		if (findOpen) findOpen = replaceOpen = false;
+		if (signatureShown) signatureHidden = true;
+		else if (findOpen) findOpen = replaceOpen = false;
 		else if (! s.empty ()) script->setSelection (TextSelection (cursor));
 	}
 	if (ImGui::IsKeyPressed (ImGuiKey_F3)) findAgain (shift);
@@ -522,7 +586,7 @@ void ScriptView::handleKeys () {
 	// What was typed. Ctrl (Cmd on macOS) makes shortcuts, but Ctrl+Alt is
 	// AltGr on Windows, which types.
 	bool shortcut = ctrl && ! (alt && ! osx);
-	if (! shortcut) {
+	if (! shortcut && ! (io.KeySuper && ! osx)) {
 		for (int i = 0; i < io.InputQueueCharacters.Size; i ++) {
 			unsigned int c = io.InputQueueCharacters[i];
 			if (c < 32 || c == 127) continue;
@@ -531,6 +595,19 @@ void ScriptView::handleKeys () {
 			editing::type (*script, std::string (utf8, n));
 			scrollToCursor = true;
 			wantColumn = -1;
+			signatureHidden = false;
+			// A dot, or the second letter of a word, shows the names that fit.
+			if (! completing) {
+				if (c == '.') {
+					startCompletion (false);
+				} else if (c < 128 && charClassOf ((unsigned char) c) == CHAR_WORD) {
+					TextPos at = script->selection ().cursor;
+					const std::string & line = script->buffer ().line (at.line);
+					int start = at.column;
+					while (start > 0 && charClassOf ((unsigned char) line[start - 1]) == CHAR_WORD) start --;
+					if (at.column - start >= 2 && ! (line[start] >= '0' && line[start] <= '9')) startCompletion (false);
+				}
+			}
 		}
 	}
 	io.InputQueueCharacters.resize (0);
@@ -545,8 +622,28 @@ void ScriptView::handleMouse (const ImVec2 & origin, bool hovered) {
 	TextPos at = placeAt (mouse.x - textLeft, mouse.y - origin.y);
 	if (hovered && mouse.x >= window->InnerRect.Min.x + gutterWidth) ImGui::SetMouseCursor (ImGuiMouseCursor_TextInput);
 
+	// The list of completions, where it was drawn: its wheel and clicks.
+	bool inPopup = completing && mouse.x >= popupX0 && mouse.x < popupX1 && mouse.y >= popupY0 && mouse.y < popupY1;
+	if (inPopup) {
+		ImGui::SetKeyOwner (ImGuiKey_MouseWheelY, window->GetID ("##text"));
+		if (io.MouseWheel != 0) {
+			firstItem -= (int) (io.MouseWheel * 3);
+			int most = (int) completion.items.size () - 10;
+			if (firstItem > most) firstItem = most;
+			if (firstItem < 0) firstItem = 0;
+		}
+		if (ImGui::IsMouseClicked (ImGuiMouseButton_Left)) {
+			int row = firstItem + (int) ((mouse.y - popupY0) / lineHeight);
+			if (row >= 0 && row < (int) completion.items.size ()) {
+				selectedItem = row;
+				acceptCompletion ();
+			}
+		}
+		return;
+	}
 	if (hovered && ImGui::IsMouseClicked (ImGuiMouseButton_Left)) {
 		int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
+		completing = false;
 		bool inGutter = mouse.x < window->InnerRect.Min.x + gutterWidth;
 		TextSelection s = script->selection ();
 		if (inGutter || clicks >= 3) {
@@ -564,6 +661,12 @@ void ScriptView::handleMouse (const ImVec2 & origin, bool hovered) {
 		script->setSelection (dragStart);
 		wantColumn = -1;
 		dragging = true;
+		// Ctrl+click (Cmd+click on macOS) goes to where the name is made.
+		if (io.KeyCtrl && clicks == 1 && ! inGutter && ! io.KeyShift) {
+			dragging = false;
+			goToDefinition (at);
+			return;
+		}
 	}
 	if (! dragging) return;
 	if (! ImGui::IsMouseDown (ImGuiMouseButton_Left)) {
@@ -653,9 +756,14 @@ void ScriptView::drawText () {
 	}
 	handleMouse (origin, hovered);
 
+	updateMarkers ();
 	TextSelection s = script->selection ();
 	TextPos cursor = s.cursor;
-	if (scrollToCursor) {
+	// Not in the first frame of a view, whose content has no size yet, so
+	// that it can't scroll.
+	if (framesDrawn ++ < 1) {
+		// Keep the request for the next frame.
+	} else if (scrollToCursor) {
 		float y = cursor.line * lineHeight;
 		if (centreCursor && (y < window->Scroll.y || y + lineHeight > window->Scroll.y + viewHeight)) {
 			ImGui::SetScrollY (y - viewHeight * 0.4f);
@@ -741,12 +849,18 @@ void ScriptView::drawText () {
 				// A wavy line under what is wrong.
 				float x0 = textLeft + displayColumn (line, k.start, TAB_SIZE) * charWidth;
 				float x1 = textLeft + displayColumn (line, k.end, TAB_SIZE) * charWidth;
-				float base = y + lineHeight - 2;
-				for (float x = x0; x < x1; x += 4) {
-					draw->AddLine (ImVec2 (x, base), ImVec2 (x + 2, base - 2), colours.error);
-					draw->AddLine (ImVec2 (x + 2, base - 2), ImVec2 (x + 4 < x1 ? x + 4 : x1, base), colours.error);
-				}
+				wavyLine (draw, x0, x1, y + lineHeight - 2, colours.error);
 			}
+		}
+		// What the last compile said of the line, under its text.
+		for (size_t m = 0; m < markers.size (); m ++) {
+			if (markers[m].stamp != text.lineStamp (l)) continue;
+			int from = (int) editing::indentOf (line).size ();
+			float x0 = textLeft + displayColumn (line, from, TAB_SIZE) * charWidth;
+			float x1 = textLeft + displayColumn (line, (int) line.size (), TAB_SIZE) * charWidth;
+			if (x1 < x0 + charWidth * 2) x1 = x0 + charWidth * 2;
+			wavyLine (draw, x0, x1, y + lineHeight - 2, markers[m].error ? colours.error : colours.warning);
+			break;
 		}
 	}
 	// The cursor.
@@ -773,8 +887,428 @@ void ScriptView::drawText () {
 		float y = textTop + l * lineHeight + (lineHeight - fontSize) * 0.5f;
 		bool current = l >= s.start ().line && l <= s.end ().line;
 		draw->AddText (font, fontSize, ImVec2 (x, y), current ? colours.currentLineNumber : colours.lineNumber, number, number + n);
+		// A dot for what the compiler said.
+		for (size_t m = 0; m < markers.size (); m ++) {
+			if (markers[m].stamp != text.lineStamp (l)) continue;
+			float r = charWidth * 0.32f;
+			draw->AddCircleFilled (ImVec2 (inner.Min.x + charWidth * 0.75f, textTop + l * lineHeight + lineHeight * 0.5f), r,
+				markers[m].error ? colours.error : colours.warning);
+			break;
+		}
 	}
 	draw->PopClipRect ();
+
+	if (completing) updateCompletion ();
+	drawCompletion (origin);
+	drawSignature (origin);
+	drawHover (origin, hovered);
+}
+
+// A window over the others that takes no input, as a tooltip, at a point
+// of the screen. End it with ImGui::End, whatever this returns.
+static bool beginFloating (const char * name, const ImVec2 & at, const ImVec2 & pivot) {
+	ImGui::SetNextWindowPos (at, ImGuiCond_Always, pivot);
+	ImGui::SetNextWindowBgAlpha (1.0f);
+	ImGuiWindowFlags flags = ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
+		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
+		| ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoDocking;
+	return ImGui::Begin (name, NULL, flags);
+}
+
+// The font of the interface, for docs, while the code's is pushed.
+static void pushTextFont () {
+	ImGui::PushFont (ImGui::GetIO ().Fonts->Fonts[0], 0.0f);
+}
+
+// Some text cut to a number of characters, with ... after it.
+static std::string shortened (const std::string & text, int characters) {
+	int n = 0;
+	for (size_t i = 0; i < text.size (); i ++) {
+		if (((unsigned char) text[i] & 0xC0) == 0x80) continue;
+		if (n ++ == characters) return text.substr (0, i) + "\xE2\x80\xA6";
+	}
+	return text;
+}
+
+static int characterCount (const std::string & text) {
+	int n = 0;
+	for (size_t i = 0; i < text.size (); i ++) {
+		if (((unsigned char) text[i] & 0xC0) != 0x80) n ++;
+	}
+	return n;
+}
+
+static const int COMPLETION_ROWS = 10;
+
+void ScriptView::startCompletion (bool everything) {
+	completeEverything = everything;
+	completion = assist::complete (script->buffer (), script->selection ().cursor, actions.scriptIndex (), indexName (script), everything);
+	completedVersion = script->buffer ().version ();
+	completing = ! completion.items.empty ();
+	selectedItem = firstItem = 0;
+	if (! completing && everything) say ("No names fit here.");
+}
+
+void ScriptView::updateCompletion () {
+	const TextBuffer & text = script->buffer ();
+	TextSelection s = script->selection ();
+	TextPos cursor = s.cursor;
+	if (! s.empty () || cursor.line != completion.from.line || cursor < completion.from) {
+		completing = false;
+		return;
+	}
+	std::string typed = text.line (cursor.line).substr (completion.from.column, cursor.column - completion.from.column);
+	if (completedVersion == text.version () && typed == completion.typed) return;
+	std::string had = selectedItem < (int) completion.items.size () ? completion.items[selectedItem].label : std::string ();
+	CompletionList list = assist::complete (text, cursor, actions.scriptIndex (), indexName (script), completeEverything);
+	// Typing what isn't a name ends it.
+	if (list.items.empty () || list.from != completion.from) {
+		completing = false;
+		return;
+	}
+	completion = list;
+	completedVersion = text.version ();
+	selectedItem = firstItem = 0;
+	for (size_t i = 0; i < completion.items.size (); i ++) {
+		if (completion.items[i].label == had && i > 0 && completion.items[0].score <= completion.items[i].score) selectedItem = (int) i;
+	}
+	if (selectedItem >= COMPLETION_ROWS) firstItem = selectedItem - COMPLETION_ROWS + 1;
+}
+
+void ScriptView::acceptCompletion () {
+	if (! completing || selectedItem < 0 || selectedItem >= (int) completion.items.size ()) return;
+	const Completion & item = completion.items[selectedItem];
+	TextPos cursor = script->selection ().cursor;
+	// The rest of the word after the cursor goes too.
+	const std::string & line = script->buffer ().line (cursor.line);
+	int end = cursor.column;
+	while (end < (int) line.size () && charClassOf ((unsigned char) line[end]) == CHAR_WORD) end ++;
+	script->replace (completion.from, TextPos (cursor.line, end), item.label, EDIT_OTHER, "Complete");
+	completing = false;
+	scrollToCursor = true;
+	wantColumn = -1;
+	signatureHidden = false;
+}
+
+bool ScriptView::handleCompletionKeys () {
+	int n = (int) completion.items.size ();
+	if (! n) {
+		completing = false;
+		return false;
+	}
+	bool moved = false;
+	if (ImGui::IsKeyPressed (ImGuiKey_UpArrow)) {
+		selectedItem = (selectedItem + n - 1) % n;
+		moved = true;
+	} else if (ImGui::IsKeyPressed (ImGuiKey_DownArrow)) {
+		selectedItem = (selectedItem + 1) % n;
+		moved = true;
+	} else if (ImGui::IsKeyPressed (ImGuiKey_PageUp)) {
+		selectedItem = selectedItem - (COMPLETION_ROWS - 1) < 0 ? 0 : selectedItem - (COMPLETION_ROWS - 1);
+		moved = true;
+	} else if (ImGui::IsKeyPressed (ImGuiKey_PageDown)) {
+		selectedItem = selectedItem + (COMPLETION_ROWS - 1) >= n ? n - 1 : selectedItem + (COMPLETION_ROWS - 1);
+		moved = true;
+	} else if (ImGui::IsKeyPressed (ImGuiKey_Enter, false) || ImGui::IsKeyPressed (ImGuiKey_KeypadEnter, false)
+			|| ImGui::IsKeyPressed (ImGuiKey_Tab, false)) {
+		acceptCompletion ();
+		return true;
+	} else if (ImGui::IsKeyPressed (ImGuiKey_Escape, false)) {
+		completing = false;
+		return true;
+	}
+	if (! moved) return false;
+	if (selectedItem < firstItem) firstItem = selectedItem;
+	if (selectedItem >= firstItem + COMPLETION_ROWS) firstItem = selectedItem - COMPLETION_ROWS + 1;
+	return true;
+}
+
+void ScriptView::drawCompletion (const ImVec2 & origin) {
+	if (! completing || completion.items.empty ()) {
+		popupX0 = popupX1 = popupY0 = popupY1 = 0;
+		return;
+	}
+	ImGuiWindow * window = ImGui::GetCurrentWindow ();
+	const ImRect & inner = window->InnerRect;
+	const ScriptTheme & colours = theme ();
+	int n = (int) completion.items.size ();
+	int rows = n < COMPLETION_ROWS ? n : COMPLETION_ROWS;
+	if (firstItem > n - rows) firstItem = n - rows;
+	if (firstItem < 0) firstItem = 0;
+	int labelColumns = 8, detailColumns = 0;
+	for (int i = 0; i < n; i ++) {
+		int l = characterCount (completion.items[i].label), d = characterCount (completion.items[i].detail);
+		if (l > labelColumns) labelColumns = l;
+		if (d > detailColumns) detailColumns = d;
+	}
+	if (labelColumns > 36) labelColumns = 36;
+	if (detailColumns > 40) detailColumns = 40;
+	float pad = charWidth * 0.5f;
+	float width = (labelColumns + (detailColumns ? detailColumns + 3 : 0)) * charWidth + pad * 2;
+	float height = rows * lineHeight;
+	float x = origin.x + gutterWidth + xOf (completion.from) - pad;
+	float y = origin.y + (completion.from.line + 1) * lineHeight;
+	// Above the line when it doesn't fit below.
+	if (y + height > inner.Max.y && y - lineHeight - height >= inner.Min.y) y -= lineHeight + height;
+	if (x + width > inner.Max.x) x = inner.Max.x - width;
+	if (x < inner.Min.x + gutterWidth) x = inner.Min.x + gutterWidth;
+	popupX0 = x;
+	popupY0 = y;
+	popupX1 = x + width;
+	popupY1 = y + height;
+
+	ImGui::PushStyleVar (ImGuiStyleVar_WindowPadding, ImVec2 (0, 0));
+	ImGui::PushStyleVar (ImGuiStyleVar_WindowBorderSize, 1.0f);
+	if (beginFloating ("##completion", ImVec2 (x, y), ImVec2 (0, 0))) {
+		ImDrawList * draw = ImGui::GetWindowDrawList ();
+		ImVec2 at = ImGui::GetCursorScreenPos ();
+		ImGui::Dummy (ImVec2 (width, height));
+		ImFont * font = ImGui::GetFont ();
+		float fontSize = ImGui::GetFontSize ();
+		ImU32 dim = ImGui::GetColorU32 (ImGuiCol_TextDisabled);
+		for (int r = 0; r < rows; r ++) {
+			int i = firstItem + r;
+			const Completion & item = completion.items[i];
+			float rowY = at.y + r * lineHeight;
+			if (i == selectedItem) draw->AddRectFilled (ImVec2 (at.x, rowY), ImVec2 (at.x + width, rowY + lineHeight), colours.selection);
+			float textY = rowY + (lineHeight - fontSize) * 0.5f;
+			std::string label = shortened (item.label, labelColumns);
+			draw->AddText (font, fontSize, ImVec2 (at.x + pad, textY), colours.token[item.kind], label.c_str ());
+			if (detailColumns && ! item.detail.empty ()) {
+				std::string detail = shortened (item.detail, detailColumns);
+				float dx = at.x + width - pad - characterCount (detail) * charWidth;
+				draw->AddText (font, fontSize, ImVec2 (dx, textY), dim, detail.c_str ());
+			}
+		}
+		// Where the list is, when it is longer.
+		if (n > rows) {
+			float barTop = at.y + height * firstItem / n, barBottom = at.y + height * (firstItem + rows) / n;
+			draw->AddRectFilled (ImVec2 (at.x + width - 3, barTop), ImVec2 (at.x + width - 1, barBottom), dim);
+		}
+	}
+	ImGui::End ();
+	ImGui::PopStyleVar (2);
+
+	// The docs of the chosen one, beside the list.
+	const Completion & item = completion.items[selectedItem];
+	if (item.doc.empty ()) return;
+	float docWidth = ImGui::GetFontSize () * 26;
+	bool right = x + width + docWidth < ImGui::GetMainViewport ()->Size.x;
+	if (beginFloating ("##completion-doc", ImVec2 (right ? x + width + 4 : x - 4, y), ImVec2 (right ? 0.0f : 1.0f, 0.0f))) {
+		pushTextFont ();
+		ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + docWidth);
+		ImGui::TextUnformatted (shortened (item.doc, 600).c_str ());
+		ImGui::PopTextWrapPos ();
+		ImGui::PopFont ();
+	}
+	ImGui::End ();
+}
+
+void ScriptView::drawSignature (const ImVec2 & origin) {
+	ImGuiWindow * window = ImGui::GetCurrentWindow ();
+	if (ImGui::GetActiveID () != window->GetID ("##text") || signatureHidden || ! script->selection ().empty ()) return;
+	const TextBuffer & text = script->buffer ();
+	TextPos cursor = script->selection ().cursor;
+	if (signatureVersion != text.version () || signatureAt != cursor) {
+		signatureShown = assist::signatureAt (text, cursor, actions.scriptIndex (), indexName (script), &signature);
+		signatureVersion = text.version ();
+		signatureAt = cursor;
+	}
+	if (! signatureShown) return;
+	const ScriptTheme & colours = theme ();
+	float x = origin.x + gutterWidth + xOf (cursor) - charWidth * 4;
+	float lineTop = origin.y + cursor.line * lineHeight;
+	// Above the line, unless the list of completions is there.
+	bool below = (completing && popupY1 <= lineTop + 1) || lineTop - signatureHeight < ImGui::GetMainViewport ()->Pos.y + ImGui::GetFrameHeight ();
+	if (x < window->InnerRect.Min.x) x = window->InnerRect.Min.x;
+	if (beginFloating ("##signature", ImVec2 (x, below ? lineTop + lineHeight : lineTop - 2), ImVec2 (0.0f, below ? 0.0f : 1.0f))) {
+		ImVec4 normal = ImGui::GetStyleColorVec4 (ImGuiCol_Text), dim = ImGui::GetStyleColorVec4 (ImGuiCol_TextDisabled);
+		ImVec4 current = ImGui::ColorConvertU32ToFloat4 (colours.token[TOKEN_SUB]);
+		for (size_t f = 0; f < signature.signatures.size (); f ++) {
+			const Signature & form = signature.signatures[f];
+			bool active = (int) f == signature.active;
+			int parameter = -1;
+			int count = (int) form.parameters.size ();
+			if (signature.argument < count) parameter = signature.argument;
+			else if (form.maxArguments < 0 && count) parameter = count - 1;
+			ImVec4 colour = active ? normal : dim;
+			ImGui::TextColored (colour, "%s (", signature.name.c_str ());
+			for (int p = 0; p < count; p ++) {
+				ImGui::SameLine (0, 0);
+				if (p) {
+					ImGui::TextColored (colour, ", ");
+					ImGui::SameLine (0, 0);
+				}
+				ImGui::TextColored (active && p == parameter ? current : colour, "%s", form.parameters[p].c_str ());
+			}
+			ImGui::SameLine (0, 0);
+			ImGui::TextColored (colour, ")");
+		}
+		if (! signature.doc.empty ()) {
+			pushTextFont ();
+			ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + ImGui::GetFontSize () * 30);
+			ImGui::TextColored (dim, "%s", shortened (signature.doc, 300).c_str ());
+			ImGui::PopTextWrapPos ();
+			ImGui::PopFont ();
+		}
+		signatureHeight = ImGui::GetWindowHeight ();
+	}
+	ImGui::End ();
+}
+
+void ScriptView::drawHover (const ImVec2 & origin, bool hovered) {
+	ImGuiIO & io = ImGui::GetIO ();
+	ImGuiWindow * window = ImGui::GetCurrentWindow ();
+	const TextBuffer & text = script->buffer ();
+	ImVec2 mouse = io.MousePos;
+	bool inGutter = mouse.x < window->InnerRect.Min.x + gutterWidth;
+	if (! hovered || dragging || completing || ImGui::IsMouseDown (ImGuiMouseButton_Left) || ! ImGui::IsMousePosValid ()) {
+		hoverPlace = TextPos (-1, 0);
+		return;
+	}
+	float textLeft = origin.x + gutterWidth;
+	int line = (int) floorf ((mouse.y - origin.y) / lineHeight);
+	if (line < 0 || line >= text.lineCount ()) {
+		hoverPlace = TextPos (-1, 0);
+		return;
+	}
+	// The character under the mouse; past the end of the line, none.
+	TextPos at = inGutter ? TextPos (line, -1) : placeAt (mouse.x - textLeft - charWidth * 0.5f, mouse.y - origin.y);
+	if (! inGutter && mouse.x - textLeft > displayColumn (text.line (line), (int) text.line (line).size (), TAB_SIZE) * charWidth) at = TextPos (line, -1);
+	double now = ImGui::GetTime ();
+	if (at != hoverPlace || hoverVersion != text.version ()) {
+		hoverPlace = at;
+		hoverSince = now;
+		hoverVersion = text.version ();
+		hoverFound = false;
+		hover = HoverInfo ();
+		if (at.column >= 0) hoverFound = assist::hoverAt (text, at, actions.scriptIndex (), indexName (script), &hover);
+	}
+	if (now - hoverSince < 0.45) return;
+	std::vector<const Marker *> said;
+	for (size_t m = 0; m < markers.size (); m ++) {
+		if (markers[m].stamp == text.lineStamp (line)) said.push_back (&markers[m]);
+	}
+	if (! hoverFound && said.empty ()) return;
+	const ScriptTheme & colours = theme ();
+	if (beginFloating ("##hover", ImVec2 (mouse.x, origin.y + (line + 1) * lineHeight + 2), ImVec2 (0, 0))) {
+		float wrap = ImGui::GetFontSize () * 32;
+		pushTextFont ();
+		ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + wrap);
+		for (size_t m = 0; m < said.size (); m ++) {
+			ImGui::TextColored (ImGui::ColorConvertU32ToFloat4 (said[m]->error ? colours.error : colours.warning), "%s", said[m]->text.c_str ());
+		}
+		ImGui::PopTextWrapPos ();
+		ImGui::PopFont ();
+		if (hoverFound && ! inGutter) {
+			if (! said.empty ()) ImGui::Separator ();
+			ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + wrap);
+			ImGui::TextUnformatted (hover.title.c_str ());
+			ImGui::PopTextWrapPos ();
+			pushTextFont ();
+			ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + wrap);
+			if (! hover.where.empty ()) ImGui::TextDisabled ("%s", hover.where.c_str ());
+			if (! hover.body.empty ()) {
+				ImGui::Spacing ();
+				ImGui::TextUnformatted (shortened (hover.body, 900).c_str ());
+			}
+			if (! hover.page.empty ()) ImGui::TextDisabled ("F1 with the cursor on it opens its help.");
+			else if (! hover.where.empty ()) ImGui::TextDisabled ("F12 or %s+click goes there.", io.ConfigMacOSXBehaviors ? "Cmd" : "Ctrl");
+			ImGui::PopTextWrapPos ();
+			ImGui::PopFont ();
+		}
+	}
+	ImGui::End ();
+}
+
+void ScriptView::updateMarkers () {
+	unsigned int serial;
+	std::vector<BuildMessage> messages = actions.buildMessagesFor (script->path (), &serial);
+	if (serial == markersSerial) return;
+	markersSerial = serial;
+	markers.clear ();
+	const TextBuffer & text = script->buffer ();
+	for (size_t m = 0; m < messages.size (); m ++) {
+		int line = messages[m].line - 1;
+		if (line < 0 || line >= text.lineCount ()) continue;
+		Marker marker;
+		marker.stamp = text.lineStamp (line);
+		marker.error = messages[m].type != BuildMessage::WARNING;
+		marker.text = messages[m].text;
+		markers.push_back (marker);
+	}
+}
+
+void ScriptView::goToDefinition (TextPos at) {
+	Definition definition;
+	if (! assist::definitionAt (script->buffer (), at, actions.scriptIndex (), indexName (script), &definition)) {
+		HoverInfo info;
+		if (assist::hoverAt (script->buffer (), at, actions.scriptIndex (), indexName (script), &info) && ! info.page.empty ()) {
+			say ("That is a built-in of SLUDGE: F1 opens its help.");
+		} else {
+			say ("There is no definition of that in the project.");
+		}
+		return;
+	}
+	if (definition.file == ScriptIndex::key (indexName (script))) {
+		goTo (definition.at);
+		return;
+	}
+	actions.showInScript (definition.file, definition.at.line, definition.at.column);
+}
+
+void ScriptView::openHelpAt (TextPos at) {
+	HoverInfo info;
+	if (assist::hoverAt (script->buffer (), at, actions.scriptIndex (), indexName (script), &info) && ! info.page.empty ()) {
+		actions.openHelpPage (info.page);
+	} else if (at.column > 0 && assist::hoverAt (script->buffer (), TextPos (at.line, at.column - 1), actions.scriptIndex (), indexName (script), &info) && ! info.page.empty ()) {
+		actions.openHelpPage (info.page);
+	} else {
+		actions.openHelpPage ("SLUDGE_Language_Reference_Manual.html");
+	}
+}
+
+void ScriptView::drawOutline () {
+	const std::vector<ScriptSymbol> & symbols = actions.scriptIndex ().symbolsOf (indexName (script));
+	ImGui::SeparatorText ("Outline");
+	if (symbols.empty ()) {
+		ImGui::TextDisabled ("No subs or objectTypes yet.");
+		return;
+	}
+	const ScriptTheme & colours = theme ();
+	ImGuiTreeNodeFlags leaf = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+	for (size_t i = 0; i < symbols.size (); i ++) {
+		const ScriptSymbol & symbol = symbols[i];
+		if (! symbol.owner.empty ()) continue;
+		ImGui::PushID ((int) i);
+		ImU32 colour = colours.token[symbol.kind == SYMBOL_OBJECT_TYPE ? TOKEN_OBJECT_TYPE : symbol.kind == SYMBOL_SUB ? TOKEN_SUB
+			: symbol.kind == SYMBOL_FLAG ? TOKEN_FLAG : symbol.kind == SYMBOL_DEFINITION ? TOKEN_DEFINITION : TOKEN_VARIABLE];
+		std::string label = symbol.kind == SYMBOL_SUB ? symbol.declaration ().substr (4) : symbol.name;
+		ImGui::PushStyleColor (ImGuiCol_Text, colour);
+		if (symbol.kind == SYMBOL_OBJECT_TYPE) {
+			bool open = ImGui::TreeNodeEx ("##type", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", label.c_str ());
+			if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen ()) goTo (symbol.at);
+			ImGui::PopStyleColor ();
+			if (open) {
+				for (size_t m = 0; m < symbols.size (); m ++) {
+					const ScriptSymbol & member = symbols[m];
+					if (member.owner != symbol.name) continue;
+					ImGui::PushID ((int) m);
+					std::string text = member.kind == SYMBOL_EVENT ? "event " + member.name
+						: member.kind == SYMBOL_SUB ? member.declaration ().substr (4 + symbol.name.size () + 1) : member.name;
+					ImGui::TreeNodeEx ("##member", leaf, "%s", text.c_str ());
+					if (ImGui::IsItemClicked ()) goTo (member.at);
+					ImGui::PopID ();
+				}
+				ImGui::TreePop ();
+			}
+		} else {
+			ImGui::TreeNodeEx ("##symbol", leaf, "%s", label.c_str ());
+			ImGui::PopStyleColor ();
+			if (ImGui::IsItemClicked ()) goTo (symbol.at);
+		}
+		ImGui::PopID ();
+	}
 }
 
 void ScriptView::drawStatus () {
@@ -836,11 +1370,13 @@ void ScriptView::draw () {
 	if (codeFont) ImGui::PushFont (codeFont, 0.0f);
 	bool open = ImGui::BeginChild ("##code", ImVec2 (0, - statusHeight), ImGuiChildFlags_None,
 		ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoNavInputs);
+	// The child has its padding and colour now; the windows that the text
+	// opens, as the list of completions, have the usual ones.
+	ImGui::PopStyleColor ();
+	ImGui::PopStyleVar ();
 	if (open) drawText ();
 	ImGui::EndChild ();
 	if (codeFont) ImGui::PopFont ();
-	ImGui::PopStyleColor ();
-	ImGui::PopStyleVar ();
 	drawStatus ();
 }
 
@@ -860,6 +1396,7 @@ void ScriptView::drawInspector () {
 		ImGui::TextUnformatted (text.bom ? "UTF-8 with a byte order mark" : "UTF-8");
 		ImGui::EndTable ();
 	}
+	drawOutline ();
 }
 
 } // namespace devkit

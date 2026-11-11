@@ -3,5 +3,6 @@ sub init () {
 	# say (ego, "Goodbye");
 	if (ready) {
 		stop ();
+		addCharacter(ego);
 	}
 }
