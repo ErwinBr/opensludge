@@ -11,13 +11,29 @@
 
 set -eu
 
-url=http://archive.ubuntu.com/ubuntu/pool/multiverse/o/out-of-order/out-of-order_1.0-3_all.deb
+# The package of Ubuntu, from its archive or, when the archive can't be
+# reached (as when the DNS of a CI runner fails), from a mirror that has the
+# same file. The checksum checks it, from wherever it came. (Debian's
+# package is another build, with another checksum.)
+package=pool/multiverse/o/out-of-order/out-of-order_1.0-3_all.deb
+mirrors="http://archive.ubuntu.com/ubuntu https://mirrors.edge.kernel.org/ubuntu"
 sha256=fcf4e47f947d767ce55b4be718b0c10e591fdf1a8bc99e884f7e3e988e757a4f
 
 folder=$1
 mkdir -p "$folder"
 cd "$folder"
-curl -fsSL -o out-of-order.deb "$url"
+got=
+for mirror in $mirrors; do
+	if curl -fsSL --retry 3 --retry-delay 5 -o out-of-order.deb "$mirror/$package"; then
+		got=yes
+		break
+	fi
+	echo "Can't download Out Of Order from $mirror" >&2
+done
+if [ -z "$got" ]; then
+	echo "Can't download Out Of Order from any mirror" >&2
+	exit 1
+fi
 if command -v sha256sum > /dev/null; then
 	echo "$sha256  out-of-order.deb" | sha256sum -c -
 else
