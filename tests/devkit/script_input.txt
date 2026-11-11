@@ -1,0 +1,52 @@
+# The script editor with the keys, on tests/devkit/fixtures/script.slu in
+# the window of a smoke test (1280 x 800). The editor has the keyboard as
+# soon as the script opens. With Replace open, its field is at (380, 85)
+# and Replace All at (632, 85).
+wait 3
+
+# To the end of the say line, where a new line keeps the indent, brackets
+# close themselves, and Enter between { and } puts } on a line of its own.
+key DownArrow
+wait 1
+key DownArrow
+wait 1
+key End
+key Enter
+type if (ready) {
+key Enter
+type stop ();
+
+# Typing undoes a word at a time: the word goes, then its new line.
+key Enter
+type wrong
+wait 2
+key ctrl+Z
+wait 2
+key ctrl+Z
+wait 2
+
+# Comment out the say line.
+key UpArrow
+wait 1
+key UpArrow
+wait 1
+key ctrl+Slash
+wait 2
+
+# Replace Hello with Goodbye. A field takes what is typed only after the
+# frame in which it becomes active.
+key ctrl+alt+F
+wait 6
+type Hello
+wait 2
+move 380 85
+down
+up
+wait 3
+type Goodbye
+wait 2
+move 632 85
+down
+up
+wait 3
+save ${OUTPUT}

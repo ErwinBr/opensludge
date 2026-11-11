@@ -32,6 +32,8 @@ public:
 	virtual void copy () {}
 	virtual bool canPaste () const { return false; }
 	virtual void pasteClipboard () {}
+	// More items of the Edit menu, after Paste.
+	virtual void drawEditMenu () {}
 };
 
 } // namespace devkit

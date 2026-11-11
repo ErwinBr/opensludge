@@ -21,8 +21,8 @@ struct Preferences {
 
 	// The programs that open files, with {file} and {line} where the file
 	// and the line go. Empty means the program that the system opens the
-	// file with.
-	std::string editor;
+	// file with. Scripts open in the Dev Kit's own editor; the Editor key of
+	// the GTK Project Manager stays in the file as it was.
 	std::string imageViewer;
 	std::string audioPlayer;
 	std::string modPlayer;

@@ -1,0 +1,4 @@
+# A script for the test of the script editor (capture-devkit-script).
+sub init () {
+	say (ego, "Hello");
+}

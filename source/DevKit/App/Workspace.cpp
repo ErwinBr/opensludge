@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <string.h>
 #include <SDL3/SDL_stdinc.h>
 
 #include "imgui.h"
@@ -18,6 +19,8 @@
 #include "ClipView.h"
 #include "RigDocument.h"
 #include "RigView.h"
+#include "ScriptDocument.h"
+#include "ScriptView.h"
 #include "SpriteBankDocument.h"
 #include "SpriteBankView.h"
 #include "TranslationDocument.h"
@@ -93,6 +96,10 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	manager.registerType (RigDocument::type ());
 	registerView ("Rig", [this] (Document * document) -> DocumentView * {
 		return new RigView ((RigDocument *) document, *this, graphics);
+	});
+	manager.registerType (ScriptDocument::type ());
+	registerView ("Script", [this] (Document * document) -> DocumentView * {
+		return new ScriptView ((ScriptDocument *) document, *this);
 	});
 	manager.registerType (TranslationDocument::type ());
 	registerView ("Translation", [this] (Document * document) -> DocumentView * {
@@ -299,6 +306,19 @@ void Workspace::compile () {
 	if (! p || compiling ()) return;
 	showBuild = true;
 	ImGui::SetWindowFocus (BUILD_PANEL);
+	// The compiler reads the scripts from their files, so we save those
+	// with changes first, as other editors save before they build.
+	std::vector<Document *> open = manager.documents ();
+	for (size_t i = 0; i < open.size (); i ++) {
+		if (strcmp (open[i]->kind (), "Script") || ! open[i]->isModified () || open[i]->path ().empty ()) continue;
+		std::string error;
+		if (open[i]->save (open[i]->path (), &error)) {
+			Log::get ().add (LogLine::LOG_INFO, "Saved %s before compiling\n", open[i]->displayName ().c_str ());
+		} else {
+			thePlatform.showMessage (Platform::MESSAGE_ERROR, "Can't save " + open[i]->displayName (), error);
+			return;
+		}
+	}
 	// The compiler reads the project from its file.
 	if (p->isModified ()) {
 		manager.save (p, [this] (bool saved) {
@@ -367,9 +387,15 @@ void Workspace::openFile (const std::string & path, int line) {
 		return;
 	}
 	switch (fileKind (path)) {
-		case FILE_SCRIPT:
-			openWith (preferences.editor, path, line);
+		case FILE_SCRIPT: {
+			// In the script editor, at the line.
+			Document * document = manager.open (path);
+			if (! document) break;
+			focusDocument = document;
+			ScriptView * view = dynamic_cast<ScriptView *> (views[document].get ());
+			if (view && line > 0) view->goToLine (line);
 			break;
+		}
 		case FILE_IMAGE:
 			openWith (preferences.imageViewer, path, line);
 			break;
@@ -491,6 +517,7 @@ void Workspace::drawMenuBar () {
 		DocumentView * editing = activeView ();
 		if (ImGui::MenuItem ("Copy", shortcut ("C").c_str (), false, editing && editing->canCopy ())) editing->copy ();
 		if (ImGui::MenuItem ("Paste", shortcut ("V").c_str (), false, editing && editing->canPaste ())) editing->pasteClipboard ();
+		if (editing) editing->drawEditMenu ();
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("Preferences...")) showPreferences = true;
 		ImGui::EndMenu ();
@@ -753,11 +780,10 @@ void Workspace::drawPreferencesWindow () {
 		changed |= ImGui::Checkbox ("Verbose errors (development mode)", &preferences.verbose);
 
 		ImGui::SeparatorText ("Programs");
-		ImGui::TextWrapped ("The programs that open the files of a project. Leave one empty for the program "
-			"that your system opens the file with. Write {file} where the file goes, and {line} where "
-			"the line of an error goes; without {file}, the file goes at the end.");
+		ImGui::TextWrapped ("The programs that open the files of a project; scripts open in the Dev Kit. "
+			"Leave one empty for the program that your system opens the file with. Write {file} where the "
+			"file goes; without it, the file goes at the end.");
 		ImGui::PushItemWidth (ImGui::GetFontSize () * 22);
-		changed |= programField ("Script editor", &preferences.editor, "For example: code --goto {file}:{line}");
 		changed |= programField ("Image viewer", &preferences.imageViewer, "For PNG and TGA images");
 		changed |= programField ("Audio player", &preferences.audioPlayer, "For WAV, OGG and FLAC sounds");
 		changed |= programField ("Module player", &preferences.modPlayer, "For MOD, S3M, IT and XM music");

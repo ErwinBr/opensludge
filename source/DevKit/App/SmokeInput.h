@@ -9,7 +9,8 @@
  *   move <x> <y>     the mouse to a point of the window
  *   down [ctrl|shift], up
  *                    the left mouse button, with Ctrl or Shift held until up
- *   key <name>       press and release a key, such as 2, Escape or ctrl+z
+ *   key <name>       press and release a key, such as 2, Escape, ctrl+z or
+ *                    shift+Tab, with ctrl+, shift+ and alt+ held with it
  *                    (Ctrl is Cmd on macOS, as in the shortcuts)
  *   type <text>      type text, as into a field
  *   wait <frames>    do nothing for some frames
@@ -35,7 +36,7 @@ class Workspace;
 
 class SmokeInput {
 public:
-	SmokeInput () : next (0), waiting (0), keyUp (0), ctrlUp (false), heldKey (0) {}
+	SmokeInput () : next (0), waiting (0), keyUp (0), modifiersUp (0), heldKey (0) {}
 
 	// Returns false, with the reason in *error, when we can't read it.
 	bool read (const std::string & file, std::string * error);
@@ -56,7 +57,7 @@ private:
 	size_t next;
 	int waiting;
 	int keyUp;		// The key to release in the next frame, or 0
-	bool ctrlUp;	// Whether to release Ctrl then too
+	int modifiersUp;	// The modifiers to release then too (ImGuiMod_ keys, as bits)
 	int heldKey;	// The modifier held from down to up, or 0
 };
 

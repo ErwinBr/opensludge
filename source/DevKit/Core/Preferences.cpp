@@ -24,7 +24,6 @@ bool Preferences::read (const std::string & file) {
 		else if (key == "WriteStrings") writeStrings = atoi (value.c_str ()) != 0;
 		else if (key == "Verbose") verbose = atoi (value.c_str ()) != 0;
 		else if (key == "SearchSensitive") searchSensitive = atoi (value.c_str ()) != 0;
-		else if (key == "Editor") editor = value;
 		else if (key == "ImageViewer") imageViewer = value;
 		else if (key == "AudioPlayer") audioPlayer = value;
 		else if (key == "ModPlayer") modPlayer = value;
@@ -47,7 +46,6 @@ bool Preferences::write (const std::string & file) const {
 	fprintf (fp, "WriteStrings=%d\r\n", writeStrings ? 1 : 0);
 	fprintf (fp, "Verbose=%d\r\n", verbose ? 1 : 0);
 	fprintf (fp, "SearchSensitive=%d\r\n", searchSensitive ? 1 : 0);
-	fprintf (fp, "Editor=%s\r\n", editor.c_str ());
 	fprintf (fp, "ImageViewer=%s\r\n", imageViewer.c_str ());
 	fprintf (fp, "AudioPlayer=%s\r\n", audioPlayer.c_str ());
 	fprintf (fp, "ModPlayer=%s\r\n", modPlayer.c_str ());

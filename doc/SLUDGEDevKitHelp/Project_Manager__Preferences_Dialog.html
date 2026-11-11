@@ -33,18 +33,18 @@ checked while developing a game, and uncheck it before compiling a release versi
 <H3>Programs</H3>
 
 <P>
-The programs that open the files of a project when you double-click them: the script editor for scripts and
-constant definitions, an image viewer for PNG and TGA images, an audio player for WAV, OGG and FLAC sounds, and a
-module player for MOD, S3M, IT and XM music. Leave one empty for the program that your system opens the file with.
+The programs that open the files of a project when you double-click them: an image viewer for PNG and TGA images,
+an audio player for WAV, OGG and FLAC sounds, and a module player for MOD, S3M, IT and XM music. Leave one empty
+for the program that your system opens the file with. Scripts and constant definitions open in the Dev Kit's own
+script editor, as does a double-click on an error, at its line.
 </P>
 
 <P>
-Write <b>{file}</b> where the name of the file goes, and <b>{line}</b> where the line of an error goes, so that a
-double-click on an error opens its script at that line. Without {file}, the file goes at the end. For example, for
-Visual Studio Code:
+Write <b>{file}</b> where the name of the file goes. Without it, the file goes at the end. For example, for an
+image viewer:
 </P>
 
-<p><div class="bash">code --goto {file}:{line}</div></p>
+<p><div class="bash">eog {file}</div></p>
 
 <H3>See also:</H3>
 

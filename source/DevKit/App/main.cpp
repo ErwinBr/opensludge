@@ -41,6 +41,7 @@
 #include "InterfacePlatform.h"
 #include "Log.h"
 #include "PlatformSDL.h"
+#include "ScriptView.h"
 #include "SmokeInput.h"
 #include "Workspace.h"
 
@@ -97,6 +98,44 @@ static bool saveFrame (gfx::Renderer * renderer, int width, int height, const ch
 	return true;
 }
 
+// Add the first font of a list that is there, or return NULL.
+static ImFont * addFirstFont (ImGuiIO & io, const std::vector<std::string> & fonts, const char * what) {
+	for (size_t i = 0; i < fonts.size (); i ++) {
+		SDL_PathInfo info;
+		if (! SDL_GetPathInfo (fonts[i].c_str (), &info) || info.type != SDL_PATHTYPE_FILE) continue;
+		ImFont * font = io.Fonts->AddFontFromFileTTF (fonts[i].c_str ());
+		if (font) {
+			Log::get ().add (LogLine::LOG_DEBUG, "The %s is %s\n", what, fonts[i].c_str ());
+			return font;
+		}
+	}
+	return NULL;
+}
+
+// The monospaced font of the system, for the script editor, or NULL.
+static ImFont * addMonospaceFont (ImGuiIO & io) {
+	std::vector<std::string> fonts;
+#if defined(__APPLE__)
+	fonts.push_back ("/System/Library/Fonts/SFNSMono.ttf");		// macOS 10.15 and later
+	fonts.push_back ("/System/Library/Fonts/Menlo.ttc");
+	fonts.push_back ("/System/Library/Fonts/Monaco.ttf");
+#elif defined(_WIN32)
+	const char * windows = SDL_getenv ("WINDIR");
+	std::string folder = std::string (windows ? windows : "C:\\Windows") + "\\Fonts\\";
+	fonts.push_back (folder + "consola.ttf");
+	fonts.push_back (folder + "CascadiaMono.ttf");
+	fonts.push_back (folder + "cour.ttf");
+#else
+	const char * folders[] = { "/usr/share/fonts/truetype/", "/usr/share/fonts/TTF/", "/usr/share/fonts/" };
+	const char * names[] = { "dejavu/DejaVuSansMono.ttf", "DejaVuSansMono.ttf", "noto/NotoSansMono-Regular.ttf",
+		"google-noto/NotoSansMono-Regular.ttf", "liberation/LiberationMono-Regular.ttf", "LiberationMono-Regular.ttf" };
+	for (size_t n = 0; n < sizeof (names) / sizeof (names[0]); n ++) {
+		for (size_t f = 0; f < sizeof (folders) / sizeof (folders[0]); f ++) fonts.push_back (std::string (folders[f]) + names[n]);
+	}
+#endif
+	return addFirstFont (io, fonts, "monospaced font");
+}
+
 // The font of the interface of the system, or NULL when we find none.
 static ImFont * addSystemFont (ImGuiIO & io) {
 	std::vector<std::string> fonts;
@@ -117,16 +156,7 @@ static ImFont * addSystemFont (ImGuiIO & io) {
 		for (size_t f = 0; f < sizeof (folders) / sizeof (folders[0]); f ++) fonts.push_back (std::string (folders[f]) + names[n]);
 	}
 #endif
-	for (size_t i = 0; i < fonts.size (); i ++) {
-		SDL_PathInfo info;
-		if (! SDL_GetPathInfo (fonts[i].c_str (), &info) || info.type != SDL_PATHTYPE_FILE) continue;
-		ImFont * font = io.Fonts->AddFontFromFileTTF (fonts[i].c_str ());
-		if (font) {
-			Log::get ().add (LogLine::LOG_DEBUG, "The font is %s\n", fonts[i].c_str ());
-			return font;
-		}
-	}
-	return NULL;
+	return addFirstFont (io, fonts, "font");
 }
 
 int main (int argc, char ** argv) {
@@ -270,6 +300,15 @@ int main (int argc, char ** argv) {
 	} else {
 		io.Fonts->AddFontDefaultVector ();
 	}
+	// The scripts in a monospaced font, with ImGui's for what it lacks. A
+	// smoke test has ImGui's, which is monospaced too.
+	ImFont * mono = systemFont ? addMonospaceFont (io) : NULL;
+	if (mono) {
+		ImFontConfig fallback;
+		fallback.MergeMode = true;
+		io.Fonts->AddFontDefaultVector (&fallback);
+	}
+	ScriptView::setFont (mono);
 
 	ImGui_ImplSDL3_InitForOther (window);
 	ImGui_ImplGfx_Init (renderer);

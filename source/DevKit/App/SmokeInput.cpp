@@ -73,9 +73,11 @@ bool SmokeInput::step (Workspace & workspace) {
 		io.AddKeyEvent ((ImGuiKey) keyUp, false);
 		keyUp = 0;
 	}
-	if (ctrlUp) {
-		io.AddKeyEvent (ctrlKey (), false);
-		ctrlUp = false;
+	if (modifiersUp) {
+		if (modifiersUp & 1) io.AddKeyEvent (ctrlKey (), false);
+		if (modifiersUp & 2) io.AddKeyEvent (ImGuiMod_Shift, false);
+		if (modifiersUp & 4) io.AddKeyEvent (ImGuiMod_Alt, false);
+		modifiersUp = 0;
 	}
 	if (waiting > 0) {
 		waiting --;
@@ -100,18 +102,26 @@ bool SmokeInput::step (Workspace & workspace) {
 	} else if (s.what == "wait") {
 		waiting = s.frames - 1;
 	} else if (s.what == "key") {
+		// ctrl+, shift+ and alt+, in any order, before the key.
 		std::string name = s.text;
-		bool ctrl = name.compare (0, 5, "ctrl+") == 0;
-		if (ctrl) name = name.substr (5);
+		int modifiers = 0;
+		for (;;) {
+			if (name.compare (0, 5, "ctrl+") == 0) modifiers |= 1, name = name.substr (5);
+			else if (name.compare (0, 6, "shift+") == 0) modifiers |= 2, name = name.substr (6);
+			else if (name.compare (0, 4, "alt+") == 0) modifiers |= 4, name = name.substr (4);
+			else break;
+		}
 		ImGuiKey key = keyNamed (name);
 		if (key == ImGuiKey_None) {
 			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: there is no key %s\n", name.c_str ());
 			return false;
 		}
-		if (ctrl) io.AddKeyEvent (ctrlKey (), true);
+		if (modifiers & 1) io.AddKeyEvent (ctrlKey (), true);
+		if (modifiers & 2) io.AddKeyEvent (ImGuiMod_Shift, true);
+		if (modifiers & 4) io.AddKeyEvent (ImGuiMod_Alt, true);
 		io.AddKeyEvent (key, true);
 		keyUp = key;
-		ctrlUp = ctrl;
+		modifiersUp = modifiers;
 	} else if (s.what == "type") {
 		io.AddInputCharactersUTF8 (s.text.c_str ());
 	} else if (s.what == "new") {

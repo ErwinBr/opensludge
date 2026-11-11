@@ -153,7 +153,12 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 		${DEVKIT_DIR}/Core/RigDocument.cpp
+		${DEVKIT_DIR}/Core/ScriptCatalog.cpp
+		${DEVKIT_DIR}/Core/ScriptDocument.cpp
+		${DEVKIT_DIR}/Core/ScriptLexer.cpp
 		${DEVKIT_DIR}/Core/SpriteBankDocument.cpp
+		${DEVKIT_DIR}/Core/TextBuffer.cpp
+		${DEVKIT_DIR}/Core/TextEditing.cpp
 		${DEVKIT_DIR}/Core/TranslationDocument.cpp
 		${DEVKIT_DIR}/Core/ZBufferDocument.cpp
 	)
@@ -187,6 +192,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/ClipView.cpp
 		${DEVKIT_DIR}/App/PosePreview.cpp
 		${DEVKIT_DIR}/App/RigView.cpp
+		${DEVKIT_DIR}/App/ScriptView.cpp
 		${DEVKIT_DIR}/App/SpriteBankView.cpp
 		${DEVKIT_DIR}/App/TranslationView.cpp
 		${DEVKIT_DIR}/App/Workspace.cpp
@@ -352,6 +358,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-translation
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-translation PROPERTIES LABELS capture)
+		# And for a script: typing with its indents and brackets, undo, a
+		# comment and Replace All.
+		add_test(NAME capture-devkit-script
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/script.slu
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/script_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/script-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-script
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-script PROPERTIES LABELS capture)
 		# Closing the tab of each kind of document.
 		add_test(NAME capture-devkit-close
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

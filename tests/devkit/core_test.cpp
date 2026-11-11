@@ -44,6 +44,11 @@
 #include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
+#include "ScriptCatalog.h"
+#include "ScriptDocument.h"
+#include "ScriptLexer.h"
+#include "TextBuffer.h"
+#include "TextEditing.h"
 
 using namespace devkit;
 
@@ -363,18 +368,298 @@ static void testPreferences () {
 	Preferences preferences;
 	CHECK (preferences.read (file));
 	CHECK (! preferences.keepImages && preferences.writeStrings && ! preferences.verbose);
-	CHECK (preferences.editor == "gedit" && preferences.modPlayer == "totem");
+	CHECK (preferences.imageViewer == "loupe" && preferences.modPlayer == "totem");
 
-	preferences.editor = "code --goto {file}:{line}";
+	// Scripts open in the Dev Kit now, but the GTK Project Manager's
+	// editor stays in the file, as the keys that we don't know do.
+	preferences.imageViewer = "eog {file}";
 	CHECK (preferences.write (file));
 	Preferences again;
 	CHECK (again.read (file));
-	CHECK (again.editor == "code --goto {file}:{line}");
+	CHECK (again.imageViewer == "eog {file}");
 	CHECK (readFile (file).find ("Future=yes\r\n") != std::string::npos);
+	CHECK (readFile (file).find ("Editor=gedit\r\n") != std::string::npos);
 
 	Preferences defaults;
 	CHECK (! defaults.read (folder + "missing.ini"));
-	CHECK (defaults.keepImages && defaults.verbose && defaults.editor.empty ());
+	CHECK (defaults.keepImages && defaults.verbose && defaults.imageViewer.empty ());
+}
+
+// The text of a script: lines, their ends and the byte order mark, kept
+// as they were.
+static void testTextBuffer () {
+	TextBuffer text;
+	CHECK (text.lineCount () == 1 && text.fileText ().empty ());
+	text.setText ("one\r\ntwo\r\n");
+	CHECK (text.lineCount () == 3 && text.line (1) == "two" && text.line (2).empty () && text.crlf);
+	CHECK (text.fileText () == "one\r\ntwo\r\n");
+	text.setText ("\xEF\xBB\xBFno end");
+	CHECK (text.bom && ! text.crlf && text.lineCount () == 1 && text.line (0) == "no end");
+	CHECK (text.fileText () == "\xEF\xBB\xBFno end");
+	text.setText ("\n");
+	CHECK (text.lineCount () == 2 && text.fileText () == "\n");
+	// Mixed ends stay; a new line ends as most do, and a joined line as
+	// the last of its lines did.
+	text.setText ("a\r\nb\nc\r\nd");
+	CHECK (text.crlf && text.mixedLineEnds ());
+	text.insert (TextPos (1, 1), "\nx");
+	CHECK (text.fileText () == "a\r\nb\r\nx\nc\r\nd");
+	text.erase (TextPos (0, 1), TextPos (2, 1));
+	CHECK (text.fileText () == "a\nc\r\nd");
+
+	text.setText ("abc\ndef");
+	uint64_t stamp0 = text.lineStamp (0), stamp1 = text.lineStamp (1);
+	TextPos end = text.insert (TextPos (0, 1), "X\nY");
+	CHECK (end == TextPos (1, 1) && text.text () == "aX\nYbc\ndef");
+	CHECK (text.lineStamp (0) != stamp0 && text.lineStamp (2) == stamp1);
+	text.erase (TextPos (0, 1), TextPos (1, 1));
+	CHECK (text.text () == "abc\ndef");
+	CHECK (text.textIn (TextPos (0, 2), TextPos (1, 1)) == "c\nd");
+	CHECK (TextBuffer::endOf (TextPos (3, 4), "ab\ncde") == TextPos (4, 3));
+
+	// Characters, words and columns, with UTF-8 and tabs.
+	text.setText ("\tsay (ego, \"\xC3\xA9t\xC3\xA9\");");
+	CHECK (text.next (TextPos (0, 12)) == TextPos (0, 14));
+	CHECK (text.previous (TextPos (0, 14)) == TextPos (0, 12));
+	CHECK (text.clamp (TextPos (0, 13)) == TextPos (0, 12));
+	CHECK (text.wordRight (TextPos (0, 0)) == TextPos (0, 4));
+	CHECK (text.wordLeft (TextPos (0, 4)) == TextPos (0, 1));
+	CHECK (text.wordAt (TextPos (0, 2)) == TextSelection (TextPos (0, 1), TextPos (0, 4)));
+	CHECK (displayColumn (text.line (0), 1, 4) == 4 && displayColumn (text.line (0), 15, 4) == 17);
+	CHECK (byteAtDisplayColumn (text.line (0), 4, 4) == 1 && byteAtDisplayColumn (text.line (0), 1, 4) == 0);
+}
+
+// Every script of the examples reads and saves as it was.
+static void testScriptFiles () {
+	const char * projects[] = { "Welcome/Welcome.slp", "VerbCoin/VerbCoin.slp" };
+	int scripts = 0;
+	for (int p = 0; p < 2; p ++) {
+		ProjectDocument project;
+		std::string error;
+		CHECK (project.load (examples + projects[p], &error));
+		for (size_t f = 0; f < project.files ().size (); f ++) {
+			std::string name = project.files ()[f];
+			if (extensionOf (name) != "slu" && extensionOf (name) != "sld") continue;
+			std::string path = folderOf (examples + projects[p]) + name;
+			ScriptDocument script;
+			CHECK (script.load (path, &error));
+			CHECK (script.save (folder + "copy.slu", &error));
+			CHECK (readFile (folder + "copy.slu") == readFile (path));
+			CHECK (! script.isModified ());
+			scripts ++;
+		}
+	}
+	CHECK (scripts >= 10);
+	ScriptDocument script;
+	std::string error;
+	CHECK (script.load (fixtures + "init-utf8.slu", &error));
+	CHECK (script.save (folder + "copy.slu", &error) && readFile (folder + "copy.slu") == readFile (fixtures + "init-utf8.slu"));
+	// The old project's text is Windows-1252: Check Files converts it.
+	CHECK (! script.load (fixtures + "OldProject/init.slu", &error));
+	CHECK (error.find ("isn't UTF-8") != std::string::npos && error.find ("Check Files") != std::string::npos);
+	CHECK (script.path () == folder + "copy.slu");
+
+	// The indent of a file.
+	writeFile (folder + "spaces.slu", "sub a () {\n   b ();\n   if (c) {\n      d ();\n   }\n}\n");
+	CHECK (script.load (folder + "spaces.slu", &error) && script.indentUnit () == "   ");
+	CHECK (script.load (examples + "VerbCoin/init.slu", &error) && script.indentUnit () == "\t");
+
+	// A change on disk, which we read again.
+	writeFile (folder + "disk.slu", "one\n");
+	CHECK (script.load (folder + "disk.slu", &error) && ! script.changedOnDisk ());
+	writeFile (folder + "disk.slu", "one\ntwo\n");
+	CHECK (script.changedOnDisk ());
+	CHECK (script.reload (&error) && script.buffer ().text () == "one\ntwo\n" && ! script.isModified () && ! script.changedOnDisk ());
+	script.commands ().undo ();
+	CHECK (script.buffer ().text () == "one\n" && script.isModified ());
+}
+
+static ScriptDocument * scriptOf (const std::string & text, TextPos cursor) {
+	ScriptDocument * script = new ScriptDocument;
+	script->setText (text, "Test");
+	script->commands ().clear ();
+	script->commands ().markSaved ();
+	script->setSelection (TextSelection (cursor));
+	return script;
+}
+
+static void typeEach (ScriptDocument & script, const std::string & text) {
+	for (size_t i = 0; i < text.size (); i ++) editing::type (script, std::string (1, text[i]));
+}
+
+// What the keys of the script editor do, and how they undo.
+static void testTextEditing () {
+	std::unique_ptr<ScriptDocument> script (scriptOf ("", TextPos ()));
+	// Typing undoes a word at a time.
+	typeEach (*script, "abc def");
+	CHECK (script->buffer ().text () == "abc def" && script->selection ().cursor == TextPos (0, 7));
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "abc " && script->selection ().cursor == TextPos (0, 4));
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "" && ! script->isModified ());
+	script->commands ().redo ();
+	script->commands ().redo ();
+	CHECK (script->buffer ().text () == "abc def");
+	// Backspaces together, until the cursor moves.
+	editing::backspace (*script, false);
+	editing::backspace (*script, false);
+	script->setSelection (TextSelection (TextPos (0, 2)));
+	editing::backspace (*script, false);
+	CHECK (script->buffer ().text () == "ac d");
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "abc d");
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "abc def");
+	editing::backspace (*script, true);
+	CHECK (script->buffer ().text () == "abc ");
+	script->setSelection (TextSelection (TextPos (0, 0)));
+	editing::deleteForward (*script, false);
+	editing::deleteForward (*script, false);
+	CHECK (script->buffer ().text () == "c ");
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "abc ");
+
+	// Brackets and quotes close themselves, and typing the closing one
+	// moves over it.
+	script.reset (scriptOf ("sub init () {\n}", TextPos (0, 13)));
+	editing::newLine (*script);
+	CHECK (script->buffer ().text () == "sub init () {\n\t\n}" && script->selection ().cursor == TextPos (1, 1));
+	typeEach (*script, "say (ego, \"Hi\");");
+	CHECK (script->buffer ().line (1) == "\tsay (ego, \"Hi\");" && script->selection ().cursor == TextPos (1, 17));
+	editing::newLine (*script);
+	typeEach (*script, "if (x) {");
+	CHECK (script->buffer ().line (2) == "\tif (x) {}");
+	editing::newLine (*script);
+	CHECK (script->buffer ().line (2) == "\tif (x) {" && script->buffer ().line (3) == "\t\t" && script->buffer ().line (4) == "\t}");
+	CHECK (script->selection ().cursor == TextPos (3, 2));
+	// A } on a line of its own goes to the indent of its {.
+	editing::newLine (*script);
+	script->setSelection (TextSelection (TextPos (4, 2)));
+	typeEach (*script, "}");
+	CHECK (script->buffer ().line (4) == "\t}");
+	// An empty pair goes with one backspace.
+	script.reset (scriptOf ("x = ", TextPos (0, 4)));
+	typeEach (*script, "(");
+	CHECK (script->buffer ().text () == "x = ()");
+	editing::backspace (*script, false);
+	CHECK (script->buffer ().text () == "x = ");
+	// No partner before a word, nor a quote after one, and a selection
+	// gets wrapped.
+	script.reset (scriptOf ("call", TextPos (0, 0)));
+	typeEach (*script, "(");
+	CHECK (script->buffer ().text () == "(call");
+	script.reset (scriptOf ("it", TextPos (0, 2)));
+	typeEach (*script, "'");
+	CHECK (script->buffer ().text () == "it'");
+	script->setSelection (TextSelection (TextPos (0, 0), TextPos (0, 2)));
+	typeEach (*script, "\"");
+	CHECK (script->buffer ().text () == "\"it\"'" && script->selection () == TextSelection (TextPos (0, 1), TextPos (0, 3)));
+
+	// Tab and Shift+Tab, on lines and on a selection of them.
+	script.reset (scriptOf ("a\nb\nc", TextPos (0, 0)));
+	script->setSelection (TextSelection (TextPos (0, 1), TextPos (2, 0)));
+	editing::tab (*script);
+	CHECK (script->buffer ().text () == "\ta\n\tb\nc");
+	CHECK (script->selection () == TextSelection (TextPos (0, 2), TextPos (2, 0)));
+	editing::indentLines (*script, false);
+	CHECK (script->buffer ().text () == "a\nb\nc");
+	script->commands ().undo ();
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "a\nb\nc");
+	script->setSelection (TextSelection (TextPos (1, 1)));
+	editing::tab (*script);
+	CHECK (script->buffer ().text () == "a\nb\t\nc");
+
+	// Comments, on and off, at the indent of the lines.
+	script.reset (scriptOf ("\tone ();\n\t\ttwo ();\n", TextPos (0, 2)));
+	script->setSelection (TextSelection (TextPos (0, 2), TextPos (1, 3)));
+	editing::toggleComment (*script);
+	CHECK (script->buffer ().text () == "\t# one ();\n\t# \ttwo ();\n");
+	CHECK (script->selection () == TextSelection (TextPos (0, 4), TextPos (1, 5)));
+	editing::toggleComment (*script);
+	CHECK (script->buffer ().text () == "\tone ();\n\t\ttwo ();\n");
+
+	// Moving, copying and deleting lines.
+	script.reset (scriptOf ("a\nb\nc", TextPos (1, 1)));
+	editing::moveLines (*script, -1);
+	CHECK (script->buffer ().text () == "b\na\nc" && script->selection ().cursor == TextPos (0, 1));
+	editing::moveLines (*script, -1);
+	CHECK (script->buffer ().text () == "b\na\nc");
+	editing::moveLines (*script, 1);
+	editing::moveLines (*script, 1);
+	CHECK (script->buffer ().text () == "a\nc\nb" && script->selection ().cursor == TextPos (2, 1));
+	editing::duplicateLines (*script, 1);
+	CHECK (script->buffer ().text () == "a\nc\nb\nb" && script->selection ().cursor == TextPos (3, 1));
+	editing::deleteLines (*script);
+	editing::deleteLines (*script);
+	CHECK (script->buffer ().text () == "a\nc");
+	script->commands ().undo ();
+	script->commands ().undo ();
+	script->commands ().undo ();
+	script->commands ().undo ();
+	script->commands ().undo ();
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "a\nb\nc" && ! script->isModified ());
+
+	// Brackets, but not those in strings and comments.
+	TextBuffer text;
+	text.setText ("sub a (\"(\") {\n\t# }\n\tb [1];\n}");
+	CHECK (editing::matchingBracket (text, TextPos (0, 12)) == TextPos (3, 0));
+	CHECK (editing::matchingBracket (text, TextPos (3, 0)) == TextPos (0, 12));
+	CHECK (editing::matchingBracket (text, TextPos (0, 6)) == TextPos (0, 10));
+	CHECK (editing::matchingBracket (text, TextPos (0, 8)) == TextPos (0, 8));
+
+	// Finding and replacing.
+	script.reset (scriptOf ("say (ego, \"Ego\");\nsayEgo ();\n", TextPos (0, 0)));
+	editing::FindOptions options;
+	CHECK (editing::findAll (script->buffer (), "ego", options).size () == 3);
+	options.matchCase = true;
+	CHECK (editing::findAll (script->buffer (), "Ego", options).size () == 2);
+	options.wholeWord = true;
+	std::vector<TextSelection> found = editing::findAll (script->buffer (), "Ego", options);
+	CHECK (found.size () == 1 && found[0].start () == TextPos (0, 11));
+	options = editing::FindOptions ();
+	CHECK (editing::findNext (script->buffer (), TextPos (0, 6), "ego", options, false).start () == TextPos (0, 11));
+	CHECK (editing::findNext (script->buffer (), TextPos (1, 9), "ego", options, false).start () == TextPos (0, 5));
+	CHECK (editing::findNext (script->buffer (), TextPos (0, 5), "ego", options, true).start () == TextPos (1, 3));
+	script->setSelection (TextSelection (TextPos (0, 5), TextPos (0, 8)));
+	CHECK (editing::replaceNext (*script, "ego", "hero", options));
+	CHECK (script->buffer ().line (0) == "say (hero, \"Ego\");" && script->selection ().start () == TextPos (0, 12));
+	CHECK (editing::replaceAll (*script, "ego", "x", options) == 2);
+	CHECK (script->buffer ().text () == "say (hero, \"x\");\nsayx ();\n");
+	script->commands ().undo ();
+	CHECK (script->buffer ().text () == "say (hero, \"Ego\");\nsayEgo ();\n");
+}
+
+// The words of a line, and what the built-ins are.
+static void testScriptLexer () {
+	std::vector<Token> tokens = lexLine ("\tsay (ego, \"a \\\"b\\\"\"); # done", NULL);
+	TokenKind kinds[] = { TOKEN_SPACE, TOKEN_FUNCTION, TOKEN_SPACE, TOKEN_BRACKET, TOKEN_IDENTIFIER, TOKEN_PUNCTUATION, TOKEN_SPACE,
+		TOKEN_STRING, TOKEN_ESCAPE, TOKEN_STRING, TOKEN_ESCAPE, TOKEN_STRING, TOKEN_BRACKET, TOKEN_PUNCTUATION, TOKEN_SPACE, TOKEN_COMMENT };
+	CHECK (tokens.size () == sizeof (kinds) / sizeof (kinds[0]));
+	for (size_t i = 0; i < tokens.size () && i < sizeof (kinds) / sizeof (kinds[0]); i ++) CHECK (tokens[i].kind == kinds[i]);
+	CHECK (tokens[1].start == 1 && tokens[1].end == 4);
+	tokens = lexLine ("if (x >= 10 && y != NORTH) addOverlay ('room.tga', 0, 0);", NULL);
+	CHECK (tokens[0].kind == TOKEN_KEYWORD && tokens[5].kind == TOKEN_OPERATOR && tokens[5].end - tokens[5].start == 2);
+	CHECK (tokens[7].kind == TOKEN_NUMBER);
+	CHECK (tokens[tokenAt (tokens, 21)].kind == TOKEN_CONSTANT);
+	CHECK (tokens[tokenAt (tokens, 41)].kind == TOKEN_FILE);
+	// A string with no end is wrong.
+	tokens = lexLine ("say (ego, \"oops);", NULL);
+	CHECK (tokens.back ().kind == TOKEN_ERROR && tokens.back ().start == 10);
+	CHECK (kindOfName ("walkSpeed", NULL) == TOKEN_ELEMENT && kindOfName ("objectType", NULL) == TOKEN_KEYWORD);
+	CHECK (kindOfName ("setStatusColor", NULL) == TOKEN_FUNCTION && kindOfName ("TRUE", NULL) == TOKEN_CONSTANT);
+	CHECK (kindOfName ("ego", NULL) == TOKEN_IDENTIFIER);
+
+	const ScriptCatalog & catalog = ScriptCatalog::get ();
+	int functions = 0;
+#define FUNC(s, n) functions ++; CHECK (catalog.function (#n) != NULL);
+#include "functionlist.h"
+#undef FUNC
+	CHECK ((int) catalog.functions ().size () == functions);
+	CHECK (catalog.constant ("NORTHEAST") && catalog.constant ("NORTHEAST")->value == "45");
+	CHECK (catalog.constant ("dequeue") && catalog.constant ("dequeue")->isFunctionName ());
+	CHECK (! catalog.function ("nothing") && ! catalog.constant ("nothing"));
 }
 
 static void testProjects () {
@@ -1938,6 +2223,10 @@ int main (int argc, char ** argv) {
 	testColourKeys ();
 	testPreviewPlayer ();
 	testFileMemory ();
+	testTextBuffer ();
+	testScriptFiles ();
+	testTextEditing ();
+	testScriptLexer ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);
