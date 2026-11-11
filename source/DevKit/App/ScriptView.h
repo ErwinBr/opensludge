@@ -15,6 +15,7 @@
 
 #include "CompileJob.h"
 #include "DocumentView.h"
+#include "ScriptAnalysis.h"
 #include "ScriptAssist.h"
 #include "ScriptDocument.h"
 #include "ScriptLexer.h"
@@ -44,7 +45,10 @@ public:
 	// Put the cursor at the start of a line (from 1), or at a place, in the
 	// middle of the view, and give the editor the keyboard.
 	void goToLine (int line);
-	void goTo (TextPos at);
+	// With a length, the bytes after the place are selected.
+	void goTo (TextPos at, int length = 0);
+	// The selection, when it is on one line, or empty.
+	std::string selectedText () const;
 
 	// The name of a script in the index: its file, or a name of its own
 	// while it has none.
@@ -83,6 +87,13 @@ private:
 	void drawHover (const ImVec2 & origin, bool hovered);
 	void drawOutline ();
 	void updateMarkers ();
+	// The live checks, again a little after the text or the names change.
+	void updateProblems ();
+	void drawProblems ();
+	// Go to the next problem after the cursor, or the one before it.
+	void nextProblem (bool backwards);
+	// The line that has a stamp now, or -1.
+	int lineWithStamp (uint64_t stamp) const;
 	// Completion: start it, keep it up to date as the user types, and put
 	// in the chosen name.
 	void startCompletion (bool everything);
@@ -158,6 +169,16 @@ private:
 	};
 	std::vector<Marker> markers;
 	unsigned int markersSerial;
+
+	// What the live checks found, each on its line as it was then.
+	struct Problem {
+		Diagnostic diagnostic;
+		uint64_t stamp;
+	};
+	std::vector<Problem> problems;
+	uint64_t problemsVersion, problemsNames;	// Of the text and of the index
+	bool problemsAllNames;
+	double problemsDue;		// When to check again, or 0
 	int framesDrawn;
 
 	// When the file changed on disk while we had changes.

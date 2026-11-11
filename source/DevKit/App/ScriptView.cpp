@@ -121,6 +121,7 @@ ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a)
 	  popupX0 (0), popupY0 (0), popupX1 (0), popupY1 (0), completedVersion (0),
 	  signatureShown (false), signatureHidden (false), signatureVersion (0), signatureAt (-1, 0), signatureHeight (0),
 	  hoverPlace (-1, 0), hoverSince (0), hoverFound (false), hoverVersion (0), markersSerial (0), framesDrawn (0),
+	  problemsVersion (0), problemsNames (0), problemsAllNames (false), problemsDue (0),
 	  diskChanged (false), nextDiskCheck (0), noticeUntil (0) {}
 
 std::string ScriptView::indexName (const ScriptDocument * script) {
@@ -138,7 +139,7 @@ void ScriptView::say (const std::string & text) {
 bool ScriptView::animating () const {
 	// While the mouse rests on a name, until its docs show.
 	bool hoverWaits = hoverPlace.line >= 0 && ImGui::GetTime () - hoverSince < 0.6;
-	return dragging || hoverWaits;
+	return dragging || hoverWaits || problemsDue > 0;
 }
 
 const std::vector<Token> & ScriptView::tokensOf (int line) {
@@ -223,8 +224,16 @@ void ScriptView::goToLine (int line) {
 	wantFocus = true;
 }
 
-void ScriptView::goTo (TextPos at) {
-	script->setSelection (TextSelection (script->buffer ().clamp (at)));
+std::string ScriptView::selectedText () const {
+	TextSelection s = script->selection ();
+	if (s.empty () || s.start ().line != s.end ().line) return std::string ();
+	return editing::selectedText (*script);
+}
+
+void ScriptView::goTo (TextPos at, int length) {
+	const TextBuffer & text = script->buffer ();
+	TextPos start = text.clamp (at);
+	script->setSelection (length > 0 ? TextSelection (start, text.clamp (TextPos (start.line, start.column + length))) : TextSelection (start));
 	wantColumn = -1;
 	scrollToCursor = centreCursor = true;
 	wantFocus = true;
@@ -288,6 +297,10 @@ void ScriptView::drawEditMenu () {
 		chose = true;
 	}
 	if (ImGui::MenuItem ("Help on the Word", "F1")) openHelpAt (script->selection ().cursor);
+	if (ImGui::MenuItem ("Next Problem", "F8", false, ! problems.empty ())) {
+		nextProblem (false);
+		chose = true;
+	}
 	ImGui::Separator ();
 	if (ImGui::MenuItem ("Toggle Comment", keys ("/").c_str ())) {
 		editing::toggleComment (*script);
@@ -491,6 +504,7 @@ void ScriptView::handleKeys () {
 	}
 	if (ImGui::IsKeyPressed (ImGuiKey_F12, false)) goToDefinition (cursor);
 	if (ImGui::IsKeyPressed (ImGuiKey_F1, false)) openHelpAt (cursor);
+	if (ImGui::IsKeyPressed (ImGuiKey_F8, false)) nextProblem (shift);
 
 	if (ImGui::IsKeyPressed (ImGuiKey_LeftArrow)) {
 		if (osx && ctrl) moveTo (lineStart (cursor), shift);
@@ -573,7 +587,7 @@ void ScriptView::handleKeys () {
 		}
 		// Ctrl+Alt+F replaces everywhere; Ctrl+H too, but not on macOS,
 		// where Cmd+H hides the program.
-		if (ImGui::IsKeyPressed (ImGuiKey_F, false)) openFind (alt);
+		if (! shift && ImGui::IsKeyPressed (ImGuiKey_F, false)) openFind (alt);
 		if (! osx && ImGui::IsKeyPressed (ImGuiKey_H, false)) openFind (true);
 		if (osx && ImGui::IsKeyPressed (ImGuiKey_G)) findAgain (shift);
 		if (ImGui::IsKeyPressed (osx ? ImGuiKey_L : ImGuiKey_G, false)) goToOpen = true;
@@ -739,6 +753,15 @@ void ScriptView::drawText () {
 		ImGui::FocusWindow (window);
 		wantFocus = false;
 	}
+	// A click elsewhere takes the keyboard away, as it does from InputText,
+	// so that what it clicks can be pressed in this frame; but not a click
+	// on the list of completions, which is ours.
+	ImVec2 mouse = io.MousePos;
+	bool inPopup = completing && mouse.x >= popupX0 && mouse.x < popupX1 && mouse.y >= popupY0 && mouse.y < popupY1;
+	if (g.ActiveId == id && ImGui::IsMouseClicked (ImGuiMouseButton_Left) && ! hovered && ! inPopup) {
+		ImGui::ClearActiveID ();
+		completing = false;
+	}
 	bool active = g.ActiveId == id;
 	if (active) {
 		// We let the mouse hover the rest, as InputText does.
@@ -757,6 +780,7 @@ void ScriptView::drawText () {
 	handleMouse (origin, hovered);
 
 	updateMarkers ();
+	updateProblems ();
 	TextSelection s = script->selection ();
 	TextPos cursor = s.cursor;
 	// Not in the first frame of a view, whose content has no size yet, so
@@ -862,6 +886,16 @@ void ScriptView::drawText () {
 			wavyLine (draw, x0, x1, y + lineHeight - 2, markers[m].error ? colours.error : colours.warning);
 			break;
 		}
+		// What the live checks found.
+		for (size_t p = 0; p < problems.size (); p ++) {
+			if (problems[p].stamp != text.lineStamp (l)) continue;
+			const Diagnostic & d = problems[p].diagnostic;
+			int end = d.end.line == d.start.line ? d.end.column : (int) line.size ();
+			float x0 = textLeft + displayColumn (line, d.start.column, TAB_SIZE) * charWidth;
+			float x1 = textLeft + displayColumn (line, end, TAB_SIZE) * charWidth;
+			if (x1 < x0 + charWidth) x1 = x0 + charWidth;
+			wavyLine (draw, x0, x1, y + lineHeight - 1, d.severity == Diagnostic::ERROR ? colours.error : colours.warning);
+		}
 	}
 	// The cursor.
 	if (active) {
@@ -887,13 +921,19 @@ void ScriptView::drawText () {
 		float y = textTop + l * lineHeight + (lineHeight - fontSize) * 0.5f;
 		bool current = l >= s.start ().line && l <= s.end ().line;
 		draw->AddText (font, fontSize, ImVec2 (x, y), current ? colours.currentLineNumber : colours.lineNumber, number, number + n);
-		// A dot for what the compiler said.
+		// A dot for what the compiler or the live checks said: red for an
+		// error, yellow for a warning.
+		int said = 0;		// 1 a warning, 2 an error
 		for (size_t m = 0; m < markers.size (); m ++) {
-			if (markers[m].stamp != text.lineStamp (l)) continue;
+			if (markers[m].stamp == text.lineStamp (l)) said = std::max (said, markers[m].error ? 2 : 1);
+		}
+		for (size_t p = 0; p < problems.size (); p ++) {
+			if (problems[p].stamp == text.lineStamp (l)) said = std::max (said, problems[p].diagnostic.severity == Diagnostic::ERROR ? 2 : 1);
+		}
+		if (said) {
 			float r = charWidth * 0.32f;
 			draw->AddCircleFilled (ImVec2 (inner.Min.x + charWidth * 0.75f, textTop + l * lineHeight + lineHeight * 0.5f), r,
-				markers[m].error ? colours.error : colours.warning);
-			break;
+				said == 2 ? colours.error : colours.warning);
 		}
 	}
 	draw->PopClipRect ();
@@ -1189,7 +1229,16 @@ void ScriptView::drawHover (const ImVec2 & origin, bool hovered) {
 	for (size_t m = 0; m < markers.size (); m ++) {
 		if (markers[m].stamp == text.lineStamp (line)) said.push_back (&markers[m]);
 	}
-	if (! hoverFound && said.empty ()) return;
+	// The live checks' words for what is under the mouse, or for the line
+	// in the gutter.
+	std::vector<const Diagnostic *> found;
+	for (size_t p = 0; p < problems.size (); p ++) {
+		if (problems[p].stamp != text.lineStamp (line)) continue;
+		const Diagnostic & d = problems[p].diagnostic;
+		int end = d.end.line == d.start.line ? d.end.column : (int) text.line (line).size ();
+		if (inGutter || (at.column >= d.start.column && at.column < (end > d.start.column ? end : d.start.column + 1))) found.push_back (&d);
+	}
+	if (! hoverFound && said.empty () && found.empty ()) return;
 	const ScriptTheme & colours = theme ();
 	if (beginFloating ("##hover", ImVec2 (mouse.x, origin.y + (line + 1) * lineHeight + 2), ImVec2 (0, 0))) {
 		float wrap = ImGui::GetFontSize () * 32;
@@ -1198,10 +1247,13 @@ void ScriptView::drawHover (const ImVec2 & origin, bool hovered) {
 		for (size_t m = 0; m < said.size (); m ++) {
 			ImGui::TextColored (ImGui::ColorConvertU32ToFloat4 (said[m]->error ? colours.error : colours.warning), "%s", said[m]->text.c_str ());
 		}
+		for (size_t f = 0; f < found.size (); f ++) {
+			ImGui::TextColored (ImGui::ColorConvertU32ToFloat4 (found[f]->severity == Diagnostic::ERROR ? colours.error : colours.warning), "%s", found[f]->message.c_str ());
+		}
 		ImGui::PopTextWrapPos ();
 		ImGui::PopFont ();
 		if (hoverFound && ! inGutter) {
-			if (! said.empty ()) ImGui::Separator ();
+			if (! said.empty () || ! found.empty ()) ImGui::Separator ();
 			ImGui::PushTextWrapPos (ImGui::GetCursorPosX () + wrap);
 			ImGui::TextUnformatted (hover.title.c_str ());
 			ImGui::PopTextWrapPos ();
@@ -1311,6 +1363,103 @@ void ScriptView::drawOutline () {
 	}
 }
 
+int ScriptView::lineWithStamp (uint64_t stamp) const {
+	const TextBuffer & text = script->buffer ();
+	for (int l = 0; l < text.lineCount (); l ++) {
+		if (text.lineStamp (l) == stamp) return l;
+	}
+	return -1;
+}
+
+void ScriptView::updateProblems () {
+	const TextBuffer & text = script->buffer ();
+	const ScriptIndex & index = actions.scriptIndex ();
+	bool all = actions.knowsAllNames (indexName (script));
+	if (text.version () == problemsVersion && index.version () == problemsNames && all == problemsAllNames) return;
+	double now = ImGui::GetTime ();
+	// Not while a word is being typed: half a second after the last change,
+	// and at once the first time.
+	if (problemsDue == 0) problemsDue = problemsVersion == 0 ? now : now + 0.5;
+	if (now < problemsDue) return;
+	problemsDue = 0;
+	problemsVersion = text.version ();
+	problemsNames = index.version ();
+	problemsAllNames = all;
+	std::vector<Diagnostic> found = analyseScript (text, index, indexName (script), all);
+	problems.clear ();
+	for (size_t d = 0; d < found.size (); d ++) {
+		if (found[d].start.line < 0 || found[d].start.line >= text.lineCount ()) continue;
+		Problem p;
+		p.diagnostic = found[d];
+		p.stamp = text.lineStamp (found[d].start.line);
+		problems.push_back (p);
+	}
+}
+
+void ScriptView::nextProblem (bool backwards) {
+	if (problems.empty ()) {
+		say ("The live checks found no problems.");
+		return;
+	}
+	TextPos cursor = script->selection ().cursor;
+	std::vector<TextPos> places;
+	for (size_t p = 0; p < problems.size (); p ++) {
+		int line = lineWithStamp (problems[p].stamp);
+		if (line >= 0) places.push_back (TextPos (line, problems[p].diagnostic.start.column));
+	}
+	if (places.empty ()) return;
+	std::sort (places.begin (), places.end ());
+	TextPos chosen = backwards ? places.back () : places.front ();
+	if (backwards) {
+		for (size_t i = places.size (); i -- > 0; ) {
+			if (places[i] < cursor) {
+				chosen = places[i];
+				break;
+			}
+		}
+	} else {
+		for (size_t i = 0; i < places.size (); i ++) {
+			if (cursor < places[i]) {
+				chosen = places[i];
+				break;
+			}
+		}
+	}
+	goTo (chosen);
+	hoverPlace = TextPos (-1, 0);
+}
+
+void ScriptView::drawProblems () {
+	ImGui::SeparatorText ("Problems");
+	const ScriptTheme & colours = theme ();
+	if (problems.empty ()) {
+		ImGui::TextDisabled ("None found.");
+	}
+	for (size_t p = 0; p < problems.size (); p ++) {
+		const Diagnostic & d = problems[p].diagnostic;
+		int line = lineWithStamp (problems[p].stamp);
+		if (line < 0) continue;
+		ImGui::PushID ((int) p);
+		char where[32];
+		snprintf (where, sizeof (where), "%d:%d", line + 1, d.start.column + 1);
+		ImGui::PushStyleColor (ImGuiCol_Text, d.severity == Diagnostic::ERROR ? colours.error : colours.warning);
+		bool chosen = ImGui::Selectable (where, false, ImGuiSelectableFlags_AllowOverlap);
+		ImGui::PopStyleColor ();
+		ImGui::SameLine (ImGui::GetFontSize () * 3.5f);
+		ImGui::PushTextWrapPos (0.0f);
+		ImGui::TextUnformatted (d.message.c_str ());
+		ImGui::PopTextWrapPos ();
+		if (chosen) goTo (TextPos (line, d.start.column));
+		ImGui::PopID ();
+	}
+	if (! problemsAllNames) {
+		ImGui::Spacing ();
+		ImGui::PushTextWrapPos (0.0f);
+		ImGui::TextDisabled ("The names of the project are checked in the scripts of the open project, once all of its scripts can be read.");
+		ImGui::PopTextWrapPos ();
+	}
+}
+
 void ScriptView::drawStatus () {
 	const TextBuffer & text = script->buffer ();
 	TextSelection s = script->selection ();
@@ -1329,6 +1478,29 @@ void ScriptView::drawStatus () {
 			}
 			if (lines > 1) ImGui::TextDisabled ("Line %d, Column %d (%d characters, %d lines selected)", s.cursor.line + 1, column, characters, lines);
 			else ImGui::TextDisabled ("Line %d, Column %d (%d selected)", s.cursor.line + 1, column, characters);
+		}
+	}
+	int errors = 0, warnings = 0;
+	for (size_t p = 0; p < problems.size (); p ++) {
+		if (problems[p].diagnostic.severity == Diagnostic::ERROR) errors ++;
+		else warnings ++;
+	}
+	if (errors || warnings) {
+		const ScriptTheme & colours = theme ();
+		char count[64];
+		ImGui::SameLine (0, ImGui::GetFontSize () * 1.5f);
+		if (errors) {
+			snprintf (count, sizeof (count), "%d error%s", errors, errors == 1 ? "" : "s");
+			ImGui::TextColored (ImGui::ColorConvertU32ToFloat4 (colours.error), "%s", count);
+			if (ImGui::IsItemClicked ()) nextProblem (false);
+			ImGui::SetItemTooltip ("F8 goes to the next problem, Shift+F8 to the one before.");
+		}
+		if (warnings) {
+			if (errors) ImGui::SameLine ();
+			snprintf (count, sizeof (count), "%d warning%s", warnings, warnings == 1 ? "" : "s");
+			ImGui::TextColored (ImGui::ColorConvertU32ToFloat4 (colours.warning), "%s", count);
+			if (ImGui::IsItemClicked ()) nextProblem (false);
+			ImGui::SetItemTooltip ("F8 goes to the next problem, Shift+F8 to the one before.");
 		}
 	}
 	std::string unit = script->indentUnit ();
@@ -1397,6 +1569,7 @@ void ScriptView::drawInspector () {
 		ImGui::EndTable ();
 	}
 	drawOutline ();
+	drawProblems ();
 }
 
 } // namespace devkit

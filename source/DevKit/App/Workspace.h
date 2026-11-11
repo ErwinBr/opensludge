@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@
 #include "DocumentManager.h"
 #include "FileCheckWindow.h"
 #include "FileMemory.h"
+#include "FindPanel.h"
 #include "Preferences.h"
 #include "ProjectDocument.h"
 #include "RecentFiles.h"
@@ -87,9 +89,10 @@ public:
 	void setClipSplit (float fraction);
 	SoundPreview & sounds () { return soundPreview; }
 	const ScriptIndex & scriptIndex () const { return index; }
-	void showInScript (const std::string & path, int line, int column);
+	void showInScript (const std::string & path, int line, int column, int length = 0);
 	void openHelpPage (const std::string & page);
 	std::vector<BuildMessage> buildMessagesFor (const std::string & path, unsigned int * serial) const;
+	bool knowsAllNames (const std::string & path) const;
 
 	// Whether the last compile succeeded, for the tests.
 	bool compileSucceeded () const { return job && job->succeeded; }
@@ -124,6 +127,9 @@ private:
 	void drawBuildPanel ();
 	void drawInspectorPanel ();
 	void drawLogPanel ();
+	void drawFindPanel ();
+	// Open Find in Project, with the selection of the script editor.
+	void openFindInProject ();
 	void drawPreferencesWindow ();
 	void drawAboutWindow ();
 	void handleShortcuts ();
@@ -147,7 +153,10 @@ private:
 	unsigned int compiles;		// Started, for buildMessagesFor
 	ScriptIndex index;
 	double nextDiskIndex;		// When we look at the project's scripts on disk again
+	std::set<std::string> projectScripts;	// Their names in the index
+	bool projectIndexed;		// The index has all of them
 	BuildPanel buildPanel;
+	FindPanel findPanel;
 	FileCheckWindow fileCheck;
 
 	bool quitting;
@@ -164,7 +173,8 @@ private:
 	int focusLaterFrames;
 	bool closeTab;				// See closeActiveTab
 
-	bool showProject, showBuild, showInspector, showLog;
+	bool showProject, showBuild, showInspector, showLog, showFind;
+	bool focusFind;			// Bring the Find in Project panel to the front
 	bool showPreferences, showAbout, showDemo;
 
 	// The Log panel.

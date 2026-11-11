@@ -30,6 +30,7 @@
 #include "CompileJob.h"
 #include "Launch.h"
 #include "ProjectCheck.h"
+#include "ProjectSearch.h"
 #include "ClipDocument.h"
 #include "PreviewPlayer.h"
 #include "ProjectDocument.h"
@@ -44,6 +45,7 @@
 #include "ZBufferDocument.h"
 #include "Preferences.h"
 #include "RecentFiles.h"
+#include "ScriptAnalysis.h"
 #include "ScriptAssist.h"
 #include "ScriptCatalog.h"
 #include "ScriptIndex.h"
@@ -659,6 +661,11 @@ static void testScriptLexer () {
 #include "functionlist.h"
 #undef FUNC
 	CHECK ((int) catalog.functions ().size () == functions);
+	// The engine's numbers of arguments, one for each function.
+	static const int counts[] = {
+#include "functionparams.h"
+	};
+	CHECK ((int) (sizeof (counts) / sizeof (counts[0])) == functions);
 	CHECK (catalog.constant ("NORTHEAST") && catalog.constant ("NORTHEAST")->value == "45");
 	CHECK (catalog.constant ("dequeue") && catalog.constant ("dequeue")->isFunctionName ());
 	CHECK (! catalog.function ("nothing") && ! catalog.constant ("nothing"));
@@ -672,9 +679,14 @@ static void testScriptCatalog () {
 	CHECK (f && f->signatures[0].parameters.size () == 4 && f->signatures[0].parameters[3] == "thisCostume");
 	CHECK (f && f->accepts (4) && ! f->accepts (3) && f->purpose.compare (0, 12, "Adds a chara") == 0 && f->returns == "No return value.");
 	f = catalog.function ("anim");
-	CHECK (f && f->signatures[0].minArguments == 2 && f->signatures[0].maxArguments == -1 && f->accepts (9) && ! f->accepts (1));
+	CHECK (f && f->signatures[0].minArguments == 2 && f->signatures[0].maxArguments == -1 && f->arguments == -1 && f->accepts (9));
+	// The numbers of the engine, where the help is wrong.
+	f = catalog.function ("howFrozen");
+	CHECK (f && f->arguments == 0 && f->accepts (0) && ! f->accepts (1));
+	f = catalog.function ("loadClip");
+	CHECK (f && f->arguments == 1);
 	f = catalog.function ("moveCharacter");
-	CHECK (f && f->signatures.size () == 2 && f->accepts (2) && f->accepts (3) && ! f->accepts (4));
+	CHECK (f && f->signatures.size () == 2 && f->arguments == -1);
 	CHECK (catalog.function ("setCharacterColourise") && ! catalog.function ("setCharacterColourise")->purpose.empty ());
 	CHECK (catalog.functionCalled ("setStatusColor") == catalog.function ("setStatusColour"));
 	const BuiltinConstant * c = catalog.constant ("NORTH");
@@ -821,6 +833,116 @@ static void testScriptAssist () {
 	CHECK (definition.file == file && definition.at == TextPos (4, 5));
 	CHECK (assist::definitionAt (text, TextPos (11, 15), index, file, &definition) && definition.at == TextPos (1, 11));
 	CHECK (! assist::definitionAt (text, TextPos (11, 3), index, file, &definition));
+}
+
+// The live checks say nothing of scripts that compile: those of the
+// examples and of the old project.
+static void testScriptAnalysisQuiet () {
+	const char * projects[] = { "Welcome/Welcome.slp", "VerbCoin/VerbCoin.slp" };
+	for (int p = 0; p < 2; p ++) {
+		ProjectDocument project;
+		std::string error;
+		CHECK (project.load (examples + projects[p], &error));
+		ScriptIndex index;
+		std::vector<std::string> scripts;
+		for (size_t f = 0; f < project.files ().size (); f ++) {
+			std::string name = project.files ()[f];
+			if (extensionOf (name) != "slu" && extensionOf (name) != "sld") continue;
+			CHECK (index.updateFromDisk (project.fullPath (name)));
+			scripts.push_back (project.fullPath (name));
+		}
+		for (size_t s = 0; s < scripts.size (); s ++) {
+			std::string fileText;
+			CHECK (ScriptDocument::readScript (scripts[s], &fileText, &error));
+			TextBuffer text;
+			text.setText (fileText);
+			std::vector<Diagnostic> found = analyseScript (text, index, scripts[s], true);
+			for (size_t d = 0; d < found.size (); d ++) {
+				fprintf (stderr, "%s:%d:%d: %s\n", scripts[s].c_str (), found[d].start.line + 1, found[d].start.column + 1, found[d].message.c_str ());
+			}
+			CHECK (found.empty ());
+		}
+	}
+	// The old project, in UTF-8.
+	TextBuffer text;
+	text.setText (toUTF8 (readFile (fixtures + "OldProject/init.slu"), CODEPAGE_WINDOWS_1252));
+	ScriptIndex index;
+	index.update (fixtures + "OldProject/init.slu", text, 1);
+	std::vector<Diagnostic> found = analyseScript (text, index, fixtures + "OldProject/init.slu", true);
+	for (size_t d = 0; d < found.size (); d ++) fprintf (stderr, "OldProject/init.slu:%d:%d: %s\n", found[d].start.line + 1, found[d].start.column + 1, found[d].message.c_str ());
+	CHECK (found.empty ());
+}
+
+// Each mistake of tests/devkit/fixtures/mistakes.slu, where it is.
+static void testScriptAnalysisMistakes () {
+	std::string file = fixtures + "mistakes.slu", fileText, error;
+	CHECK (ScriptDocument::readScript (file, &fileText, &error));
+	TextBuffer text;
+	text.setText (fileText);
+	ScriptIndex index;
+	index.update (file, text, 1);
+	std::vector<Diagnostic> found = analyseScript (text, index, file, true);
+	struct Expected { int line, column; Diagnostic::Severity severity; const char * message; };
+	const Expected expected[] = {
+		{ 3, 5, Diagnostic::ERROR, "'lives' is a variable already, on line 2." },
+		{ 4, 5, Diagnostic::ERROR, "'pause' is a built-in function of SLUDGE: a project can't make it again." },
+		{ 10, 8, Diagnostic::ERROR, "There is no objectType 'nobody' for this event." },
+		{ 12, 15, Diagnostic::ERROR, "'nothing' isn't a sub, which the event would call." },
+		{ 16, 6, Diagnostic::ERROR, "'a' is made twice in init, first on line 15." },
+		{ 17, 6, Diagnostic::ERROR, "This ( has no )." },
+		{ 17, 13, Diagnostic::ERROR, "This string has no end on its line." },
+		{ 18, 2, Diagnostic::WARNING, "howFrozen takes 0 arguments, not 1." },
+		{ 19, 7, Diagnostic::WARNING, "hero.spend takes 1 argument, not 0." },
+		{ 20, 7, Diagnostic::ERROR, "The objectType hero has no member 'steal'." },
+		{ 21, 2, Diagnostic::ERROR, "'jump' isn't a variable, sub, objectType, flag or built-in." },
+		{ 22, 19, Diagnostic::ERROR, "'nobody' isn't a variable, sub, objectType, flag or built-in." },
+		{ 23, 5, Diagnostic::ERROR, "This ( has no )." },
+	};
+	size_t count = sizeof (expected) / sizeof (expected[0]);
+	for (size_t d = 0; d < found.size (); d ++) {
+		fprintf (stderr, "mistakes.slu:%d:%d: %s: %s\n", found[d].start.line + 1, found[d].start.column + 1,
+			found[d].severity == Diagnostic::ERROR ? "error" : "warning", found[d].message.c_str ());
+	}
+	CHECK (found.size () == count);
+	for (size_t e = 0; e < count && e < found.size (); e ++) {
+		CHECK (found[e].start == TextPos (expected[e].line - 1, expected[e].column - 1));
+		CHECK (found[e].severity == expected[e].severity);
+		CHECK (found[e].message == expected[e].message);
+	}
+	// Without all of the project, the names of the project go unchecked.
+	found = analyseScript (text, index, file, false);
+	for (size_t d = 0; d < found.size (); d ++) CHECK (found[d].message.find ("isn't a variable") == std::string::npos);
+}
+
+// Find in Project: the scripts on disk, and an open one as it is typed.
+static void testProjectSearch () {
+	ProjectDocument project;
+	std::string error;
+	CHECK (project.load (examples + "VerbCoin/VerbCoin.slp", &error));
+	std::vector<std::string> files;
+	for (size_t f = 0; f < project.files ().size (); f ++) {
+		if (extensionOf (project.files ()[f]) == "slu") files.push_back (project.fullPath (project.files ()[f]));
+	}
+	bool more;
+	std::vector<std::string> unread;
+	editing::FindOptions options;
+	std::vector<SearchHit> hits = searchFiles (files, OpenText (), "makeEgoAnim", options, 100, &more, &unread);
+	CHECK (hits.size () == 4 && ! more && unread.empty ());
+	CHECK (hits.size () == 4 && fileNameOf (hits[0].file) == "ego.slu" && hits[0].at == TextPos (21, 4) && hits[0].length == 11);
+	CHECK (hits.size () == 4 && hits[0].text == "sub makeEgoAnim () {");
+	// The open ego.slu has no makeEgoAnim any more.
+	TextBuffer typed;
+	typed.setText ("sub makeHeroAnim () {}\n");
+	std::string ego = project.fullPath ("ego/ego.slu");
+	OpenText open = [&] (const std::string & path) -> const TextBuffer * { return path == ego ? &typed : NULL; };
+	hits = searchFiles (files, open, "makeEgoAnim", options, 100, &more, &unread);
+	CHECK (hits.size () == 3);
+	hits = searchFiles (files, open, "makeEgoAnim", options, 2, &more, &unread);
+	CHECK (hits.size () == 2 && more);
+	// A script that isn't UTF-8 can't be read.
+	files.push_back (fixtures + "OldProject/init.slu");
+	hits = searchFiles (files, OpenText (), "zzz", options, 100, &more, &unread);
+	CHECK (hits.empty () && unread.size () == 1);
 }
 
 static void testProjects () {
@@ -2391,6 +2513,9 @@ int main (int argc, char ** argv) {
 	testScriptCatalog ();
 	testScriptIndex ();
 	testScriptAssist ();
+	testScriptAnalysisQuiet ();
+	testScriptAnalysisMistakes ();
+	testProjectSearch ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);

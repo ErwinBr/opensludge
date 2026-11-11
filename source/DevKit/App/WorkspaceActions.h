@@ -63,13 +63,17 @@ public:
 	virtual SoundPreview & sounds () = 0;
 	// The names of the scripts of the project and of the open scripts.
 	virtual const ScriptIndex & scriptIndex () const = 0;
-	// Open a script at a line and a column (from 0), in the script editor.
-	virtual void showInScript (const std::string & path, int line, int column) = 0;
+	// Open a script at a line and a column (from 0), in the script editor,
+	// and select length bytes there.
+	virtual void showInScript (const std::string & path, int line, int column, int length = 0) = 0;
 	// Open a page of the help of the Dev Kit, such as "anim.html".
 	virtual void openHelpPage (const std::string & page) = 0;
 	// The messages of the last compile about a file, and a number that
 	// changes when they do.
 	virtual std::vector<BuildMessage> buildMessagesFor (const std::string & path, unsigned int * serial) const = 0;
+	// Whether a script is of the open project, and the index has every
+	// script of it, so that a name that it doesn't know is nothing.
+	virtual bool knowsAllNames (const std::string & path) const = 0;
 };
 
 } // namespace devkit

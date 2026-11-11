@@ -150,9 +150,11 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/Preferences.cpp
 		${DEVKIT_DIR}/Core/PreviewPlayer.cpp
 		${DEVKIT_DIR}/Core/ProjectCheck.cpp
+		${DEVKIT_DIR}/Core/ProjectSearch.cpp
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 		${DEVKIT_DIR}/Core/RigDocument.cpp
+		${DEVKIT_DIR}/Core/ScriptAnalysis.cpp
 		${DEVKIT_DIR}/Core/ScriptAssist.cpp
 		${DEVKIT_DIR}/Core/ScriptCatalog.cpp
 		${DEVKIT_DIR}/Core/ScriptDocument.cpp
@@ -182,6 +184,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/BuildPanel.cpp
 		${DEVKIT_DIR}/App/CanvasView.cpp
 		${DEVKIT_DIR}/App/FileCheckWindow.cpp
+		${DEVKIT_DIR}/App/FindPanel.cpp
 		${DEVKIT_DIR}/App/FloorView.cpp
 		${DEVKIT_DIR}/App/Icons.cpp
 		${DEVKIT_DIR}/App/PartTree.cpp
@@ -371,6 +374,14 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-script
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-script PROPERTIES LABELS capture)
+		# Find in Project: a click on a place opens its script there.
+		add_test(NAME capture-devkit-find
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/find_input.txt
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-find
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-find PROPERTIES LABELS capture)
 		# Closing the tab of each kind of document.
 		add_test(NAME capture-devkit-close
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

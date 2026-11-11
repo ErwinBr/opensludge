@@ -39,6 +39,7 @@ static const char * const PROJECT_PANEL = "Project";
 static const char * const BUILD_PANEL = "Build";
 static const char * const INSPECTOR_PANEL = "Inspector";
 static const char * const LOG_PANEL = "Log";
+static const char * const FIND_PANEL = "Find in Project";
 
 #if defined(__APPLE__)
 static const char * const SHORTCUT_PREFIX = "Cmd+";
@@ -54,8 +55,8 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	: thePlatform (p), rendererName (renderer), graphics (g),
 	  recent (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "recent.txt"),
 	  memory (p.settingsFolder ().empty () ? std::string () : p.settingsFolder () + "files.txt"),
-	  manager (p, recent), compiles (0), nextDiskIndex (0), buildPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
-	  showProject (true), showBuild (true), showInspector (true), showLog (true),
+	  manager (p, recent), compiles (0), nextDiskIndex (0), projectIndexed (false), buildPanel (*this), findPanel (*this), fileCheck (*this), quitting (false), projectPanelHovered (false), focusInspector (false), resetLayout (false), layoutFrames (0), documentDock (0), focusDocument (NULL), focusLater (NULL), focusLaterFrames (0), closeTab (false),
+	  showProject (true), showBuild (true), showInspector (true), showLog (true), showFind (false), focusFind (false),
 	  showPreferences (false), showAbout (false), showDemo (false),
 	  logShowDebug (false), logAutoScroll (true), logVersionSeen (0) {
 	// Without our own preferences yet, we start from those of the GTK
@@ -428,14 +429,47 @@ void Workspace::openFile (const std::string & path, int line) {
 	}
 }
 
-void Workspace::showInScript (const std::string & path, int line, int column) {
+void Workspace::showInScript (const std::string & path, int line, int column, int length) {
 	Document * document = manager.open (path);
 	if (! document) return;
 	focusDocument = document;
 	ScriptView * view = dynamic_cast<ScriptView *> (views[document].get ());
 	if (! view || line < 0) return;
 	if (column < 0) view->goToLine (line + 1);
-	else view->goTo (TextPos (line, column));
+	else view->goTo (TextPos (line, column), length);
+}
+
+void Workspace::openFindInProject () {
+	std::string selected;
+	if (ScriptView * view = dynamic_cast<ScriptView *> (activeView ())) selected = view->selectedText ();
+	showFind = true;
+	focusFind = true;
+	findPanel.focus (selected);
+}
+
+void Workspace::drawFindPanel () {
+	// Where the Build panel is, the first time.
+	if (ImGuiWindow * build = ImGui::FindWindowByName (BUILD_PANEL)) {
+		if (build->DockId) ImGui::SetNextWindowDockID (build->DockId, ImGuiCond_FirstUseEver);
+	}
+	if (focusFind) {
+		ImGui::SetNextWindowFocus ();
+		focusFind = false;
+	}
+	if (! ImGui::Begin (FIND_PANEL, &showFind)) {
+		ImGui::End ();
+		return;
+	}
+	findPanel.draw (project (), [this] (const std::string & path) -> const TextBuffer * {
+		std::string key = ScriptIndex::key (path);
+		const std::vector<Document *> & open = manager.documents ();
+		for (size_t i = 0; i < open.size (); i ++) {
+			ScriptDocument * script = dynamic_cast<ScriptDocument *> (open[i]);
+			if (script && ScriptIndex::key (script->path ()) == key) return &script->buffer ();
+		}
+		return NULL;
+	});
+	ImGui::End ();
 }
 
 std::vector<BuildMessage> Workspace::buildMessagesFor (const std::string & path, unsigned int * serial) const {
@@ -453,6 +487,17 @@ std::vector<BuildMessage> Workspace::buildMessagesFor (const std::string & path,
 	return list;
 }
 
+bool Workspace::knowsAllNames (const std::string & path) const {
+	if (! projectIndexed || ! project ()) return false;
+	std::string key = ScriptIndex::key (path);
+	if (! projectScripts.count (key)) return false;
+	// Each of them, as one may have become unreadable since.
+	for (std::set<std::string>::const_iterator s = projectScripts.begin (); s != projectScripts.end (); ++ s) {
+		if (! index.has (*s)) return false;
+	}
+	return true;
+}
+
 void Workspace::updateScriptIndex () {
 	// The open scripts as they are, typed but not saved too.
 	std::set<std::string> wanted;
@@ -468,15 +513,18 @@ void Workspace::updateScriptIndex () {
 	double now = ImGui::GetTime ();
 	if (now < nextDiskIndex) return;
 	nextDiskIndex = now + 2.0;
+	projectScripts.clear ();
+	projectIndexed = false;
 	if (ProjectDocument * p = project ()) {
+		projectIndexed = true;
 		const std::vector<std::string> & files = p->files ();
 		for (size_t f = 0; f < files.size (); f ++) {
 			std::string extension = extensionOf (files[f]);
 			if (extension != "slu" && extension != "sld") continue;
 			std::string full = p->fullPath (files[f]);
 			std::string key = ScriptIndex::key (full);
-			if (wanted.count (key)) continue;
-			index.updateFromDisk (full);
+			projectScripts.insert (key);
+			if (! wanted.count (key) && ! index.updateFromDisk (full)) projectIndexed = false;
 			wanted.insert (key);
 		}
 	}
@@ -504,6 +552,7 @@ void Workspace::draw () {
 	if (showInspector) drawInspectorPanel ();
 	if (showBuild) drawBuildPanel ();
 	if (showLog) drawLogPanel ();
+	if (showFind) drawFindPanel ();
 	// The frame after we placed the panels, when the tabs exist, we show
 	// the Build in front of the Log, and the document that we opened last
 	// in front of the Start page.
@@ -530,6 +579,7 @@ void Workspace::handleShortcuts () {
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_O, global) && ! manager.types ().empty ()) manager.openWithDialog ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_B, global)) compile ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_R, global)) runGame ();
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F, global)) openFindInProject ();
 	if (! document) return;
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_S, global)) manager.save (document);
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S, global)) manager.saveAs (document);
@@ -606,6 +656,7 @@ void Workspace::drawMenuBar () {
 			manager.setActive (p);
 			revealInspector ();
 		}
+		if (ImGui::MenuItem ("Find in Project...", shortcut ("Shift+F").c_str (), false, p != NULL)) openFindInProject ();
 		if (ImGui::MenuItem ("Check Files...", NULL, false, p != NULL)) checkFiles ();
 		ImGui::SetItemTooltip ("Find what keeps the project from building on every system");
 		ImGui::Separator ();
@@ -623,6 +674,7 @@ void Workspace::drawMenuBar () {
 		ImGui::MenuItem (BUILD_PANEL, NULL, &showBuild);
 		ImGui::MenuItem (INSPECTOR_PANEL, NULL, &showInspector);
 		ImGui::MenuItem (LOG_PANEL, NULL, &showLog);
+		ImGui::MenuItem (FIND_PANEL, NULL, &showFind);
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("Reset Layout")) {
 			showProject = showBuild = showInspector = showLog = true;
@@ -672,6 +724,7 @@ void Workspace::buildDefaultLayout (ImGuiID dockspace) {
 	ImGui::DockBuilderDockWindow (INSPECTOR_PANEL, right);
 	ImGui::DockBuilderDockWindow (BUILD_PANEL, bottom);
 	ImGui::DockBuilderDockWindow (LOG_PANEL, bottom);
+	ImGui::DockBuilderDockWindow (FIND_PANEL, bottom);
 	ImGui::DockBuilderFinish (dockspace);
 }
 

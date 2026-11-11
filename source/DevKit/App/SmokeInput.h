@@ -23,6 +23,9 @@
  *   sheet <file>     open the Import Sprite Sheet dialog of the active
  *                    sprite bank with a picture, as if it had been chosen
  *   documents <n>    fail unless n documents are open
+ *   cursor <file> <line> <column>
+ *                    fail unless the active document is the script of that
+ *                    name, with its selection starting there (from 1)
  *
  * Lines that start with # are comments.
  */

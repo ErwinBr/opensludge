@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>The Script Editor</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>The Script Editor</h2>
+<HR>
+
+<H3>What is the script editor?</H3>
+
+<P>
+The scripts of a game (.slu files) and its files of constants (.sld files) open in the script editor of the Dev Kit:
+double-click one in the project, open it with File &gt; Open, or make a new one with File &gt; New &gt; Script. It
+shows SLUDGE in colours, knows the built-in functions and the names of your project, and sees many mistakes while you
+type, before you compile. This is how it looks:
+</P>
+
+<P>
+<IMG SRC="images/devkit-script.png" alt="A script of the verb coin example, with the names that fit what is being typed">
+</P>
+
+<H3>Typing</H3>
+
+<P>
+Enter keeps the indent of the line, and adds one after a {. A } at the start of a line goes back to the indent of its
+{. Brackets and quotes close themselves: type ( and you get (), with the cursor between them; type the ) and the
+cursor moves over it. With text selected, a bracket or a quote goes around it. Tab indents the selected lines and
+Shift+Tab takes an indent away. The editor indents with tabs, or with spaces when most lines of the file do.
+</P>
+
+<P>
+Undo (Ctrl+Z, Command+Z on macOS) takes back a word at a time. A file that you don't change saves as it was, byte
+for byte, with its line ends (Windows or Unix ones, or a mix of both). Scripts must be UTF-8 text; when the Dev Kit
+finds one that isn't, it says on which line, and Project &gt; Check Files converts it.
+</P>
+
+<P>
+When a script changes on disk, as when another program saves it, the editor reads it again, or asks first when you
+have changes of your own. Compiling saves the scripts with changes first.
+</P>
+
+<H3>The names that fit</H3>
+
+<P>
+Type two letters of a name, or a dot after the name of an objectType, and a list shows the names that fit there,
+with what each one is beside it. Ctrl+Space shows them at any time (Ctrl on macOS too). The list has the local
+variables and the parameters of the sub first, then the members of its objectType, then the subs, objectTypes,
+variables, flags and constants of the project, and the built-in functions and constants of SLUDGE. A name matches
+the letters at the start of its parts too: <b>aC</b> finds <b>addCharacter</b>. Up and Down choose, Tab or Enter put
+the name in, and Escape closes the list.
+</P>
+
+<P>
+Where you can only make a new sub, objectType or variable, as outside the subs, the list has just the words for
+them; in an objectType, it has its elements, such as speechColour and walkSpeed.
+</P>
+
+<P>
+Inside the brackets of a call, a line above it shows the parameters of the function, with the one that the cursor
+is at in yellow, and what the function does. Escape hides it.
+</P>
+
+<H3>What a name is</H3>
+
+<P>
+Rest the mouse on a name and the editor says what it is: for a built-in function, its syntax, what it does and
+what it returns, from this help; for a name of the project, where it is made, and the # comment lines just above it.
+So a comment above a sub explains it wherever it is used.
+</P>
+
+<P>
+F12, or Ctrl+click (Command+click on macOS), goes to where a name is made, also in another script. F1 opens the page
+of this help of the built-in function at the cursor.
+</P>
+
+<P>
+The Inspector shows the outline of the script: its subs, and its objectTypes with their members and events. Click
+one to go there.
+</P>
+
+<H3>Mistakes</H3>
+
+<P>
+While you type, the editor checks the script, and marks what is wrong with a wavy line and a dot beside the line
+number: red for an error, which the compiler would refuse, and yellow for a warning, such as a call with another
+number of arguments than the function takes, which the game would stop at. Rest the mouse on the line, or look in
+the Problems of the Inspector, for what is wrong. F8 goes to the next problem, and Shift+F8 to the one before.
+</P>
+
+<P>
+It sees strings with no end, brackets that don't match, names that are nothing (the compiler says &quot;Not a
+function, variable or object type!&quot;, without a line), members that an objectType doesn't have, names made
+twice, the names of built-in functions used for subs, and events of objectTypes that aren't there. It checks the
+names only in a script of the open project, once it can read all of the project's scripts.
+</P>
+
+<P>
+After a compile, the lines of its errors and warnings have a mark too, with what the compiler said, until you change
+them. A double-click on an error in the Build panel opens its script at its line.
+</P>
+
+<H3>Finding text</H3>
+
+<P>
+Ctrl+F (Command+F on macOS) finds text in the script, with Match case and Whole words; Enter goes to the next place,
+Shift+Enter to the one before, and F3 (Command+G on macOS) finds again. Ctrl+H (Command+Alt+F on macOS) replaces
+too, one at a time or all of them at once, which undoes as one change. Ctrl+G (Command+L on macOS) goes to a line.
+</P>
+
+<P>
+Ctrl+Shift+F (Command+Shift+F on macOS), or Project &gt; Find in Project, finds text in every script of the
+project, as the open ones are now. Click a place in the list to open its script there.
+</P>
+
+<H3>Keys</H3>
+
+<UL>
+<li>Ctrl+/ (Command+/ on macOS) makes the selected lines comments, or makes them code again.</li>
+<li>Alt+Up and Alt+Down move the selected lines; Alt+Shift+Up and Alt+Shift+Down copy them.</li>
+<li>Ctrl+Shift+K (Command+Shift+K on macOS) deletes them.</li>
+<li>Alt+Left and Alt+Right on macOS, Ctrl+Left and Ctrl+Right elsewhere, move a word at a time.</li>
+<li>Home goes to the first character of the line that isn't a space, and then to its start.</li>
+<li>Double-click selects a word, a triple click a line, and a click on the line numbers a line too.</li>
+</UL>
+
+<H3>See also:</H3>
+
+<P><a href="SLUDGE_Language_Reference_Manual.html">The SLUDGE language</a></P>
+<P><a href="Alphabetical_List_of_Built-in_Functions.html">The built-in functions</a></P>
+<P><a href="About_the_SLUDGE_Project_Manager.html">Projects</a></P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

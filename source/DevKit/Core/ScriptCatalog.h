@@ -35,12 +35,16 @@ struct BuiltinFunction {
 	std::string name;
 	std::string page;					// Of the help, such as "anim.html", or empty
 	std::vector<Signature> signatures;	// Empty when the help has none
+	// How many arguments the engine takes (CommonCode/functionparams.h),
+	// or -1 for any number.
+	int arguments;
 	std::string purpose;				// Paragraphs between blank lines
 	std::string returns;
 	// A function of the old engines that is no longer there (_rem_...).
 	bool removed () const { return name.compare (0, 5, "_rem_") == 0; }
-	// Whether a call may have a number of arguments: true when we don't know.
-	bool accepts (int arguments) const;
+	BuiltinFunction () : arguments (-1) {}
+	// Whether the engine takes a call with a number of arguments.
+	bool accepts (int count) const { return arguments < 0 || count == arguments; }
 };
 
 struct BuiltinConstant {

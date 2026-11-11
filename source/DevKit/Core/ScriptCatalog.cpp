@@ -45,14 +45,6 @@ Signature Signature::parse (const std::string & text) {
 	return s;
 }
 
-bool BuiltinFunction::accepts (int arguments) const {
-	if (signatures.empty ()) return true;
-	for (size_t s = 0; s < signatures.size (); s ++) {
-		if (signatures[s].accepts (arguments)) return true;
-	}
-	return false;
-}
-
 bool BuiltinConstant::isFunctionName () const {
 	return ! value.empty () && ((value[0] >= 'a' && value[0] <= 'z') || (value[0] >= 'A' && value[0] <= 'Z'));
 }
@@ -107,10 +99,19 @@ static const ConstantDoc constantDocs[] = {
 #undef CONSTANT_DOC
 };
 
+// The number of arguments of each function, in the order of functionlist.h.
+static const int argumentCounts[] = {
+#include "functionparams.h"
+};
+
 ScriptCatalog::ScriptCatalog () {
 #define FUNC(s, n) { BuiltinFunction f; f.name = #n; functionList.push_back (f); }
 #include "functionlist.h"
 #undef FUNC
+	// The engine reads both lists in the same order.
+	for (size_t f = 0; f < functionList.size () && f < sizeof (argumentCounts) / sizeof (argumentCounts[0]); f ++) {
+		functionList[f].arguments = argumentCounts[f];
+	}
 #define CONSTANT(n, v) { BuiltinConstant c; c.name = #n; c.value = v; constantList.push_back (c); }
 #include "constantlist.h"
 #undef CONSTANT

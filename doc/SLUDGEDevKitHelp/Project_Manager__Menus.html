@@ -16,7 +16,7 @@ These are the menus of the SLUDGE Dev Kit. On macOS, use Command where it says C
 
 <H3>File menu:</H3>
 
-<P><b>New</b>: makes a new project, floor, z-buffer, sprite bank or translation. A new project asks first where to
+<P><b>New</b>: makes a new project, script, floor, z-buffer, sprite bank or translation. A new project asks first where to
 save it, since its files are relative to its folder; the others ask when you save them.</P>
 <P><b>Open... (Ctrl+O)</b>: opens a project or a file that the Dev Kit edits.</P>
 <P><b>Open Recent</b>: the files that you opened last.</P>
@@ -29,6 +29,9 @@ front, under another name, or every file with changes.</P>
 
 <P><b>Undo (Ctrl+Z)</b> and <b>Redo (Ctrl+Shift+Z)</b>: take back the last change of the file in front, and make it
 again. The menu says what they take back.</P>
+<P>In the <a href="About_the_SLUDGE_Script_Editor.html">script editor</a>, the menu has its own commands too: cut, copy
+and paste, select all, find and replace, go to a line or to where a name is made, comments and indents, and the next
+problem that the editor found.</P>
 <P><b>Preferences...</b>: the <a href="Project_Manager__Preferences_Dialog.html">preferences</a> of the Dev Kit.</P>
 
 <H3>Project menu:</H3>
@@ -36,9 +39,10 @@ again. The menu says what they take back.</P>
 <P><b>Add Files...</b>: adds scripts, constant definitions and translations to the project.</P>
 <P><b>Properties</b>: shows the <a href="Project_Manager__Project_Settings_Dialog.html">settings of the project</a> in
 the Inspector.</P>
+<P><b>Find in Project... (Ctrl+Shift+F)</b>: finds text in every script of the project.</P>
 <P><b>Check Files...</b>: finds what keeps the project from building on every system, such as scripts that aren't
 UTF-8 and file names in another case than on disk, and fixes it.</P>
-<P><b>Compile (Ctrl+B)</b>: saves the project and compiles it into a SLUDGE game (.SLG) file, which has the name of the
+<P><b>Compile (Ctrl+B)</b>: saves the project and its scripts with changes, and compiles it into a SLUDGE game (.SLG) file, which has the name of the
 Game file setting. The Build panel shows the progress, the errors and the warnings. While it compiles, <b>Cancel
 Compile</b> stops it.</P>
 <P><b>Run Game (Ctrl+R)</b>: plays the compiled game in the SLUDGE engine.</P>
@@ -46,7 +50,7 @@ Compile</b> stops it.</P>
 
 <H3>View menu:</H3>
 
-<P>Shows and hides the Project, Build, Inspector and Log panels. <b>Reset Layout</b> puts every panel back in its
+<P>Shows and hides the Project, Build, Inspector, Log and Find in Project panels. <b>Reset Layout</b> puts every panel back in its
 first place.</P>
 
 <H3>Help menu:</H3>

@@ -8,6 +8,8 @@
 #include "DocumentManager.h"
 #include "Log.h"
 #include "SmokeInput.h"
+#include "ScriptDocument.h"
+#include "ScriptView.h"
 #include "SpriteBankView.h"
 #include "Workspace.h"
 
@@ -38,6 +40,11 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		if (s.what == "move") ok = sscanf (rest, "%f %f", &s.x, &s.y) == 2;
 		else if (s.what == "wait") ok = sscanf (rest, "%d", &s.frames) == 1;
 		else if (s.what == "documents") ok = sscanf (rest, "%d", &s.frames) == 1;
+		else if (s.what == "cursor") {
+			char name[512];
+			ok = sscanf (rest, "%511s %f %f", name, &s.x, &s.y) == 3;
+			s.text = name;
+		}
 		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "drop" || s.what == "type" || s.what == "sheet") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl" || s.text == "shift";
 		else ok = s.what == "up" || s.what == "close";
@@ -153,6 +160,15 @@ bool SmokeInput::step (Workspace & workspace) {
 		Log::get ().add (LogLine::LOG_INFO, "Saved %s as %s\n", document->displayName ().c_str (), s.text.c_str ());
 	} else if (s.what == "close") {
 		workspace.closeActiveTab ();
+	} else if (s.what == "cursor") {
+		ScriptView * view = dynamic_cast<ScriptView *> (workspace.activeView ());
+		ScriptDocument * script = view ? dynamic_cast<ScriptDocument *> (view->document ()) : NULL;
+		TextPos at = script ? script->selection ().start () : TextPos ();
+		if (! script || script->displayName () != s.text || at.line + 1 != (int) s.x || at.column + 1 != (int) s.y) {
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: the cursor is in %s at %d, %d, not in %s at %d, %d\n",
+				script ? script->displayName ().c_str () : "no script", at.line + 1, at.column + 1, s.text.c_str (), (int) s.x, (int) s.y);
+			return false;
+		}
 	} else if (s.what == "documents") {
 		int open = (int) workspace.documents ().documents ().size ();
 		if (open != s.frames) {

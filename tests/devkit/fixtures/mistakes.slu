@@ -1,0 +1,25 @@
+# Mistakes that the script editor sees while they are typed (core_test).
+var lives = 3;
+var lives = 4;
+sub pause () {}
+objectType hero ("Hero") {
+	var gold = 0;
+	sub spend (amount) {
+		gold -= amount;
+	}
+	event nobody {
+	}
+	event hero = nothing;
+}
+sub init () {
+	var a = 1;
+	var a = 2;
+	say (hero, "Hello);
+	howFrozen (1);
+	hero.spend ();
+	hero.steal (2);
+	jump (3);
+	callEvent (hero, nobody);
+	if (lives > a {
+	}
+}

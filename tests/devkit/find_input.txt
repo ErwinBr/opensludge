@@ -1,0 +1,27 @@
+# Find in Project on VerbCoin, in the window of a smoke test (1280 x 800),
+# where the first place that it lists is at y = 658 and each next one 19
+# lower. A click on one opens its script with the text that was found
+# selected.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+key ctrl+shift+F
+wait 6
+type makeEgoAnim
+key Enter
+wait 4
+move 320 677
+wait 2
+down
+up
+wait 6
+cursor room.slu 10 31
+documents 2
+
+# Again in the script that is open, which the list takes as it is.
+move 320 658
+wait 2
+down
+up
+wait 6
+cursor ego.slu 22 5
+documents 3
