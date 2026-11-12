@@ -162,6 +162,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
+			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png sky.png movie.webm)
@@ -235,6 +236,29 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DMESSAGE=at least 3 points"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-region-fatal PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Watches on screen regions: the game checks the events of characters
+	# going in and out, fresh, frozen, after saving and after loading.
+	sludge_compile_game(WatchTest ${render_project}/WatchTest.slp)
+	sludge_add_capture_test(watch GAME ${CMAKE_BINARY_DIR}/games/WatchTest.slg FRAMES 0-200/10 NO_REFERENCE)
+	add_test(NAME capture-watch-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/WatchTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/watch-saveload
+			"-DENGINE_ARGS=--renderer=gl"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-watch-saveload PROPERTIES LABELS capture TIMEOUT 300)
+	# The functions of a watch take the character and the region.
+	sludge_compile_game(WatchFatalTest ${render_project}/WatchFatalTest.slp)
+	add_test(NAME capture-watch-fatal
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/WatchFatalTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/watch-fatal
+			"-DMESSAGE=Wrong number of parameters"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-watch-fatal PROPERTIES LABELS capture TIMEOUT 300)
 
 	# A clip that a character uses can't change.
 	sludge_compile_game(SealTest ${render_project}/SealTest.slp)

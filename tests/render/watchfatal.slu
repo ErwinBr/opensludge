@@ -1,0 +1,20 @@
+# WatchFatalTest: the functions of watchScreenRegion take two parameters,
+# the character and the region. One with another number stops the engine;
+# tests/capture/expect-fatal.cmake checks that it does.
+
+objectType ego ("ego") {
+}
+
+objectType mat ("mat") {
+}
+
+sub onEnter (who) {
+}
+
+sub init () {
+	addScreenRegion (mat, 100, 100, 200, 200, 0, 0, -1);
+	watchScreenRegion (mat, onEnter, NULL);
+	addCharacter (ego, 150, 150, anim ('ego/alien.duc', 0));
+	pause (4);
+	quitGame ();
+}

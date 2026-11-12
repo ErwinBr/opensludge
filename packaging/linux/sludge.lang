@@ -141,6 +141,7 @@
                     <keyword>hideCharacter</keyword>
                     <keyword>howFrozen</keyword>
                     <keyword>isCharacter</keyword>
+                    <keyword>isInScreenRegion</keyword>
                     <keyword>isMoving</keyword>
                     <keyword>isScreenRegion</keyword>
                     <keyword>jumpCharacter</keyword>
@@ -249,6 +250,7 @@
                     <keyword>spinCharacter</keyword>
                     <keyword>unfreeze</keyword>
                     <keyword>wait</keyword>
+                    <keyword>watchScreenRegion</keyword>
                     <keyword>zoomCamera</keyword>
                 </context>
 

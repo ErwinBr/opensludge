@@ -32,6 +32,7 @@
 #include "zbuffer.h"
 #include "talk.h"
 #include "region.h"
+#include "regionwatch.h"
 #include "language.h"
 #include "moreio.h"
 #include "movie.h"
@@ -2067,6 +2068,42 @@ builtIn(hardScroll)
 	return BR_CONTINUE;
 }
 
+
+// A function for an event, or NULL (0) for none.
+static bool getEventFunction (int & functionNum, const variable & v) {
+	if (v.varType == SVT_NULL || (v.varType == SVT_INT && v.varData.intValue == 0)) {
+		functionNum = 0;
+		return true;
+	}
+	return getValueType (functionNum, SVT_FUNC, v);
+}
+
+builtIn(watchScreenRegion)
+{
+	UNUSEDALL
+	int objectNumber, enterFunction, leaveFunction;
+	if (! getEventFunction (leaveFunction, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getEventFunction (enterFunction, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setRegionWatch (objectNumber, enterFunction, leaveFunction);
+	return BR_CONTINUE;
+}
+
+builtIn(isInScreenRegion)
+{
+	UNUSEDALL
+	int characterNumber, objectNumber;
+	if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (characterNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	onScreenPerson * person = findPerson (characterNumber);
+	setVariable (fun -> reg, SVT_INT, person != NULL && isInRegionOf (person, objectNumber));
+	return BR_CONTINUE;
+}
 
 builtIn(isScreenRegion)
 {

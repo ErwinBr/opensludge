@@ -22,6 +22,7 @@
 #include "colours.h"
 #include "objtypes.h"
 #include "region.h"
+#include "regionwatch.h"
 #include "sprites.h"
 #include "sprbanks.h"
 #include "people.h"
@@ -1255,6 +1256,9 @@ bool handleInput () {
 	}
 
 	if (! overRegion) getOverRegion ();
+
+	// Characters going into or out of watched screen regions.
+	if (! checkRegionWatches ()) return false;
 
 	if (input.justMoved) {
 		if (currentEvents -> moveMouseFunction) {

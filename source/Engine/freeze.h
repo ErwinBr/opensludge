@@ -1,6 +1,7 @@
 struct frozenStuffStruct {
 	onScreenPerson * allPeople;
 	screenRegion * allScreenRegions;
+	struct regionWatch * allRegionWatches;
 	GLubyte * backdropTexture;
 	// We keep the pixels of the backdrop, and make a texture from them
 	// again when we unfreeze.

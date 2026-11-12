@@ -1542,6 +1542,11 @@
 		<param name="Local" value="SLUDGEDevKitHelp\isCharacter.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="isInScreenRegion">
+		<param name="Name" value="isInScreenRegion (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\isInScreenRegion.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="isMoving">
 		<param name="Name" value="isMoving (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\isMoving.html">
@@ -2126,6 +2131,11 @@
 		<param name="Name" value="wait">
 		<param name="Name" value="wait (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\wait.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="watchScreenRegion">
+		<param name="Name" value="watchScreenRegion (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\watchScreenRegion.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="zoomCamera">

@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>isInScreenRegion</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>isInScreenRegion</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">isInScreenRegion (<i>thisCharacter, thisObject</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Tests whether the hotspot of <i>thisCharacter</i> (the point where it stands) is inside a screen region of <i>thisObject</i> right now.
+</P>
+
+<P>
+It works for any region, rectangle or shape, whether or not <a href="watchScreenRegion.html">watchScreenRegion</a> is watching it. If <i>thisObject</i> has more than one region, being inside any of them is enough.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if the character is inside, and FALSE if it isn't, or if either the character or the region isn't on the screen at all.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;ego&quot;) {
+}
+
+objectType puddle (&quot;puddle&quot;) {
+}
+
+sub lookAtShoes () {
+   if (isInScreenRegion (ego, puddle)) say (ego, &quot;Wet. Lovely.&quot;);
+   else say (ego, &quot;Dry, for now.&quot;);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Object_Types_as_Screen_Regions.html">Object Types as Screen Regions</a>
+</P>
+
+<P>
+<a href="addScreenRegion.html">addScreenRegion</a>
+</P>
+
+<P>
+<a href="isScreenRegion.html">isScreenRegion</a>
+</P>
+
+<P>
+<a href="watchScreenRegion.html">watchScreenRegion</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

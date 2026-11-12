@@ -1,0 +1,167 @@
+# WatchTest: watches on screen regions (watchScreenRegion, see
+# source/Engine/regionwatch.h). The events write what happened into a log,
+# which the game checks after every step, and stops with an error when it
+# is wrong (see cmake/CaptureTests.cmake):
+#
+#  - A character's hotspot going into a region fires the enter function,
+#    and coming out the leave function, with the character and the region.
+#  - Jumping and walking both count; a step straight from one region into
+#    the next leaves the first before it enters the second.
+#  - Each character fires events of its own.
+#  - A watch that starts with a character inside fires enter, and removing
+#    the region or the character while inside fires leave.
+#  - isInScreenRegion agrees.
+#  - Freezing and unfreezing, and saving and loading, fire nothing.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+objectType mat ("mat") {
+}
+
+objectType left ("left") {
+}
+
+objectType right ("right") {
+}
+
+var log = "";
+var enters = 0;
+var leaves = 0;
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("WatchTest: " + what + " (log: " + log + ")");
+}
+
+sub nameOf (o) {
+	if (o == ego) return "ego";
+	if (o == duck) return "duck";
+	if (o == mat) return "mat";
+	if (o == left) return "left";
+	if (o == right) return "right";
+	return "?";
+}
+
+sub onEnter (who, where) {
+	log = log + "+" + nameOf (who) + ":" + nameOf (where) + " ";
+	enters ++;
+}
+
+sub onLeave (who, where) {
+	log = log + "-" + nameOf (who) + ":" + nameOf (where) + " ";
+	leaves ++;
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 0),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 6, 4, 5));
+}
+
+# Show the step for some frames.
+sub show (name) {
+	for (var i = 0; i < 4; i ++) {
+		statusText (name);
+		pause (1);
+	}
+}
+
+# Show the step, then check and clear the log.
+sub step (name, expected) {
+	show (name);
+	check (log == expected, name + ": expected " + expected);
+	log = "";
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	addOverlay ('outside/room.tga', 0, 0);
+
+	addScreenRegion (mat, newStack (100, 300, 200, 300, 150, 400), 0, 0, -1);
+	addScreenRegion (left, 300, 300, 360, 360, 0, 0, -1);
+	addScreenRegion (right, newStack (361, 300, 420, 300, 420, 360, 361, 360), 0, 0, -1);
+	showBoxes ();
+	watchScreenRegion (mat, onEnter, onLeave);
+	watchScreenRegion (left, onEnter, onLeave);
+	watchScreenRegion (right, onEnter, onLeave);
+
+	addCharacter (ego, 50, 320, egoCostume ());
+	step ("outside", "");
+
+	jumpCharacter (ego, 150, 320);
+	step ("jump onto the mat", "+ego:mat ");
+	check (isInScreenRegion (ego, mat), "isInScreenRegion on the mat");
+
+	# Inside the box around the triangle, but not inside the triangle.
+	jumpCharacter (ego, 110, 390);
+	step ("jump off the mat", "-ego:mat ");
+	check (! isInScreenRegion (ego, mat), "isInScreenRegion off the mat");
+
+	jumpCharacter (ego, 50, 320);
+	forceCharacter (ego, 250, 320);
+	step ("walk across the mat", "+ego:mat -ego:mat ");
+
+	jumpCharacter (ego, 330, 330);
+	step ("into left", "+ego:left ");
+	jumpCharacter (ego, 390, 330);
+	step ("from left into right", "-ego:left +ego:right ");
+	check (isInScreenRegion (ego, right) && ! isInScreenRegion (ego, left), "isInScreenRegion after the step");
+
+	addCharacter (duck, 330, 340, egoCostume ());
+	step ("a second character", "+duck:left ");
+	jumpCharacter (duck, 390, 340);
+	step ("the second character steps", "-duck:left +duck:right ");
+
+	# No watch, no events; a watch that starts with both inside fires two.
+	watchScreenRegion (right, NULL, NULL);
+	jumpCharacter (duck, 500, 340);
+	jumpCharacter (duck, 390, 340);
+	step ("no watch", "");
+	enters = 0;
+	watchScreenRegion (right, onEnter, NULL);
+	show ("watching with two inside");
+	log = "";
+	check (enters == 2, "a new watch fires enter for both characters inside");
+	watchScreenRegion (right, onEnter, onLeave);
+
+	leaves = 0;
+	removeScreenRegion (right);
+	show ("remove the region");
+	log = "";
+	check (leaves == 2, "removing a region fires leave for both characters inside");
+	addScreenRegion (right, newStack (361, 300, 420, 300, 420, 360, 361, 360), 0, 0, -1);
+	show ("add the region again");
+	log = "";
+	enters = 0;
+	leaves = 0;
+
+	jumpCharacter (duck, 330, 340);
+	step ("the duck into left", "-duck:right +duck:left ");
+	removeCharacter (duck);
+	step ("remove the duck", "-duck:left ");
+
+	jumpCharacter (ego, 330, 330);
+	step ("back into left", "-ego:right +ego:left ");
+	freeze ();
+	step ("frozen", "");
+	unfreeze ();
+	step ("unfrozen", "");
+	check (isInScreenRegion (ego, left), "still inside after unfreezing");
+
+	# Save, step, load, and step again: the second time round, saved is
+	# FALSE, as it was when the game saved, and loading fired nothing. The
+	# frames show the same both times, which saveload.cmake compares.
+	var saved = saveGame ("watch.sav");
+	step ("after saving", "");
+	# Walking, so that the frames after saving and after loading move, out
+	# of left and across the mat.
+	forceCharacter (ego, 50, 320);
+	step ("out of left", "-ego:left +ego:mat -ego:mat ");
+	if (saved) loadGame ("watch.sav");
+	quitGame ();
+}

@@ -11,6 +11,7 @@
 #include "sludger.h"
 #include "objtypes.h"
 #include "region.h"
+#include "regionwatch.h"
 #include "backdrop.h"
 #include "talk.h"
 #include "fonttext.h"
@@ -21,6 +22,7 @@
 
 extern onScreenPerson * allPeople;
 extern screenRegion * allScreenRegions;
+extern regionWatch * allRegionWatches;
 extern screenRegion * overRegion;
 extern speechStruct * speech;
 extern inputType input;
@@ -201,6 +203,9 @@ bool freeze () {
 
 	newFreezer -> allScreenRegions = allScreenRegions;
 	allScreenRegions = NULL;
+	// The watches stay with their scene, and so do whom they know inside.
+	newFreezer -> allRegionWatches = allRegionWatches;
+	allRegionWatches = NULL;
 	overRegion = NULL;
 
 	newFreezer -> mouseCursorFrameNum = cursorFrame ();
@@ -254,6 +259,9 @@ void unfreeze (bool killImage) {
 
 	killAllRegions ();
 	allScreenRegions = frozenStuff -> allScreenRegions;
+
+	killAllRegionWatches ();
+	allRegionWatches = frozenStuff -> allRegionWatches;
 
 	killLightMap ();
 	lightMap.data = frozenStuff -> lightMapTexture;

@@ -15,6 +15,7 @@
 #include "objtypes.h"
 #include "backdrop.h"
 #include "region.h"
+#include "regionwatch.h"
 #include "floor.h"
 #include "zbuffer.h"
 #include "cursors.h"
@@ -445,6 +446,7 @@ bool saveGame (char * fname) {
 
 	// Save regions
 	saveRegions (fp);
+	saveRegionWatches (fp);
 
 	saveAnim (cursorAnimation (), fp);
 	put2bytes (cursorFrame (), fp);
@@ -607,6 +609,7 @@ bool loadGame (char * fname) {
 
 	killAllPeople ();
 	killAllRegions ();
+	killAllRegionWatches ();
 
 	int camerX = get2bytes (fp);
 	int camerY = get2bytes (fp);
@@ -622,6 +625,7 @@ bool loadGame (char * fname) {
 	if (! loadHSI (fp, 0, 0, true)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	loadHandlers (fp);
 	loadRegions (fp);
+	if (ssgVersion >= VERSION (2, 5)) loadRegionWatches (fp);
 
 	{
 		AnimationHandle cursor (new personaAnimation);

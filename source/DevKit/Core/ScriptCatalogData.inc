@@ -249,6 +249,10 @@ FUNCTION_DOC ("isClipPlaying", "isClipPlaying.html",
 	"isClipPlaying (character, layer)",
 	"Checks whether character is playing something on layer that hasn't finished yet.\n\nCareful: a looping clip never finishes, and neither does an animation of anim. So if you wait in a loop like the one in the example for a looping clip or an anim on layer 0, you'll be waiting forever!\n\nA clip that doesn't loop has finished once it gets to its end, and a clip of length 0 has finished straight away. On layers 1 to 99, a finished clip still holds its last pose until you take it away with stopClip, even though isClipPlaying says FALSE.",
 	"Returns TRUE if the clip is still playing, otherwise FALSE.")
+FUNCTION_DOC ("isInScreenRegion", "isInScreenRegion.html",
+	"isInScreenRegion (thisCharacter, thisObject)",
+	"Tests whether the hotspot of thisCharacter (the point where it stands) is inside a screen region of thisObject right now.\n\nIt works for any region, rectangle or shape, whether or not watchScreenRegion is watching it. If thisObject has more than one region, being inside any of them is enough.",
+	"TRUE if the character is inside, and FALSE if it isn't, or if either the character or the region isn't on the screen at all.")
 FUNCTION_DOC ("isMoving", "isMoving.html",
 	"isMoving (thisObject)",
 	"Tests whether thisObject is a character who is currently moving (due to one of the moveCharacter or forceCharacter functions).",
@@ -721,6 +725,10 @@ FUNCTION_DOC ("wait", "wait.html",
 	"wait (spriteNumber, lengthOfTime)",
 	"For use while creating an animation. Use this command to display a sprite for longer than one frame.",
 	"The function returns a structure containing both the spriteNumber and lengthOfTime data. This structure can then be used in the place of a number in the anim command. Internally, the structure is a 2-element stack.")
+FUNCTION_DOC ("watchScreenRegion", "watchScreenRegion.html",
+	"watchScreenRegion (thisObject, onEnter, onLeave)",
+	"Watches the screen regions of thisObject, so that the function onEnter runs whenever a character steps into one of them, and the function onLeave whenever a character steps out again.\n\nWhat counts is the character's hotspot: the point where it stands, which is the position you give to addCharacter or jumpCharacter. It doesn't matter how the character gets there. Walking, jumping or being forced all count, and so does a character that's hidden at the time.\n\nBoth functions must take two parameters: first the character that went in or out, then the object of the region. So the function can tell who it was, and one function can look after lots of regions at once. If two characters step in at the same time, the function runs twice, once for each of them. If a character steps straight from one watched region into another, the onLeave of the first runs before the onEnter of the second. A function with a different number of parameters stops the game with an error as soon as it's called.\n\nEither function can be NULL if you only care about one of the two. Call watchScreenRegion again for the same object to change its functions, and use NULL for both to stop watching it.\n\nThe watch belongs to the object rather than to one region, so it covers every region of thisObject and carries on after removeScreenRegion. Add the region again, in another room say, and the watch works again. Anything that changes whether a character is inside counts, not just walking: a watch that starts with a character already inside runs onEnter, and removing the region, or the character, while it's inside runs onLeave. Freezing the game (see freeze) puts the watches away with the rest of the scene, and unfreezing brings them back without running anything. Saved games keep them too.",
+	"No return value.")
 FUNCTION_DOC ("zoomCamera", "zoomCamera.html",
 	"zoomCamera (zoom)",
 	"Zooms the camera by zoom percentage. (100 is the default.) If it is not possible to zoom out the camera without the user seeing an area outside of the scene image, the camera is zoomed to the closest possible valid position. The camera position is not adjusted to compensate for the changed zoom value (except for avoiding scene edges): Use together with aimCamera.",

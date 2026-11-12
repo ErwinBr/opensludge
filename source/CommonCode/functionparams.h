@@ -31,4 +31,5 @@ calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 -1, -1, 3, 3, 3, 2,							// newClip, clipSprite, clipFrames, clipEvent, setClipSpeed, isClipPlaying
 0, -1, 3, 2, -1,							// newRig, addPart, setPartDepth, setCharacterRig, clipKey
 -1, 2, 4, 3, 1,								// playClip, stopClip, setPartProperty, clearPartProperty, mirrorClip
-4, 1, 1									// setPartPivot, loadRig, loadClip
+4, 1, 1,									// setPartPivot, loadRig, loadClip
+3, 2										// watchScreenRegion, isInScreenRegion

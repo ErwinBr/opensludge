@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>watchScreenRegion</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>watchScreenRegion</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">watchScreenRegion (<i>thisObject, onEnter, onLeave</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Watches the screen regions of <i>thisObject</i>, so that the function <i>onEnter</i> runs whenever a character steps into one of them, and the function <i>onLeave</i> whenever a character steps out again.
+</P>
+
+<P>
+What counts is the character's hotspot: the point where it stands, which is the position you give to <a href="addCharacter.html">addCharacter</a> or <a href="jumpCharacter.html">jumpCharacter</a>. It doesn't matter how the character gets there. Walking, jumping or being forced all count, and so does a character that's hidden at the time.
+</P>
+
+<P>
+Both functions must take two parameters: first the character that went in or out, then the object of the region. So the function can tell who it was, and one function can look after lots of regions at once. If two characters step in at the same time, the function runs twice, once for each of them. If a character steps straight from one watched region into another, the <i>onLeave</i> of the first runs before the <i>onEnter</i> of the second. A function with a different number of parameters stops the game with an error as soon as it's called.
+</P>
+
+<P>
+Either function can be NULL if you only care about one of the two. Call watchScreenRegion again for the same object to change its functions, and use NULL for both to stop watching it.
+</P>
+
+<P>
+The watch belongs to the object rather than to one region, so it covers every region of <i>thisObject</i> and carries on after <a href="removeScreenRegion.html">removeScreenRegion</a>. Add the region again, in another room say, and the watch works again. Anything that changes whether a character is inside counts, not just walking: a watch that starts with a character already inside runs <i>onEnter</i>, and removing the region, or the character, while it's inside runs <i>onLeave</i>. Freezing the game (see <a href="freeze.html">freeze</a>) puts the watches away with the rest of the scene, and unfreezing brings them back without running anything. Saved games keep them too.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;ego&quot;) {
+}
+
+objectType dog (&quot;dog&quot;) {
+}
+
+objectType doormat (&quot;doormat&quot;) {
+}
+
+sub stepOnMat (who, where) {
+   if (who == ego) say (ego, &quot;Welcome home, me.&quot;);
+   else if (who == dog) say (dog, &quot;Woof!&quot;);
+}
+
+sub setUpHall () {
+   addScreenRegion (doormat, newStack (200, 380, 300, 380, 320, 420, 180, 420), 0, 0, -1);
+   watchScreenRegion (doormat, stepOnMat, NULL);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Object_Types_as_Screen_Regions.html">Object Types as Screen Regions</a>
+</P>
+
+<P>
+<a href="addScreenRegion.html">addScreenRegion</a>
+</P>
+
+<P>
+<a href="isInScreenRegion.html">isInScreenRegion</a>
+</P>
+
+<P>
+<a href="onFocusChange.html">onFocusChange</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>
