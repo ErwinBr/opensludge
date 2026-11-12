@@ -36,6 +36,7 @@ public:
 	void draw ();
 	void drawInspector ();
 	bool animating () const;
+	double secondsToWake () const;
 	bool canCopy () const { return ! script->selection ().empty (); }
 	void copy ();
 	bool canPaste () const { return true; }
@@ -101,6 +102,9 @@ private:
 	void acceptCompletion ();
 	bool handleCompletionKeys ();
 	void goToDefinition (TextPos at);
+	// Whether Ctrl+click on the token at a place does something: goes to
+	// where it is made, or opens its help page.
+	bool isLink (int line, const Token & token);
 	void openHelpAt (TextPos at);
 	// Make the text a point bigger (1) or smaller (-1), or 0 for the size
 	// of the interface.
@@ -156,6 +160,20 @@ private:
 	TextPos signatureAt;
 	float signatureHeight;		// Of its window, the last time
 
+	// The name under the mouse while Ctrl (Cmd on macOS) is held, when a
+	// click on it goes somewhere: underlined, with the hand pointer.
+	struct Link {
+		int line;
+		Token token;
+		Link () : line (-1) {}
+	};
+	Link link;
+	unsigned int outlineHovered;	// The ImGuiID of the outline's row under the mouse, or 0
+	// What isLink answered last, for the same token, text and names.
+	int linkLine, linkStart;
+	uint64_t linkVersion, linkNames;
+	bool linkAnswer;
+
 	// Hovering a name.
 	TextPos hoverPlace;
 	double hoverSince;
@@ -190,6 +208,13 @@ private:
 
 	std::string notice;
 	double noticeUntil;
+
+	// The cursor blinks, as in InputText: on from when it last moved or the
+	// text changed, then off and on again.
+	double caretSince;
+	TextSelection caretSelection;
+	uint64_t caretVersion;
+	int caretFrame;		// The last frame that drew it, or -1
 };
 
 } // namespace devkit

@@ -55,6 +55,8 @@ public:
 	bool wantsToQuit () const { return quitting; }
 	// Whether we need another frame soon, as while we compile.
 	bool animating () const;
+	// In how many seconds a view looks different on its own, or -1.
+	double secondsToWake () const;
 	// The frame has been drawn and presented.
 	void frameDone ();
 

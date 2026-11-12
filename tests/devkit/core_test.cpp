@@ -897,6 +897,9 @@ static void testScriptAnalysisMistakes () {
 		{ 21, 2, Diagnostic::ERROR, "'jump' isn't a variable, sub, objectType, flag or built-in." },
 		{ 22, 19, Diagnostic::ERROR, "'nobody' isn't a variable, sub, objectType, flag or built-in." },
 		{ 23, 5, Diagnostic::ERROR, "This ( has no )." },
+		{ 27, 18, Diagnostic::WARNING, "A ; is missing after this, so the compiler joins it with what comes next." },
+		{ 29, 20, Diagnostic::WARNING, "A ; is missing after this, so the compiler joins it with what comes next." },
+		{ 35, 12, Diagnostic::WARNING, "A ; is missing after this, so the compiler joins it with what comes next." },
 	};
 	size_t count = sizeof (expected) / sizeof (expected[0]);
 	for (size_t d = 0; d < found.size (); d ++) {

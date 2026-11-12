@@ -23,3 +23,14 @@ sub init () {
 	if (lives > a {
 	}
 }
+sub chatter () {
+	say (hero, "One")
+	say (hero, "Two");
+	say (hero, "Three") say (hero, "Four");
+	if (lives > 1)
+		say (hero, "Five");
+	say (hero,
+		"Six")
+}
+var late = 1
+sub afterwards () {}

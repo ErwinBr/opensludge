@@ -47,7 +47,9 @@ bool SmokeInput::read (const std::string & file, std::string * error) {
 		}
 		else if (s.what == "key" || s.what == "save" || s.what == "new" || s.what == "open" || s.what == "drop" || s.what == "type" || s.what == "sheet") ok = ! s.text.empty ();
 		else if (s.what == "down") ok = s.text.empty () || s.text == "ctrl" || s.text == "shift";
-		else ok = s.what == "up" || s.what == "close";
+		else if (s.what == "hold") ok = s.text == "ctrl" || s.text == "shift";
+		else if (s.what == "pointer") ok = s.text == "arrow" || s.text == "text" || s.text == "hand";
+		else ok = s.what == "up" || s.what == "close" || s.what == "release";
 		if (! ok) {
 			char where[64];
 			snprintf (where, sizeof (where), "%d", number);
@@ -100,6 +102,20 @@ bool SmokeInput::step (Workspace & workspace) {
 			io.AddKeyEvent ((ImGuiKey) heldKey, true);
 		}
 		io.AddMouseButtonEvent (ImGuiMouseButton_Left, true);
+	} else if (s.what == "hold") {
+		if (heldKey) io.AddKeyEvent ((ImGuiKey) heldKey, false);
+		heldKey = s.text == "ctrl" ? ctrlKey () : ImGuiMod_Shift;
+		io.AddKeyEvent ((ImGuiKey) heldKey, true);
+	} else if (s.what == "release") {
+		if (heldKey) io.AddKeyEvent ((ImGuiKey) heldKey, false);
+		heldKey = 0;
+	} else if (s.what == "pointer") {
+		// What the last frame asked the pointer to be.
+		ImGuiMouseCursor wanted = s.text == "hand" ? ImGuiMouseCursor_Hand : s.text == "text" ? ImGuiMouseCursor_TextInput : ImGuiMouseCursor_Arrow;
+		if (ImGui::GetMouseCursor () != wanted) {
+			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: the pointer isn't the %s one\n", s.text.c_str ());
+			return false;
+		}
 	} else if (s.what == "up") {
 		io.AddMouseButtonEvent (ImGuiMouseButton_Left, false);
 		if (heldKey) {

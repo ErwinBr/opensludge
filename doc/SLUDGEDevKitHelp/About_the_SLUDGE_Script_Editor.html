@@ -73,8 +73,10 @@ So a comment above a sub explains it wherever it is used.
 </P>
 
 <P>
-F12, or Ctrl+click (Command+click on macOS), goes to where a name is made, also in another script. F1 opens the page
-of this help of the built-in function at the cursor.
+F12, or Ctrl+click (Command+click on macOS), goes to where a name is made, also in another script; on a built-in
+function or constant, it opens its page of this help. While you hold Ctrl (Command on macOS), the names that a click
+goes somewhere from are underlined under the mouse, as links are, and the pointer is a hand. F1 opens the page of
+this help of the built-in function at the cursor.
 </P>
 
 <P>
@@ -92,7 +94,8 @@ the Problems of the Inspector, for what is wrong. F8 goes to the next problem, a
 </P>
 
 <P>
-It sees strings with no end, brackets that don't match, names that are nothing (the compiler says &quot;Not a
+It sees strings with no end, brackets that don't match, a ; missing at the end of a line, so that the compiler would
+take two lines for one, names that are nothing (the compiler says &quot;Not a
 function, variable or object type!&quot;, without a line), members that an objectType doesn't have, names made
 twice, the names of built-in functions used for subs, and events of objectTypes that aren't there. It checks the
 names only in a script of the open project, once it can read all of the project's scripts.
@@ -125,8 +128,9 @@ project, as the open ones are now. Click a place in the list to open its script 
 <li>Alt+Left and Alt+Right on macOS, Ctrl+Left and Ctrl+Right elsewhere, move a word at a time.</li>
 <li>Home goes to the first character of the line that isn't a space, and then to its start.</li>
 <li>Double-click selects a word, a triple click a line, and a click on the line numbers a line too.</li>
-<li>Ctrl and + or - (Command on macOS) make the text bigger or smaller, a point at a time, and Ctrl+0 gives it the
-size of the rest of the Dev Kit again. The status bar shows the size when it isn't that one. Each project has its own
+<li>Ctrl and + or - (Command on macOS), or Edit &gt; Increase Text Size and Decrease Text Size, make the text bigger
+or smaller, a point at a time, and Ctrl+0 (Edit &gt; Default Text Size) gives it the size of the rest of the Dev Kit
+again. The status bar shows the size when it isn't that one. Each project has its own
 size, which the Dev Kit remembers on your computer; the project's file stays as it was.</li>
 </UL>
 

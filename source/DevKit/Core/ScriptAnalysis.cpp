@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <set>
+#include <utility>
 
 #include "Document.h"
 #include "ScriptAnalysis.h"
@@ -108,6 +109,55 @@ public:
 			open.resize (match);
 		}
 		for (size_t k = 0; k < open.size (); k ++) unclosed (t[open[k]]);
+	}
+
+	// Two statements with no ; between them, which the compiler takes for
+	// one: it ends them only at a ; or at the } of a block.
+	void semicolons () {
+		// The open brackets, and whether each ( is that of a header, as
+		// of if (...) or sub name (...), after which a statement follows.
+		std::vector<std::pair<char, bool> > open;
+		std::vector<bool> headerEnd (t.size (), false);
+		for (size_t i = 0; i < t.size (); i ++) {
+			const Tok & a = t[i];
+			if (a.kind == TOKEN_BRACKET) {
+				char c = a.text[0];
+				if (c == '(' || c == '[' || c == '{') {
+					open.push_back (std::make_pair (c, c == '(' && opensHeader (i)));
+				} else {
+					// It closes the nearest of its kind, and those after it.
+					char wanted = c == ')' ? '(' : c == ']' ? '[' : '{';
+					size_t k = open.size ();
+					while (k > 0 && open[k - 1].first != wanted) k --;
+					if (k > 0) {
+						headerEnd[i] = open[k - 1].second;
+						open.resize (k - 1);
+					}
+				}
+			}
+			if (i + 1 >= t.size ()) break;
+			if (! open.empty () && open.back ().first != '{') continue;
+			const Tok & b = t[i + 1];
+			bool ends = isName (a) || a.kind == TOKEN_NUMBER || a.kind == TOKEN_STRING || a.kind == TOKEN_ESCAPE || a.kind == TOKEN_FILE
+				|| ((a.text == ")" || a.text == "]") && ! headerEnd[i]) || a.text == "++" || a.text == "--";
+			bool starts = isName (b) || b.kind == TOKEN_KEYWORD || b.kind == TOKEN_ELEMENT;
+			if (! ends || ! starts) continue;
+			out.push_back (Diagnostic (Diagnostic::WARNING, TextPos (a.end.line, a.end.column - 1), a.end,
+				"A ; is missing after this, so the compiler joins it with what comes next."));
+		}
+	}
+
+	// Whether the ( at i is that of if, while, for or loop, or of the
+	// parameters of a sub or objectType.
+	bool opensHeader (size_t i) const {
+		if (i == 0) return false;
+		const Tok & before = t[i - 1];
+		if (before.kind == TOKEN_KEYWORD) return before.text == "if" || before.text == "while" || before.text == "for" || before.text == "loop";
+		// Back over name, or name.name, to sub, objectType or event.
+		size_t j = i - 1;
+		while (j > 0 && (isName (t[j]) || t[j].text == ".")) j --;
+		if (j == i - 1 && ! isName (t[j])) return false;
+		return t[j].kind == TOKEN_KEYWORD && (t[j].text == "sub" || t[j].text == "objectType" || t[j].text == "event");
 	}
 
 	void unclosed (const Tok & opener) {
@@ -394,6 +444,7 @@ std::vector<Diagnostic> analyseScript (const TextBuffer & text, const ScriptInde
 	std::vector<Tok> tokens = tokensOf (text, out);
 	Checker checker (tokens, index, file, allNames, out);
 	checker.brackets ();
+	checker.semicolons ();
 	checker.code ();
 	checker.declarations ();
 	std::stable_sort (out.begin (), out.end (), byPlace);

@@ -263,6 +263,8 @@ int main (int argc, char ** argv) {
 #if defined(__APPLE__)
 	io.ConfigMacOSXBehaviors = true;
 #endif
+	// A capture shows the cursors of the text, whenever it is taken.
+	if (smokeFile) io.ConfigInputTextCursorBlink = false;
 	// The places of the panels go in the settings folder, but a smoke
 	// test always starts with the default layout.
 	std::string iniFile = platform.settingsFolder () + "imgui.ini";
@@ -326,7 +328,11 @@ int main (int argc, char ** argv) {
 	bool done = false;
 	while (! done) {
 		SDL_Event event;
-		bool haveEvent = framesToDraw > 0 || smokeFile ? SDL_PollEvent (&event) : SDL_WaitEventTimeout (&event, IDLE_WAIT_MS);
+		// Idle, we wake for what changes on its own, as a blinking cursor.
+		Sint32 wait = IDLE_WAIT_MS;
+		double wake = workspace.secondsToWake ();
+		if (wake >= 0 && wake * 1000 < wait) wait = (Sint32) (wake * 1000) + 1;
+		bool haveEvent = framesToDraw > 0 || smokeFile ? SDL_PollEvent (&event) : SDL_WaitEventTimeout (&event, wait);
 		while (haveEvent) {
 			// In a smoke test with input, the input is the file's only.
 			if (! smokeInput) ImGui_ImplSDL3_ProcessEvent (&event);

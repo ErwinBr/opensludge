@@ -102,11 +102,11 @@ static const ScriptTheme & theme () {
 			dark.token[k] = rgb (darkTokens[k]);
 			light.token[k] = rgb (lightTokens[k]);
 		}
-		dark.background = rgb (0x1E1E1E);
-		dark.gutter = rgb (0x1E1E1E);
+		dark.background = rgb (0x18181A);
+		dark.gutter = rgb (0x18181A);
 		dark.lineNumber = rgb (0x858585);
 		dark.currentLineNumber = rgb (0xC6C6C6);
-		dark.currentLine = rgb (0xFFFFFF, 14);
+		dark.currentLine = rgb (0x1F1F22);
 		dark.selection = rgb (0x264F78);
 		dark.inactiveSelection = rgb (0x3A3D41);
 		dark.match = rgb (0x623315, 200);
@@ -141,9 +141,10 @@ ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a)
 	  completing (false), completeEverything (false), selectedItem (0), firstItem (0),
 	  popupX0 (0), popupY0 (0), popupX1 (0), popupY1 (0), completedVersion (0),
 	  signatureShown (false), signatureHidden (false), signatureVersion (0), signatureAt (-1, 0), signatureHeight (0),
+	  outlineHovered (0), linkLine (-1), linkStart (-1), linkVersion (0), linkNames (0), linkAnswer (false),
 	  hoverPlace (-1, 0), hoverSince (0), hoverFound (false), hoverVersion (0), markersSerial (0), framesDrawn (0),
 	  problemsVersion (0), problemsNames (0), problemsAllNames (false), problemsDue (0),
-	  diskChanged (false), nextDiskCheck (0), noticeUntil (0) {}
+	  diskChanged (false), nextDiskCheck (0), noticeUntil (0), caretSince (0), caretVersion (0), caretFrame (-1) {}
 
 std::string ScriptView::indexName (const ScriptDocument * script) {
 	if (! script->path ().empty ()) return script->path ();
@@ -161,6 +162,17 @@ bool ScriptView::animating () const {
 	// While the mouse rests on a name, until its docs show.
 	bool hoverWaits = hoverPlace.line >= 0 && ImGui::GetTime () - hoverSince < 0.6;
 	return dragging || hoverWaits || problemsDue > 0;
+}
+
+// How long the cursor of the text is on, and how long one on and off is,
+// as InputText's.
+static const double CARET_ON = 0.8, CARET_PERIOD = 1.2;
+
+double ScriptView::secondsToWake () const {
+	// Only while it is drawn, in this frame or the last.
+	if (caretFrame < ImGui::GetFrameCount () - 1 || ! ImGui::GetIO ().ConfigInputTextCursorBlink) return -1;
+	double phase = fmod (ImGui::GetTime () - caretSince, CARET_PERIOD);
+	return phase < CARET_ON ? CARET_ON - phase : CARET_PERIOD - phase;
 }
 
 const std::vector<Token> & ScriptView::tokensOf (int line) {
@@ -339,9 +351,9 @@ void ScriptView::drawEditMenu () {
 		chose = true;
 	}
 	ImGui::Separator ();
-	if (ImGui::MenuItem ("Bigger Text", keys ("+").c_str ())) zoom (1);
-	if (ImGui::MenuItem ("Smaller Text", keys ("-").c_str ())) zoom (-1);
-	if (ImGui::MenuItem ("Text of the Usual Size", keys ("0").c_str (), false, actions.scriptFontSize () > 0)) zoom (0);
+	if (ImGui::MenuItem ("Increase Text Size", keys ("+").c_str ())) zoom (1);
+	if (ImGui::MenuItem ("Decrease Text Size", keys ("-").c_str ())) zoom (-1);
+	if (ImGui::MenuItem ("Default Text Size", keys ("0").c_str (), false, actions.scriptFontSize () > 0)) zoom (0);
 	ImGui::Separator ();
 	if (ImGui::MenuItem ("Toggle Comment", keys ("/").c_str ())) {
 		editing::toggleComment (*script);
@@ -636,7 +648,7 @@ void ScriptView::handleKeys () {
 			editing::toggleComment (*script);
 		}
 		if (shift && ImGui::IsKeyPressed (ImGuiKey_K, false)) editing::deleteLines (*script);
-		// Bigger and smaller, as the editors of pictures zoom.
+		// Increase and decrease the text size, as the editors of pictures zoom.
 		if (ImGui::IsKeyPressed (ImGuiKey_Equal) || ImGui::IsKeyPressed (ImGuiKey_KeypadAdd)) zoom (1);
 		if (ImGui::IsKeyPressed (ImGuiKey_Minus) || ImGui::IsKeyPressed (ImGuiKey_KeypadSubtract)) zoom (-1);
 		if (ImGui::IsKeyPressed (ImGuiKey_0, false) || ImGui::IsKeyPressed (ImGuiKey_Keypad0, false)) zoom (0);
@@ -700,6 +712,27 @@ void ScriptView::handleMouse (const ImVec2 & origin, bool hovered) {
 		}
 		return;
 	}
+	// With Ctrl (Cmd on macOS) held, a name that a click goes somewhere
+	// from is a link, as on a web page.
+	link = Link ();
+	if (hovered && io.KeyCtrl && ! io.KeyShift && ! dragging && ImGui::IsMousePosValid () && mouse.x >= window->InnerRect.Min.x + gutterWidth) {
+		int line = (int) floorf ((mouse.y - origin.y) / lineHeight);
+		if (line >= 0 && line < text.lineCount ()) {
+			const std::string & l = text.line (line);
+			float x = mouse.x - textLeft;
+			// The character under the mouse, not past the end of the line.
+			if (x >= 0 && x < displayColumn (l, (int) l.size (), TAB_SIZE) * charWidth) {
+				TextPos under = placeAt (x - charWidth * 0.5f, mouse.y - origin.y);
+				const std::vector<Token> & tokens = tokensOf (line);
+				int t = tokenAt (tokens, under.column);
+				if (t >= 0 && under.column < tokens[t].end && isLink (line, tokens[t])) {
+					link.line = line;
+					link.token = tokens[t];
+					ImGui::SetMouseCursor (ImGuiMouseCursor_Hand);
+				}
+			}
+		}
+	}
 	if (hovered && ImGui::IsMouseClicked (ImGuiMouseButton_Left)) {
 		int clicks = io.MouseClickedCount[ImGuiMouseButton_Left];
 		completing = false;
@@ -723,7 +756,7 @@ void ScriptView::handleMouse (const ImVec2 & origin, bool hovered) {
 		// Ctrl+click (Cmd+click on macOS) goes to where the name is made.
 		if (io.KeyCtrl && clicks == 1 && ! inGutter && ! io.KeyShift) {
 			dragging = false;
-			goToDefinition (at);
+			goToDefinition (link.line >= 0 ? TextPos (link.line, link.token.start) : at);
 			return;
 		}
 	}
@@ -914,6 +947,13 @@ void ScriptView::drawText () {
 				}
 				start = end < k.end ? end + 1 : end;
 			}
+			if (l == link.line && k.start == link.token.start) {
+				// A link, underlined in its own colour.
+				float x0 = textLeft + displayColumn (line, k.start, TAB_SIZE) * charWidth;
+				float x1 = textLeft + displayColumn (line, k.end, TAB_SIZE) * charWidth;
+				float under = floorf (textY + font->GetFontBaked (fontSize)->Ascent + fontSize * 0.12f) + 0.5f;
+				draw->AddLine (ImVec2 (x0, under), ImVec2 (x1, under), colour, fontSize > 20 ? 2.0f : 1.0f);
+			}
 			if (k.kind == TOKEN_ERROR) {
 				// A wavy line under what is wrong.
 				float x0 = textLeft + displayColumn (line, k.start, TAB_SIZE) * charWidth;
@@ -942,11 +982,21 @@ void ScriptView::drawText () {
 			wavyLine (draw, x0, x1, y + lineHeight - 1, d.severity == Diagnostic::ERROR ? colours.error : colours.warning);
 		}
 	}
-	// The cursor.
+	// The cursor, which shows at once when it moves or the text changes,
+	// and blinks while it waits.
 	if (active) {
+		double now = ImGui::GetTime ();
+		if (caretFrame < ImGui::GetFrameCount () - 1 || ! (s == caretSelection) || text.version () != caretVersion) {
+			caretSince = now;
+			caretSelection = s;
+			caretVersion = text.version ();
+		}
+		caretFrame = ImGui::GetFrameCount ();
 		float x = textLeft + xOf (cursor);
 		float y = textTop + cursor.line * lineHeight;
-		draw->AddRectFilled (ImVec2 (x, y + 1), ImVec2 (x + (fontSize > 20 ? 2.0f : 1.5f), y + lineHeight - 1), colours.caret);
+		if (! io.ConfigInputTextCursorBlink || fmod (now - caretSince, CARET_PERIOD) < CARET_ON) {
+			draw->AddRectFilled (ImVec2 (x, y + 1), ImVec2 (x + (fontSize > 20 ? 2.0f : 1.5f), y + lineHeight - 1), colours.caret);
+		}
 		// Where the system's input method shows what is being composed.
 		g.PlatformImeData.WantVisible = true;
 		g.PlatformImeData.WantTextInput = true;
@@ -1342,7 +1392,8 @@ void ScriptView::goToDefinition (TextPos at) {
 	if (! assist::definitionAt (script->buffer (), at, actions.scriptIndex (), indexName (script), &definition)) {
 		HoverInfo info;
 		if (assist::hoverAt (script->buffer (), at, actions.scriptIndex (), indexName (script), &info) && ! info.page.empty ()) {
-			say ("That is a built-in of SLUDGE: F1 opens its help.");
+			// A built-in: its page of the help.
+			actions.openHelpPage (info.page);
 		} else {
 			say ("There is no definition of that in the project.");
 		}
@@ -1353,6 +1404,29 @@ void ScriptView::goToDefinition (TextPos at) {
 		return;
 	}
 	actions.showInScript (definition.file, definition.at.line, definition.at.column);
+}
+
+bool ScriptView::isLink (int line, const Token & token) {
+	switch (token.kind) {
+		case TOKEN_IDENTIFIER: case TOKEN_FUNCTION: case TOKEN_CONSTANT: case TOKEN_SUB: case TOKEN_OBJECT_TYPE:
+		case TOKEN_VARIABLE: case TOKEN_DEFINITION: case TOKEN_FLAG:
+			break;
+		default:
+			return false;
+	}
+	const TextBuffer & text = script->buffer ();
+	const ScriptIndex & index = actions.scriptIndex ();
+	if (line == linkLine && token.start == linkStart && text.version () == linkVersion && index.version () == linkNames) return linkAnswer;
+	linkLine = line;
+	linkStart = token.start;
+	linkVersion = text.version ();
+	linkNames = index.version ();
+	TextPos at (line, token.start);
+	Definition definition;
+	HoverInfo info;
+	linkAnswer = assist::definitionAt (text, at, index, indexName (script), &definition)
+		|| (assist::hoverAt (text, at, index, indexName (script), &info) && ! info.page.empty ());
+	return linkAnswer;
 }
 
 void ScriptView::openHelpAt (TextPos at) {
@@ -1374,7 +1448,16 @@ void ScriptView::drawOutline () {
 		return;
 	}
 	const ScriptTheme & colours = theme ();
-	ImGuiTreeNodeFlags leaf = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+	// Rows with room above and below their words, which touch, so that the
+	// bars of the mouse line up.
+	ImGui::PushStyleVar (ImGuiStyleVar_FramePadding, ImVec2 (ImGui::GetStyle ().FramePadding.x, floorf (ImGui::GetFontSize () * 0.3f)));
+	ImGui::PushStyleVar (ImGuiStyleVar_ItemSpacing, ImVec2 (ImGui::GetStyle ().ItemSpacing.x, 0));
+	ImGuiTreeNodeFlags row = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth;
+	ImGuiTreeNodeFlags leaf = row | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+	// The row under the mouse is white on its bar, which ImGui knows once
+	// it is drawn: so the row of the last frame.
+	ImGuiID hoveredBefore = outlineHovered;
+	outlineHovered = 0;
 	for (size_t i = 0; i < symbols.size (); i ++) {
 		const ScriptSymbol & symbol = symbols[i];
 		if (! symbol.owner.empty ()) continue;
@@ -1382,31 +1465,31 @@ void ScriptView::drawOutline () {
 		ImU32 colour = colours.token[symbol.kind == SYMBOL_OBJECT_TYPE ? TOKEN_OBJECT_TYPE : symbol.kind == SYMBOL_SUB ? TOKEN_SUB
 			: symbol.kind == SYMBOL_FLAG ? TOKEN_FLAG : symbol.kind == SYMBOL_DEFINITION ? TOKEN_DEFINITION : TOKEN_VARIABLE];
 		std::string label = symbol.kind == SYMBOL_SUB ? symbol.declaration ().substr (4) : symbol.name;
-		ImGui::PushStyleColor (ImGuiCol_Text, colour);
-		if (symbol.kind == SYMBOL_OBJECT_TYPE) {
-			bool open = ImGui::TreeNodeEx ("##type", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", label.c_str ());
-			if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen ()) goTo (symbol.at);
-			ImGui::PopStyleColor ();
-			if (open) {
-				for (size_t m = 0; m < symbols.size (); m ++) {
-					const ScriptSymbol & member = symbols[m];
-					if (member.owner != symbol.name) continue;
-					ImGui::PushID ((int) m);
-					std::string text = member.kind == SYMBOL_EVENT ? "event " + member.name
-						: member.kind == SYMBOL_SUB ? member.declaration ().substr (4 + symbol.name.size () + 1) : member.name;
-					ImGui::TreeNodeEx ("##member", leaf, "%s", text.c_str ());
-					if (ImGui::IsItemClicked ()) goTo (member.at);
-					ImGui::PopID ();
-				}
-				ImGui::TreePop ();
+		const char * id = symbol.kind == SYMBOL_OBJECT_TYPE ? "##type" : "##symbol";
+		ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetID (id) == hoveredBefore ? IM_COL32_WHITE : colour);
+		bool open = ImGui::TreeNodeEx (id, symbol.kind == SYMBOL_OBJECT_TYPE ? row | ImGuiTreeNodeFlags_DefaultOpen : leaf, "%s", label.c_str ());
+		ImGui::PopStyleColor ();
+		if (ImGui::IsItemHovered ()) outlineHovered = ImGui::GetItemID ();
+		if (ImGui::IsItemClicked () && ! ImGui::IsItemToggledOpen ()) goTo (symbol.at);
+		if (symbol.kind == SYMBOL_OBJECT_TYPE && open) {
+			for (size_t m = 0; m < symbols.size (); m ++) {
+				const ScriptSymbol & member = symbols[m];
+				if (member.owner != symbol.name) continue;
+				ImGui::PushID ((int) m);
+				std::string text = member.kind == SYMBOL_EVENT ? "event " + member.name
+					: member.kind == SYMBOL_SUB ? member.declaration ().substr (4 + symbol.name.size () + 1) : member.name;
+				ImGui::PushStyleColor (ImGuiCol_Text, ImGui::GetID ("##member") == hoveredBefore ? IM_COL32_WHITE : colour);
+				ImGui::TreeNodeEx ("##member", leaf, "%s", text.c_str ());
+				ImGui::PopStyleColor ();
+				if (ImGui::IsItemHovered ()) outlineHovered = ImGui::GetItemID ();
+				if (ImGui::IsItemClicked ()) goTo (member.at);
+				ImGui::PopID ();
 			}
-		} else {
-			ImGui::TreeNodeEx ("##symbol", leaf, "%s", label.c_str ());
-			ImGui::PopStyleColor ();
-			if (ImGui::IsItemClicked ()) goTo (symbol.at);
+			ImGui::TreePop ();
 		}
 		ImGui::PopID ();
 	}
+	ImGui::PopStyleVar (2);
 }
 
 int ScriptView::lineWithStamp (uint64_t stamp) const {

@@ -396,6 +396,14 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-find
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-find PROPERTIES LABELS capture)
+		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
+		add_test(NAME capture-devkit-link
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/link_input.txt
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-link
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-link PROPERTIES LABELS capture)
 		# Closing the tab of each kind of document.
 		add_test(NAME capture-devkit-close
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

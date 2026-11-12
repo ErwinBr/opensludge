@@ -27,6 +27,9 @@ public:
 	virtual bool takeFile (const std::string & path) { (void) path; return false; }
 	// Whether the view needs another frame soon, such as during a drag.
 	virtual bool animating () const { return false; }
+	// In how many seconds the view looks different when nothing happens,
+	// as when a cursor blinks, or -1 for never.
+	virtual double secondsToWake () const { return -1; }
 	// Edit > Copy and Paste, for the views that have them.
 	virtual bool canCopy () const { return false; }
 	virtual void copy () {}

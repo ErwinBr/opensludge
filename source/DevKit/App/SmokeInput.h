@@ -9,6 +9,10 @@
  *   move <x> <y>     the mouse to a point of the window
  *   down [ctrl|shift], up
  *                    the left mouse button, with Ctrl or Shift held until up
+ *   hold ctrl|shift  hold a modifier down, without the mouse, until release
+ *   release          let go of it
+ *   pointer arrow|text|hand
+ *                    fail unless the last frame made the pointer that one
  *   key <name>       press and release a key, such as 2, Escape, ctrl+z or
  *                    shift+Tab, with ctrl+, shift+ and alt+ held with it
  *                    (Ctrl is Cmd on macOS, as in the shortcuts)

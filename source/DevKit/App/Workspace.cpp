@@ -151,6 +151,15 @@ void Workspace::requestQuit () {
 	});
 }
 
+double Workspace::secondsToWake () const {
+	double soonest = -1;
+	for (std::map<Document *, std::unique_ptr<DocumentView> >::const_iterator i = views.begin (); i != views.end (); ++ i) {
+		double seconds = i->second ? i->second->secondsToWake () : -1;
+		if (seconds >= 0 && (soonest < 0 || seconds < soonest)) soonest = seconds;
+	}
+	return soonest;
+}
+
 bool Workspace::animating () const {
 	if (compiling ()) return true;
 	for (std::map<Document *, std::unique_ptr<DocumentView> >::const_iterator i = views.begin (); i != views.end (); ++ i) {
