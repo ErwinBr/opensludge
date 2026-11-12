@@ -1595,6 +1595,12 @@
 		<param name="Local" value="SLUDGEDevKitHelp\loopSound.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="makeFastArray">
+		<param name="Name" value="makeFastArray (built-in function)">
+		<param name="Name" value="fast array">
+		<param name="Local" value="SLUDGEDevKitHelp\makeFastArray.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="mixOverlay">
 		<param name="Name" value="mixOverlay (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\mixOverlay.html">
@@ -1688,6 +1694,16 @@
 		<param name="Name" value="pauseMovie">
 		<param name="Name" value="pauseMovie (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\pauseMovie.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="peekEnd">
+		<param name="Name" value="peekStart and peekEnd (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\peekStart_and_peekEnd.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="peekStart">
+		<param name="Name" value="peekStart and peekEnd (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\peekStart_and_peekEnd.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="pickOne">

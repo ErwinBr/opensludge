@@ -1,0 +1,82 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>makeFastArray</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>makeFastArray</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">makeFastArray (<i>numberOfElements</i>);
+makeFastArray (<i>thisStack</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Creates a fast array: a list of a fixed size, which you read and set with square brackets just like a stack, but much faster to read by number.
+</P>
+
+<P>
+If you give it a number, the new array has <i>numberOfElements</i> elements, all of them NULL. If you give it a stack, the new array has as many elements as <i>thisStack</i> and holds a copy of each of them, in the same order. Changing the stack afterwards doesn't change the array.
+</P>
+
+<P>
+So why bother? A stack is a chain of elements, so to find <i>myStack[500]</i> SLUDGE has to walk past the 500 elements before it. A fast array goes straight to the element you ask for, however big it is. If you keep a big table of values and read it by number, a fast array is much quicker.
+</P>
+
+<P>
+The catch is that its size never changes. You can read and set its elements with square brackets, and <a href="stackSize.html">stackSize</a> tells you how many there are, but the other stack functions (<a href="pushToStack.html">pushToStack</a>, <a href="popFromStack.html">popFromStack</a>, <a href="enqueue.html">enqueue</a> and friends) only work on stacks, and will stop the game with an error if you give them a fast array. Reading an element past the end gives you NULL, but setting one is an error! Like a stack, a fast array counts as TRUE when it has any elements, and copying it into another variable doesn't copy the elements: both variables then point at the same array.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+Returns the new fast array.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+var squares;
+
+sub init () {
+   squares = makeFastArray (100);
+   var i = 0;
+   while (i &lt; 100) {
+      squares[i] = i * i;
+      i ++;
+   }
+   say (ego, &quot;Seven squared is &quot; + squares[7] + &quot;.&quot;);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="The_Multi-Purpose_Stack___Array___Queue_Type.html">The Multi-Purpose Stack / Array / Queue Type</a>
+</P>
+
+<P>
+<a href="newStack.html">newStack</a>
+</P>
+
+<P>
+<a href="stackSize.html">stackSize</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

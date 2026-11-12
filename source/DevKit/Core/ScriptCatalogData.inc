@@ -293,6 +293,10 @@ FUNCTION_DOC ("loopSound", "loopSound.html",
 	"loopSound (sound [, sound [, sound...]])\nloopSound (sound [, sound [, sound...]], loopStyle)",
 	"Plays one or more sounds, starting immediately. The sound parameters must be file handles. Supported sound formats are wave files (.WAV) and Ogg Vorbis (.OGG).\n\nIf loopStyle is zero, the sounds are played in order and then stop. If loopStyle is one, the sounds are played in order and then the final sound is looped. If loopStyle is two, the whole playlist is looped.\n\nA call to stopSound with the currently playing sound will stop the sound, and cancel any sounds waiting in line to be played. But please note that stopSound only affects the currently playing sound: Stopping a sound that has finished playing, or one that hasn't yet started playing will have no effect.",
 	"No return value.")
+FUNCTION_DOC ("makeFastArray", "makeFastArray.html",
+	"makeFastArray (numberOfElements)\nmakeFastArray (thisStack)",
+	"Creates a fast array: a list of a fixed size, which you read and set with square brackets just like a stack, but much faster to read by number.\n\nIf you give it a number, the new array has numberOfElements elements, all of them NULL. If you give it a stack, the new array has as many elements as thisStack and holds a copy of each of them, in the same order. Changing the stack afterwards doesn't change the array.\n\nSo why bother? A stack is a chain of elements, so to find myStack[500] SLUDGE has to walk past the 500 elements before it. A fast array goes straight to the element you ask for, however big it is. If you keep a big table of values and read it by number, a fast array is much quicker.\n\nThe catch is that its size never changes. You can read and set its elements with square brackets, and stackSize tells you how many there are, but the other stack functions (pushToStack, popFromStack, enqueue and friends) only work on stacks, and will stop the game with an error if you give them a fast array. Reading an element past the end gives you NULL, but setting one is an error! Like a stack, a fast array counts as TRUE when it has any elements, and copying it into another variable doesn't copy the elements: both variables then point at the same array.",
+	"Returns the new fast array.")
 FUNCTION_DOC ("mirrorClip", "mirrorClip.html",
 	"mirrorClip (clip)",
 	"Makes a mirror-image copy of clip, so that a costume can walk WEST with the clip that walks EAST.\n\nWhy draw everything twice? mirrorClip flips the whole character, from the character itself down, so every part is mirrored along with it. A part that the clip flips with PART_FLIP stays flipped compared to its parent, so the copy really is a mirror image. If the clip already flips the whole character, the copy unflips it.\n\nThe copy is a new clip, which you can still add keys to, and the original stays as it was. mirrorClip only takes clips: for an animation of anim, use negative sprite numbers instead, or the game stops with an error. To mirror just one part of a Composite Character, key its PART_FLIP with clipKey.",
@@ -377,6 +381,14 @@ FUNCTION_DOC ("pauseMovie", "pauseMovie.html",
 	"pauseMovie ()",
 	"Pauses a playing movie, started with playMovie, or resumes a paused movie. If no movie is playing, this function does nothing.\n\nSee the Movie Demo (download link) for an example of how to use the movie functions.",
 	"Returns 2 if a movie was playing, and now is paused. Returns 1 if a movie was paused, and now is resumed. Returns 0 if no movie was playing.")
+FUNCTION_DOC ("peekEnd", "peekStart_and_peekEnd.html",
+	"peekEnd (thisStack)",
+	"Looks at the element at one end of thisStack without taking it off: peekStart at the first, and peekEnd at the last.\n\npeekStart looks at the first element, the one that popFromStack and dequeue would remove and that pushToStack adds. peekEnd looks at the last element, the one that enqueue adds. The stack itself stays as it was.\n\nThe stack mustn't be empty, or the game stops with an error! If you're not sure, check it first: a stack counts as FALSE when it's empty.",
+	"peekStart returns the value of thisStack[0], and peekEnd returns the value of the last element.")
+FUNCTION_DOC ("peekStart", "peekStart_and_peekEnd.html",
+	"peekStart (thisStack)",
+	"Looks at the element at one end of thisStack without taking it off: peekStart at the first, and peekEnd at the last.\n\npeekStart looks at the first element, the one that popFromStack and dequeue would remove and that pushToStack adds. peekEnd looks at the last element, the one that enqueue adds. The stack itself stays as it was.\n\nThe stack mustn't be empty, or the game stops with an error! If you're not sure, check it first: a stack counts as FALSE when it's empty.",
+	"peekStart returns the value of thisStack[0], and peekEnd returns the value of the last element.")
 FUNCTION_DOC ("pickOne", "pickOne.html",
 	"pickOne (first [, second [, third...]])",
 	"Randomly selects one of the parameters first, second, third and so on. There must be at least one parameter specified. The parameters can be any type of variable.",
@@ -643,8 +655,8 @@ FUNCTION_DOC ("spinCharacter", "turnCharacter_and_spinCharacter.html",
 	"No return value.")
 FUNCTION_DOC ("stackSize", "stackSize.html",
 	"stackSize (thisStack)",
-	"Counts the number of elements in the stack thisStack.",
-	"The function returns the number of elements in the stack.")
+	"Counts the number of elements in the stack thisStack. It works on a fast array too (see makeFastArray).",
+	"The function returns the number of elements in the stack or fast array.")
 FUNCTION_DOC ("startMusic", "startMusic.html",
 	"startMusic (musicFile, channel, startPos)",
 	"Starts playing a piece of music at the volume set by the setDefaultMusicVolume function. The musicFile parameter must be a file handle - the channel parameter must be a number from 0 to 3 inclusive. Only one piece of music can be played on each channel at once.\n\nThe startPos defines where in a track-based music file to begin playback. This allows you to start the same piece of music in different places dependant on the game situation... or to store more than one piece of music in the same file.\n\nFile formats supported by this function are .MOD, .XM, .S3M and .IT files. This function cannot play .WAV or .OGG files - to start playback of one of these, you must use either the playSound or loopSound function.",

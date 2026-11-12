@@ -1,0 +1,84 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>peekStart and peekEnd</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>peekStart and peekEnd</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">peekStart (<i>thisStack</i>);</pre>
+</P>
+
+<P>
+<pre class="syntax">peekEnd (<i>thisStack</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Looks at the element at one end of <i>thisStack</i> without taking it off: peekStart at the first, and peekEnd at the last.
+</P>
+
+<P>
+peekStart looks at the first element, the one that <a href="popFromStack.html">popFromStack</a> and <a href="dequeue.html">dequeue</a> would remove and that <a href="pushToStack.html">pushToStack</a> adds. peekEnd looks at the last element, the one that <a href="enqueue.html">enqueue</a> adds. The stack itself stays as it was.
+</P>
+
+<P>
+The stack mustn't be empty, or the game stops with an error! If you're not sure, check it first: a stack counts as FALSE when it's empty.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+peekStart returns the value of <i>thisStack[0]</i>, and peekEnd returns the value of the last element.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub init () {
+   var queue = newStack (&quot;Bert&quot;, &quot;Ernie&quot;, &quot;Kevin&quot;);
+   if (queue) {
+      say (ego, peekStart (queue) + &quot; is first, and &quot; + peekEnd (queue) + &quot; is last.&quot;);
+   }
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="The_Multi-Purpose_Stack___Array___Queue_Type.html">The Multi-Purpose Stack / Array / Queue Type</a>
+</P>
+
+<P>
+<a href="dequeue.html">dequeue</a>
+</P>
+
+<P>
+<a href="enqueue.html">enqueue</a>
+</P>
+
+<P>
+<a href="popFromStack.html">popFromStack</a>
+</P>
+
+<P>
+<a href="pushToStack.html">pushToStack</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

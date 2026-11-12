@@ -304,6 +304,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\loopSound.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="makeFastArray">
+					<param name="Local" value="SLUDGEDevKitHelp\makeFastArray.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="mirrorClip">
 					<param name="Local" value="SLUDGEDevKitHelp\mirrorClip.html">
 					</OBJECT>
@@ -386,6 +390,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="pauseMovie">
 					<param name="Local" value="SLUDGEDevKitHelp\pauseMovie.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="peekStart and peekEnd">
+					<param name="Local" value="SLUDGEDevKitHelp\peekStart_and_peekEnd.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="pickOne">

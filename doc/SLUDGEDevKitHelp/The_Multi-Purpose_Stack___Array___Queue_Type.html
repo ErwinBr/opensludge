@@ -12,7 +12,7 @@
 
 
 <P>
-The stack variable type is the only type of variable in SLUDGE which can hold more than one element. It can be used as a stack (push elements on using <a href="pushToStack.html">pushToStack</a> and then use <a href="popFromStack.html">popFromStack</a> to pop them off the same end), a queue (<a href="enqueue.html">enqueue</a> elements, <a href="dequeue.html">dequeue</a> them off the opposite end) or a straightforward array (which can be indexed using square brackets). With the implementation used in SLUDGE, <a href="dequeue.html">dequeue</a> and <a href="popFromStack.html">popFromStack</a> are identical.
+The stack variable type is the main type of variable in SLUDGE which can hold more than one element (the other is the fast array, below). It can be used as a stack (push elements on using <a href="pushToStack.html">pushToStack</a> and then use <a href="popFromStack.html">popFromStack</a> to pop them off the same end), a queue (<a href="enqueue.html">enqueue</a> elements, <a href="dequeue.html">dequeue</a> them off the opposite end) or a straightforward array (which can be indexed using square brackets). With the implementation used in SLUDGE, <a href="dequeue.html">dequeue</a> and <a href="popFromStack.html">popFromStack</a> are identical.
 </P>
 
 <P>
@@ -58,7 +58,17 @@ When treating a stack as a Boolean, it is considered to be TRUE if it is nonempt
 </P>
 
 <P>
+To look at the element at either end of a stack without taking it off, use <a href="peekStart_and_peekEnd.html">peekStart and peekEnd</a>.
+</P>
+
+<P>
 A good example of using these stacks is for implementation of an inventory. Some built-in functions which return more than one element (<a href="getMatchingFiles.html">getMatchingFiles</a> and <a href="wait.html">wait</a> for example) also return information using the stack variable type.
+</P>
+
+<H3>Fast arrays:</H3>
+
+<P>
+Finding an element of a stack by its number means walking along the stack from the start, which gets slow when the stack is big. If you need a big list that you read by number and whose size never changes, use <a href="makeFastArray.html">makeFastArray</a> to turn the stack into a fast array (or to make an empty one of a given size). You index a fast array with square brackets just like a stack, and <a href="stackSize.html">stackSize</a> works on it, but you can't push, pop or enqueue anything.
 </P>
 
 <H3>See also:</H3>
@@ -73,6 +83,14 @@ A good example of using these stacks is for implementation of an inventory. Some
 
 <P>
 <a href="deleteFromStack_and_deleteAllFromStack.html">deleteFromStack</a>
+</P>
+
+<P>
+<a href="makeFastArray.html">makeFastArray</a>
+</P>
+
+<P>
+<a href="peekStart_and_peekEnd.html">peekStart and peekEnd</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012
