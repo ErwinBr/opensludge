@@ -157,6 +157,8 @@
 		<param name="Name" value="Animation Editor">
 		<param name="Name" value="Clip editor">
 		<param name="Name" value=".CLP file extension">
+		<param name="Name" value="Keyframes">
+		<param name="Name" value="Auto key">
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Animation_Editor.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">

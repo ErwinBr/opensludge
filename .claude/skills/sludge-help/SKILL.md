@@ -77,7 +77,7 @@ c++ -std=c++17 tests/devkit/make_script_catalog.cpp -o "$TMPDIR/make_script_cata
 "$TMPDIR/make_script_catalog" doc/SLUDGEDevKitHelp source/DevKit/Core/ScriptCatalogData.inc
 ```
 
-The catalog takes every paragraph of Purpose:, and the script editor shows them in a tooltip. So make the first paragraph a short, complete answer to "what does it do?", and put the longer explanation in the next paragraphs, or in a topic page if it's long.
+The catalog takes every paragraph of Purpose:, and the script editor shows them in a tooltip. So make the first paragraph a short, complete answer to "what does it do?", and put the longer explanation in the next paragraphs, or in a topic page if it's long. Code never goes under Purpose:, where it would turn up in the tooltip as one long line: put it under its own Example: heading, after Return value:.
 
 ## Check it against the code
 
@@ -95,7 +95,7 @@ Put the example in a `.slu` file and compile it:
 .claude/skills/sludge-help/scripts/compile_example.sh <example.slu>
 ```
 
-The script adds the file to a copy of the Welcome example project and runs the newest `sludge-compiler` it finds under `build/`. Welcome already has `sub init ()`, so rename that sub in the test file (for example to `sub test ()`), and declare the object types the example uses (`objectType ego ("ego") {}`). The page itself keeps the example as the reader should see it. A warning that the sub isn't used is fine. The compiler finds syntax mistakes and unknown names, but not a wrong number of parameters: compare those with `functionparams.h`.
+The script adds the file to a copy of the Welcome example project and runs the newest `sludge-compiler` it finds under `build/`. Welcome already has `sub init ()`, so the script renames the example's to `sub test ()`, and it puts stand-in files in the place of the sprite banks, sounds, rigs and clips the example names. Declare the object types the example uses (`objectType ego ("Ego") {}`) in the test file if the page doesn't. The page itself keeps the example as the reader should see it. A warning that the sub isn't used is fine. The compiler finds syntax mistakes and unknown names, but not a wrong number of parameters: compare those with `functionparams.h`.
 
 ## Run the check before you finish
 

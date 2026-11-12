@@ -97,12 +97,21 @@ def problems_of(src):
 
     documented = {}   # function name -> page
     for page in pages:
-        m = re.search(r"Syntax:\s*</H3>(.*?)<H3>", src.read(f"{HELP}/{page}"), re.S | re.I)
+        text = src.read(f"{HELP}/{page}")
+        m = re.search(r"Syntax:\s*</H3>(.*?)<H3>", text, re.S | re.I)
         if not m:
             continue
         documented.setdefault(page[:-5], page)
         for name in re.findall(r"(\w+)\s*\(", re.sub(r"<[^>]+>", "", m.group(1))):
             documented.setdefault(name, page)
+        # make_script_catalog puts every paragraph of Purpose: in the script
+        # editor's tooltip, so code belongs under Example:.
+        purpose = re.search(r"Purpose:\s*</H3>(.*?)<H3>", text, re.S | re.I)
+        if purpose and re.search(r"<pre\b", purpose.group(1), re.I):
+            add("Function pages with code under Purpose: (it ends up in the script editor's tooltip; put it under Example:)", [page])
+        returns = re.search(r"Return value:\s*</H3>(.*?)<H3>", text, re.S | re.I)
+        if returns and re.sub(r"<[^>]+>|\s", "", returns.group(1)) == "None.":
+            add('Function pages that say "None." under Return value: (the original pages say "No return value.")', [page])
 
     add("Built-in functions without a help page", [f for f in funcs if f not in documented])
     alpha = set(re.findall(r'href="([^"#]+)', src.read(f"{HELP}/Alphabetical_List_of_Built-in_Functions.html"), re.I))
