@@ -1,0 +1,12 @@
+# RegionFatalTest: the points of addScreenRegion must be x and y of 3
+# points or more. The engine must stop with that error;
+# tests/capture/expect-fatal.cmake checks that it does.
+
+objectType thing ("thing") {
+}
+
+sub init () {
+	addScreenRegion (thing, newStack (10, 10, 50, 10, 30), 0, 0, -1);
+	pause (2);
+	quitGame ();
+}

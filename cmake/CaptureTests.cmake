@@ -161,7 +161,8 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 		configure_file(${verbcoin}/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
-			TimelineTest.slp timeline.slu SealTest.slp seal.slu CompositeTest.slp composite.slu ego-script.slu
+			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
+			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
@@ -217,6 +218,23 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DENGINE_ARGS=--renderer=gl"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 	set_tests_properties(capture-timeline-saveload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Screen regions of any shape: the game checks what the mouse is over,
+	# fresh, after saving and after loading, with the outlines of showBoxes
+	# in the frames. Older engines don't have shapes, so no reference.
+	sludge_compile_game(RegionTest ${render_project}/RegionTest.slp)
+	sludge_add_capture_test(region GAME ${CMAKE_BINARY_DIR}/games/RegionTest.slg
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/region.input FRAMES 0-360/30 NO_REFERENCE)
+	# A shape needs x and y of 3 points or more.
+	sludge_compile_game(RegionFatalTest ${render_project}/RegionFatalTest.slp)
+	add_test(NAME capture-region-fatal
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/RegionFatalTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/region-fatal
+			"-DMESSAGE=at least 3 points"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-region-fatal PROPERTIES LABELS capture TIMEOUT 300)
 
 	# A clip that a character uses can't change.
 	sludge_compile_game(SealTest ${render_project}/SealTest.slp)

@@ -16,10 +16,26 @@
 <pre class="syntax">addScreenRegion (<i>thisObject, left, top, right, bottom, sX, sY, direction</i>);</pre>
 </P>
 
+<P>
+<pre class="syntax">addScreenRegion (<i>thisObject, points, sX, sY, direction</i>);</pre>
+</P>
+
 <H3>Purpose:</H3>
 
 <P>
-Adds a rectangular region on the screen which represents <i>thisObject</i>. The region is the rectangle from (<i>left</i>, <i>top</i>) to (<i>right</i>, <i>bottom</i>) inclusive.
+Adds a region on the screen which represents <i>thisObject</i>: either a rectangle, or a shape of your own made from a list of points.
+</P>
+
+<P>
+With four co-ordinates, the region is the rectangle from (<i>left</i>, <i>top</i>) to (<i>right</i>, <i>bottom</i>) inclusive.
+</P>
+
+<P>
+Not everything in a scene is a rectangle, though. A rectangle around a lamp post either misses the top of the lamp or takes in half the sky with it. So instead of the four co-ordinates you can give <i>points</i>, an array (a stack, or a fast array made with <a href="makeFastArray.html">makeFastArray</a>) of numbers: the x and y of each corner of the shape in turn, such as <code>newStack (100, 300, 140, 120, 180, 300)</code> for a triangle. The shape needs at least 3 corners, so at least 6 numbers, and an even count of them, or the game stops with an error. You don't need to repeat the first corner at the end: the last corner joins up with the first one by itself. The region is everything inside the shape. If the edges cross each other, the parts that are inside twice count as outside.
+</P>
+
+<P>
+For everything else SLUDGE treats a shaped region as the smallest rectangle around it: characters talking for <i>thisObject</i> speak from the top middle of that rectangle, just as they do for a rectangular region.
 </P>
 
 <P>
@@ -57,6 +73,22 @@ sub init () {
 }</pre>
 </P>
 
+<P>
+A shaped region for a lamp post, a thin pole with a lamp at the top:
+</P>
+
+<P>
+<pre>objectType lampPost (&quot;lamp post&quot;) {
+}
+
+sub addLampPost () {
+   addScreenRegion (lampPost,
+      newStack (400, 100, 440, 100, 440, 140, 425, 140,
+                425, 330, 415, 330, 415, 140, 400, 140),
+      390, 350, NORTHEAST);
+}</pre>
+</P>
+
 <H3>See also:</H3>
 
 <P>
@@ -77,6 +109,10 @@ sub init () {
 
 <P>
 <a href="removeAllScreenRegions.html">removeAllScreenRegions</a>
+</P>
+
+<P>
+<a href="showBoxes.html">showBoxes</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

@@ -22,6 +22,7 @@
 #include "objtypes.h"
 #include "people.h"
 #include "region.h"
+#include "regionshape.h"
 #include "sludger.h"
 
 extern inputType input;
@@ -105,8 +106,10 @@ static void moveToNextHotspot (bool forward) {
 	hotspot * spots = new hotspot[count];
 	int n = 0;
 	for (screenRegion * r = allScreenRegions; r; r = r->next) {
-		spots[n].x = (r->x1 + r->x2) / 2.0f - cameraX;
-		spots[n].y = (r->y1 + r->y2) / 2.0f - cameraY;
+		// The middle of a rectangle, or a point inside a shaped region.
+		shapeHotspot (r->points, r->x1, r->y1, r->x2, r->y2, spots[n].x, spots[n].y);
+		spots[n].x -= cameraX;
+		spots[n].y -= cameraY;
 		n ++;
 	}
 	for (onScreenPerson * p = allPeople; p; p = p->next) {

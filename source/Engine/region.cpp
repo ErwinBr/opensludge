@@ -5,16 +5,29 @@
 #include "sludger.h"
 #include "moreio.h"
 #include "backdrop.h"
+#include "line.h"
+#include "regionshape.h"
+#include "version.h"
 
 screenRegion * allScreenRegions = NULL;
 screenRegion * overRegion = NULL;
 extern inputType input;
 extern int cameraX, cameraY;
+extern int ssgVersion;
 
 void showBoxes () {
 	screenRegion * huntRegion = allScreenRegions;
 
 	while (huntRegion) {
+		const std::vector<int> & p = huntRegion -> points;
+		if (! p.empty ()) {
+			int n = (int) p.size () / 2;
+			for (int i = 0, j = n - 1; i < n; j = i ++) {
+				drawLine (p[j * 2], p[j * 2 + 1], p[i * 2], p[i * 2 + 1]);
+			}
+			huntRegion = huntRegion -> next;
+			continue;
+		}
 		drawVerticalLine (huntRegion -> x1, huntRegion -> y1, huntRegion -> y2);
 		drawVerticalLine (huntRegion -> x2, huntRegion -> y1, huntRegion -> y2);
 		drawHorizontalLine (huntRegion -> x1, huntRegion -> y1, huntRegion -> x2);
@@ -59,6 +72,11 @@ void saveRegions (FILE * fp) {
 		put2bytes (thisRegion -> sY, fp);
 		put2bytes (thisRegion -> di, fp);
 		saveObjectRef (thisRegion -> thisType, fp);
+		// Since saves of version 2.4: the points of a shaped region.
+		put2bytes ((int) thisRegion -> points.size () / 2, fp);
+		for (size_t i = 0; i < thisRegion -> points.size (); i ++) {
+			put2bytes (thisRegion -> points[i], fp);
+		}
 
 		thisRegion = thisRegion -> next;
 	}
@@ -84,6 +102,12 @@ void loadRegions (FILE * fp) {
 		newRegion -> sY = get2bytes (fp);
 		newRegion -> di = get2bytes (fp);
 		newRegion -> thisType = loadObjectRef (fp);
+		if (ssgVersion >= VERSION (2, 4)) {
+			int numPoints = get2bytes (fp);
+			for (int i = 0; i < numPoints * 2 && ! feof (fp); i ++) {
+				newRegion -> points.push_back (get2bytes (fp));
+			}
+		}
 	}
 	* pointy = NULL;
 }
@@ -115,11 +139,32 @@ bool addScreenRegion (int x1, int y1, int x2, int y2, int sX, int sY, int di, in
 	return (bool) (newRegion -> thisType != NULL);
 }
 
+// A shaped region with the box around its points, which is what a character
+// talks above and what the code that only knows rectangles sees.
+bool addScreenRegion (const std::vector<int> & points, int sX, int sY, int di, int objectNum) {
+	int x1 = points[0], y1 = points[1], x2 = x1, y2 = y1;
+	for (size_t i = 2; i + 1 < points.size (); i += 2) {
+		x1 = std::min (x1, points[i]);
+		x2 = std::max (x2, points[i]);
+		y1 = std::min (y1, points[i + 1]);
+		y2 = std::max (y2, points[i + 1]);
+	}
+	if (! addScreenRegion (x1, y1, x2, y2, sX, sY, di, objectNum)) return false;
+	allScreenRegions -> points = points;
+	return true;
+}
+
+// Whether the point (x, y) of the scene is in the region. A rectangle
+// includes its edges; a shape is tested inside its box first.
+bool pointInRegion (const screenRegion * r, int x, int y) {
+	if (x < r -> x1 || y < r -> y1 || x > r -> x2 || y > r -> y2) return false;
+	return r -> points.empty () || pointInShape (r -> points, (float) x, (float) y);
+}
+
 void getOverRegion () {
 	screenRegion * thisRegion = allScreenRegions;
 	while (thisRegion) {
-		if ((input.mouseX >= thisRegion -> x1 - cameraX) && (input.mouseY >= thisRegion -> y1 - cameraY) &&
-			 (input.mouseX <= thisRegion -> x2 - cameraX) && (input.mouseY <= thisRegion -> y2 - cameraY)) {
+		if (pointInRegion (thisRegion, input.mouseX + cameraX, input.mouseY + cameraY)) {
 			overRegion = thisRegion;
 			return;
 		}

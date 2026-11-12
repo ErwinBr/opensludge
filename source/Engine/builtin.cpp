@@ -1437,16 +1437,60 @@ builtIn (getObjectY)
 }
 
 
+// The x, y pairs of a shaped screen region, from an array of numbers.
+static bool getRegionPoints (std::vector<int> & points, const variable & v) {
+	switch (v.varType) {
+		case SVT_STACK:
+			for (variableStack * s = v.varData.theStack -> first; s; s = s -> next) {
+				int n;
+				if (! getValueType (n, SVT_INT, s -> thisVar)) return false;
+				points.push_back (n);
+			}
+			break;
+
+		case SVT_FASTARRAY:
+			for (int i = 0; i < v.varData.fastArray -> size; i ++) {
+				int n;
+				if (! getValueType (n, SVT_INT, * fastArrayGetByIndex (v.varData.fastArray, i))) return false;
+				points.push_back (n);
+			}
+			break;
+
+		default:
+			fatal ("The points of addScreenRegion must be an array of numbers: x and y of each point in turn.");
+			return false;
+	}
+	if (points.size () < 6 || points.size () % 2) {
+		fatal ("The points of addScreenRegion must be x and y of at least 3 points, so an even count of numbers, 6 or more.");
+		return false;
+	}
+	return true;
+}
+
 builtIn(addScreenRegion)
 {
 	UNUSEDALL
 	int sX, sY, x1, y1, x2, y2, di, objectNumber;
+	if (numParams != 8 && numParams != 5) {
+		fatal ("Built-in function must have either 5 or 8 parameters.");
+		return BR_ERROR;
+	}
 	if (! getValueType (di, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (! getValueType (sY, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (! getValueType (sX, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
+	if (numParams == 5) {
+		// addScreenRegion (thisObject, points, sX, sY, direction)
+		std::vector<int> points;
+		if (! getRegionPoints (points, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (addScreenRegion (points, sX, sY, di, objectNumber)) return BR_CONTINUE;
+		return BR_ERROR;
+	}
 	if (! getValueType (y2, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	if (! getValueType (x2, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;

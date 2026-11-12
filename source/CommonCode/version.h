@@ -12,9 +12,10 @@
 
 // Saved games have a version of their own, so that games keep the version
 // above, and run on the engines they ran on, while saves change. 2.3 adds
-// TIMELINE clips (newClip) and the playback of characters' clips.
+// TIMELINE clips (newClip) and the playback of characters' clips; 2.4 the
+// points of shaped screen regions (addScreenRegion with an array).
 #define SAVE_MAJOR_VERSION 2
-#define SAVE_MINOR_VERSION 3
+#define SAVE_MINOR_VERSION 4
 #define SAVE_VERSION	VERSION (SAVE_MAJOR_VERSION, SAVE_MINOR_VERSION)
 
 extern int gameVersion;

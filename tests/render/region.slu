@@ -1,0 +1,100 @@
+# RegionTest: screen regions of any shape, made with addScreenRegion from an
+# array of points (see source/Engine/region.cpp). The game checks itself,
+# and stops with an error when something is wrong:
+#
+#  - A point inside the box around a shape but outside the shape itself is
+#    over no object; a point inside the shape is over its object.
+#  - The points may come in a stack or in a fast array.
+#  - Rectangles work as before, their edges included.
+#  - Saving and loading keeps the shapes.
+#
+# tests/capture/region.input moves the mouse to each point of makeProbes ()
+# in each of the three parts (fresh, after saving, after loading); the capture
+# tests compare the frames, which show the outlines of showBoxes (see
+# cmake/CaptureTests.cmake).
+
+objectType triangle ("triangle") {
+}
+
+objectType ell ("L") {
+}
+
+objectType box ("box") {
+}
+
+var probes;
+var visited;
+var lastX = -1;
+var lastY = -1;
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("RegionTest: " + what);
+}
+
+# Where the mouse goes, and what it must be over there.
+sub makeProbes () {
+	probes = newStack (
+		newStack (120, 280, NULL),		# In the triangle's box, not in the triangle
+		newStack (200, 150, triangle),
+		newStack (500, 200, NULL),		# In the corner of the L
+		newStack (420, 250, ell),
+		newStack (540, 120, ell),
+		newStack (60, 420, box),
+		newStack (80, 440, box));		# The corner of the rectangle
+}
+
+# Check what the mouse is over, once it has stayed put for a frame.
+sub probe () {
+	var x = getMouseX ();
+	var y = getMouseY ();
+	if (x == lastX && y == lastY) {
+		for (var i = 0; i < stackSize (probes); i ++) {
+			var p = probes[i];
+			if (p[0] == x && p[1] == y) {
+				check (getOverObject () == p[2], "the mouse at " + x + ", " + y + " is over the wrong object");
+				visited[i] = TRUE;
+			}
+		}
+	}
+	lastX = x;
+	lastY = y;
+}
+
+# Probe for some frames, and check that the mouse went to every probe.
+sub part (name, frames) {
+	# A stack, not a fast array: fast arrays can't be saved.
+	visited = newStack ();
+	for (var k = 0; k < stackSize (probes); k ++) pushToStack (visited, FALSE);
+	for (var i = 0; i < frames; i ++) {
+		statusText (name);
+		probe ();
+		pause (1);
+	}
+	for (var j = 0; j < stackSize (probes); j ++) {
+		check (visited[j], name + ": the mouse never went to probe " + i);
+	}
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	addOverlay ('outside/room.tga', 0, 0);
+	makeProbes ();
+
+	addScreenRegion (triangle, newStack (100, 100, 300, 100, 200, 300), 200, 320, SOUTH);
+	addScreenRegion (ell, makeFastArray (newStack (400, 100, 560, 100, 560, 140, 440, 140, 440, 300, 400, 300)), 420, 320, -1);
+	addScreenRegion (box, 50, 400, 80, 440, 0, 0, -1);
+	showBoxes ();
+
+	check (getObjectX (triangle) == 200 && getObjectY (triangle) == 320, "getObjectX and getObjectY give the standing point of a shape");
+	check (isScreenRegion (ell), "a shape is a screen region");
+
+	part ("fresh", 120);
+
+	# Save, probe, load, and probe again: the second time round, saved is
+	# FALSE, as it was when the game saved.
+	var saved = saveGame ("region.sav");
+	part (saved ? "after saving" : "after loading", 120);
+	if (saved) loadGame ("region.sav");
+	quitGame ();
+}

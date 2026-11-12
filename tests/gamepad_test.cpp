@@ -271,6 +271,17 @@ int main (int argc, char * argv[]) {
 	pressButton (SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
 	check (input.mouseX == 100 && input.mouseY == 350, "we only go to hotspots inside the screen, after moving the camera");
 
+	// An L-shaped region, whose box has its middle outside the shape: the
+	// hotspot is in the middle of the upright of the L instead.
+	cameraX = 0;
+	int lShape[] = { 100, 300, 140, 300, 140, 310, 110, 310, 110, 340, 100, 340 };
+	left.points.assign (lShape, lShape + 12);
+	resetInput ();
+	input.mouseX = 0;
+	pressButton (SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+	check (input.mouseX == 105 && input.mouseY == 320, "the hotspot of a shaped region is inside the shape");
+	left.points.clear ();
+
 	SDL_CloseJoystick (controller);
 	SDL_DetachVirtualJoystick (id);
 	SDL_Quit ();

@@ -1,0 +1,33 @@
+# RegionTest (tests/render/region.slu): the mouse goes to each probe of the
+# game in each of its three parts of 120 frames, fresh, after saving and after
+# loading, and to an empty corner in between.
+
+# Fresh.
+10 move 120 280
+22 move 200 150
+34 move 500 200
+46 move 420 250
+58 move 540 120
+70 move 60 420
+82 move 80 440
+94 move 630 470
+
+# After saving.
+130 move 120 280
+142 move 200 150
+154 move 500 200
+166 move 420 250
+178 move 540 120
+190 move 60 420
+202 move 80 440
+214 move 630 470
+
+# After loading.
+250 move 120 280
+262 move 200 150
+274 move 500 200
+286 move 420 250
+298 move 540 120
+310 move 60 420
+322 move 80 440
+334 move 630 470
