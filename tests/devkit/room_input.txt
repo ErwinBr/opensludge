@@ -1,0 +1,75 @@
+# The room editor on VerbCoin's outside room, in the window of a smoke test
+# (1280 x 800). The scene, 640 x 480, fits the canvas at 90%: its top left
+# is at 353, 106 in the window, and a pixel of the scene is 0.897 points.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+# Room, at the top of the tab.
+move 340 57
+wait 2
+down
+up
+wait 6
+
+# Drag the notice by 40, 20.
+move 490 362
+wait 2
+down
+wait 2
+move 510 372
+wait 1
+move 526 380
+wait 2
+up
+wait 4
+
+# Rectangle: draw one from 300, 200 to 340, 260, of a new objectType.
+move 572 79
+wait 1
+down
+up
+wait 2
+move 622 286
+wait 2
+down
+wait 1
+move 640 310
+wait 1
+move 658 340
+wait 2
+up
+wait 6
+type bench
+wait 2
+key Enter
+wait 6
+
+# Shape: a triangle, closed with Enter, of the objectType of the last region.
+move 644 79
+wait 1
+down
+up
+wait 2
+move 802 375
+wait 1
+down
+up
+wait 1
+move 855 375
+wait 1
+down
+up
+wait 1
+move 828 420
+wait 1
+down
+up
+wait 2
+key Enter
+wait 6
+key Enter
+wait 6
+
+save ${OUTPUT}
+wait 2

@@ -154,12 +154,14 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/Core/ProjectDocument.cpp
 		${DEVKIT_DIR}/Core/RecentFiles.cpp
 		${DEVKIT_DIR}/Core/RigDocument.cpp
+		${DEVKIT_DIR}/Core/RoomScript.cpp
 		${DEVKIT_DIR}/Core/ScriptAnalysis.cpp
 		${DEVKIT_DIR}/Core/ScriptAssist.cpp
 		${DEVKIT_DIR}/Core/ScriptCatalog.cpp
 		${DEVKIT_DIR}/Core/ScriptDocument.cpp
 		${DEVKIT_DIR}/Core/ScriptIndex.cpp
 		${DEVKIT_DIR}/Core/ScriptLexer.cpp
+		${DEVKIT_DIR}/Core/ScriptTokens.cpp
 		${DEVKIT_DIR}/Core/SpriteBankDocument.cpp
 		${DEVKIT_DIR}/Core/TextBuffer.cpp
 		${DEVKIT_DIR}/Core/TextEditing.cpp
@@ -197,6 +199,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/ClipView.cpp
 		${DEVKIT_DIR}/App/PosePreview.cpp
 		${DEVKIT_DIR}/App/RigView.cpp
+		${DEVKIT_DIR}/App/RoomView.cpp
 		${DEVKIT_DIR}/App/ScriptView.cpp
 		${DEVKIT_DIR}/App/SpriteBankView.cpp
 		${DEVKIT_DIR}/App/TranslationView.cpp
@@ -396,6 +399,15 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-find
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-find PROPERTIES LABELS capture)
+		# The room editor: a region dragged, and two drawn, in the script.
+		add_test(NAME capture-devkit-room
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

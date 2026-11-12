@@ -10,9 +10,11 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "CanvasView.h"
 #include "CompileJob.h"
 #include "DocumentView.h"
 #include "ScriptAnalysis.h"
@@ -26,20 +28,23 @@ struct ImVec2;
 
 namespace devkit {
 
+class FileMemory;
+class RoomView;
 class WorkspaceActions;
 
 class ScriptView : public DocumentView {
 public:
-	ScriptView (ScriptDocument * script, WorkspaceActions & actions);
+	ScriptView (ScriptDocument * script, WorkspaceActions & actions, const CanvasGraphics & graphics, FileMemory & memory);
+	~ScriptView ();
 
 	Document * document () { return script; }
 	void draw ();
 	void drawInspector ();
 	bool animating () const;
 	double secondsToWake () const;
-	bool canCopy () const { return ! script->selection ().empty (); }
+	bool canCopy () const { return ! roomMode && ! script->selection ().empty (); }
 	void copy ();
-	bool canPaste () const { return true; }
+	bool canPaste () const { return ! roomMode; }
 	void pasteClipboard ();
 	void drawEditMenu ();
 
@@ -50,6 +55,10 @@ public:
 	void goTo (TextPos at, int length = 0);
 	// The selection, when it is on one line, or empty.
 	std::string selectedText () const;
+
+	// The room editor (RoomView.h) in place of the text, or the text.
+	bool inRoomMode () const { return roomMode; }
+	void setRoomMode (bool on);
 
 	// The name of a script in the index: its file, or a name of its own
 	// while it has none.
@@ -114,8 +123,14 @@ private:
 	void updateMatches ();
 	void say (const std::string & text);
 
+	void drawModeSwitch ();
+
 	ScriptDocument * script;
 	WorkspaceActions & actions;
+	CanvasGraphics graphics;
+	FileMemory & memory;
+	bool roomMode;
+	std::unique_ptr<RoomView> room;		// Made when first shown
 	std::vector<LineTokens> lineTokens;
 
 	// The layout of the last frame, in points.

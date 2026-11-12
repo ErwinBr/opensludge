@@ -5,6 +5,7 @@
 #include "Document.h"
 #include "ScriptDocument.h"
 #include "ScriptIndex.h"
+#include "ScriptTokens.h"
 
 namespace devkit {
 
@@ -29,12 +30,7 @@ std::string ScriptSymbol::declaration () const {
 
 namespace {
 
-// A token of a file, other than spaces and comments.
-struct Tok {
-	TokenKind kind;
-	std::string text;
-	TextPos at, end;
-};
+typedef FileToken Tok;
 
 // What a line has, for the comments above a declaration.
 enum LineKind { LINE_BLANK, LINE_COMMENT, LINE_CODE };
@@ -69,17 +65,7 @@ private:
 	bool is (const char * text) const { return i < t.size () && t[i].text == text; }
 
 	// The } of a {, the ) of a (: or the end.
-	size_t matching (size_t open) const {
-		const std::string & o = t[open].text;
-		std::string c = o == "{" ? "}" : o == "(" ? ")" : "]";
-		int depth = 0;
-		for (size_t k = open; k < t.size (); k ++) {
-			if (t[k].kind != TOKEN_BRACKET) continue;
-			if (t[k].text == o) depth ++;
-			else if (t[k].text == c && -- depth == 0) return k;
-		}
-		return t.size ();
-	}
+	size_t matching (size_t open) const { return matchingToken (t, open); }
 
 	// To after the next ; or to a } that ends what we are in, over blocks.
 	void skipStatement (size_t limit) {
@@ -379,20 +365,7 @@ void ScriptIndex::read (FileIndex & index, const std::string & file, const TextB
 				continue;
 			}
 			kinds[l] = LINE_CODE;
-			Tok t;
-			t.kind = token.kind;
-			t.text = line.substr (token.start, token.end - token.start);
-			t.at = TextPos (l, token.start);
-			t.end = TextPos (l, token.end);
-			// A string is one token for the reader.
-			if ((t.kind == TOKEN_STRING || t.kind == TOKEN_ESCAPE) && ! tokens.empty ()
-					&& (tokens.back ().kind == TOKEN_STRING || tokens.back ().kind == TOKEN_ESCAPE) && tokens.back ().end == t.at
-					&& ! (tokens.back ().kind == TOKEN_STRING && tokens.back ().text.size () > 1 && tokens.back ().text[tokens.back ().text.size () - 1] == '"' && t.text[0] == '"')) {
-				tokens.back ().text += t.text;
-				tokens.back ().end = t.end;
-				continue;
-			}
-			tokens.push_back (t);
+			appendToken (tokens, line, l, token);
 		}
 	}
 	if (definitions) return;

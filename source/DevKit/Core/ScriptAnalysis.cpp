@@ -8,16 +8,13 @@
 #include "ScriptAnalysis.h"
 #include "ScriptCatalog.h"
 #include "ScriptLexer.h"
+#include "ScriptTokens.h"
 
 namespace devkit {
 
 namespace {
 
-struct Tok {
-	TokenKind kind;
-	std::string text;
-	TextPos at, end;
-};
+typedef FileToken Tok;
 
 bool isName (const Tok & t) {
 	if (t.kind == TOKEN_KEYWORD || t.kind == TOKEN_ELEMENT || t.kind == TOKEN_NUMBER || t.text.empty ()) return false;
@@ -47,21 +44,7 @@ std::vector<Tok> tokensOf (const TextBuffer & text, std::vector<Diagnostic> & ou
 				}
 				continue;
 			}
-			Tok t;
-			t.kind = token.kind;
-			t.text = line.substr (token.start, token.end - token.start);
-			t.at = TextPos (l, token.start);
-			t.end = TextPos (l, token.end);
-			// A string, with its escapes, is one token.
-			if ((t.kind == TOKEN_STRING || t.kind == TOKEN_ESCAPE) && ! tokens.empty () && tokens.back ().end == t.at
-					&& (tokens.back ().kind == TOKEN_STRING || tokens.back ().kind == TOKEN_ESCAPE)
-					&& ! (tokens.back ().text.size () > 1 && tokens.back ().text[tokens.back ().text.size () - 1] == '"'
-						&& tokens.back ().kind == TOKEN_STRING && t.text[0] == '"')) {
-				tokens.back ().text += t.text;
-				tokens.back ().end = t.end;
-				continue;
-			}
-			tokens.push_back (t);
+			appendToken (tokens, line, l, token);
 		}
 	}
 	return tokens;
@@ -229,17 +212,7 @@ private:
 	}
 
 	// The } of a {, the ) of a (, or the end.
-	size_t matching (size_t open) const {
-		const std::string & o = t[open].text;
-		std::string c = o == "{" ? "}" : o == "(" ? ")" : "]";
-		int depth = 0;
-		for (size_t k = open; k < t.size (); k ++) {
-			if (t[k].kind != TOKEN_BRACKET) continue;
-			if (t[k].text == o) depth ++;
-			else if (t[k].text == c && -- depth == 0) return k;
-		}
-		return t.size ();
-	}
+	size_t matching (size_t open) const { return matchingToken (t, open); }
 
 	bool isLocal (const ScriptScope & scope, const std::string & name) const {
 		for (size_t l = 0; l < scope.locals.size (); l ++) {
@@ -269,20 +242,7 @@ private:
 	}
 
 	// The number of arguments of the call whose ( is at open.
-	int arguments (size_t open, size_t close) const {
-		if (close == open + 1) return 0;
-		int depth = 0, commas = 0;
-		for (size_t k = open + 1; k < close; k ++) {
-			if (t[k].kind == TOKEN_BRACKET) {
-				char c = t[k].text[0];
-				if (c == '(' || c == '[' || c == '{') depth ++;
-				else depth --;
-			} else if (depth == 0 && t[k].text == ",") {
-				commas ++;
-			}
-		}
-		return commas + 1;
-	}
+	int arguments (size_t open, size_t close) const { return (int) splitArguments (t, open, close).size (); }
 
 	void callOf (const Tok & name, size_t open, const ScriptScope & scope, const std::string & qualifier) {
 		size_t close = matching (open);

@@ -22,7 +22,8 @@ CanvasView::CanvasView (const CanvasGraphics & g)
 	: graphics (g), texture (NULL), target (NULL), targetWidth (0), targetHeight (0),
 	  pictureX (0), pictureY (0), pictureWidth (0), pictureHeight (0), spriteView (false), fitPending (true), fitted (false), scale (1.0f), scrollX (0), scrollY (0),
 	  viewSize (0, 0), pixelRatio (1.0f),
-	  isHovered (false), panning (false), leftPressed (false), leftHeld (false), leftReleased (false), mouse (0, 0) {}
+	  isHovered (false), panning (false), leftPressed (false), leftHeld (false), leftReleased (false), mouse (0, 0),
+	  viewOrigin (0, 0), drawnX (0), drawnY (0), drawnZmul (1.0f) {}
 
 CanvasView::~CanvasView () {
 	if (target) graphics.renderer->destroyTarget (target);
@@ -172,6 +173,10 @@ void CanvasView::draw (const ImVec2 & size, std::function<void (Draw2D & draw)> 
 	int width = (int) (viewSize.x * pixelRatio + 0.5f), height = (int) (viewSize.y * pixelRatio + 0.5f);
 	int sx = (int) floorf (scrollX * pixelRatio + 0.5f), sy = (int) floorf (scrollY * pixelRatio + 0.5f);
 	float zmul = 1.0f / (scale * pixelRatio);
+	viewOrigin = origin;
+	drawnX = sx;
+	drawnY = sy;
+	drawnZmul = zmul;
 	// Without a mouse, as before it first moves, ImGui has it at -FLT_MAX,
 	// and we keep where it was.
 	if (ImGui::IsMousePosValid ()) {
@@ -207,6 +212,10 @@ void CanvasView::draw (const ImVec2 & size, std::function<void (Draw2D & draw)> 
 	list->AddRectFilled (origin, end, IM_COL32 (24, 24, 26, 255));
 	// Row 0 of a target is its bottom row.
 	list->AddImage (ImTextureRef (ImGui_ImplGfx_TextureID (texture)), origin, end, ImVec2 (0, 1), ImVec2 (1, 0));
+}
+
+ImVec2 CanvasView::toWindow (float x, float y) const {
+	return ImVec2 (viewOrigin.x + (x / drawnZmul - drawnX) / pixelRatio, viewOrigin.y + (y / drawnZmul - drawnY) / pixelRatio);
 }
 
 std::string CanvasView::status () const {

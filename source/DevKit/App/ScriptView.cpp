@@ -7,9 +7,11 @@
 #include "imgui_internal.h"
 #include "imgui_stdlib.h"
 
+#include "FileMemory.h"
 #include "Log.h"
 #include "Platform.h"
 #include "Properties.h"
+#include "RoomView.h"
 #include "ScriptView.h"
 #include "WorkspaceActions.h"
 
@@ -132,8 +134,11 @@ static const ScriptTheme & theme () {
 	return luminance < 0.5f ? dark : light;
 }
 
-ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a)
-	: script (s), actions (a), charWidth (8), lineHeight (18), gutterWidth (40), viewHeight (0),
+// Whether a script shows its room editor, which we remember for each file.
+static const char * const MODE_KEY = "room.mode";
+
+ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphics & g, FileMemory & m)
+	: script (s), actions (a), graphics (g), memory (m), roomMode (false), charWidth (8), lineHeight (18), gutterWidth (40), viewHeight (0),
 	  widestColumns (0), widestVersion (0), wantFocus (true), scrollToCursor (false), centreCursor (false),
 	  wantColumn (-1), dragging (false), dragUnit (1),
 	  findOpen (false), replaceOpen (false), focusFind (false), matchesVersion (0), matchesCase (false), matchesWord (false),
@@ -144,7 +149,34 @@ ScriptView::ScriptView (ScriptDocument * s, WorkspaceActions & a)
 	  outlineHovered (0), linkLine (-1), linkStart (-1), linkVersion (0), linkNames (0), linkAnswer (false),
 	  hoverPlace (-1, 0), hoverSince (0), hoverFound (false), hoverVersion (0), markersSerial (0), framesDrawn (0),
 	  problemsVersion (0), problemsNames (0), problemsAllNames (false), problemsDue (0),
-	  diskChanged (false), nextDiskCheck (0), noticeUntil (0), caretSince (0), caretVersion (0), caretFrame (-1) {}
+	  diskChanged (false), nextDiskCheck (0), noticeUntil (0), caretSince (0), caretVersion (0), caretFrame (-1) {
+	if (! script->path ().empty () && memory.get (script->path (), MODE_KEY) == "room") setRoomMode (true);
+}
+
+ScriptView::~ScriptView () {}
+
+void ScriptView::setRoomMode (bool on) {
+	if (on && ! room) {
+		room.reset (new RoomView (script, actions, graphics, memory));
+		room->showInScript = [this] (TextPos at, int length) { goTo (at, length); };
+	}
+	if (on == roomMode) return;
+	roomMode = on;
+	if (! on) wantFocus = true;
+	if (! script->path ().empty ()) memory.set (script->path (), MODE_KEY, on ? "room" : "");
+}
+
+// Script | Room, at the top of the tab.
+void ScriptView::drawModeSwitch () {
+	const char * const modes[] = { "Script", "Room" };
+	for (int m = 0; m < 2; m ++) {
+		if (m) ImGui::SameLine (0, 0);
+		bool current = roomMode == (m == 1);
+		if (current) ImGui::PushStyleColor (ImGuiCol_Button, ImGui::GetStyleColorVec4 (ImGuiCol_ButtonActive));
+		if (ImGui::SmallButton (modes[m])) setRoomMode (m == 1);
+		if (current) ImGui::PopStyleColor ();
+	}
+}
 
 std::string ScriptView::indexName (const ScriptDocument * script) {
 	if (! script->path ().empty ()) return script->path ();
@@ -159,6 +191,7 @@ void ScriptView::say (const std::string & text) {
 }
 
 bool ScriptView::animating () const {
+	if (roomMode) return room->animating ();
 	// While the mouse rests on a name, until its docs show.
 	bool hoverWaits = hoverPlace.line >= 0 && ImGui::GetTime () - hoverSince < 0.6;
 	return dragging || hoverWaits || problemsDue > 0;
@@ -169,6 +202,7 @@ bool ScriptView::animating () const {
 static const double CARET_ON = 0.8, CARET_PERIOD = 1.2;
 
 double ScriptView::secondsToWake () const {
+	if (roomMode) return -1;
 	// Only while it is drawn, in this frame or the last.
 	if (caretFrame < ImGui::GetFrameCount () - 1 || ! ImGui::GetIO ().ConfigInputTextCursorBlink) return -1;
 	double phase = fmod (ImGui::GetTime () - caretSince, CARET_PERIOD);
@@ -247,6 +281,7 @@ void ScriptView::moveVertically (int lines, bool select) {
 }
 
 void ScriptView::goToLine (int line) {
+	setRoomMode (false);
 	const TextBuffer & text = script->buffer ();
 	if (line < 1) line = 1;
 	if (line > text.lineCount ()) line = text.lineCount ();
@@ -264,6 +299,7 @@ std::string ScriptView::selectedText () const {
 }
 
 void ScriptView::goTo (TextPos at, int length) {
+	setRoomMode (false);
 	const TextBuffer & text = script->buffer ();
 	TextPos start = text.clamp (at);
 	script->setSelection (length > 0 ? TextSelection (start, text.clamp (TextPos (start.line, start.column + length))) : TextSelection (start));
@@ -313,6 +349,7 @@ static std::string keys (const char * key) {
 }
 
 void ScriptView::drawEditMenu () {
+	if (roomMode) return;
 	bool osx = ImGui::GetIO ().ConfigMacOSXBehaviors;
 	// After a choice, the keyboard goes back to the text.
 	bool chose = false;
@@ -1664,6 +1701,11 @@ void ScriptView::draw () {
 			diskChanged = false;
 		}
 	}
+	drawModeSwitch ();
+	if (roomMode) {
+		room->draw ();
+		return;
+	}
 	if (findOpen) drawFindBar ();
 	drawGoToLine ();
 
@@ -1685,6 +1727,10 @@ void ScriptView::draw () {
 }
 
 void ScriptView::drawInspector () {
+	if (roomMode) {
+		room->drawInspector ();
+		return;
+	}
 	const TextBuffer & text = script->buffer ();
 	if (beginProperties ("Script")) {
 		propertyRow ("Lines");

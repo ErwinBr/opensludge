@@ -1,7 +1,7 @@
 # The script editor with the keys and its completion, on tests/devkit/fixtures/script.slu in
 # the window of a smoke test (1280 x 800). The editor has the keyboard as
-# soon as the script opens. With Replace open, its field is at (380, 85)
-# and Replace All at (632, 85).
+# soon as the script opens. With Replace open, its field is at (380, 104)
+# and Replace All at (632, 104).
 wait 3
 
 # To the end of the say line, where a new line keeps the indent, brackets
@@ -50,13 +50,13 @@ key ctrl+alt+F
 wait 6
 type Hello
 wait 2
-move 380 85
+move 380 104
 down
 up
 wait 3
 type Goodbye
 wait 2
-move 632 85
+move 632 104
 down
 up
 wait 3

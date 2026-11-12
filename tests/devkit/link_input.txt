@@ -1,12 +1,12 @@
 # Ctrl (Cmd on macOS) on a name of VerbCoin, in the window of a smoke test
-# (1280 x 800): inside/room.slu's line 10 is at y = 240, with makeEgoAnim
+# (1280 x 800): inside/room.slu's line 10 is at y = 259, with makeEgoAnim
 # at x = 545 to 620. Held, the name is a link with the hand pointer, and a
 # click on it opens ego.slu where the sub is made.
 open ${EXAMPLES}/VerbCoin/VerbCoin.slp
 wait 10
 open ${EXAMPLES}/VerbCoin/inside/room.slu
 wait 10
-move 580 240
+move 580 259
 wait 2
 pointer text
 hold ctrl

@@ -103,7 +103,7 @@ Workspace::Workspace (Platform & p, const std::string & renderer, const CanvasGr
 	});
 	manager.registerType (ScriptDocument::type ());
 	registerView ("Script", [this] (Document * document) -> DocumentView * {
-		return new ScriptView ((ScriptDocument *) document, *this);
+		return new ScriptView ((ScriptDocument *) document, *this, graphics, memory);
 	});
 	manager.registerType (TranslationDocument::type ());
 	registerView ("Translation", [this] (Document * document) -> DocumentView * {
@@ -708,6 +708,10 @@ void Workspace::drawMenuBar () {
 		ImGui::MenuItem (INSPECTOR_PANEL, NULL, &showInspector);
 		ImGui::MenuItem (LOG_PANEL, NULL, &showLog);
 		ImGui::MenuItem (FIND_PANEL, NULL, &showFind);
+		ImGui::Separator ();
+		ScriptView * scriptView = dynamic_cast<ScriptView *> (activeView ());
+		bool roomMode = scriptView && scriptView->inRoomMode ();
+		if (ImGui::MenuItem ("Room Editor", NULL, roomMode, scriptView != NULL)) scriptView->setRoomMode (! roomMode);
 		ImGui::Separator ();
 		if (ImGui::MenuItem ("Reset Layout")) {
 			showProject = showBuild = showInspector = showLog = true;

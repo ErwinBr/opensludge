@@ -72,6 +72,11 @@ public:
 	// How many pixels of the picture some points of the window are, for
 	// how close the cursor must be to something.
 	float pixelsOfPoints (float points) const { return points / scale; }
+	// After draw: where a point of the picture is in the window, in points,
+	// to draw over the canvas with ImGui; and the box of the canvas there.
+	ImVec2 toWindow (float x, float y) const;
+	ImVec2 viewMin () const { return viewOrigin; }
+	ImVec2 viewMax () const { return ImVec2 (viewOrigin.x + viewSize.x, viewOrigin.y + viewSize.y); }
 
 	// Whether the user is panning, and we need frames.
 	bool animating () const { return panning; }
@@ -100,6 +105,11 @@ private:
 
 	bool isHovered, panning, leftPressed, leftHeld, leftReleased;
 	ImVec2 mouse;
+	// How the last draw showed the picture: the top left of the view, the
+	// scroll in pixels of the window, and pixels of the picture for each.
+	ImVec2 viewOrigin;
+	int drawnX, drawnY;
+	float drawnZmul;
 };
 
 } // namespace devkit

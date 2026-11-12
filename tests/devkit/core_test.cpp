@@ -35,6 +35,7 @@
 #include "PreviewPlayer.h"
 #include "ProjectDocument.h"
 #include "RigDocument.h"
+#include "RoomScript.h"
 #include "animedit.h"
 #include "Document.h"
 #include "DocumentManager.h"
@@ -2478,6 +2479,167 @@ static void testColourKeys () {
 	CHECK (rigBack.part (arm)->rest.selfModulate[1] == 0.5f && rigBack.part (arm)->rest.modulate[3] == 2);
 }
 
+static const Room * roomCalled (const std::vector<Room> & rooms, const std::string & name) {
+	for (size_t r = 0; r < rooms.size (); r ++) {
+		if (rooms[r].name == name) return &rooms[r];
+	}
+	return NULL;
+}
+
+static bool regionIs (const RoomRegion & region, const std::string & objectType, int x1, int y1, int x2, int y2, int sX, int sY, int direction) {
+	std::vector<int> v = region.values ();
+	return region.objectType == objectType && ! region.shape && region.editable && v.size () == 4
+		&& v[0] == x1 && v[1] == y1 && v[2] == x2 && v[3] == y2
+		&& region.standX.value == sX && region.standY.value == sY && region.direction.value == direction;
+}
+
+// Apply the changes of a tool, and return the text after them.
+static std::string applied (ScriptDocument & script, const std::vector<TextChange> & changes) {
+	script.edit (changes, script.selection (), EDIT_OTHER, "Test");
+	return script.buffer ().text ();
+}
+
+// The room editor: what it reads of the rooms of a script, and the text
+// that its tools write.
+static void testRoomScript () {
+	std::string error;
+	ScriptDocument outside;
+	CHECK (outside.load (examples + "VerbCoin/outside/room.slu", &error));
+	std::vector<Room> rooms = readRooms (outside.buffer ());
+	CHECK (rooms.size () == 1);
+	const Room * room = roomCalled (rooms, "outsideRoom");
+	CHECK (room != NULL);
+	if (! room) return;
+	CHECK (room->overlays.size () == 1 && room->overlays[0].file == "outside/room.tga"
+		&& room->overlays[0].x.literal && room->overlays[0].x.value == 0 && room->overlays[0].y.value == 0 && ! room->overlays[0].mix);
+	CHECK (room->floor == "outside/room.flo" && room->sceneWidth == 0);
+	CHECK (room->regions.size () == 2);
+	if (room->regions.size () != 2) return;
+	CHECK (regionIs (room->regions[0], "notice", 140, 272, 165, 299, 140, 300, 0));
+	CHECK (regionIs (room->regions[1], "exit", 52, 284, 96, 358, 83, 344, 270));
+	CHECK (! room->regions[0].conditional && room->regions[0].direction.text == "NORTH");
+	CHECK (room->regions[0].contains (140, 272) && room->regions[0].contains (165, 299) && ! room->regions[0].contains (166, 280));
+	CHECK (room->regions[1].walks ());
+
+	// Every tool, and undo takes the file back to what it was, byte for byte.
+	std::string original = outside.buffer ().fileText ();
+	const RoomRegion & notice = room->regions[0];
+	CHECK (applied (outside, roomEdit::move (notice, 10, -2)).find ("addScreenRegion (notice, 150, 270, 175, 297, 140, 300, NORTH);") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (outside.buffer ().fileText () == original);
+	CHECK (applied (outside, roomEdit::setRectangle (notice, 140, 272, 170, 299)).find ("(notice, 140, 272, 170, 299, 140, 300, NORTH)") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (applied (outside, roomEdit::setStandPoint (notice, -5, 310)).find ("(notice, 140, 272, 165, 299, -5, 310, NORTH)") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (applied (outside, roomEdit::setDirection (notice, -1)).find ("(notice, 140, 272, 165, 299, 140, 300, -1)") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (applied (outside, roomEdit::setDirection (notice, 135)).find ("140, 300, SOUTHEAST)") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (applied (outside, roomEdit::toShape (notice)).find ("(notice, newStack (140, 272, 165, 272, 165, 299, 140, 299), 140, 300, NORTH)") != std::string::npos);
+	outside.commands ().undo ();
+	std::string removed = applied (outside, roomEdit::remove (outside.buffer (), notice));
+	CHECK (removed.find ("notice, 140") == std::string::npos && removed.find ("\tsetZBuffer ('outside/room.zbu');\n\n\taddScreenRegion (exit,") != std::string::npos);
+	outside.commands ().undo ();
+	CHECK (outside.buffer ().fileText () == original);
+
+	// A new region goes after the last one, and a new objectType after the sub.
+	TextPos where;
+	std::vector<int> box;
+	box.push_back (300); box.push_back (200); box.push_back (340); box.push_back (260);
+	std::string added = applied (outside, roomEdit::add (outside.buffer (), *room, "\t", "bench", true, false, box, 320, 270, 180, &where));
+	CHECK (added.find ("\taddScreenRegion (exit, 52, 284, 96, 358, 83, 344, WEST);\n\taddScreenRegion (bench, 300, 200, 340, 260, 320, 270, SOUTH);\n") != std::string::npos);
+	CHECK (where.line == room->regions[1].call.line + 1 && where.column == 1);
+	CHECK (outside.buffer ().line (where.line).substr (1, 15) == "addScreenRegion");
+	CHECK (added.find ("\t}\n}\n\nobjectType bench (\"bench\") {\n}\n") != std::string::npos);
+	std::vector<Room> after = readRooms (outside.buffer ());
+	CHECK (after.size () == 1 && after[0].regions.size () == 3 && regionIs (after[0].regions[2], "bench", 300, 200, 340, 260, 320, 270, 180));
+	outside.commands ().undo ();
+	CHECK (outside.buffer ().fileText () == original);
+
+	ScriptDocument inside;
+	CHECK (inside.load (examples + "VerbCoin/inside/room.slu", &error));
+	rooms = readRooms (inside.buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].name == "insideRoom" && rooms[0].regions.size () == 1
+		&& regionIs (rooms[0].regions[0], "innerExit", 265, 83, 466, 352, 346, 348, 0));
+
+	// The verb coin: regions of sums, which stay as they are.
+	ScriptDocument coin;
+	CHECK (coin.load (examples + "VerbCoin/iface/coin_interface.slu", &error));
+	rooms = readRooms (coin.buffer ());
+	int regions = 0;
+	for (size_t r = 0; r < rooms.size (); r ++) {
+		for (size_t g = 0; g < rooms[r].regions.size (); g ++) {
+			const RoomRegion & region = rooms[r].regions[g];
+			regions ++;
+			CHECK (! region.editable && region.whyNot == "Not a number" && region.conditional);
+			CHECK (roomEdit::move (region, 1, 1).empty ());
+		}
+	}
+	CHECK (regions == 4);
+
+	// Shapes, in a stack and in a fast array, and the init of a test.
+	ScriptDocument shapes;
+	CHECK (shapes.load (fixtures + "../../render/region.slu", &error));
+	rooms = readRooms (shapes.buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].name == "init" && rooms[0].regions.size () == 3);
+	if (rooms.size () == 1 && rooms[0].regions.size () == 3) {
+		const RoomRegion & triangle = rooms[0].regions[0];
+		const RoomRegion & ell = rooms[0].regions[1];
+		CHECK (triangle.shape && triangle.editable && triangle.values ().size () == 6 && triangle.direction.value == 180);
+		CHECK (triangle.contains (200, 150) && ! triangle.contains (120, 280));
+		CHECK (ell.shape && ell.editable && ell.values ().size () == 12 && ell.direction.value == -1);
+		CHECK (ell.contains (420, 250) && ! ell.contains (500, 200));
+		CHECK (regionIs (rooms[0].regions[2], "box", 50, 400, 80, 440, 0, 0, -1) && ! rooms[0].regions[2].walks ());
+		CHECK (rooms[0].overlays.size () == 1 && rooms[0].overlays[0].file == "outside/room.tga");
+		std::vector<int> square;
+		int corners[] = { 10, 10, 50, 10, 50, 50, 10, 50 };
+		square.assign (corners, corners + 8);
+		CHECK (applied (shapes, roomEdit::setPoints (ell, square)).find ("makeFastArray (newStack (10, 10, 50, 10, 50, 50, 10, 50)), 420, 320, -1)") != std::string::npos);
+		shapes.commands ().undo ();
+		CHECK (applied (shapes, roomEdit::move (triangle, 1, 2)).find ("newStack (101, 102, 301, 102, 201, 302), 200, 320, SOUTH)") != std::string::npos);
+		shapes.commands ().undo ();
+	}
+
+	// Rooms that aren't plain: a variable's points, an if, a block, a sub
+	// in an objectType, a new region in an empty room, a sub on one line.
+	std::unique_ptr<ScriptDocument> script (scriptOf (
+		"objectType thing (\"thing\") {\n"
+		"\tsub nothing () { addScreenRegion (thing, 1, 2, 3, 4, 0, 0, -1); }\n"
+		"}\n"
+		"sub roomOne () {\n"
+		"    var p = newStack (1, 1, 9, 1, 5, 9);\n"
+		"    if (TRUE) addScreenRegion (thing, p, 0, 0, NORTH);\n"
+		"    setSceneDimensions (1280, 960);\n"
+		"    addOverlay ('a.png', CENTRE, 10);\n"
+		"    if (lastRoom) {\n"
+		"        addScreenRegion (thing, 1, 2, 3,\n"
+		"            4, 0, 0, NORTH);\n"
+		"    }\n"
+		"    addCharacter (thing, 1, 2, costume ());\n"
+		"}\n"
+		"sub roomTwo () { setFloor ('b.flo'); }\n", TextPos ()));
+	rooms = readRooms (script->buffer ());
+	CHECK (rooms.size () == 2 && rooms[0].name == "roomOne" && rooms[1].name == "roomTwo");
+	if (rooms.size () == 2) {
+		const Room & one = rooms[0];
+		CHECK (one.regions.size () == 2 && one.regions[0].shape && ! one.regions[0].editable && one.regions[0].whyNot == "Points from a variable");
+		CHECK (one.regions[0].conditional && one.regions[1].conditional && one.regions[1].editable);
+		CHECK (one.sceneWidth == 1280 && one.sceneHeight == 960);
+		CHECK (one.overlays.size () == 1 && one.overlays[0].file == "a.png" && one.overlays[0].x.value == ROOM_CENTRE && one.overlays[0].y.value == 10);
+		std::vector<int> triangle;
+		int points[] = { 1, 2, 3, 4, 5, 6 };
+		triangle.assign (points, points + 6);
+		std::string text = applied (*script, roomEdit::add (script->buffer (), one, "    ", "thing", false, true, triangle, 0, 0, -1, &where));
+		CHECK (text.find ("    addOverlay ('a.png', CENTRE, 10);\n    addScreenRegion (thing, newStack (1, 2, 3, 4, 5, 6), 0, 0, -1);\n    if (lastRoom)") != std::string::npos);
+		script->commands ().undo ();
+		CHECK (applied (*script, roomEdit::move (one.regions[1], 1, 1)).find ("(thing, 2, 3, 4,\n            5, 0, 0, NORTH)") != std::string::npos);
+		script->commands ().undo ();
+		text = applied (*script, roomEdit::add (script->buffer (), rooms[1], "    ", "door", true, false, box, 0, 0, -1, &where));
+		CHECK (text.find ("sub roomTwo () { setFloor ('b.flo');\n    addScreenRegion (door, 300, 200, 340, 260, 0, 0, -1);\n }\n\nobjectType door (\"door\") {\n}") != std::string::npos);
+	}
+	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));
+}
+
 int main (int argc, char ** argv) {
 	if (argc != 4) {
 		fprintf (stderr, "usage: core_test <folder for files> <folder of the example projects> <fixtures>\n");
@@ -2519,6 +2681,7 @@ int main (int argc, char ** argv) {
 	testScriptAnalysisQuiet ();
 	testScriptAnalysisMistakes ();
 	testProjectSearch ();
+	testRoomScript ();
 
 	if (failures) {
 		printf ("%d checks failed\n", failures);

@@ -171,6 +171,12 @@
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Script_Editor.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="Room Editor">
+		<param name="Name" value="Screen regions, drawing">
+		<param name="Name" value="Rooms">
+		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Room_Editor.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setPartProperty">
 		<param name="Name" value="setPartProperty (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setPartProperty.html">

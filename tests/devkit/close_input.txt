@@ -59,6 +59,18 @@ key ctrl+W
 wait 2
 documents 0
 
+# A script in Room mode, with its pictures, closes as the other editors.
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 3
+move 340 57
+wait 2
+down
+up
+wait 3
+close
+wait 2
+documents 0
+
 # Cancel the Import Sprite Sheet dialog of a sprite bank with Escape, which
 # once freed the picture of the sheet while the frame still had to draw it.
 open ${EXAMPLES}/VerbCoin/ego/alien.duc
