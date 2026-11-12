@@ -19,61 +19,57 @@
 <H3>Purpose:</H3>
 
 <P>
-Makes a copy of <i>clip</i> in which the character is flipped horizontally. It does that by flipping the character from the root, which mirrors every part attached to it. A part you flipped with PART_FLIP stays flipped relative to its parent, so in the copy it is mirrored along with the rest, exactly like a mirror image. If the clip already flips the root, the copy unflips it. A costume can use it to walk WEST using a clip that walks EAST.
+Makes a mirror-image copy of <i>clip</i>, so that a costume can walk WEST with the clip that walks EAST.
 </P>
 
 <P>
-mirrorClip only takes a clip of <a href="newClip.html">newClip</a>, not an animation of <a href="anim.html">anim</a> (use a negative sprite number in anim instead). The copy is a new clip that you can still add keys to; the original stays as it was.
+Why draw everything twice? mirrorClip flips the whole character, from the character itself down, so every part is mirrored along with it. A part that the clip flips with PART_FLIP stays flipped compared to its parent, so the copy really is a mirror image. If the clip already flips the whole character, the copy unflips it.
 </P>
 
 <P>
-Note: On a Composite Character, mirror a single part by keying its PART_FLIP property with <a href="clipKey.html">clipKey</a> instead.
-</P>
-
-<P>
-<pre>costume (standSouth, mirrorClip (standEast), standNorth, standEast,
-	walkSouth, mirrorClip (walkEast), walkNorth, walkEast,
-	talkSouth, mirrorClip (talkEast), talkNorth, talkEast)</pre>
+The copy is a new clip, which you can still add keys to, and the original stays as it was. mirrorClip only takes clips: for an animation of <a href="anim.html">anim</a>, use negative sprite numbers instead, or the game stops with an error. To mirror just one part of a <a href="Composite_Characters.html">Composite Character</a>, key its PART_FLIP with <a href="clipKey.html">clipKey</a>.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-The new clip.
+Returns the new clip.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub egoCostume () {
+   var standEast = loadClip ('ego/stand_east.clp');
+   var walkEast = loadClip ('ego/walk_east.clp');
+   var talkEast = loadClip ('ego/talk_east.clp');
+   return costume (
+      loadClip ('ego/stand_south.clp'), mirrorClip (standEast), loadClip ('ego/stand_north.clp'), standEast,
+      loadClip ('ego/walk_south.clp'), mirrorClip (walkEast), loadClip ('ego/walk_north.clp'), walkEast,
+      loadClip ('ego/talk_south.clp'), mirrorClip (talkEast), loadClip ('ego/talk_north.clp'), talkEast);
+}</pre>
 </P>
 
 <H3>See also:</H3>
-
-<P>
-<a href="Composite_Characters.html">Composite Characters</a>
-</P>
 
 <P>
 <a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P>
-<a href="playClip.html">playClip</a>
+<a href="costume.html">costume</a>
 </P>
 
 <P>
-<a href="stopClip.html">stopClip</a>
+<a href="newClip.html">newClip</a>
 </P>
 
 <P>
-<a href="setPartProperty.html">setPartProperty</a>
+<a href="loadClip.html">loadClip</a>
 </P>
 
 <P>
-<a href="clearPartProperty.html">clearPartProperty</a>
-</P>
-
-<P>
-<a href="isClipPlaying.html">isClipPlaying</a>
-</P>
-
-<P>
-<a href="setClipSpeed.html">setClipSpeed</a>
+<a href="clipKey.html">clipKey</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

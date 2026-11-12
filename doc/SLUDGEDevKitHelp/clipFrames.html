@@ -19,29 +19,41 @@
 <H3>Purpose:</H3>
 
 <P>
-Allows you to use a standard <i>animation</i> defined in <a href="anim.html">anim</a> as an animation <a href="Animation_Clips.html">clip</a>. A legacy SLUDGE anim uses a shorter notation to display frames and run events (sound and function calls) from a single spriteBank.
+Turns an <i>animation</i> of <a href="anim.html">anim</a> into the sprites and events of <i>part</i> in <i>clip</i>.
 </P>
 
 <P>
-The anim repeats until the clip ends: a 10-tick clip plays a 5-tick anim twice. clipFrames replaces any sprite keys the part already had in this clip. Unlike in anim, its sounds and functions fire even when the character is hidden.
+If you already have animations made with anim, there's no need to type them all in again as sprite keys: hand them to clipFrames, and they become part of a <a href="Animation_Clips.html">clip</a>. The anim repeats until the clip ends, so a clip of 10 ticks plays an anim of 5 ticks twice. clipFrames replaces any sprite keys that the part already had in this clip.
 </P>
 
 <P>
-<pre>
-var quack = newClip (10, TRUE);							# This clip loops two passes of 5 ticks
-clipFrames (quack, "", anim ('duck.duc', 0, quackSound, 1, 2, wait (3, 2))); 	# This anim takes 5 ticks to run</pre>
+The sounds and functions of the anim become events of the clip. Unlike in anim, they happen even while the character is hidden, so a hidden character can still be heard. An anim with no frames stops the game with an error, and so does a clip that's already in use.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub quack () {
+   var c = newClip (10, TRUE);                               # Plays the anim twice...
+   clipFrames (c, &quot;&quot;, anim ('duck.duc', 0, 1, 2, wait (3, 2))); # ...which takes 5 ticks
+   return c;
+}</pre>
 </P>
 
 <H3>See also:</H3>
 
 <P>
 <a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="anim.html">anim</a>
 </P>
 
 <P>
@@ -53,27 +65,11 @@ None.
 </P>
 
 <P>
+<a href="clipKey.html">clipKey</a>
+</P>
+
+<P>
 <a href="clipEvent.html">clipEvent</a>
-</P>
-
-<P>
-<a href="setClipSpeed.html">setClipSpeed</a>
-</P>
-
-<P>
-<a href="isClipPlaying.html">isClipPlaying</a>
-</P>
-
-<P>
-<a href="anim.html">anim</a>
-</P>
-
-<P>
-<a href="animate.html">animate</a>
-</P>
-
-<P>
-<a href="costume.html">costume</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

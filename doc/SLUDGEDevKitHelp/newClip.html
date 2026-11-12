@@ -20,25 +20,40 @@ newClip (<i>length, loop</i>);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Makes a new, empty animation <a href="Animation_Clips.html">clip</a> of <i>length</i> ticks (screen updates). With <i>loop</i> TRUE, the clip plays over and over; without it, or with FALSE, it plays once and then holds its last frame. A clip of length 0 shows one fixed pose: useful for standing still.
+Creates a new, empty animation <a href="Animation_Clips.html">clip</a> that lasts <i>length</i> ticks (screen updates).
 </P>
 
 <P>
-Fill it with <a href="clipSprite.html">clipSprite</a>, <a href="clipKey.html">clipKey</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipEvent.html">clipEvent</a>, then use it as you would an animation of <a href="anim.html">anim</a>: with <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> or <a href="pasteImage.html">pasteImage</a>, or play it on a layer with <a href="playClip.html">playClip</a>. Add all its keys and events first: as soon as you use the clip in one of those ways, it is fixed, and adding a key or event to it gives an error.
+If <i>loop</i> is TRUE, the clip plays over and over. Without it, or with FALSE, the clip plays once and then holds its last frame. A clip of length 0 shows one pose and stays there, which is just the thing for standing still. A negative length stops the game with an error.
 </P>
 
 <P>
-<pre>var wave = newClip (30);
-clipSprite (wave, "", 0, 'ego.duc', 12);
-clipSprite (wave, "", 10, 'ego.duc', 13);
-clipSprite (wave, "", 20, 'ego.duc', 12);
-pause (animate (ego, wave));</pre>
+Fill the clip with <a href="clipSprite.html">clipSprite</a>, <a href="clipKey.html">clipKey</a>, <a href="clipFrames.html">clipFrames</a> and <a href="clipEvent.html">clipEvent</a>. Then use it wherever you would use an animation of <a href="anim.html">anim</a>: with <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> or <a href="pasteImage.html">pasteImage</a>, or on a layer of its own with <a href="playClip.html">playClip</a>.
+</P>
+
+<P>
+Add all its keys and events first! As soon as you use the clip in any of those ways it's fixed, because a character may be playing it, and adding a key or event to it after that gives an error.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-The new clip.
+Returns the new clip.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub wave () {
+   var c = newClip (30);
+   clipSprite (c, &quot;&quot;, 0, 'ego.duc', 12);
+   clipSprite (c, &quot;&quot;, 10, 'ego.duc', 13);
+   clipSprite (c, &quot;&quot;, 20, 'ego.duc', 12);
+   pause (animate (ego, c));
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -48,15 +63,11 @@ The new clip.
 </P>
 
 <P>
-<a href="loadClip.html">loadClip</a>
-</P>
-
-<P>
-<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
-</P>
-
-<P>
 <a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
 </P>
 
 <P>
@@ -68,23 +79,15 @@ The new clip.
 </P>
 
 <P>
-<a href="setClipSpeed.html">setClipSpeed</a>
+<a href="playClip.html">playClip</a>
 </P>
 
 <P>
-<a href="isClipPlaying.html">isClipPlaying</a>
+<a href="mirrorClip.html">mirrorClip</a>
 </P>
 
 <P>
-<a href="anim.html">anim</a>
-</P>
-
-<P>
-<a href="animate.html">animate</a>
-</P>
-
-<P>
-<a href="costume.html">costume</a>
+<a href="loadClip.html">loadClip</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

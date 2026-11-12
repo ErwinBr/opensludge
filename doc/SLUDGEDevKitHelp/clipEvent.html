@@ -19,24 +19,41 @@
 <H3>Purpose:</H3>
 
 <P>
-Runs an event during playback of a <a href="Animation_Clips.html">clip</a>. When <i>clip</i> passes <i>tick</i>, it plays a sound file, or starts a function (without parameters). Events fire whether the character is shown or not.
+Plays a sound, or calls a function, when <i>clip</i> gets to <i>tick</i>.
 </P>
 
 <P>
-<i>tick</i> can be anything from 0 to the length of the clip. An event at tick 0 happens when the clip starts. If the clip loops, it happens again each time the clip starts over. An event at the last tick happens when the clip reaches its end. If the clip loops, that is at the end of every round.
+<i>soundOrFunction</i> is either a sound file, in single quotes, or the name of a function that takes no parameters. Anything else stops the game with an error. Footsteps are the classic use: a step sound at the two ticks where the feet touch the ground.
 </P>
 
 <P>
-<pre>var walk = newClip (32, TRUE);
-clipEvent (walk, 0, 'step.wav');
-clipEvent (walk, 8, 'step.wav');
-clipEvent (walk, 30, someFunction);</pre>
+<i>tick</i> can be anything from 0 to the length of the clip. An event at tick 0 happens when the clip starts, and an event at the last tick when the clip reaches its end. If the clip loops, they happen again in every round.
+</P>
+
+<P>
+Events happen whether the character is shown or not, which is different from the sounds and functions of <a href="anim.html">anim</a>. So hiding a character doesn't silence its footsteps: stop the clip for that.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub lookAround () {
+   # Called near the end of every step
+}
+
+sub walk () {
+   var c = newClip (32, TRUE);
+   clipEvent (c, 0, 'step.wav');
+   clipEvent (c, 16, 'step.wav');
+   clipEvent (c, 30, lookAround);
+   return c;
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -50,7 +67,7 @@ None.
 </P>
 
 <P>
-<a href="clipSprite.html">clipSprite</a>
+<a href="clipKey.html">clipKey</a>
 </P>
 
 <P>
@@ -58,23 +75,7 @@ None.
 </P>
 
 <P>
-<a href="setClipSpeed.html">setClipSpeed</a>
-</P>
-
-<P>
-<a href="isClipPlaying.html">isClipPlaying</a>
-</P>
-
-<P>
-<a href="anim.html">anim</a>
-</P>
-
-<P>
-<a href="animate.html">animate</a>
-</P>
-
-<P>
-<a href="costume.html">costume</a>
+<a href="Using_Audio_in_SLUDGE.html">Using Audio in SLUDGE</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

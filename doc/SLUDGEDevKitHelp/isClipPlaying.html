@@ -19,52 +19,43 @@
 <H3>Purpose:</H3>
 
 <P>
-Returns whether <i>character</i> plays an animation on <i>layer</i> that hasn't finished. Looping clips, and animations of <a href="anim.html">anim</a>, are always playing.
+Checks whether <i>character</i> is playing something on <i>layer</i> that hasn't finished yet.
 </P>
 
 <P>
-On layers 1 to 99, a clip that has finished still holds its last pose until <a href="stopClip.html">stopClip</a>, even though isClipPlaying is FALSE.
+Careful: a looping clip never finishes, and neither does an animation of <a href="anim.html">anim</a>. So if you wait in a loop like the one in the example for a looping clip or an anim on layer 0, you'll be waiting forever!
 </P>
 
 <P>
-<pre>animate (ego, wave);
-while (isClipPlaying (ego, 0)) pause (1);</pre>
+A clip that doesn't loop has finished once it gets to its end, and a clip of length 0 has finished straight away. On layers 1 to 99, a finished clip still holds its last pose until you take it away with <a href="stopClip.html">stopClip</a>, even though isClipPlaying says FALSE.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-TRUE or FALSE.
+Returns TRUE if the clip is still playing, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub waveAndWait () {
+   animate (ego, loadClip ('ego/wave.clp'));
+   while (isClipPlaying (ego, 0)) pause (1);
+}</pre>
 </P>
 
 <H3>See also:</H3>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
+<a href="playClip.html">playClip</a>
 </P>
 
 <P>
-<a href="newClip.html">newClip</a>
-</P>
-
-<P>
-<a href="clipSprite.html">clipSprite</a>
-</P>
-
-<P>
-<a href="clipFrames.html">clipFrames</a>
-</P>
-
-<P>
-<a href="clipEvent.html">clipEvent</a>
-</P>
-
-<P>
-<a href="setClipSpeed.html">setClipSpeed</a>
-</P>
-
-<P>
-<a href="anim.html">anim</a>
+<a href="stopClip.html">stopClip</a>
 </P>
 
 <P>
@@ -72,7 +63,7 @@ TRUE or FALSE.
 </P>
 
 <P>
-<a href="costume.html">costume</a>
+<a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

@@ -19,39 +19,42 @@
 <H3>Purpose:</H3>
 
 <P>
-Plays the animation of <i>character</i> at <i>percent</i> of its normal speed, on the given <i>layer</i>. 100 is normal, 50 half speed, 200 twice as fast, and 0 pauses it. It works for clips, and for animations created with <a href="anim.html">anim</a>.
+Plays what <i>character</i> is playing on <i>layer</i> at <i>percent</i> of its normal speed.
 </P>
 
 <P>
-<pre>setClipSpeed (ego, 0, 50);	# slow motion</pre>
+100 is normal, 50 is half speed, 200 is twice as fast, and 0 pauses it. Anything below 0 or above 100000 gives an error. It works for clips and for animations of <a href="anim.html">anim</a>, which makes slow motion easy.
+</P>
+
+<P>
+On layers 1 to 99, the layer has to be playing already, so call setClipSpeed after <a href="playClip.html">playClip</a>. Playing a new clip on the layer sets its speed back to 100%. The speed of layer 0, the costume's layer, stays for the animations that come after it.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-TRUE, or FALSE if there's no such character or nothing plays on that layer.
+On layer 0, returns TRUE if there is such a character, otherwise FALSE. On the other layers, returns FALSE as well when nothing plays on the layer.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub slowMotion () {
+   setClipSpeed (ego, 0, 50);
+}</pre>
 </P>
 
 <H3>See also:</H3>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
+<a href="playClip.html">playClip</a>
 </P>
 
 <P>
-<a href="newClip.html">newClip</a>
-</P>
-
-<P>
-<a href="clipSprite.html">clipSprite</a>
-</P>
-
-<P>
-<a href="clipFrames.html">clipFrames</a>
-</P>
-
-<P>
-<a href="clipEvent.html">clipEvent</a>
+<a href="stopClip.html">stopClip</a>
 </P>
 
 <P>
@@ -59,15 +62,7 @@ TRUE, or FALSE if there's no such character or nothing plays on that layer.
 </P>
 
 <P>
-<a href="anim.html">anim</a>
-</P>
-
-<P>
-<a href="animate.html">animate</a>
-</P>
-
-<P>
-<a href="costume.html">costume</a>
+<a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

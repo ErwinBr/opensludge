@@ -19,23 +19,51 @@
 <H3>Purpose:</H3>
 
 <P>
-Sets a <i>property</i> of a <i>part</i> of <i>character</i> directly from your script, for example a head that turns to follow the mouse, or an arm that holds something up. The value wins over every clip and layer, and stays until you call <a href="clearPartProperty.html">clearPartProperty</a>.
+Sets a <i>property</i> of a <i>part</i> of <i>character</i> straight from your script, and keeps it there, whatever the character's clips are doing.
 </P>
 
 <P>
-The properties and their units are those of <a href="clipKey.html">clipKey</a>: PART_X, PART_Y, PART_ROTATION, PART_SCALE, PART_SCALE_X and PART_SCALE_Y (in percent), PART_DEPTH, PART_VISIBLE, PART_FLIP, and the R, G, B and A of PART_MODULATE and PART_SELF_MODULATE (in percent, from 0 to 200). Sprites can't be set this way; play a clip with <a href="clipSprite.html">clipSprite</a> on a layer instead (see <a href="playClip.html">playClip</a>).
+Clips are great for movements you know in advance, but some things depend on the game: a head that turns to follow the mouse, say, or an arm that holds up whatever the player just picked up. For those, set the property here. It wins over every clip on every layer, and stays set until you call <a href="clearPartProperty.html">clearPartProperty</a>.
 </P>
 
 <P>
-<pre>setPartProperty (hero, "head", PART_ROTATION, -15);	# tilt the head
-...
-clearPartProperty (hero, "head", PART_ROTATION);	# the clips move the head again</pre>
+These are the properties, with the same units as in <a href="clipKey.html">clipKey</a>:
+</P>
+
+<UL>
+<LI><b>PART_X</b> and <b>PART_Y</b>: the position, in pixels.</LI>
+<LI><b>PART_ROTATION</b>: the angle, in degrees, clockwise.</LI>
+<LI><b>PART_SCALE</b>, <b>PART_SCALE_X</b> and <b>PART_SCALE_Y</b>: the size, in percent.</LI>
+<LI><b>PART_DEPTH</b>: the depth among the other parts (see <a href="setPartDepth.html">setPartDepth</a>).</LI>
+<LI><b>PART_VISIBLE</b> and <b>PART_FLIP</b>: TRUE or FALSE.</LI>
+<LI><b>PART_MODULATE_R</b>, <b>PART_MODULATE_G</b>, <b>PART_MODULATE_B</b> and <b>PART_MODULATE_A</b>, and the same four of <b>PART_SELF_MODULATE</b>: the colour, in percent from 0 to 200. A colour outside that range stops the game with an error.</LI>
+</UL>
+
+<P>
+The <i>value</i> is always a whole number. Sprites can't be set this way: play a clip with <a href="clipSprite.html">clipSprite</a> on a layer instead (see <a href="playClip.html">playClip</a>).
+</P>
+
+<P>
+Watch the spelling of the part's name! A name that isn't a part of the character doesn't give an error: the property is set, but nothing on the screen changes, and you're left wondering why.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-TRUE if there is such a character, FALSE if not.
+Returns TRUE if there is such a character, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub nod () {
+   setPartProperty (ego, &quot;head&quot;, PART_ROTATION, 15);   # Tilt the head forward...
+   pause (10);
+   clearPartProperty (ego, &quot;head&quot;, PART_ROTATION);     # ...and let the clips move it again
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -45,7 +73,11 @@ TRUE if there is such a character, FALSE if not.
 </P>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
+<a href="clearPartProperty.html">clearPartProperty</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
 </P>
 
 <P>
@@ -53,23 +85,7 @@ TRUE if there is such a character, FALSE if not.
 </P>
 
 <P>
-<a href="stopClip.html">stopClip</a>
-</P>
-
-<P>
-<a href="clearPartProperty.html">clearPartProperty</a>
-</P>
-
-<P>
-<a href="mirrorClip.html">mirrorClip</a>
-</P>
-
-<P>
-<a href="isClipPlaying.html">isClipPlaying</a>
-</P>
-
-<P>
-<a href="setClipSpeed.html">setClipSpeed</a>
+<a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

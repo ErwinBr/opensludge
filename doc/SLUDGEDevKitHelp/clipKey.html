@@ -20,87 +20,105 @@ clipKey (<i>clip, part, property, tick, value, easing</i>);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Changes properties of a character's <a href="Composite_Characters.html">part</a> during the playback of an animation <a href="Animation_Clips.html">clip</a>. At <i>tick</i>, the <i>property</i> of <i>part</i> is <i>value</i>. From there it moves towards the value of the next key, and reaches it at that key's tick. <i>tick</i> may be from 0 to the length of the clip.
+Sets the <i>property</i> of <i>part</i> to <i>value</i> at <i>tick</i> in <i>clip</i>, from where it moves smoothly towards the next key.
 </P>
 
 <P>
-Properties you can change:
+This is how a <a href="Composite_Characters.html">Composite Character</a> moves its parts: you say where the arm is at tick 0, where it is at tick 12, and SLUDGE works out everything in between. <i>tick</i> can be anything from 0 to the length of the clip. A key outside the clip stops the game with an error.
+</P>
+
+<P>
+These are the properties you can key. The <i>value</i> is always a whole number:
+</P>
+
 <UL>
-<LI><b>PART_X</b>, <b>PART_Y</b>: The part's local X and Y coordinates.</LI>
-<LI><b>PART_ROTATION</b>: Rotation in degrees, measured clockwise.</LI>
-<LI><b>PART_SCALE</b>: Size in percentage, the same in width and height. 100 = full size, 50 = half, 200 is double, etc...</LI>
-<LI><b>PART_SCALE_X</b>, <b>PART_SCALE_Y</b>: Size in percentage of the width or the height only, along the part's own axes. In a clip that has both, PART_SCALE_X and PART_SCALE_Y win over PART_SCALE.</LI>
-<LI><b>PART_DEPTH</b>: The order of drawing relative to other parts. For example, to draw an arm behind its body. (see <a href="setPartDepth.html">setPartDepth</a>)</LI>
-<LI><b>PART_VISIBLE</b>: Set visibility to TRUE or FALSE. FALSE hides the part and the parts attached to it.</LI>
-<LI><b>PART_FLIP</b>: TRUE mirrors the part, and the parts attached to it.</LI>
-<LI><b>PART_MODULATE_R</b>, <b>PART_MODULATE_G</b>, <b>PART_MODULATE_B</b>, <b>PART_MODULATE_A</b>: The red, green, blue and alpha (opacity) of the part and the parts attached to it, in percent, from 0 to 200. 100 leaves the sprite as it is, lower darkens, tints or fades it, and higher brightens it. A part's colour is multiplied by the colours of the parts it is attached to.</LI>
-<LI><b>PART_SELF_MODULATE_R</b>, <b>PART_SELF_MODULATE_G</b>, <b>PART_SELF_MODULATE_B</b>, <b>PART_SELF_MODULATE_A</b>: The same, for the part only: the parts attached to it don't get it.</LI>
+<LI><b>PART_X</b> and <b>PART_Y</b>: the position of the part, in pixels, from its parent.</LI>
+<LI><b>PART_ROTATION</b>: the angle, in degrees, clockwise.</LI>
+<LI><b>PART_SCALE</b>: the size, in percent, the same in width and height. 100 is full size, 50 is half, 200 is double.</LI>
+<LI><b>PART_SCALE_X</b> and <b>PART_SCALE_Y</b>: the width or the height only, in percent, along the part's own axes. In a clip that has both, these win over PART_SCALE.</LI>
+<LI><b>PART_DEPTH</b>: which parts this one is drawn in front of (see <a href="setPartDepth.html">setPartDepth</a>), for example to bring an arm round in front of the body.</LI>
+<LI><b>PART_VISIBLE</b>: TRUE or FALSE. FALSE hides the part, and the parts hanging from it.</LI>
+<LI><b>PART_FLIP</b>: TRUE mirrors the part, and the parts hanging from it.</LI>
+<LI><b>PART_MODULATE_R</b>, <b>PART_MODULATE_G</b>, <b>PART_MODULATE_B</b> and <b>PART_MODULATE_A</b>: the red, green, blue and alpha (opacity) of the part and the parts hanging from it, in percent from 0 to 200. 100 leaves the sprite as it is, less darkens, tints or fades it, and more brightens it. A part's colour is multiplied by the colours of the parts it hangs from. A colour outside 0 to 200 stops the game with an error.</LI>
+<LI><b>PART_SELF_MODULATE_R</b>, <b>PART_SELF_MODULATE_G</b>, <b>PART_SELF_MODULATE_B</b> and <b>PART_SELF_MODULATE_A</b>: the same, but for this part only: the parts hanging from it keep their own colours.</LI>
 </UL>
-</P>
 
 <P>
-The <i>easing</i> says how the current key moves towards the next key:
+The <i>easing</i> says how the property gets from this key to the next one:
+</P>
+
 <UL>
-<LI><b>EASE_LINEAR</b> properties change at a steady speed (the default value)</LI>
-<LI><b>EASE_INOUT</b> slow at the start, slow at the end</LI>
-<LI><b>EASE_STEP</b> properties hold their value until the next key.</LI>
+<LI><b>EASE_LINEAR</b>: at a steady speed. This is what you get if you leave the easing out.</LI>
+<LI><b>EASE_INOUT</b>: slowly at the start, faster in the middle, and slowly again at the end, which looks much more natural for swings and bobs.</LI>
+<LI><b>EASE_STEP</b>: not at all. The property holds its value until the next key, and then jumps.</LI>
 </UL>
-PART_DEPTH, PART_VISIBLE and PART_FLIP always step, whatever easing you give them, because they have no values in between.
+
+<P>
+PART_DEPTH, PART_VISIBLE and PART_FLIP always step, whatever easing you give them, because there's nothing in between half visible and visible. The last key is where a movement ends, so its easing does nothing. Before the first key, the property has the value of the first key, and after the last key, the value of the last one.
 </P>
 
 <P>
-The easing you give a key decides how the property moves from that key to the next one. The last key is where the movement ends: the property moves towards it with the easing of the key before it. If you give the last key an easing as well, it has no effect, because no movement starts there.
-</P>
-
-<P>
-In the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>, the easing of a key is its "Towards the next key" in the Inspector, and the colour of the key on the timeline.
-</P>
-
-<P>
-Before the first key, the property keeps the value of that first key. After the last key, it keeps the value of the last key.
-</P>
-
-<P>
-<pre>var c = newClip (48, TRUE); 				# Create a new clip: Duration: 48 ticks, looping = true
-clipKey (c, "torso", PART_Y, 0, -250, EASE_INOUT); 	# The torso of a character's Y position starts at -250 and eases to -262 at tick 24...
-clipKey (c, "torso", PART_Y, 24, -262, EASE_INOUT); 	# ...then eases back to -250 at tick 48.
-clipKey (c, "torso", PART_Y, 48, -250); 		# Last tick (48): the target of the movement before it. </pre>
+Add all the keys before you use the clip: once a character plays it, it can't change any more. In the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>, the easing of a key is its <b>Towards the next key</b> in the Inspector, and the colour of the key on the timeline.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub breathe () {
+   var c = newClip (48, TRUE);
+   clipKey (c, &quot;torso&quot;, PART_Y, 0, -250, EASE_INOUT);    # Start at -250...
+   clipKey (c, &quot;torso&quot;, PART_Y, 24, -262, EASE_INOUT);   # ...ease up to -262...
+   clipKey (c, &quot;torso&quot;, PART_Y, 48, -250);               # ...and back down again
+   return c;
+}</pre>
 </P>
 
 <H3>See also:</H3>
-
-<P>
-<a href="Composite_Characters.html">Composite Characters</a>
-</P>
-
-<P>
-<a href="newRig.html">newRig</a>
-</P>
-
-<P>
-<a href="addPart.html">addPart</a>
-</P>
-
-<P>
-<a href="setPartDepth.html">setPartDepth</a>
-</P>
-
-<P>
-<a href="setCharacterRig.html">setCharacterRig</a>
-</P>
 
 <P>
 <a href="Animation_Clips.html">Animation Clips</a>
 </P>
 
 <P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
 <a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipFrames.html">clipFrames</a>
+</P>
+
+<P>
+<a href="clipEvent.html">clipEvent</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P>
+<a href="mirrorClip.html">mirrorClip</a>
+</P>
+
+<P>
+<a href="setPartProperty.html">setPartProperty</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

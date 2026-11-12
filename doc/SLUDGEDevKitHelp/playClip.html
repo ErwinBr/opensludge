@@ -14,45 +14,52 @@
 
 <P>
 <pre class="syntax">playClip (<i>character, layer, clip</i>);
+playClip (<i>character, layer, clip</i>, LAYER_OVERRIDE);
 playClip (<i>character, layer, clip</i>, LAYER_ADD);</pre>
 </P>
 
 <H3>Purpose:</H3>
 
 <P>
-Plays <i>clip</i> on a <i>layer</i> of a <i>character</i>. You can assign layers 1 to 99. A character's costume exists on layer 0. The layering enables you to play clips on top of other clips, overriding them or adding to them.
+Plays <i>clip</i> on <i>layer</i> of <i>character</i>, on top of what the character is already doing.
 </P>
 
 <P>
-An override layer (<b>LAYER_OVERRIDE</b>, the default value) sets what its clip keys, over the layers below it. Parts and properties that its clip doesn't key are left to the layers below. With <b>LAYER_ADD</b>, it adds to a current position (PART_X, PART_Y) and angle (PART_ROTATION), and multiplies a size (PART_SCALE, where 100 leaves a part as it is at 100%). Sprites, visibility, depth and flipping can't be added to: even on an additive layer they are set, and the highest layer that keys them wins.
+Layers let a character do several things at once: walk on its costume, blink on layer 1 and wave on layer 2. Use layers 1 to 99. Layer 0 belongs to the costume, so playing a clip there gives an error: use <a href="animate.html">animate</a> for that. Higher layers go on top of lower ones.
 </P>
 
 <P>
-Playing a clip on a layer that already has one replaces it. The layer has its own time, speed (see <a href="setClipSpeed.html">setClipSpeed</a>) and events.
+<b>LAYER_OVERRIDE</b> is what you get if you leave it out. The layer sets whatever its clip keys, and leaves everything else to the layers below it, so a waving clip that only keys the arm leaves the legs walking. With <b>LAYER_ADD</b>, the layer adds its values instead: it adds to the position (PART_X, PART_Y) and angle (PART_ROTATION), and multiplies the sizes and colours, where 100 leaves them as they are. That's how you get a gentle breathing movement on top of any walk. Sprites, visibility, depth and flipping can't be added to: even on an additive layer they are just set, and the highest layer that keys them wins.
 </P>
 
 <P>
-A clip that doesn't loop will hold its last key until you end the clip with <a href="stopClip.html">stopClip</a>. This will end a looping clip as well.
+Playing a clip on a layer that already has one replaces it, and sets the layer's speed back to 100% (see <a href="setClipSpeed.html">setClipSpeed</a>). Each layer has its own time and its own events. A clip that doesn't loop holds its last pose when it ends, until you take it away with <a href="stopClip.html">stopClip</a>, which stops a looping clip too.
 </P>
 
 <P>
-<pre>playClip (hero, 1, breathe (), LAYER_ADD);
-playClip (hero, 2, blink ());
-pause (playClip (hero, 3, wave ()));
-stopClip (hero, 3);</pre>
+playClip only plays clips. To play an animation of <a href="anim.html">anim</a> on a layer, turn it into a clip with <a href="clipFrames.html">clipFrames</a> first, or the game stops with an error.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-The length of the clip, in ticks, as <a href="animate.html">animate</a> gives.
+Returns the length of the clip in ticks, at normal speed, so that <b>pause (playClip (...))</b> waits until it ends. For a looping clip, that's the length of one round.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub greet () {
+   playClip (ego, 1, loadClip ('ego/breathe.clp'), LAYER_ADD);
+   pause (playClip (ego, 2, loadClip ('ego/wave.clp')));    # Wait until the wave is done
+   stopClip (ego, 2);
+}</pre>
 </P>
 
 <H3>See also:</H3>
-
-<P>
-<a href="Composite_Characters.html">Composite Characters</a>
-</P>
 
 <P>
 <a href="Animation_Clips.html">Animation Clips</a>
@@ -63,23 +70,31 @@ The length of the clip, in ticks, as <a href="animate.html">animate</a> gives.
 </P>
 
 <P>
-<a href="setPartProperty.html">setPartProperty</a>
-</P>
-
-<P>
-<a href="clearPartProperty.html">clearPartProperty</a>
-</P>
-
-<P>
-<a href="mirrorClip.html">mirrorClip</a>
-</P>
-
-<P>
 <a href="isClipPlaying.html">isClipPlaying</a>
 </P>
 
 <P>
 <a href="setClipSpeed.html">setClipSpeed</a>
+</P>
+
+<P>
+<a href="newClip.html">newClip</a>
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
+</P>
+
+<P>
+<a href="animate.html">animate</a>
+</P>
+
+<P>
+<a href="setPartProperty.html">setPartProperty</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

@@ -19,30 +19,43 @@
 <H3>Purpose:</H3>
 
 <P>
-Creates a new <i>rig</i>, which holds the parts of a <a href="Composite_Characters.html">Composite Character</a>. It has one part to begin with, its root, called "": the character itself. The root part is just an empty node in the hierarchy until you add parts with <a href="addPart.html">addPart</a>. Give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>.
+Creates a new, empty rig: the list of parts that a <a href="Composite_Characters.html">Composite Character</a> is made of.
 </P>
 
-<pre>
-sub egoRig () {
-	var r = newRig ();
-	addPart (r, "legs", "", -4, -1, 'legs.duc', 0);		# This part is a child of "", meaning the root of the rig
-	addPart (r, "torso", "", -3, -258, 'torso.duc', 0);
-	addPart (r, "head", "torso", 3, -213, 'head.duc', 0);	# This part is a child of the torso
-	addPart (r, "eyes", "head", 0, 0, 'head.duc', 6);
-	addPart (r, "arm1", "torso", -79, -153, 'arm1.duc', 0);
-	addPart (r, "hand1", "arm1", -30, 222);          	# an empty joint: we can play a clip on it that represents an object it holds in its hand.
-	addPart (r, "arm2", "torso", 70, -159, 'arm2.duc', 0);
-	addPart (r, "hand2", "arm2", -9, 213);
-	return r;
-}
+<P>
+A new rig has just one part, called &quot;&quot; - the character itself, which all the other parts hang from. Add the head, arms, legs and so on with <a href="addPart.html">addPart</a>, and then give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>.
+</P>
 
-setCharacterRig (ego, egoRig ());
-</pre>
+<P>
+If you made your rig in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, you don't need this: <a href="loadRig.html">loadRig</a> gives you the whole rig in one go.
+</P>
 
 <H3>Return value:</H3>
 
 <P>
-The new rig.
+Returns the new rig.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub egoRig () {
+   var r = newRig ();
+   addPart (r, &quot;legs&quot;, &quot;&quot;, -4, -1, 'legs.duc', 0);       # Hangs from the character itself
+   addPart (r, &quot;torso&quot;, &quot;&quot;, -3, -258, 'torso.duc', 0);
+   addPart (r, &quot;head&quot;, &quot;torso&quot;, 3, -213, 'head.duc', 0); # Hangs from the torso
+   addPart (r, &quot;arm&quot;, &quot;torso&quot;, -79, -153, 'arm.duc', 0);
+   addPart (r, &quot;hand&quot;, &quot;arm&quot;, -30, 222);                  # A joint, with no sprite
+   return r;
+}
+
+sub init () {
+   addCharacter (ego, 320, 400, anim ('legs.duc', 0));
+   setCharacterRig (ego, egoRig ());
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -52,15 +65,11 @@ The new rig.
 </P>
 
 <P>
-<a href="loadRig.html">loadRig</a>
-</P>
-
-<P>
-<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
-</P>
-
-<P>
 <a href="addPart.html">addPart</a>
+</P>
+
+<P>
+<a href="setPartPivot.html">setPartPivot</a>
 </P>
 
 <P>
@@ -72,15 +81,11 @@ The new rig.
 </P>
 
 <P>
-<a href="clipKey.html">clipKey</a>
+<a href="loadRig.html">loadRig</a>
 </P>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
-</P>
-
-<P>
-<a href="clipSprite.html">clipSprite</a>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

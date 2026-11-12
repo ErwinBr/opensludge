@@ -20,17 +20,37 @@ setCharacterRig (<i>character</i>, 0);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Makes <i>character</i> a <a href="Composite_Characters.html">Composite Character</a>: from now on it draws the parts of its <i>rig</i>: one of <a href="newRig.html">newRig</a>, or of <a href="loadRig.html">loadRig</a> for a rig of the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>. With 0 instead of a rig, <i>character</i> goes back to showing a single sprite, as a normal character. After setting this, you can't change the rig itself anymore, only update its properties through <a href="Animation_Clips.html">Animation Clips</a>, or by setting them directly with <a href="setPartProperty.html">setPartProperty</a>.
+Gives <i>character</i> the parts of <i>rig</i>, so that it's drawn as a <a href="Composite_Characters.html">Composite Character</a> instead of as one sprite.
 </P>
 
 <P>
-The clips of the costume, and those you give to <a href="animate.html">animate</a>, then key the parts by name. An animation of <a href="anim.html">anim</a> shows on the character as a whole (the root).
+The rig can come from <a href="newRig.html">newRig</a>, if you built it in your script, or from <a href="loadRig.html">loadRig</a>, if you made it in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>. Give 0 instead of a rig to turn the character back into an ordinary one, with a single sprite.
+</P>
+
+<P>
+From now on, the clips of the character's costume, and the clips you give to <a href="animate.html">animate</a>, move its parts by their names. An animation made with <a href="anim.html">anim</a> moves the character as a whole.
+</P>
+
+<P>
+Add the character with <a href="addCharacter.html">addCharacter</a> first: there's nobody to give the rig to otherwise. Once a character uses the rig, the rig can't change any more, so add all its parts, pivots and depths before you call this. To move the parts after that, use clips (see <a href="Animation_Clips.html">Animation Clips</a>) or <a href="setPartProperty.html">setPartProperty</a>.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-TRUE if there is such a character, FALSE if not.
+Returns TRUE if there is such a character, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub init () {
+   addCharacter (ego, 320, 400, anim ('ego.duc', 0));
+   setCharacterRig (ego, loadRig ('ego/ego.rig'));
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -40,11 +60,11 @@ TRUE if there is such a character, FALSE if not.
 </P>
 
 <P>
-<a href="loadRig.html">loadRig</a>
+<a href="newRig.html">newRig</a>
 </P>
 
 <P>
-<a href="newRig.html">newRig</a>
+<a href="loadRig.html">loadRig</a>
 </P>
 
 <P>
@@ -52,19 +72,23 @@ TRUE if there is such a character, FALSE if not.
 </P>
 
 <P>
+<a href="setPartPivot.html">setPartPivot</a>
+</P>
+
+<P>
 <a href="setPartDepth.html">setPartDepth</a>
 </P>
 
 <P>
-<a href="clipKey.html">clipKey</a>
+<a href="setPartProperty.html">setPartProperty</a>
 </P>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
+<a href="animate.html">animate</a>
 </P>
 
 <P>
-<a href="clipSprite.html">clipSprite</a>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

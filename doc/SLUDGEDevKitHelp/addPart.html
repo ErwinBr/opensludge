@@ -20,38 +20,55 @@ addPart (<i>rig, name, parent, x, y, spriteBank, sprite</i>);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Adds a part called <i>name</i> to <i>rig</i>, attached to the part called <i>parent</i> ("" for the character itself), with its origin (its sprite's hotspot) at <i>x</i>, <i>y</i> from its parent's origin. The part shows <i>sprite</i> of <i>spriteBank</i> until a clip gives it another; a negative <i>sprite</i> shows its mirror image.
+Adds a part called <i>name</i> to <i>rig</i>, hanging from the part called <i>parent</i>, and showing <i>sprite</i> from <i>spriteBank</i>.
 </P>
 
 <P>
-<i>name</i> must be new in this rig, and <i>parent</i> must be added before it (or be ""). You can't add parts once a character uses the rig, which happens as soon as you give it to a character with <a href="setCharacterRig.html">setCharacterRig</a>.
+Use &quot;&quot; as the <i>parent</i> to hang the part from the character itself. The values <i>x</i> and <i>y</i> say where the part's hotspot goes, measured from its parent's hotspot (or from its pivot, if you give it one with <a href="setPartPivot.html">setPartPivot</a>). When the parent moves, turns or scales, the part goes with it, just as a hand goes wherever the arm takes it.
 </P>
 
 <P>
-Without a sprite, the part is an empty joint: it shows nothing, but you can later play a clip on a layer that gives it a sprite. This way you can dynamically put items in a character's hand, for example.
+<i>spriteBank</i> is a sprite bank file, in single quotes as always, such as 'head.duc'. The part shows that sprite until a clip gives it another one. A negative <i>sprite</i> shows the mirror image of that sprite.
 </P>
 
 <P>
-<pre>addPart (r, "head", "torso", 3, -213, 'head.duc', 0);	# Head is added as a child of torso
-addPart (r, "hand", "arm", -30, 222);	# An empty joint
+Leave out the sprite bank and the sprite, and the part is an empty joint: it shows nothing, but the parts hanging from it go where it goes, and a clip on a layer can give it a sprite later. That's handy for whatever a character holds in its hand (see the example).
+</P>
 
-sub holdSomething (file, sprite) {
-	var c = newClip (1, TRUE);
-	clipSprite (c, "hand", 0, file, sprite);
-	return c;
-}
-
-playClip (ego, 4, holdSomething ('items.duc', 2));	# ego holds item 2
-stopClip (ego, 4);								# empty hand again
-
-
-</pre>
+<P>
+Every part needs a name of its own, and its parent has to be in the rig already, otherwise there's nothing to hang it from. Get either of these wrong and the game stops with an error. You can't add parts to a rig once a character uses it, so build the whole rig before you call <a href="setCharacterRig.html">setCharacterRig</a>.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
+}
+
+sub holdSomething (bank, sprite) {
+   var c = newClip (1, TRUE);
+   clipSprite (c, &quot;hand&quot;, 0, bank, sprite);
+   return c;
+}
+
+sub init () {
+   var r = newRig ();
+   addPart (r, &quot;torso&quot;, &quot;&quot;, 0, -150, 'torso.duc', 0);
+   addPart (r, &quot;arm&quot;, &quot;torso&quot;, 40, -60, 'arm.duc', 0);
+   addPart (r, &quot;hand&quot;, &quot;arm&quot;, 0, 80);                     # An empty joint
+   addCharacter (ego, 320, 400, anim ('torso.duc', 0));
+   setCharacterRig (ego, r);
+
+   playClip (ego, 4, holdSomething ('items.duc', 2));    # Ego holds item 2...
+   pause (50);
+   stopClip (ego, 4);                                    # ...and now his hand is empty again
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -61,15 +78,11 @@ None.
 </P>
 
 <P>
-<a href="setPartPivot.html">setPartPivot</a>
-</P>
-
-<P>
-<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
-</P>
-
-<P>
 <a href="newRig.html">newRig</a>
+</P>
+
+<P>
+<a href="setPartPivot.html">setPartPivot</a>
 </P>
 
 <P>
@@ -81,15 +94,15 @@ None.
 </P>
 
 <P>
-<a href="clipKey.html">clipKey</a>
-</P>
-
-<P>
-<a href="Animation_Clips.html">Animation Clips</a>
+<a href="loadRig.html">loadRig</a>
 </P>
 
 <P>
 <a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026

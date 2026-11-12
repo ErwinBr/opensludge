@@ -19,30 +19,37 @@
 <H3>Purpose:</H3>
 
 <P>
-Sets the pivot of a part of a <a href="Composite_Characters.html">Composite Character</a>: the point that the part turns, scales and flips about. Without a pivot, that point is the hotspot of the part's sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. With one, it is that hotspot moved by <i>x</i>, <i>y</i> pixels of the sprite. +X is right, +Y is down.
+Sets the pivot of the part called <i>name</i> in <i>rig</i>: the point that the part turns, scales and flips around.
 </P>
 
 <P>
-Use a pivot when the hotspot of a sprite doesn't suit the part. An arm whose hotspot is in its middle can turn at its shoulder this way, without changing the sprite bank, which other parts or characters may use too.
+Normally a part turns around the hotspot of its sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>. That's fine until you have an arm whose hotspot is in the middle, and it spins like a propeller instead of swinging from the shoulder. The pivot moves that point by <i>x</i>, <i>y</i> pixels of the sprite (+X is right, +Y is down), without touching the sprite bank, which other parts or characters may be using too.
 </P>
 
 <P>
-The pivot is also where the part is placed: the <i>x</i> and <i>y</i> that you give <a href="addPart.html">addPart</a> say where the pivot is, from the parent's. So setPartPivot moves only the sprite around that point: the part's place, and the parts attached to it, stay where they are. (In the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a>, moving the pivot keeps the sprite in place instead, and moves the part.)
+The pivot is also the point that the <i>x</i> and <i>y</i> of <a href="addPart.html">addPart</a> place. So setPartPivot moves the sprite around that point, and the part's place, and the parts hanging from it, stay where they are. (In the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> it's the other way round: dragging the pivot keeps the sprite where it is, and moves the part.)
 </P>
 
 <P>
-Call it while you build the rig, before you give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>: after that, the rig can't change.
-</P>
-
-<P>
-<pre>addPart (r, "arm", "torso", 40, -150, 'arm.duc', 0);	# The arm sprite's hotspot is in its middle...
-setPartPivot (r, "arm", 0, -60);			# ...so it turns at its shoulder, 60 pixels above that</pre>
+Call it while you build the rig, before you give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>, because after that the rig can't change. A name that isn't a part of the rig stops the game with an error.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub armRig () {
+   var r = newRig ();
+   addPart (r, &quot;torso&quot;, &quot;&quot;, 0, -150, 'torso.duc', 0);
+   addPart (r, &quot;arm&quot;, &quot;torso&quot;, 40, -90, 'arm.duc', 0);   # The arm's hotspot is in its middle...
+   setPartPivot (r, &quot;arm&quot;, 0, -60);                     # ...so it swings from 60 pixels higher up
+   return r;
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -52,11 +59,19 @@ None.
 </P>
 
 <P>
+<a href="newRig.html">newRig</a>
+</P>
+
+<P>
 <a href="addPart.html">addPart</a>
 </P>
 
 <P>
 <a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="setCharacterRig.html">setCharacterRig</a>
 </P>
 
 <P>

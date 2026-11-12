@@ -21,28 +21,37 @@ clipSprite (<i>clip, part, tick</i>, PART_DEFAULT);</pre>
 <H3>Purpose:</H3>
 
 <P>
-Changes the displayed sprite from a spriteBank. From <i>tick</i> until the next key of that part, the <i>part</i> of the character shows <i>sprite</i> in <i>spriteBank</i>. A negative <i>sprite</i> shows its mirror image, as with <a href="anim.html">anim</a>.
+From <i>tick</i> in <i>clip</i>, makes <i>part</i> show <i>sprite</i> from <i>spriteBank</i>.
 </P>
 
 <P>
-With NOSPRITE, the part shows nothing: an empty frame. With PART_DEFAULT, it shows the sprite you gave the part with <a href="addPart.html">addPart</a> (see <a href="Composite_Characters.html">Composite Characters</a>).
+The part keeps that sprite until the next sprite key of the same part. A negative <i>sprite</i> shows its mirror image, as in <a href="anim.html">anim</a>. For a character without parts, or for the character as a whole, use &quot;&quot; as the <i>part</i>.
 </P>
 
 <P>
-Sprites never ease: the part changes sprite exactly at the key's tick.
+With NOSPRITE, the part shows nothing at all, which is handy for closed eyes. With PART_DEFAULT, it goes back to the sprite you gave the part with <a href="addPart.html">addPart</a>.
 </P>
 
 <P>
-<pre>var c = newClip (40, TRUE);
-clipSprite (c, "eyes", 0, 'eyes.duc', 4);
-clipSprite (c, "eyes", 36, 'eyes.duc', 5);	# eyes half-closed
-clipSprite (c, "eyes", 38, NOSPRITE);	# eyes closed means we show nothing</pre>
+Sprites never ease: there's no such thing as halfway between two sprites, so the part changes exactly at the key's tick.
 </P>
 
 <H3>Return value:</H3>
 
 <P>
-None.
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub blink () {
+   var c = newClip (40, TRUE);
+   clipSprite (c, &quot;eyes&quot;, 0, 'eyes.duc', 4);     # Eyes open...
+   clipSprite (c, &quot;eyes&quot;, 36, 'eyes.duc', 5);    # ...half closed...
+   clipSprite (c, &quot;eyes&quot;, 38, NOSPRITE);        # ...and closed, so we show nothing
+   return c;
+}</pre>
 </P>
 
 <H3>See also:</H3>
@@ -56,31 +65,19 @@ None.
 </P>
 
 <P>
+<a href="clipKey.html">clipKey</a>
+</P>
+
+<P>
 <a href="clipFrames.html">clipFrames</a>
 </P>
 
 <P>
-<a href="clipEvent.html">clipEvent</a>
+<a href="addPart.html">addPart</a>
 </P>
 
 <P>
-<a href="setClipSpeed.html">setClipSpeed</a>
-</P>
-
-<P>
-<a href="isClipPlaying.html">isClipPlaying</a>
-</P>
-
-<P>
-<a href="anim.html">anim</a>
-</P>
-
-<P>
-<a href="animate.html">animate</a>
-</P>
-
-<P>
-<a href="costume.html">costume</a>
+<a href="Composite_Characters.html">Composite Characters</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
