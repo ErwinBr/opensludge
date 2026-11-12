@@ -151,6 +151,8 @@
 		<param name="Name" value=".RIG file extension">
 		<param name="Name" value="Composite character editor">
 		<param name="Name" value="Rest pose">
+		<param name="Name" value="Joint">
+		<param name="Name" value="Holding objects">
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Character_Creator.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">

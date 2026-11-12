@@ -39,8 +39,8 @@ fi
 work=${3:-$(mktemp -d "${TMPDIR:-/tmp}/sludge-example.XXXXXX")}
 mkdir -p "$work"
 cp "$root"/doc/ExampleProjects/Welcome/* "$work"/
-# The sprite banks that the stand-in rig and clip use.
-cp "$root"/tests/devkit/fixtures/*.duc "$work"/
+# The rigs and sprite banks that the stand-in rig and clip use.
+cp "$root"/tests/devkit/fixtures/*.duc "$root"/tests/devkit/fixtures/*.rig "$work"/
 sed 's/sub init (/sub test (/' "$example" > "$work/example.slu"
 printf 'example.slu\r\n' >> "$work/Welcome.slp"
 

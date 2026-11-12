@@ -63,7 +63,7 @@ In the Inspector, <b>Choose...</b> picks the sprite bank of the selected part, a
 </P>
 
 <P>
-<b>None</b> takes the sprite away, and the <b>Sprite bank</b> row then says &quot;None (a joint)&quot;. A <b>joint</b> draws nothing, but other parts can hang from it, and a clip can give it a sprite later, which is just the thing for whatever the character holds in its hand. Joints show as crosses in the picture, and as (joint) in the tree.
+<b>None</b> takes the sprite away, and the <b>Sprite bank</b> row then says &quot;None (a joint)&quot;. A <b>joint</b> draws nothing, but other parts can hang from it, and a clip can give it a sprite later, which is just the thing for whatever the character holds in its hand (see <a href="#joints">Joints for things to hold</a>). Joints show as crosses in the picture, and as (joint) in the tree.
 </P>
 
 <P>
@@ -128,6 +128,78 @@ Click the lock at the end of a part's row in the tree to lock the part. A locked
 <b>Character</b> has a lock too, for the character itself. Each lock is for its own part only, so the parts hanging from a locked part can still be changed. Locks are saved with the rig, but they only matter in the Character Creator: they make no difference in the game.
 </P>
 
+<H3>One rig, many characters:</H3>
+
+<P>
+Got a crowd of people who all have a head, a torso, two arms and a pair of legs? There's no need to build the same rig over and over: build it once, and give it to as many characters as you like. A rig can't change once a character uses it, so it's perfectly happy being shared.
+</P>
+
+<P>
+They don't all have to look the same, either. A part shows the sprite it has in the rig only until a clip says otherwise, so give each character its own costume, whose clips key sprites from that character's own sprite banks. One rig, a postman and a pirate.
+</P>
+
+<P>
+<pre>objectType postman (&quot;postman&quot;) {
+}
+
+objectType pirate (&quot;pirate&quot;) {
+}
+
+sub init () {
+   var person = loadRig ('people/person.rig');
+   addCharacter (postman, 200, 400, loadClip ('people/postman_stand.clp'));
+   setCharacterRig (postman, person);
+   addCharacter (pirate, 440, 400, loadClip ('people/pirate_stand.clp'));
+   setCharacterRig (pirate, person);     # The same rig, with different sprites
+}</pre>
+</P>
+
+<P>
+A character with different proportions, say a very tall one, needs a rig of its own, because the rig is where the parts sit. Give its parts the same names, though, and every clip you made for the first rig plays on it too: clips find parts by their names, not by the rig they were made for.
+</P>
+
+<H3><a name="joints">Joints for things to hold:</a></H3>
+
+<P>
+Sooner or later your hero is going to pick something up, and it would be nice if it ended up in his hand, rather than vanishing into thin air. That's what joints are good for. Select the hand, click <b>Add Part</b>, call the new part something like &quot;item&quot;, and click <b>None</b>, so that it has no sprite. Put it where the fingers would close around the object. It shows nothing at all, but it moves and turns along with the hand, wherever the arm takes it.
+</P>
+
+<P>
+When the player picks something up, play a short clip on a layer of its own that gives the joint the object's sprite, and the object appears in the hand. Stop that layer with <a href="stopClip.html">stopClip</a>, and the hand is empty again. The clip can come from the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>, or you can build it in your script with <a href="clipSprite.html">clipSprite</a>, which saves making a clip for every single thing the hero can carry:
+</P>
+
+<P>
+<pre>objectType hero (&quot;Hero&quot;) {
+}
+
+objectType pickUp (&quot;pick up&quot;) {     # The verb
+}
+
+objectType umbrella (&quot;umbrella&quot;) {
+   event pickUp {
+      playClip (hero, 4, holdItem ('items.duc', 2));    # The umbrella goes in his hand
+   }
+}
+
+sub holdItem (bank, sprite) {
+   var c = newClip (1, TRUE);
+   clipSprite (c, &quot;item&quot;, 0, bank, sprite);
+   return c;
+}
+
+sub holdUmbrella () {
+   playClip (hero, 4, loadClip ('hero/hold_umbrella.clp'));   # The same, made in the Animation Editor
+}
+
+sub dropIt () {
+   stopClip (hero, 4);                                       # And now his hand is empty again
+}</pre>
+</P>
+
+<P>
+To see what a held object looks like without running the game, make the holding clip in the Animation Editor: a short clip that gives the joint a sprite, and maybe turns it to the right angle. Then open the character's walk, and choose the holding clip in the box after <b>Rig</b>, which says <b>No second clip</b> until you do, with <b>Override</b>. The preview plays the two together, just as <a href="playClip.html">playClip</a> layers them in the game, so you can watch the umbrella swing along with his arm (see <a href="About_the_SLUDGE_Animation_Editor.html#layered">Previewing a layered clip</a>).
+</P>
+
 <H3>Using the rig in a game:</H3>
 
 <P>
@@ -176,6 +248,18 @@ sub init () {
 
 <P>
 <a href="setPartDepth.html">setPartDepth</a>
+</P>
+
+<P>
+<a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P>
+<a href="stopClip.html">stopClip</a>
 </P>
 
 <P>
