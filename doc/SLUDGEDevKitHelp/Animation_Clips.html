@@ -11,134 +11,152 @@
 <HR>
 
 <P>
-An animation made with <a href="anim.html">anim</a> is a list of frames from a spriteBank, shown successively during each screen update or with a given delay. A <b>clip</b>, made with <a href="newClip.html">newClip</a>, is an animation of another kind: It has a given length, defined in screen updates ("ticks"), and <b>keys</b> at points in time. It gives you more features and more control than anim.
+You probably know <a href="anim.html">anim</a> already: a list of frames from a sprite bank, shown one after the other. That's fine for flicking through a few drawings, but what if you want an arm to swing smoothly, a head to bob, or a character to blink while it does something else? That's what <b>clips</b> are for.
 </P>
 
 <P>
-You can make clips in a script, with the functions below, or in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> of the Dev Kit, which saves them as .clp files. Your script loads those with <a href="loadClip.html">loadClip</a>, and then uses them as any other clip:
+A clip, made with <a href="newClip.html">newClip</a>, has a length in ticks (screen updates), and <b>keys</b> at points in that time: at tick 0 the arm points down, at tick 12 it points forward, and SLUDGE works out everything in between. Clips can also show sprites, play sounds and call functions, just as anims can.
 </P>
 
-<pre>animate (ego, loadClip ('ego/wave.clp'));</pre>
+<H3>Making clips:</H3>
+
 <P>
-<a href="clipSprite.html">clipSprite</a> displays a sprite of a spriteBank from the given frame number at the given tick, <a href="clipEvent.html">clipEvent</a> plays a sound or starts a function at a tick, <a href="clipFrames.html">clipFrames</a> turns a series of frames and events (defined by <a href="anim.html">anim</a>) into a clip with keys, <a href="clipKey.html">clipKey</a> allows you to move, turn, scale, flip, hide and order the drawing of a clip, and <a href="mirrorClip.html">mirrorClip</a> will mirror the contents of a clip horizontally.
+The easiest way to make a clip is in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a> of the Dev Kit, where you can see the character move while you work. It saves the clip as a .clp file, and your script loads it with <a href="loadClip.html">loadClip</a>:
 </P>
 
-<pre>
+<P>
+<pre>sub wave () {
+   animate (ego, loadClip ('ego/wave.clp'));
+}</pre>
+</P>
+
+<P>
+You can also build a clip in a script, with these functions:
+</P>
+
+<UL>
+<LI><a href="clipSprite.html">clipSprite</a> shows a sprite from a given tick.</LI>
+<LI><a href="clipKey.html">clipKey</a> moves, turns, scales, flips, hides, colours or reorders a part.</LI>
+<LI><a href="clipEvent.html">clipEvent</a> plays a sound or calls a function at a tick.</LI>
+<LI><a href="clipFrames.html">clipFrames</a> turns an anim you already have into the sprites and events of a clip.</LI>
+<LI><a href="mirrorClip.html">mirrorClip</a> makes a mirror image of a clip, so a character can walk west with its walk to the east.</LI>
+</UL>
+
+<P>
+<pre>sub footstep () {
+   playSound ('step.wav');
+}
+
 sub walkClip () {
-	var c = newClip (16, TRUE);	# 16 ticks, looping
-	clipSprite (c, "", 0, 'ego.duc', 0);	# Tick 0, sprite 0
-	clipSprite (c, "", 4, 'ego.duc', 1);	# Tick 4, sprite 1
-	clipSprite (c, "", 8, 'ego.duc', 2);	# etc...
-	clipSprite (c, "", 12, 'ego.duc', 3);
-	clipEvent (c, 0, footstep);				# Calls a footstep function at tick 0
-	clipEvent (c, 8, footstep);				# ...and again at 8
-	return c;
+   var c = newClip (16, TRUE);              # 16 ticks, looping
+   clipSprite (c, &quot;&quot;, 0, 'ego.duc', 0);     # Tick 0, sprite 0
+   clipSprite (c, &quot;&quot;, 4, 'ego.duc', 1);     # Tick 4, sprite 1
+   clipSprite (c, &quot;&quot;, 8, 'ego.duc', 2);     # And so on...
+   clipSprite (c, &quot;&quot;, 12, 'ego.duc', 3);
+   clipEvent (c, 0, footstep);              # A footstep at tick 0...
+   clipEvent (c, 8, footstep);              # ...and another at tick 8
+   return c;
+}</pre>
+</P>
+
+<P>
+Anything that takes an animation takes a clip too: <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> and <a href="pasteImage.html">pasteImage</a>. Add all the keys and events of a clip before you use it, though: once it's in use, it can't change.
+</P>
+
+<H3>Time:</H3>
+
+<P>
+Keys go anywhere from tick 0 to the end of the clip. A key outside the clip gives you an error.
+</P>
+
+<P>
+A looping clip jumps straight from the tick before the last back to tick 0, without showing the last tick. That's because the first and last frames of a loop are usually exactly the same, and showing both would make the loop stutter. Do still put a key at the last tick, though: the movement before it eases towards that key, even if it's never shown. A clip that plays once does get to its last tick, and the character holds that pose until something else moves it.
+</P>
+
+<P>
+Every tick of the game, a clip moves on one step, at the speed that <a href="setClipSpeed.html">setClipSpeed</a> gives it. To find out whether a clip has finished, use <a href="isClipPlaying.html">isClipPlaying</a>.
+</P>
+
+<P>
+<pre>sub swingBody () {
+   var c = newClip (48, TRUE);                                 # 48 ticks, looping
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 0, 2, EASE_INOUT);     # Start leaning 2 degrees...
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 24, -2, EASE_INOUT);   # ...ease over to -2...
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 48, 2);                # ...and back again to where it started
+   return c;
+}</pre>
+</P>
+
+<H3>Events:</H3>
+
+<P>
+With <a href="clipEvent.html">clipEvent</a>, a clip plays sounds or calls functions at the ticks you choose. Unlike the sounds and functions of an anim, they happen whether the character is shown or not.
+</P>
+
+<P>
+An event at tick 0 happens when the clip starts, and an event at the last tick when the clip gets to its end. In a looping clip, they happen again in every round.
+</P>
+
+<H3>Clips on layers:</H3>
+
+<P>
+Clips really come into their own with <a href="Composite_Characters.html">Composite Characters</a>, which are made of separate parts. A clip can move all the parts together, as a costume does, or just a few of them, on a layer of its own. Give <a href="playClip.html">playClip</a> a layer number from 1 to 99 and a clip, and the keys of that clip either replace what the layers below say, or add to it. Only things that have values in between can be added to, such as positions, angles, sizes and colours. That's how a character can blink, whatever else it happens to be doing.
+</P>
+
+<P>
+<pre>objectType ego (&quot;Ego&quot;) {
 }
-</pre>
 
-<P>
-Anything that takes an animation also takes a clip: <a href="animate.html">animate</a>, <a href="costume.html">costume</a>, <a href="addCharacter.html">addCharacter</a>, <a href="setCursor.html">setCursor</a> and <a href="pasteImage.html">pasteImage</a>.
-</P>
-
-<pre>
-sub heroCostume () {							
-	return costume (
-		stand (SOUTH), stand (WEST), stand (NORTH), stand (EAST),
-		walk (SOUTH), mirrorClip (walk (EAST)), walk (NORTH), walk (EAST),
-		talk (SOUTH), talk (WEST), talk (NORTH), talk (EAST));
-}
-
-sub stand (dir) {
-	var c = newClip (0);
-	if (dir == SOUTH) {
-		clipSprite (c, "", 0, 'ego.duc', 0);
-	} else if (dir == NORTH) {
-		...
-	return c;
-}
-</pre>
-
-<H3>Time</H3>
-
-<P>
-Keys can be created at 0 and until the end of the clip. You'll get an error if you define a key outside of the length of the clip.
-</P>
-
-<P>
-A looping clip will jump over the last tick and land straight on 0 again. For interpolated properties you can (and should) still assign a key at the last tick, so that these can ease towards its defined values (first and last frames of a looping animation are usually exactly the same). Clips that play once do hit the last tick, so you can safely set a key there. The character will hold it until set by something else. Each tick (screen update) of the game, a clip updates where it is and then moves to the next, at the speed of <a href="setClipSpeed.html">setClipSpeed</a>. To test whether a clip is playing, you use <a href="isClipPlaying.html">isClipPlaying</a>.
-</P>
-
-<pre>
-sub swingBody () {
-	var c = newClip (48, TRUE);			# 48 ticks, looping
-	clipKey (c, "torso", PART_ROTATION, 0, 2, EASE_INOUT);	# Rotation starts at 2 degrees...
-	clipKey (c, "torso", PART_ROTATION, 24, -2, EASE_INOUT);	# ...eases to -2 degrees at tick 24...
-	clipKey (c, "torso", PART_ROTATION, 48, 2);   	# This closing key won't be hit (it jumps to 0), but from tick 24 the animation eases towards it.
-	return c;
-}
-</pre>
-
-<H3>Events</H3>
-
-<P>
-With <a href="clipEvent.html">clipEvent</a> you can run functions or play sounds at the given ticks. A clip fires its events whether its character is shown or not, contrary to <a href="anim.html">anim</a>, which doesn't fire when a character is hidden.
-</P>
-
-<P>
-You can put an event anywhere from tick 0 to the last tick of the clip. An event at tick 0 happens when the clip starts. In a looping clip, it also happens each time the clip starts over. An event at the last tick happens when the clip reaches its end. In a looping clip, that is at the end of every round.
-</P>
-
-<H3>Animating Composite Characters on Layers</H3>
-
-<P>
-As of SLUDGE 2.3 we have <a href="Composite_Characters.html">Composite Characters</a> that are built up from separate parts. Animation clips can animate the parts either all together, as a costume, or one by one, on layers. You give a layer number (1-99) and a clip to <a href="playClip.html">playClip</a>, and the keys of that clip will either override those of the layers below, or add to them. Additive is only possible with properties that can be interpolated, such as position, rotation and scale. This opens up possibilities like eyes that blink regardless of what other animations on a character are doing at the same time.
-</P>
-
-<pre>
 sub reachClip () {
-	var c = newClip (48);
-	clipSprite (c, "legs", 0, 'legs.duc', 0);
-	clipSprite (c, "torso", 0, 'torso.duc', 0);
-	clipSprite (c, "head", 0, 'head.duc', 0);
-	clipSprite (c, "eyes", 0, 'head.duc', 6);
-	clipSprite (c, "arm_left", 0, 'arm1.duc', 0);
-	clipSprite (c, "arm_right", 0, 'arm2.duc', 0);    
-	
-	clipKey (c, "arm_right", PART_ROTATION, 0, 0, EASE_INOUT);
-	clipKey (c, "arm_right", PART_ROTATION, 16, -80);
-	clipKey (c, "arm_right", PART_ROTATION, 32, -80, EASE_INOUT);
-	clipKey (c, "arm_right", PART_ROTATION, 48, 0);
-	return c;
+   var c = newClip (48);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 0, 0, EASE_INOUT);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 16, -80);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 32, -80, EASE_INOUT);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 48, 0);
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 0, 0, EASE_INOUT);
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 24, 10, EASE_INOUT);
+   clipKey (c, &quot;torso&quot;, PART_ROTATION, 48, 0);
+   return c;
 }
 
 sub waveArm () {
-	var c = newClip (72);
-	clipKey (c, "arm_right", PART_ROTATION, 0, 0, EASE_INOUT);
-	clipKey (c, "arm_right", PART_ROTATION, 24, -150, EASE_INOUT);
-	clipKey (c, "arm_right", PART_ROTATION, 72, 0);
-	return c;
+   var c = newClip (72);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 0, 0, EASE_INOUT);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 24, -150, EASE_INOUT);
+   clipKey (c, &quot;arm&quot;, PART_ROTATION, 72, 0);
+   return c;
 }
 
-sub showDifferences () {
-	addCharacter (ego, 320, 420, egoCostume ());
-	setCharacterRig (ego, egoRig ());
-	turnCharacter (ego, EAST);
+sub showTheDifference () {
+   addCharacter (ego, 320, 420, loadClip ('ego/stand.clp'));
+   setCharacterRig (ego, loadRig ('ego/ego.rig'));
 
-	# 1. This animates the character and all its parts:
-	pause (animate (ego, reachClip ()));
+   # 1. The whole character reaches: the torso leans and the arm goes up
+   pause (animate (ego, reachClip ()));
 
-	# 2. This animates only the arm: the other parts display their rest pose (defined with addPart).
-	pause (animate (ego, waveArm ()));
+   # 2. Only the arm waves: the other parts stand as they do in the rig
+   pause (animate (ego, waveArm ()));
 
-	# 3. This animation is layered:
-	playClip (ego, 2, waveArm ());			# on layer 2, the arm overrides whatever is set by other layers below
-	moveCharacter (ego, 200, 420);			# walks west: the arm waves once, then holds still until stopClip
-	stopClip (ego, 2);				# the layer, and its rotation, go
-}
-</pre>
-
+   # 3. On a layer, the arm waves on top of whatever else is going on
+   playClip (ego, 2, waveArm ());
+   moveCharacter (ego, 200, 420);     # Walks west, waving, then holds the arm still...
+   stopClip (ego, 2);                 # ...until the layer goes
+}</pre>
+</P>
 
 <H3>See also:</H3>
+
+<P>
+<a href="Composite_Characters.html">Composite Characters</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a>
+</P>
 
 <P>
 <a href="newClip.html">newClip</a>
@@ -146,6 +164,10 @@ sub showDifferences () {
 
 <P>
 <a href="clipSprite.html">clipSprite</a>
+</P>
+
+<P>
+<a href="clipKey.html">clipKey</a>
 </P>
 
 <P>
@@ -157,6 +179,18 @@ sub showDifferences () {
 </P>
 
 <P>
+<a href="mirrorClip.html">mirrorClip</a>
+</P>
+
+<P>
+<a href="playClip.html">playClip</a>
+</P>
+
+<P>
+<a href="stopClip.html">stopClip</a>
+</P>
+
+<P>
 <a href="setClipSpeed.html">setClipSpeed</a>
 </P>
 
@@ -165,19 +199,7 @@ sub showDifferences () {
 </P>
 
 <P>
-<a href="playClip.html">playClip</a>
-</P>
-
-<P>
-<a href="mirrorClip.html">mirrorClip</a>
-</P>
-
-<P>
-<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
-</P>
-
-<P>
-<a href="loadClip.html">loadClip</a>
+<a href="setPartProperty.html">setPartProperty</a>
 </P>
 
 <P>

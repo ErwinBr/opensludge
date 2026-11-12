@@ -11,84 +11,121 @@
 <HR>
 
 <P>
-As of SLUDGE 2.3: A character can consist of separate parts, each represented with individual sprites (and animations). Parts have a hierarchical relationship. The character can have a torso, the torso a head, the head a set of eyes.
-</P>
-
-<H3>Rig</H3>
-
-<P>
-A <b>rig</b> defines the parts of a Composite Character. The easiest way to make one is in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> of the Dev Kit, which saves it as a .rig file; your script loads that with <a href="loadRig.html">loadRig</a>. You can also build a rig in a script: make it with <a href="newRig.html">newRig</a>, and <a href="addPart.html">add parts</a> to it. The parts and their properties are the rest pose of the character: how it stands when no animation moves it.
+A normal SLUDGE character is one sprite at a time. Want it to wave? Draw every frame of the wave. Want it to wave while it walks? Draw every frame of that too... and the same again for talking while it waves, and so on, until you run out of patience or disk space.
 </P>
 
 <P>
-Build the rig completely before you give it to a character. As soon as you call <a href="setCharacterRig.html">setCharacterRig</a> with it, the rig is in use and fixed: you can't add parts to it or change their depth any more, not even for other characters that get the same rig later. To change the look of the parts after that, use <a href="Animation_Clips.html">Animation Clips</a>, or set their properties directly with <a href="setPartProperty.html">setPartProperty</a>.
+Since SLUDGE 2.3, a character can be made of separate parts instead, like a puppet: a torso with a head on it, a pair of eyes in the head, arms that hang from the shoulders. Each part has sprites of its own, and you can move, turn, scale, hide or colour each one on its own. Wave an arm while the legs walk, blink while you talk, and draw each sprite just once.
 </P>
 
-<H3>Parts</H3>
+<H3>The rig:</H3>
 
 <P>
-A part's origin is the hotspot of its sprite, as you set it in the Sprite Bank Editor, or a point of the sprite of its own, its pivot (see <a href="setPartPivot.html">setPartPivot</a>). Its x and y say where that origin sits, measured from its parent's origin: +X is right, +Y is down. A part turns (clockwise, in degrees) and scales about its origin. Whatever you do to a part, you also do to the parts attached to it: turn the torso and the head and arms turn with it, and then each can turn further on its own.
-</P>
-
-<P>
-A composite character works like any other character. The mouse is over it when it points at a visible pixel of any of its parts. <a href="pasteCharacter.html">pasteCharacter</a> pastes all its parts together, as one character. The z-buffer, the light map, transparency and other effects apply to the character as a whole, and so on.
+A <b>rig</b> is the list of parts that a character is made of, and how they hang together. The easiest way to make one is in the <a href="About_the_SLUDGE_Character_Creator.html">Character Creator</a> of the Dev Kit, where you can see what you're doing. It saves the rig as a .rig file, and your script loads it with <a href="loadRig.html">loadRig</a>. You can also build a rig in a script, with <a href="newRig.html">newRig</a> and <a href="addPart.html">addPart</a>. Either way, how the parts stand in the rig is the character's rest pose: how it stands when nothing moves it.
 </P>
 
 <P>
-Each part can also have a colour of its own, which the game multiplies its sprite by, over the character's light, colourise and transparency: <b>Modulate</b>, which the parts attached to it get too, multiplied by their own, and <b>Self Modulate</b>, for the part only. Each has a red, green, blue and alpha (opacity), from 0 to 200%; 100% leaves the sprite as it is. Rigs and clips can set them, and scripts with <a href="clipKey.html">clipKey</a> and <a href="setPartProperty.html">setPartProperty</a>.
+Give the rig to a character with <a href="setCharacterRig.html">setCharacterRig</a>. Build the whole rig first, because from that moment the rig is in use and can't change: you can't add parts any more, or change their pivots or depths, not even for other characters that get the same rig later. To move the parts after that, use <a href="Animation_Clips.html">Animation Clips</a>, or set their properties straight from your script with <a href="setPartProperty.html">setPartProperty</a>.
+</P>
+
+<H3>Parts:</H3>
+
+<P>
+Each part hangs from another part, its parent, or from the character itself. A part's origin is the hotspot of its sprite, which you set in the <a href="About_the_SLUDGE_Sprite_Bank_Editor.html">Sprite Bank Editor</a>, or a point of its own: its pivot (see <a href="setPartPivot.html">setPartPivot</a>). Its x and y say where that origin is, measured from its parent's origin: +X is right, +Y is down. A part turns (clockwise, in degrees) and scales around its origin.
 </P>
 
 <P>
-With RECTANGULAR (see <a href="setCharacterExtra.html">setCharacterExtra</a>), SLUDGE puts an invisible box around all the parts together, and the mouse is over the character anywhere inside that box.
+Whatever you do to a part, you do to the parts hanging from it too. Turn the torso, and the head and arms turn with it, and then each of them can turn a bit further on its own. Which part is drawn in front of which is up to their depths (see <a href="setPartDepth.html">setPartDepth</a>), so the far arm can go behind the body.
 </P>
 
-<pre>sub heroRig () {
-	var r = newRig ();						# Create a new rig and add parts to it (rest pose).
-	addPart (r, "legs", "", 0, 0, 'hero_legs.duc', 0);		# Add legs. The "" means its parent is the character itself.
-	addPart (r, "torso", "", 0, -250, 'hero_torso.duc', 0);
-	addPart (r, "head", "torso", 3, -213, 'hero_head.duc', 0); 	# The head is parented to the torso.
-	addPart (r, "eyes", "head", 0, 0, 'hero_head.duc', 6);
-	addPart (r, "arm", "torso", -60, -150, 'hero_arm.duc', 0);
-	setPartDepth (r, "arm", -1);					# -1 draws the arm behind the torso, which has depth 0
-	return r;
+<P>
+Each part can have a colour of its own too, which its sprite is multiplied by, on top of the character's light, colourise and transparency. <b>Modulate</b> colours the part and the parts hanging from it, and <b>Self Modulate</b> colours the part only. Each has a red, green, blue and alpha (opacity) from 0 to 200%, where 100% leaves the sprite as it is. Rigs and clips can set them, and so can your script, with <a href="clipKey.html">clipKey</a> and <a href="setPartProperty.html">setPartProperty</a>.
+</P>
+
+<H3>It's still one character:</H3>
+
+<P>
+Apart from all that, a composite character works just like any other character. The mouse is over it when it points at a visible pixel of any of its parts. With RECTANGULAR (see <a href="setCharacterExtra.html">setCharacterExtra</a>), SLUDGE puts an invisible box around all the parts together instead, and the mouse is over the character anywhere inside it. <a href="pasteCharacter.html">pasteCharacter</a> pastes all the parts together, and the z-buffer, the light map, transparency and the other effects apply to the character as a whole.
+</P>
+
+<H3>An example:</H3>
+
+<P>
+This builds a rig in a script, and gives the character a costume of clips that set the sprites of its parts:
+</P>
+
+<P>
+<pre>objectType hero (&quot;Hero&quot;) {
 }
 
-sub heroCostume () {							# A standard costume. The stand function below further illustrates how to use parts and clips.
-	return costume (
-		stand (SOUTH), stand (WEST), stand (NORTH), stand (EAST),
-		walk (SOUTH), mirrorClip (walk (EAST)), walk (NORTH), walk (EAST),
-		talk (SOUTH), talk (WEST), talk (NORTH), talk (EAST));
+sub heroRig () {
+   var r = newRig ();
+   addPart (r, &quot;legs&quot;, &quot;&quot;, 0, 0, 'hero/legs.duc', 0);      # &quot;&quot; is the character itself
+   addPart (r, &quot;torso&quot;, &quot;&quot;, 0, -250, 'hero/torso.duc', 0);
+   addPart (r, &quot;head&quot;, &quot;torso&quot;, 3, -213, 'hero/head.duc', 0); # The head hangs from the torso
+   addPart (r, &quot;eyes&quot;, &quot;head&quot;, 0, 0, 'hero/head.duc', 6);
+   addPart (r, &quot;arm&quot;, &quot;torso&quot;, -60, -150, 'hero/arm.duc', 0);
+   setPartDepth (r, &quot;arm&quot;, -1);                              # Behind the torso, which is at 0
+   return r;
 }
 
-sub stand (dir) {							# An example of a standing animation, used in the costume above.
-	var c = newClip (0);
-	if (dir == SOUTH) {
-		clipSprite (c, "legs", 0, 'legs_south.duc', 0);
-		clipSprite (c, "torso", 0, 'torso_south.duc', 0);
-		clipSprite (c, "head", 0, 'head_south.duc', 0);
-		clipSprite (c, "eyes", 0, 'head_south.duc', 6);		# The eyes are on frame 6 in the spritebank
-		clipSprite (c, "arm", 0, 'arm_south.duc', 0);
-		clipKey (c, "head", PART_X, 0, 3);			# Position the head
-		clipKey (c, "head", PART_Y, 0, -213);
-		clipKey (c, "head", PART_DEPTH, 0, 2);			# Draw the head on top of its parent (the torso)
-	} else if (dir == NORTH) {
-		...
-	return c;
+sub stand (bank) {
+   # A clip of length 0 is one pose: just the thing for standing still
+   var c = newClip (0);
+   clipSprite (c, &quot;legs&quot;, 0, bank, 0);
+   clipSprite (c, &quot;torso&quot;, 0, bank, 1);
+   clipSprite (c, &quot;head&quot;, 0, bank, 2);
+   clipSprite (c, &quot;eyes&quot;, 0, bank, 3);
+   clipSprite (c, &quot;arm&quot;, 0, bank, 4);
+   return c;
 }
 
-addCharacter (hero, 320, 400, heroCostume ());			# Create a character and set its costume.
-setCharacterRig (hero, heroRig ());				# Assign the rig created on top of this example to the character.
-</pre>
+sub heroCostume () {
+   var walkEast = loadClip ('hero/walk_east.clp');
+   return costume (
+      stand ('hero/south.duc'), stand ('hero/west.duc'), stand ('hero/north.duc'), stand ('hero/east.duc'),
+      loadClip ('hero/walk_south.clp'), mirrorClip (walkEast), loadClip ('hero/walk_north.clp'), walkEast,
+      loadClip ('hero/talk_south.clp'), loadClip ('hero/talk_west.clp'), loadClip ('hero/talk_north.clp'), loadClip ('hero/talk_east.clp'));
+}
 
-<P>
-The same with a rig made in the Character Creator, and clips made in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>:
+sub init () {
+   addCharacter (hero, 320, 400, heroCostume ());
+   setCharacterRig (hero, heroRig ());
+}</pre>
 </P>
 
-<pre>addCharacter (hero, 320, 400, costume (loadClip ('hero/stand.clp'), loadClip ('hero/walk.clp'), loadClip ('hero/talk.clp')));
-setCharacterRig (hero, loadRig ('hero/hero.rig'));
-</pre>
+<P>
+With a rig made in the Character Creator, and clips made in the <a href="About_the_SLUDGE_Animation_Editor.html">Animation Editor</a>, it's a lot shorter:
+</P>
+
+<P>
+<pre>sub init () {
+   addCharacter (hero, 320, 400, costume (loadClip ('hero/stand.clp'), loadClip ('hero/walk.clp'), loadClip ('hero/talk.clp')));
+   setCharacterRig (hero, loadRig ('hero/hero.rig'));
+}</pre>
+</P>
 
 <H3>See also:</H3>
+
+<P>
+<a href="Animation_Clips.html">Animation Clips</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Animation_Editor.html">The Animation Editor</a>
+</P>
+
+<P>
+<a href="loadRig.html">loadRig</a>
+</P>
+
+<P>
+<a href="loadClip.html">loadClip</a>
+</P>
 
 <P>
 <a href="newRig.html">newRig</a>
@@ -96,6 +133,10 @@ setCharacterRig (hero, loadRig ('hero/hero.rig'));
 
 <P>
 <a href="addPart.html">addPart</a>
+</P>
+
+<P>
+<a href="setPartPivot.html">setPartPivot</a>
 </P>
 
 <P>
@@ -111,10 +152,6 @@ setCharacterRig (hero, loadRig ('hero/hero.rig'));
 </P>
 
 <P>
-<a href="Animation_Clips.html">Animation Clips</a>
-</P>
-
-<P>
 <a href="clipSprite.html">clipSprite</a>
 </P>
 
@@ -123,19 +160,23 @@ setCharacterRig (hero, loadRig ('hero/hero.rig'));
 </P>
 
 <P>
+<a href="stopClip.html">stopClip</a>
+</P>
+
+<P>
+<a href="mirrorClip.html">mirrorClip</a>
+</P>
+
+<P>
 <a href="setPartProperty.html">setPartProperty</a>
 </P>
 
 <P>
-<a href="About_the_SLUDGE_Character_Creator.html">The Character Creator</a>
+<a href="clearPartProperty.html">clearPartProperty</a>
 </P>
 
 <P>
-<a href="loadRig.html">loadRig</a>
-</P>
-
-<P>
-<a href="setPartPivot.html">setPartPivot</a>
+<a href="setCharacterExtra.html">setCharacterExtra</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
