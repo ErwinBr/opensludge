@@ -158,6 +158,13 @@
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Animation_Editor.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="Script Editor">
+		<param name="Name" value="Code editor">
+		<param name="Name" value=".SLU file extension">
+		<param name="Name" value=".SLD file extension">
+		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Script_Editor.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setPartProperty">
 		<param name="Name" value="setPartProperty (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setPartProperty.html">

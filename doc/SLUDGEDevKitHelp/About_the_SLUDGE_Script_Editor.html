@@ -10,135 +10,150 @@
 <h2>The Script Editor</h2>
 <HR>
 
-<H3>What is the script editor?</H3>
+<H3>What the script editor is for:</H3>
 
 <P>
-The scripts of a game (.slu files) and its files of constants (.sld files) open in the script editor of the Dev Kit:
-double-click one in the project, open it with File &gt; Open, or make a new one with File &gt; New &gt; Script. It
-shows SLUDGE in colours, in the JetBrains Mono typeface on every system, knows the built-in functions and the names of
-your project, and sees many mistakes while you type, before you compile. This is how it looks:
+You can write SLUDGE code in any text editor you like... but the Dev Kit has one of its own, and it knows a lot more about SLUDGE than Notepad does. It shows your code in colours, finishes the names of functions for you, tells you what a function does without you having to dig through this help, and spots many mistakes while you type, long before the compiler gets a chance to complain about them.
+</P>
+
+<P>
+To open a script (a .slu file) or a file of constants (a .sld file), double-click it in the list of your project's files, or choose <b>Open...</b> from the <b>File</b> menu. To start a new one, choose <b>New</b> from the <b>File</b> menu, and then <b>Script</b>. This is how it looks, with one of the scripts of the verb coin example:
 </P>
 
 <P>
 <IMG SRC="images/devkit-script.png" alt="A script of the verb coin example, with the names that fit what is being typed">
 </P>
 
-<H3>Typing</H3>
+<H3>Typing:</H3>
 
 <P>
-Enter keeps the indent of the line, and adds one after a {. A } at the start of a line goes back to the indent of its
-{. Brackets and quotes close themselves: type ( and you get (), with the cursor between them; type the ) and the
-cursor moves over it. With text selected, a bracket or a quote goes around it. Tab indents the selected lines and
-Shift+Tab takes an indent away. The editor indents with tabs, or with spaces when most lines of the file do.
+The editor keeps your code tidy as you go. When you press Enter, the new line has the same indent as the one before it, plus one more after a {. Type a } at the start of a line and it jumps back to line up with its {.
 </P>
 
 <P>
-Undo (Ctrl+Z, Command+Z on macOS) takes back a word at a time. A file that you don't change saves as it was, byte
-for byte, with its line ends (Windows or Unix ones, or a mix of both). Scripts must be UTF-8 text; when the Dev Kit
-finds one that isn't, it says on which line, and Project &gt; Check Files converts it.
+Brackets and quotes close themselves: type ( and you get () with the cursor in the middle. When you get to the end and type the ) yourself, the cursor just moves over the one that's already there, so you don't end up with two. If you select some text first, typing a bracket or a quote puts it around the selection instead.
 </P>
 
 <P>
-When a script changes on disk, as when another program saves it, the editor reads it again, or asks first when you
-have changes of your own. Compiling saves the scripts with changes first.
-</P>
-
-<H3>The names that fit</H3>
-
-<P>
-Type two letters of a name, or a dot after the name of an objectType, and a list shows the names that fit there,
-with what each one is beside it. Ctrl+Space shows them at any time (Ctrl on macOS too). The list has the local
-variables and the parameters of the sub first, then the members of its objectType, then the subs, objectTypes,
-variables, flags and constants of the project, and the built-in functions and constants of SLUDGE. A name matches
-the letters at the start of its parts too: <b>aC</b> finds <b>addCharacter</b>. Up and Down choose, Tab or Enter put
-the name in, and Escape closes the list.
+Tab indents the selected lines, and Shift+Tab takes an indent away. The editor indents with tabs, unless most of the lines of the file already use spaces, in which case it uses spaces too. (We're not going to get into which is better. Life's too short.)
 </P>
 
 <P>
-Where you can only make a new sub, objectType or variable, as outside the subs, the list has just the words for
-them; in an objectType, it has its elements, such as speechColour and walkSpeed.
+Undo (Ctrl+Z, or Command+Z on macOS) takes back a word at a time, rather than a letter at a time.
+</P>
+
+<H3>Your files stay as they were:</H3>
+
+<P>
+If you open a file and don't change it, saving it writes back exactly what was there, byte for byte, including its line ends - whether they're Windows ones, Unix ones, or a strange mix of the two. So opening your scripts in the Dev Kit won't make your version control think that every line has changed.
 </P>
 
 <P>
-Inside the brackets of a call, a line above it shows the parameters of the function, with the one that the cursor
-is at in yellow, and what the function does. Escape hides it.
-</P>
-
-<H3>What a name is</H3>
-
-<P>
-Rest the mouse on a name and the editor says what it is: for a built-in function, its syntax, what it does and
-what it returns, from this help; for a name of the project, where it is made, and the # comment lines just above it.
-So a comment above a sub explains it wherever it is used.
+Scripts have to be UTF-8 text. If the Dev Kit finds one that isn't, it tells you on which line the problem is, and <b>Check Files...</b> in the <b>Project</b> menu can convert it for you.
 </P>
 
 <P>
-F12, or Ctrl+click (Command+click on macOS), goes to where a name is made, also in another script; on a built-in
-function or constant, it opens its page of this help. While you hold Ctrl (Command on macOS), the names that a click
-goes somewhere from are underlined under the mouse, as links are, and the pointer is a hand. F1 opens the page of
-this help of the built-in function at the cursor.
+If a script changes on disk while it's open, because you've saved it in another program, the editor loads it again. If you've changed it in the Dev Kit as well, it asks you first, so that nothing gets lost. When you compile, the Dev Kit saves any scripts that you've changed before it starts.
+</P>
+
+<H3>Letting the editor finish names for you:</H3>
+
+<P>
+Type the first two letters of a name, or a dot after the name of an objectType, and a list pops up with the names that fit there, and what each of them is. Press Ctrl+Space (Ctrl on macOS too) to see the list at any time.
 </P>
 
 <P>
-The Inspector shows the outline of the script: its subs, and its objectTypes with their members and events. Click
-one to go there.
-</P>
-
-<H3>Mistakes</H3>
-
-<P>
-While you type, the editor checks the script, and marks what is wrong with a wavy line and a dot beside the line
-number: red for an error, which the compiler would refuse, and yellow for a warning, such as a call with another
-number of arguments than the function takes, which the game would stop at. Rest the mouse on the line, or look in
-the Problems of the Inspector, for what is wrong. F8 goes to the next problem, and Shift+F8 to the one before.
+The names nearest to you come first: the local variables and parameters of the sub you're in, then the members of its objectType, then the subs, objectTypes, variables, flags and constants of your project, and then the built-in functions and constants of SLUDGE. You don't even have to type a name from the start: the letters can match the starts of its parts, so <b>aC</b> finds <b>addCharacter</b>. Use Up and Down to pick one, Tab or Enter to put it in, and Escape to close the list.
 </P>
 
 <P>
-It sees strings with no end, brackets that don't match, a ; missing at the end of a line, so that the compiler would
-take two lines for one, names that are nothing (the compiler says &quot;Not a
-function, variable or object type!&quot;, without a line), members that an objectType doesn't have, names made
-twice, the names of built-in functions used for subs, and events of objectTypes that aren't there. It checks the
-names only in a script of the open project, once it can read all of the project's scripts.
+The list knows where you are, too. Outside the subs, where all you can do is make a new sub, objectType or variable, it only offers the words for those. Inside an objectType, it offers the things you can set there, such as speechColour and walkSpeed.
 </P>
 
 <P>
-After a compile, the lines of its errors and warnings have a mark too, with what the compiler said, until you change
-them. A double-click on an error in the Build panel opens its script at its line.
+Once you're inside the brackets of a call, a line above it shows the parameters of the function, with the one you're typing in yellow, and what the function does. Press Escape to hide it.
 </P>
 
-<H3>Finding text</H3>
+<H3>Finding out what a name is:</H3>
 
 <P>
-Ctrl+F (Command+F on macOS) finds text in the script, with Match case and Whole words; Enter goes to the next place,
-Shift+Enter to the one before, and F3 (Command+G on macOS) finds again. Ctrl+H (Command+Alt+F on macOS) replaces
-too, one at a time or all of them at once, which undoes as one change. Ctrl+G (Command+L on macOS) goes to a line.
+Rest the mouse on a name and the editor tells you what it is. For a built-in function, it shows the syntax, what the function does and what it returns, taken from this help. For a name from your project, it says where the name is made, together with any # comment lines just above it. That's a good reason to put a comment above each sub: it then pops up wherever the sub is used.
 </P>
 
 <P>
-Ctrl+Shift+F (Command+Shift+F on macOS), or Project &gt; Find in Project, finds text in every script of the
-project, as the open ones are now. Click a place in the list to open its script there.
+To jump to where a name is made, even in another script, press F12 or Ctrl+click it (Command+click on macOS). Do that on a built-in function or constant, and you get its page of this help instead. While you're holding Ctrl (or Command), the names that you can jump from are underlined when the mouse is over them, and the pointer turns into a hand, just like a link on a web page. F1 opens the help page of the built-in function at the cursor.
 </P>
 
-<H3>Keys</H3>
+<P>
+The Inspector, on the right, shows the outline of the script: its subs, and its objectTypes with their members and events. Click one to go straight to it.
+</P>
+
+<H3>Mistakes:</H3>
+
+<P>
+While you type, the editor checks the script, and puts a wavy line under anything wrong, with a dot beside the line number. A red one is an error, which the compiler would refuse. A yellow one is a warning: something the compiler would let through, but which probably isn't what you meant, such as calling a function with the wrong number of things in the brackets (which would stop your game when it got there). Rest the mouse on the line to see what's wrong, or look under Problems in the Inspector. F8 goes to the next problem, and Shift+F8 to the one before.
+</P>
+
+<P>
+These are the mistakes it spots:
+</P>
 
 <UL>
-<li>Ctrl+/ (Command+/ on macOS) makes the selected lines comments, or makes them code again.</li>
-<li>Alt+Up and Alt+Down move the selected lines; Alt+Shift+Up and Alt+Shift+Down copy them.</li>
-<li>Ctrl+Shift+K (Command+Shift+K on macOS) deletes them.</li>
-<li>Alt+Left and Alt+Right on macOS, Ctrl+Left and Ctrl+Right elsewhere, move a word at a time.</li>
-<li>Home goes to the first character of the line that isn't a space, and then to its start.</li>
-<li>Double-click selects a word, a triple click a line, and a click on the line numbers a line too.</li>
-<li>Ctrl and + or - (Command on macOS), or Edit &gt; Increase Text Size and Decrease Text Size, make the text bigger
-or smaller, a point at a time, and Ctrl+0 (Edit &gt; Default Text Size) gives it the size of the rest of the Dev Kit
-again. The status bar shows the size when it isn't that one. Each project has its own
-size, which the Dev Kit remembers on your computer; the project's file stays as it was.</li>
+<LI>strings that have no end, and brackets that don't match;</LI>
+<LI>a missing ; at the end of a line. The compiler doesn't see the end of the line, so it would read the two lines as one, and get very confused;</LI>
+<LI>names that aren't anything. The compiler would say &quot;Not a function, variable or object type!&quot; without telling you on which line, so this one can save you a lot of searching;</LI>
+<LI>members that an objectType doesn't have;</LI>
+<LI>names that are made twice, and subs that have the name of a built-in function;</LI>
+<LI>events of objectTypes that don't exist.</LI>
+</UL>
+
+<P>
+To know which names exist, the editor needs all of your project's scripts. So it only checks names in a script of the project that is open, once it has been able to read all of them.
+</P>
+
+<P>
+When you compile, the lines that the compiler had errors or warnings about get a mark too, with what the compiler said, until you change them. Double-click an error in the Build panel to open its script at that line.
+</P>
+
+<H3>Finding and replacing:</H3>
+
+<P>
+Ctrl+F (Command+F on macOS) finds text in the script, with Match case and Whole words if you want them. Enter goes to the next place it's found, Shift+Enter to the one before, and F3 (Command+G on macOS) finds again. Ctrl+H (Command+Alt+F on macOS) replaces too, one at a time, or all of them at once with <b>Replace All</b>, which you can undo in one go. Ctrl+G (Command+L on macOS) goes to a line by its number.
+</P>
+
+<P>
+To look through every script of your project at once, choose <b>Find in Project...</b> from the <b>Project</b> menu, or press Ctrl+Shift+F (Command+Shift+F on macOS). It searches the scripts that are open as they are now, changes and all. Click a place in the list to open its script there.
+</P>
+
+<H3>Handy keys:</H3>
+
+<UL>
+<LI>Ctrl+/ (Command+/ on macOS) turns the selected lines into comments, or back into code.</LI>
+<LI>Alt+Up and Alt+Down move the selected lines up or down. Alt+Shift+Up and Alt+Shift+Down copy them.</LI>
+<LI>Ctrl+Shift+K (Command+Shift+K on macOS) deletes the selected lines.</LI>
+<LI>Ctrl+Left and Ctrl+Right (Alt+Left and Alt+Right on macOS) move a word at a time.</LI>
+<LI>Home goes to the first character of the line that isn't a space. Press it again to go to the very start.</LI>
+<LI>Double-click to select a word, triple-click to select a line, or click a line number.</LI>
+<LI>Ctrl and + or - (Command on macOS) make the text bigger or smaller, a point at a time. Ctrl+0 (Command+0) sets it back to the size of the rest of the Dev Kit. You'll find these in the <b>Edit</b> menu too, as <b>Increase Text Size</b>, <b>Decrease Text Size</b> and <b>Default Text Size</b>. The status bar shows the size whenever it isn't the usual one. Each project remembers its own size, on your computer rather than in the project's file, so whoever you share the project with can pick their own.</LI>
 </UL>
 
 <H3>See also:</H3>
 
-<P><a href="SLUDGE_Language_Reference_Manual.html">The SLUDGE language</a></P>
-<P><a href="Alphabetical_List_of_Built-in_Functions.html">The built-in functions</a></P>
-<P><a href="About_the_SLUDGE_Project_Manager.html">Projects</a></P>
+<P>
+<a href="SLUDGE_Language_Reference_Manual.html">SLUDGE Language Reference Manual</a>
+</P>
+
+<P>
+<a href="Alphabetical_List_of_Built-in_Functions.html">Alphabetical List of Built-in Functions</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Project_Manager.html">The Project Manager</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Compiler.html">About the SLUDGE Compiler</a>
+</P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
 </P>

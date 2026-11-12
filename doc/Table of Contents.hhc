@@ -869,6 +869,10 @@
 					</OBJECT>
 			</UL>
 			<LI> <OBJECT type="text/sitemap">
+				<param name="Name" value="The Script Editor">
+				<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Script_Editor.html">
+				</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
 				<param name="Name" value="About the SLUDGE Sprite Bank Editor">
 				<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Sprite_Bank_Editor.html">
 				</OBJECT>
