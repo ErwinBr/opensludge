@@ -10,6 +10,7 @@
 #include "objtypes.h"
 #include "region.h"
 #include "people.h"
+#include "scalemap.h"
 #include "talk.h"
 #include "newfatal.h"
 #include "variable.h"
@@ -250,7 +251,13 @@ void setScale (short int h, short int d) {
 void moveAndScale (onScreenPerson & me, float x, float y) {
 	me.x = x;
 	me.y = y;
-	if (! (me.extra & EXTRA_NOSCALE) && scaleDivide) me.scale = (me.y - scaleHorizon) / scaleDivide;
+	if (me.extra & EXTRA_NOSCALE) return;
+	if (scaleMapActive ()) me.scale = scaleMapAt (me.x, me.y);
+	else if (scaleDivide) me.scale = (me.y - scaleHorizon) / scaleDivide;
+}
+
+void rescaleAllPeople () {
+	for (onScreenPerson * p = allPeople; p; p = p -> next) moveAndScale (* p, p -> x, p -> y);
 }
 
 onScreenPerson * findPerson (int v) {

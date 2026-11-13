@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setScaleMap</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setScaleMap</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setScaleMap (<i>imageFile, smallest, largest</i>);
+setScaleMap (NULL);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets a scale map, loading it from the <i>imageFile</i> file: a greyscale picture of the scene which tells the engine how big a character is wherever it stands. Black means <i>smallest</i> per cent, white means <i>largest</i> per cent, and the greys come somewhere in between.
+</P>
+
+<P>
+<a href="setScale.html">setScale</a> works out a character's size from how far down the screen its feet are, which is just right for a floor that goes off into the distance. It's no good for a platform, a staircase or a hill, though: a character standing on a high platform near the camera has its feet high up the screen, but should still be big. With a scale map, you paint the size instead. Load the background into your paint program, put a new layer over it, and paint the floor in greys: darker where characters should be small, lighter where they should be big. A smooth gradient gives a smooth change in size as a character walks along, and a hard edge gives a jump. Then save the layer on its own as a PNG.
+</P>
+
+<P>
+The engine looks at the pixel under the character's hotspot (the point at its feet), so it's only the parts of the map that characters can stand on that matter. The rest can be any colour you like. If you paint in colour by mistake, the engine takes the average of the red, green and blue values.
+</P>
+
+<P>
+The map doesn't have to be the same size as the scene. To save memory, you can make it half or a quarter of the size, and the engine will stretch it over the whole scene. It blends the pixels where it stretches them, so a small map doesn't make the characters grow and shrink in steps. Scale maps are usually gentle gradients, so a small one rarely looks any different.
+</P>
+
+<P>
+A scale map takes over from setScale straight away, for every character, even ones that are standing still. Characters also walk more slowly where the map makes them smaller, just as they do with setScale. Characters whose extra properties - set using <a href="setCharacterExtra.html">setCharacterExtra</a> - include the FIXEDSIZE option aren't affected by the scale map.
+</P>
+
+<P>
+If <i>imageFile</i> is NULL (or anything other than a file handle), the current scale map is removed, and characters are scaled using the settings from setScale again, straight away. The scale map belongs to the scene, like the light-map and the z-buffer, so <a href="setSceneDimensions.html">setSceneDimensions</a> removes it too. Freezing the scene and saving the game both keep it.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+Returns TRUE if a scale map was loaded, or FALSE if it was removed.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub enterBalcony () {
+   setSceneDimensions (640, 480);
+   addOverlay ('balcony.tga', 0, 0);
+   setFloor ('balcony.flo');
+   # Small at the back (40%), full size on the balcony at the front
+   setScaleMap ('balconyScale.png', 40, 100);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Scaling_Characters.html">Scaling Characters</a>
+</P>
+
+<P>
+<a href="getCharacterScale.html">getCharacterScale</a>
+</P>
+
+<P>
+<a href="setCharacterExtra.html">setCharacterExtra</a>
+</P>
+
+<P>
+<a href="setLightMap.html">setLightMap</a>
+</P>
+
+<P>
+<a href="setScale.html">setScale</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

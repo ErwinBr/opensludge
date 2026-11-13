@@ -152,7 +152,7 @@ if(SLUDGE_ENGINE)
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
-		region.cpp regionwatch.cpp savedata.cpp sludger.cpp sprbanks.cpp
+		region.cpp regionwatch.cpp savedata.cpp scalemap.cpp sludger.cpp sprbanks.cpp
 		animation.cpp composite.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp
 		zbuffer.cpp sound_sdl.cpp

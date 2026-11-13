@@ -198,7 +198,7 @@ private:
 					room.sceneHeight = h.value;
 				}
 				setup = true;
-			} else if (word == "setZBuffer" || word == "setScale") {
+			} else if (word == "setZBuffer" || word == "setScale" || word == "setScaleMap") {
 				setup = true;
 			}
 			// A new region goes after the regions, else after the setting up.

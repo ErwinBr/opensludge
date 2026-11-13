@@ -1,3 +1,4 @@
+#include <vector>
 #include "variable.h"
 #include "graphics.h"
 
@@ -50,6 +51,10 @@ void drawHorizontalLine (unsigned int, unsigned int, unsigned int);
 void drawVerticalLine (unsigned int, unsigned int, unsigned int);
 void hardScroll (int distance);
 bool getRGBIntoStack (unsigned int x, unsigned int y, stackHandler * sH);
+
+// Read the image (PNG or HSI) of a file of the game into rgba, w * h pixels
+// of 4 bytes, without padding. What is for the error message.
+bool loadImageFile (int fileNum, const char * what, int & w, int & h, std::vector<GLubyte> & rgba);
 
 // Also the light map stuff
 

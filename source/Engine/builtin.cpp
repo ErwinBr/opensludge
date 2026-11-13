@@ -26,6 +26,7 @@
 #include "animformat.h"
 #include "fileset.h"
 #include "people.h"
+#include "scalemap.h"
 #include "sound.h"
 #include "objtypes.h"
 #include "floor.h"
@@ -1628,6 +1629,45 @@ builtIn(setScale)
 	if (! getValueType (val1, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 	setScale ((short int) val1, (short int) val2);
+	return BR_CONTINUE;
+}
+
+builtIn(setScaleMap)
+{
+	UNUSEDALL
+	switch (numParams) {
+		case 3: {
+			int minP, maxP, v;
+			if (! getValueType (maxP, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+			trimStack (fun -> stack);
+			if (! getValueType (minP, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+			trimStack (fun -> stack);
+			if (! getValueType (v, SVT_FILE, fun -> stack -> thisVar)) return BR_ERROR;
+			trimStack (fun -> stack);
+			if (minP < 0 || maxP < 0) {
+				fatal ("The sizes of setScaleMap can't be negative.");
+				return BR_ERROR;
+			}
+			if (! loadScaleMap (v, minP, maxP)) return BR_ERROR;
+			setVariable (fun -> reg, SVT_INT, 1);
+			break;
+		}
+
+		case 1:
+			if (fun -> stack -> thisVar.varType == SVT_FILE) {
+				fatal ("setScaleMap needs the smallest and largest size with the file.");
+				return BR_ERROR;
+			}
+			trimStack (fun -> stack);
+			killScaleMap ();
+			setVariable (fun -> reg, SVT_INT, 0);
+			break;
+
+		default:
+			fatal ("Function should have either 1 or 3 parameters");
+			return BR_ERROR;
+	}
+	rescaleAllPeople ();
 	return BR_CONTINUE;
 }
 

@@ -121,6 +121,8 @@ void removeOneCharacter (int i);
 
 onScreenPerson * findPerson (int v);
 void setScale (short int h, short int d);
+// Scale every character again where it stands (after setScaleMap).
+void rescaleAllPeople ();
 
 // Things which affect one character
 

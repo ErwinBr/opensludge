@@ -156,6 +156,9 @@ bool freeze () {
 	newFreezer -> parallaxStuff = parallaxStuff;
 	parallaxStuff = NULL;
 
+	newFreezer -> scaleMap = std::move (scaleMap);
+	killScaleMap ();
+
 	newFreezer -> zBufferImage = zBuffer.tex;
 	newFreezer -> zBufferNumber = zBuffer.originalNum;
 	newFreezer -> zPanels = zBuffer.numPanels;
@@ -267,6 +270,8 @@ void unfreeze (bool killImage) {
 	if (lightMapNumber) {
 		loadLightMap(lightMapNumber);
 	}
+
+	scaleMap = std::move (frozenStuff -> scaleMap);
 
 	killZBuffer ();
 	zBuffer.tex = frozenStuff -> zBufferImage;

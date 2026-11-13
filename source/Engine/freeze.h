@@ -1,3 +1,5 @@
+#include "scalemap.h"
+
 struct frozenStuffStruct {
 	onScreenPerson * allPeople;
 	screenRegion * allScreenRegions;
@@ -11,6 +13,7 @@ struct frozenStuffStruct {
 	int zPanels;
 	parallaxLayer * parallaxStuff;
 	int lightMapNumber, zBufferNumber;
+	scaleMapData scaleMap;
 	speechStruct * speech;
 	statusStuff * frozenStatus;
 	eventHandlers * currentEvents;

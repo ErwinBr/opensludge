@@ -18,6 +18,7 @@
 #include "regionwatch.h"
 #include "floor.h"
 #include "zbuffer.h"
+#include "scalemap.h"
 #include "cursors.h"
 #include "statusba.h"
 #include "sound.h"
@@ -488,6 +489,13 @@ bool saveGame (char * fname) {
 		put2bytes (lightMapNumber, fp);
 	} else fputc (0, fp);
 
+	if (scaleMapActive ()) {
+		fputc (1, fp);
+		put2bytes (scaleMap.fileNum, fp);
+		putSigned (scaleMap.minPercent, fp);
+		putSigned (scaleMap.maxPercent, fp);
+	} else fputc (0, fp);
+
 	fputc (lightMapMode, fp);
 	fputc (speechMode, fp);
 	fputc (fadeMode, fp);
@@ -669,6 +677,14 @@ bool loadGame (char * fname) {
 	if (getFlag (fp)) {
 		int lightMapFile = get2bytes (fp);
 		if (feof (fp) || ! loadLightMap (lightMapFile)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
+	}
+
+	killScaleMap ();
+	if (ssgVersion >= VERSION (2, 7) && getFlag (fp)) {
+		int scaleMapFile = get2bytes (fp);
+		int minPercent = getSigned (fp);
+		int maxPercent = getSigned (fp);
+		if (feof (fp) || minPercent < 0 || maxPercent < 0 || ! loadScaleMap (scaleMapFile, minPercent, maxPercent)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
 	}
 
 	if (ssgVersion >= VERSION(1,4)) {

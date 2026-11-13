@@ -600,6 +600,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setScale.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setScaleMap">
+					<param name="Local" value="SLUDGEDevKitHelp\setScaleMap.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setSceneDimensions">
 					<param name="Local" value="SLUDGEDevKitHelp\setSceneDimensions.html">
 					</OBJECT>

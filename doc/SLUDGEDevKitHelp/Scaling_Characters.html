@@ -73,10 +73,20 @@ More specifically, the second parameter of setScale <b>defines which part of the
 For the character's elbows to stay at the same level (figure 5) the parameter should be the distance in pixels between the character's elbows and the character's hotspot... and so on for other body parts. In the case of values greater than a character's height (figure 4) imagine a tall hat on the top of the characters head and you can see that the same rule still applies.
 </P>
 
+<H3>Platforms, Stairs And Hills</H3>
+
+<P>
+All of the above assumes that the floor is flat, so that the further up the screen a character's feet are, the further away it is. Put a platform near the camera, or a staircase, or a hill, and that's no longer true. For scenes like that, paint a scale map instead, and load it with <a href="setScaleMap.html">setScaleMap</a>: a greyscale picture of the scene, black where characters are smallest and white where they're largest.
+</P>
+
 <H3>See also:</H3>
 
 <P>
 <a href="setScale.html">setScale</a>
+</P>
+
+<P>
+<a href="setScaleMap.html">setScaleMap</a>
 </P>
 
 <P>

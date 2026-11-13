@@ -163,9 +163,10 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
 			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu
+			ScaleMapTest.slp scalemap.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
-			big.png hole.png light.png sky.png movie.webm)
+			big.png hole.png light.png scalemap.png sky.png movie.webm)
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests/render/${file} ${render_project}/${file} COPYONLY)
 	endforeach()
 	sludge_compile_game(RenderTest ${render_project}/RenderTest.slp)
@@ -274,6 +275,21 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/depth.input"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 	set_tests_properties(capture-depth-saveload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# The scale map: the game checks the scale of characters on it, fresh,
+	# frozen, after saving and after loading. Older engines don't have
+	# setScaleMap, so no reference.
+	sludge_compile_game(ScaleMapTest ${render_project}/ScaleMapTest.slp)
+	sludge_add_capture_test(scalemap GAME ${CMAKE_BINARY_DIR}/games/ScaleMapTest.slg
+		FRAMES 0-150/5 NO_REFERENCE)
+	add_test(NAME capture-scalemap-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/ScaleMapTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/scalemap-saveload
+			"-DENGINE_ARGS=--renderer=gl"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-scalemap-saveload PROPERTIES LABELS capture TIMEOUT 300)
 
 	# A clip that a character uses can't change.
 	sludge_compile_game(SealTest ${render_project}/SealTest.slp)

@@ -55,6 +55,16 @@ def light(x, y):
     return (t, t, 255, 255)
 
 
+def scalemap(x, y):
+    # A scale map at half the size of the scene: from black on the left to
+    # white on the right, with a white platform, which y doesn't explain.
+    if 200 <= x < 280 and 50 <= y < 100:
+        g = 255
+    else:
+        g = x * 255 // 319
+    return (g, g, g, 255)
+
+
 def big(x, y):
     # A grid with numbered-looking blocks, for scrolling and zooming.
     if x % 64 == 0 or y % 64 == 0:
@@ -68,6 +78,7 @@ def main():
     write_png(folder + "/sky.png", 256, 256, sky)
     write_png(folder + "/light.png", 640, 480, light)
     write_png(folder + "/big.png", 1280, 960, big)
+    write_png(folder + "/scalemap.png", 320, 240, scalemap)
 
 
 if __name__ == "__main__":

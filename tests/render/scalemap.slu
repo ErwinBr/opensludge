@@ -1,0 +1,152 @@
+# ScaleMapTest: the scale map (setScaleMap, see source/Engine/scalemap.h).
+# The game checks the scale of the characters with getCharacterScale, and
+# stops with an error when it is wrong (see cmake/CaptureTests.cmake):
+#
+#  - The map (scalemap.png, made by make-images.py) has half the size of
+#    the scene, and goes from black on the left to white on the right, with
+#    a white platform, at 400-559, 100-199 in the scene. Black is 20%,
+#    white 120%.
+#  - A character takes the map's value at its feet; between the map's
+#    pixels, the value blends; y on its own changes nothing.
+#  - Characters that stand still take the new scale at once, when the map
+#    comes and goes.
+#  - FIXEDSIZE characters keep their size.
+#  - Without the map, setScale works as before.
+#  - A new scene takes the map away; freezing and unfreezing, and saving and
+#    loading, keep it.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("ScaleMapTest: " + what);
+}
+
+# The scale, in %, rounded down, may be one off what we work out here.
+sub checkScale (who, expected, what) {
+	var s = getCharacterScale (who);
+	check (s >= expected - 1 && s <= expected + 1, what + ": scale " + s + ", not " + expected);
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 0),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 6, 4, 5));
+}
+
+# Five frames a step, so that each of the captures (every fifth frame) shows
+# one step.
+sub show (name) {
+	statusText (name);
+	pause (5);
+}
+
+sub setUpScene () {
+	setSceneDimensions (640, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+}
+
+# Walking holds the function that walks, so this runs on its own.
+sub walkAcross () {
+	setCharacterWalkSpeed (duck, 2);
+	forceCharacter (duck, 620, 420);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	setUpScene ();
+	setScale (0, 400);
+
+	# setScale on its own: y / 400.
+	addCharacter (ego, 481, 301, egoCostume ());
+	checkScale (ego, 75, "by setScale");
+	show ("by setScale");
+
+	# The map, at once, for a character that stands still. On the centre of
+	# a pixel of the map, the value is that pixel's.
+	check (setScaleMap ('scalemap.png', 20, 120), "setScaleMap gives TRUE");
+	checkScale (ego, 94, "on the gradient");
+	show ("on the gradient");
+	jumpCharacter (ego, 1, 301);
+	checkScale (ego, 20, "black");
+	jumpCharacter (ego, 61, 301);
+	checkScale (ego, 29, "nearly black");
+	show ("nearly black");
+	jumpCharacter (ego, 639, 301);
+	checkScale (ego, 120, "white");
+	jumpCharacter (ego, 581, 301);
+	checkScale (ego, 110, "nearly white");
+	show ("nearly white");
+	jumpCharacter (ego, 307, 301);
+	checkScale (ego, 67, "grey");
+	jumpCharacter (ego, 307, 51);
+	checkScale (ego, 67, "grey, higher up");
+
+	# The platform: at the same x, a higher y and a larger size.
+	jumpCharacter (ego, 481, 151);
+	checkScale (ego, 120, "on the platform");
+	show ("on the platform");
+	# Between a pixel of the gradient (159) and one of the platform (255).
+	jumpCharacter (ego, 400, 151);
+	checkScale (ego, 101, "at the edge of the platform");
+	# Outside the scene, the map's edge.
+	jumpCharacter (ego, -50, 600);
+	checkScale (ego, 20, "outside the scene");
+
+	# FIXEDSIZE keeps 100%.
+	addCharacter (duck, 1, 301, egoCostume ());
+	setCharacterExtra (duck, FIXEDSIZE);
+	jumpCharacter (duck, 30, 301);
+	checkScale (duck, 100, "FIXEDSIZE");
+	removeCharacter (duck);
+
+	# Without the map, setScale again, at once.
+	jumpCharacter (ego, 481, 301);
+	check (! setScaleMap (0), "setScaleMap (0) gives FALSE");
+	checkScale (ego, 75, "setScale again");
+	show ("setScale again");
+
+	# A new scene takes the map away.
+	setScaleMap ('scalemap.png', 20, 120);
+	checkScale (ego, 94, "the map again");
+	setUpScene ();
+	jumpCharacter (ego, 481, 151);
+	checkScale (ego, 37, "a new scene");
+	show ("a new scene");
+
+	# Frozen, the map goes with the scene; unfrozen, it comes back.
+	setScaleMap ('scalemap.png', 20, 120);
+	freeze ();
+	addCharacter (duck, 481, 151, egoCostume ());
+	checkScale (duck, 37, "frozen");
+	show ("frozen");
+	unfreeze ();
+	checkScale (ego, 120, "unfrozen");
+	jumpCharacter (ego, 1, 301);
+	checkScale (ego, 20, "unfrozen, moved");
+	show ("unfrozen");
+
+	# Save, walk, load, and walk again: the second time round, saved is
+	# FALSE, as it was when the game saved. The duck walks across the
+	# gradient, growing as it goes, the same both times, which saveload.cmake
+	# compares.
+	jumpCharacter (ego, 100, 200);
+	addCharacter (duck, 20, 420, egoCostume ());
+	var saved = saveGame ("scalemap.sav");
+	spawnSub (walkAcross);
+	for (var i = 0; i < 10; i ++) show ("after saving");
+	checkScale (ego, 35, "after saving");
+	# After loading, the map is back.
+	jumpCharacter (ego, 481, 151);
+	checkScale (ego, 120, "after loading");
+	if (saved) {
+		setScaleMap (0);
+		loadGame ("scalemap.sav");
+	}
+	quitGame ();
+}

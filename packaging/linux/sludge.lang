@@ -105,6 +105,7 @@
                     <keyword>cancelSub</keyword>
                     <keyword>captureAllKeys</keyword>
                     <keyword>clearCharacterZ</keyword>
+                    <keyword>setScaleMap</keyword>
                     <keyword>clearStatus</keyword>
                     <keyword>completeTimers</keyword>
                     <keyword>copyStack</keyword>
