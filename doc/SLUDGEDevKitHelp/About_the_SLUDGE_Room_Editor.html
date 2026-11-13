@@ -27,7 +27,7 @@ Open the script in the script editor, and click <b>Room</b> at the top of its ta
 </P>
 
 <P>
-Under the toolbar are two tabs: <b>Overlays</b>, for the pictures of the room, and <b>Regions</b>, for its screen regions. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
+Under the toolbar are three tabs: <b>Overlays</b>, for the pictures of the room, <b>Regions</b>, for its screen regions, and <b>Characters</b>, for the characters it puts in it. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
 </P>
 
 <P>
@@ -35,7 +35,7 @@ Under the toolbar are two tabs: <b>Overlays</b>, for the pictures of the room, a
 </P>
 
 <P>
-A room, as far as the editor is concerned, is a sub that calls addOverlay, mixOverlay, addScreenRegion or setFloor. Subs inside an objectType don't count, as those are what the player's clicks run, rather than rooms. The verb coin example has a sub for each room, which gotoRoom calls, and that works nicely:
+A room, as far as the editor is concerned, is a sub that calls addOverlay, mixOverlay, addScreenRegion, addCharacter or setFloor. Subs inside an objectType don't count, as those are what the player's clicks run, rather than rooms. The verb coin example has a sub for each room, which gotoRoom calls, and that works nicely:
 </P>
 
 <pre>
@@ -95,6 +95,32 @@ In the <b>Regions</b> tab, choose <b>Rectangle</b> (2) and drag out a rectangle,
 The editor then asks which objectType the region is for. Choose one from the list, or choose <b>New Object Type</b> and type a name. A new objectType is added to the script after the room's sub, empty, ready for you to fill in its events. The new addScreenRegion goes after the room's last region. Its walk-to point is 0, 0, so characters don't walk anywhere; drag the numbers in the Inspector to give it one.
 </P>
 
+<H3>Adding and moving characters:</H3>
+
+<P>
+The <b>Characters</b> tab shows the characters that the room adds with <a href="addCharacter.html">addCharacter</a>, standing still and facing you, as they are when they arrive: the first picture of the first animation of their costume. If the costume comes from a sub, such as makeEgoAnim () in the verb coin example, the editor looks in the sub to find it. When it can't tell what a character looks like (a costume in a variable, say, or a sprite bank it can't find), it draws a ring with a cross where the character's feet are.
+</P>
+
+<P>
+<IMG SRC="images/devkit-room-characters.png" alt="The duck and the two egos of the verb coin example's outside room in the Characters tab, with the duck selected">
+</P>
+
+<P>
+Characters are drawn at the size the game gives them, from the room's <a href="setScale.html">setScale</a> or, if it has one, its <a href="setScaleMap.html">scale map</a>. Drag one up the room and watch it shrink. A room that doesn't call setScale shows its characters at full size, even though the game would use whatever an earlier room set. The Inspector shows the scale of the selected character.
+</P>
+
+<P>
+Click a character, on the room or in the Inspector's list, and drag it to move it, or type its position in the Inspector. Delete (or Backspace), or <b>Delete Character</b>, takes its addCharacter out of the script. The editor leaves the lines that walk it about, such as moveCharacter, where they are, so tidy those up yourself.
+</P>
+
+<P>
+<b>Add Character...</b> asks which objectType the character is (pick one, or type the name of a new one, as for regions) and what it wears. For the costume, choose one of the subs of your project that give back a costume, or choose <b>Sprite Bank...</b> and pick a .duc file, which gives the character the first sprite of the bank. Dropping a sprite bank on the room does the same, with that bank already chosen. The new character turns up in the middle of the lower half of the room, ready to be dragged where you want it.
+</P>
+
+<P>
+The two egos of the verb coin example are drawn faintly, because they're inside an if: the game only adds one of them, depending on the room you came from.
+</P>
+
 <H3>What the editor won't change:</H3>
 
 <P>
@@ -123,6 +149,10 @@ Every change the editor makes is a change to the script, so <b>Undo</b> in the <
 
 <P>
 <a href="addOverlay.html">addOverlay</a>
+</P>
+
+<P>
+<a href="addCharacter.html">addCharacter</a>
 </P>
 
 <P>

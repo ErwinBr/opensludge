@@ -70,6 +70,124 @@ std::string joined (const std::vector<int> & values) {
 	return s;
 }
 
+// No sub to look in for variables.
+const size_t NO_SCOPE = (size_t) -1;
+
+// The value that a variable got last before a token, in the code of a sub
+// whose { is at scope: the expression of var name = ... or name = ..., to
+// its ; or the , before the next variable. False when nothing there sets it.
+bool valueOf (const std::vector<FileToken> & t, size_t scope, size_t before, const std::string & name, size_t * from, size_t * to) {
+	bool found = false;
+	for (size_t k = scope + 1; k + 2 < before && k + 1 < t.size (); k ++) {
+		if (t[k].text != name || t[k + 1].text != "=") continue;
+		// At the start of a statement, or after var or a comma of var.
+		const std::string & previous = t[k - 1].text;
+		if (previous != "var" && previous != "{" && previous != "}" && previous != ";" && previous != ",") continue;
+		size_t e = k + 2;
+		int depth = 0;
+		while (e < before) {
+			const std::string & w = t[e].text;
+			if (t[e].kind == TOKEN_BRACKET) depth += (w == "(" || w == "[" || w == "{") ? 1 : -1;
+			else if (depth == 0 && (w == ";" || w == ",")) break;
+			e ++;
+		}
+		*from = k + 2;
+		*to = e;
+		found = true;
+	}
+	return found;
+}
+
+// The picture of a costume written from token from to before to: costume
+// (...) takes its first animation; anim ('bank', frame...) its first frame.
+// A call of a sub without arguments gives its name in *sub. A variable of
+// the sub whose { is at scope is followed to the value it got before.
+CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t to, std::string * sub, size_t scope, int depth = 0) {
+	CostumePicture picture;
+	if (to <= from || to > t.size () || depth > 8) return picture;
+	if (to - from == 1 && scope != NO_SCOPE && (t[from].kind == TOKEN_IDENTIFIER || t[from].kind == TOKEN_VARIABLE)) {
+		size_t valueFrom, valueTo;
+		if (valueOf (t, scope, from, t[from].text, &valueFrom, &valueTo)) return costumeIn (t, valueFrom, valueTo, sub, scope, depth + 1);
+		return picture;
+	}
+	size_t last = to - 1;
+	bool call = to - from >= 3 && t[from + 1].text == "(" && matchingToken (t, from + 1) == last;
+	if (! call) return picture;
+	const std::string & name = t[from].text;
+	std::vector<TokenRange> args = splitArguments (t, from + 1, last);
+	if (name == "costume") {
+		if (args.empty ()) return picture;
+		return costumeIn (t, args[0].from, args[0].to, NULL, scope, depth + 1);
+	}
+	if (name == "anim") {
+		if (args.size () < 2 || args[0].to - args[0].from != 1 || t[args[0].from].kind != TOKEN_FILE) return picture;
+		const std::string & q = t[args[0].from].text;
+		picture.bank = q.size () >= 2 ? q.substr (1, q.size () - 2) : std::string ();
+		for (size_t a = 1; a < args.size (); a ++) {
+			size_t f = args[a].from, n = args[a].to - args[a].from;
+			// wait (frame, ticks): its frame.
+			if (n >= 3 && t[f].text == "wait" && t[f + 1].text == "(") {
+				std::vector<TokenRange> inner = splitArguments (t, f + 1, matchingToken (t, f + 1));
+				if (inner.empty ()) return picture;
+				f = inner[0].from;
+				n = inner[0].to - inner[0].from;
+			}
+			if (n == 1 && t[f].kind == TOKEN_NUMBER && allDigits (t[f].text)) {
+				picture.frame = atoi (t[f].text.c_str ());
+				picture.known = true;
+				return picture;
+			}
+			if (n == 2 && t[f].text == "-" && t[f + 1].kind == TOKEN_NUMBER && allDigits (t[f + 1].text)) {
+				// As drawPeople (Engine/people.cpp): the sprite mirrored.
+				picture.frame = atoi (t[f + 1].text.c_str ());
+				picture.mirror = true;
+				picture.known = true;
+				return picture;
+			}
+			// A sound or a function, which is an event of the next frame.
+		}
+		return picture;
+	}
+	if (sub && args.empty ()) *sub = name;
+	return picture;
+}
+
+// The first return of the sub of a name, outside objectTypes: the tokens of
+// its expression, and the { of the sub. False when there is none.
+bool returnOf (const std::vector<FileToken> & t, const std::string & name, size_t * from, size_t * to, size_t * scope = NULL) {
+	for (size_t i = 0; i < t.size (); i ++) {
+		if (t[i].text == "objectType") {
+			while (i < t.size () && t[i].text != "{") i ++;
+			if (i < t.size ()) i = matchingToken (t, i);
+			continue;
+		}
+		if (t[i].text != "sub") continue;
+		size_t k = i + 1;
+		while (k < t.size () && t[k].kind == TOKEN_KEYWORD) k ++;
+		if (k + 2 >= t.size () || t[k].text != name || t[k + 1].text != "(") continue;
+		size_t close = matchingToken (t, k + 1);
+		if (close + 1 >= t.size () || t[close + 1].text != "{") continue;
+		size_t end = matchingToken (t, close + 1);
+		for (size_t r = close + 2; r < end && r < t.size (); r ++) {
+			if (t[r].text != "return") continue;
+			size_t e = r + 1;
+			int depth = 0;
+			while (e < end) {
+				const std::string & w = t[e].text;
+				if (t[e].kind == TOKEN_BRACKET) depth += (w == "(" || w == "[" || w == "{") ? 1 : -1;
+				else if (w == ";" && depth == 0) break;
+				e ++;
+			}
+			*from = r + 1;
+			*to = e;
+			if (scope) *scope = close + 1;
+			return true;
+		}
+		return false;
+	}
+	return false;
+}
+
 class Reader {
 public:
 	Reader (const TextBuffer & text) : text (text), t (fileTokens (text)) {}
@@ -86,7 +204,7 @@ public:
 			} else if (word == "sub") {
 				Room room;
 				i = readSub (i, room);
-				if (! room.overlays.empty () || ! room.regions.empty () || ! room.floor.empty ()) rooms.push_back (room);
+				if (! room.overlays.empty () || ! room.regions.empty () || ! room.floor.empty () || ! room.characters.empty ()) rooms.push_back (room);
 			} else if (word == "{") {
 				i = matchingToken (t, i) + 1;
 			} else {
@@ -123,6 +241,7 @@ private:
 		int braces = 0, brackets = 0;
 		bool guarded = false, atStart = true;
 		bool floorTopLevel = false, afterRegion = false, afterOverlay = false;
+		RoomScale scale;
 		for (size_t k = open + 1; k < close; k ++) {
 			const FileToken & token = t[k];
 			const std::string & word = token.text;
@@ -199,9 +318,47 @@ private:
 					room.sceneHeight = h.value;
 				}
 				setup = true;
-			} else if (word == "setZBuffer" || word == "setScale" || word == "setScaleMap") {
+			} else if (word == "setScale" && args.size () == 2) {
+				RoomArg horizon = argument (args[0]), divide = argument (args[1]);
+				if (horizon.literal && divide.literal) {
+					scale.set = true;
+					scale.horizon = horizon.value;
+					scale.divide = divide.value;
+				}
 				setup = true;
+			} else if (word == "setScaleMap") {
+				std::string file = args.empty () ? std::string () : fileOf (args[0]);
+				if (args.size () == 3 && ! file.empty ()) {
+					RoomArg low = argument (args[1]), high = argument (args[2]);
+					scale.map = file;
+					scale.mapMin = low.literal ? low.value : 100;
+					scale.mapMax = high.literal ? high.value : 100;
+				} else {
+					scale.map.clear ();
+				}
+				setup = true;
+			} else if (word == "setZBuffer") {
+				setup = true;
+			} else if (word == "addCharacter" && args.size () == 4 && ! args[0].empty ()) {
+				RoomCharacter character;
+				character.objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
+				character.call = token.at;
+				character.statementEnd = end;
+				character.x = argument (args[1]);
+				character.y = argument (args[2]);
+				character.costume = argument (args[3]);
+				character.picture = costumeIn (t, args[3].from, args[3].to, &character.costumeSub, open);
+				character.scale = scale;
+				character.conditional = conditional;
+				room.characters.push_back (character);
+				if (! conditional) {
+					room.hasCharacterAnchor = true;
+					room.characterAnchorStart = token.at;
+					room.characterAnchorEnd = end;
+				}
 			}
+			// setSceneDimensions takes the scale map away.
+			if (word == "setSceneDimensions") scale.map.clear ();
 			// A new overlay goes after the overlays, else after the size of
 			// the scene.
 			if (! conditional && (word == "addOverlay" || word == "mixOverlay" || (word == "setSceneDimensions" && ! afterOverlay))) {
@@ -217,6 +374,7 @@ private:
 				room.anchorEnd = end;
 			}
 		}
+		room.scale = scale;
 	}
 
 	std::string fileOf (const TokenRange & r) const {
@@ -339,6 +497,47 @@ bool RoomRegion::contains (float x, float y) const {
 std::vector<Room> readRooms (const TextBuffer & text) {
 	Reader reader (text);
 	return reader.readAll ();
+}
+
+bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture) {
+	std::vector<FileToken> t = fileTokens (text);
+	size_t from, to;
+	size_t scope;
+	if (! returnOf (t, sub, &from, &to, &scope)) return false;
+	*picture = costumeIn (t, from, to, NULL, scope);
+	return true;
+}
+
+std::vector<std::string> costumeSubs (const std::vector<std::string> & files,
+		std::function<bool (const std::string & file, TextBuffer * text)> textOf) {
+	std::vector<std::string> subs;
+	for (size_t f = 0; f < files.size (); f ++) {
+		TextBuffer text;
+		if (! textOf (files[f], &text)) continue;
+		std::vector<FileToken> t = fileTokens (text);
+		for (size_t i = 0; i < t.size (); i ++) {
+			if (t[i].text == "objectType") {
+				while (i < t.size () && t[i].text != "{") i ++;
+				if (i < t.size ()) i = matchingToken (t, i);
+				continue;
+			}
+			if (t[i].text != "sub") continue;
+			size_t k = i + 1;
+			while (k < t.size () && t[k].kind == TOKEN_KEYWORD) k ++;
+			// No parameters.
+			if (k + 2 >= t.size () || t[k + 1].text != "(" || t[k + 2].text != ")") continue;
+			size_t from, to, scope;
+			if (! returnOf (t, t[k].text, &from, &to, &scope) || to <= from) continue;
+			// return c, where var c = costume (...).
+			if (to - from == 1 && ! valueOf (t, scope, from, t[from].text, &from, &to)) continue;
+			if (to <= from) continue;
+			const std::string & first = t[from].text;
+			if (first == "costume" || first == "anim") subs.push_back (t[k].text);
+		}
+	}
+	std::sort (subs.begin (), subs.end ());
+	subs.erase (std::unique (subs.begin (), subs.end ()), subs.end ());
+	return subs;
 }
 
 std::string directionText (int direction) {
@@ -494,6 +693,30 @@ std::vector<TextChange> addOverlay (const TextBuffer & text, const Room & room, 
 	std::vector<TextChange> changes;
 	std::string call = "addOverlay ('" + file + "', " + numberText (x) + ", " + numberText (y) + ");";
 	insertLine (text, room, room.hasOverlayAnchor, room.overlayAnchorStart, room.overlayAnchorEnd, indentUnit, call, changes, where);
+	return changes;
+}
+
+std::vector<TextChange> moveCharacter (const RoomCharacter & character, int x, int y) {
+	std::vector<TextChange> changes;
+	change (changes, character.x, x);
+	change (changes, character.y, y);
+	return ordered (changes);
+}
+
+std::vector<TextChange> remove (const TextBuffer & text, const RoomCharacter & character) {
+	return removeStatement (text, character.call, character.statementEnd);
+}
+
+std::vector<TextChange> addCharacter (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & objectType, bool newObjectType, int x, int y, const std::string & costume, TextPos * where) {
+	std::vector<TextChange> changes;
+	if (newObjectType) {
+		TextPos after (room.close.line, (int) text.line (room.close.line).size ());
+		changes.push_back (TextChange (after, after, "\n\nobjectType " + objectType + " (\"" + objectType + "\") {\n}"));
+	}
+	std::string call = "addCharacter (" + objectType + ", " + numberText (x) + ", " + numberText (y) + ", " + costume + ");";
+	if (room.hasCharacterAnchor) insertLine (text, room, true, room.characterAnchorStart, room.characterAnchorEnd, indentUnit, call, changes, where);
+	else insertLine (text, room, room.hasAnchor, room.anchorStart, room.anchorEnd, indentUnit, call, changes, where);
 	return changes;
 }
 

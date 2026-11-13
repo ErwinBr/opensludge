@@ -60,6 +60,8 @@ static int64_t fileTime (const std::string & path) {
 
 RoomView::FloorFile::FloorFile () : time (STALE), loaded (false) {}
 
+RoomView::BankFile::BankFile () : time (STALE), loaded (false) {}
+
 RoomView::Picture::Picture () : time (STALE), loaded (false) {
 	memset (&bank, 0, sizeof (bank));
 	bank.type = 2;
@@ -71,16 +73,20 @@ RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphi
 	: script (s), actions (a), graphics (g), memory (m), canvas (g), roomsVersion (0), read (false), roomIndex (-1),
 	  nextFileCheck (0), showFloor (true), sceneWidth (DEFAULT_WIDTH), sceneHeight (DEFAULT_HEIGHT),
 	  tab (TAB_REGIONS), tabPending (true), tool (TOOL_SELECT), selectedRegion (-1), selectedPoint (-1), selectedOverlay (-1),
-	  selectPending (false), selectOverlayPending (false), chosenOverlay (new std::string),
+	  selectedCharacter (-1), selectPending (false), selectOverlayPending (false), selectCharacterPending (false),
+	  chosenOverlay (new std::string), chosenBank (new std::string),
 	  drag (DRAG_NONE), dragHandle (-1, -1), pressX (0), pressY (0), mouseX (0), mouseY (0),
 	  newPending (false), newShape (false), openNewPopup (false), newChoice (0), focusNewName (false),
+	  newCharacterPending (false), openCharacterPopup (false), newCostume (-1),
 	  fieldsEditing (false), noticeUntil (0) {
 	fieldTopLeft[0] = fieldTopLeft[1] = fieldBottomRight[0] = fieldBottomRight[1] = fieldStand[0] = fieldStand[1] = 0;
-	fieldOverlay[0] = fieldOverlay[1] = 0;
+	fieldOverlay[0] = fieldOverlay[1] = fieldCharacter[0] = fieldCharacter[1] = 0;
 	if (! script->path ().empty ()) {
 		roomName = memory.get (script->path (), ROOM_KEY);
 		showFloor = memory.get (script->path (), FLOOR_KEY) != "off";
-		if (memory.get (script->path (), TAB_KEY) == "overlays") tab = TAB_OVERLAYS;
+		std::string remembered = memory.get (script->path (), TAB_KEY);
+		if (remembered == "overlays") tab = TAB_OVERLAYS;
+		else if (remembered == "characters") tab = TAB_CHARACTERS;
 	}
 }
 
@@ -88,6 +94,10 @@ RoomView::~RoomView () {
 	for (std::map<std::string, std::unique_ptr<Picture> >::iterator p = pictures.begin (); p != pictures.end (); ++ p) {
 		graphics.draw->forgetPictures (&p->second->bank);
 		forgetSpriteBank (&p->second->bank);
+	}
+	// The banks forget themselves; their textures are the drawing's.
+	for (std::map<std::string, std::unique_ptr<BankFile> >::iterator b = banks.begin (); b != banks.end (); ++ b) {
+		graphics.draw->forgetPictures (&b->second->bank.sprites ());
 	}
 }
 
@@ -108,6 +118,7 @@ void RoomView::update () {
 	roomsVersion = text.version ();
 	int regionsBefore = roomIndex >= 0 ? (int) rooms[roomIndex].regions.size () : -1;
 	int overlaysBefore = roomIndex >= 0 ? (int) rooms[roomIndex].overlays.size () : -1;
+	int charactersBefore = roomIndex >= 0 ? (int) rooms[roomIndex].characters.size () : -1;
 	int previousIndex = roomIndex;
 	rooms = readRooms (text);
 	roomIndex = -1;
@@ -145,7 +156,17 @@ void RoomView::update () {
 	} else if (! shown || (int) shown->overlays.size () != overlaysBefore) {
 		selectedOverlay = -1;
 	}
-	if ((drag == DRAG_OVERLAY && ! selectedOverlayOf ()) || (drag != DRAG_NONE && drag != DRAG_OVERLAY && drag != DRAG_RECTANGLE && ! selected ())) drag = DRAG_NONE;
+	if (selectCharacterPending && shown) {
+		selectCharacterPending = false;
+		selectedCharacter = -1;
+		for (size_t c = 0; c < shown->characters.size (); c ++) {
+			if (shown->characters[c].call == selectAt) selectedCharacter = (int) c;
+		}
+	} else if (! shown || (int) shown->characters.size () != charactersBefore) {
+		selectedCharacter = -1;
+	}
+	if (drag == DRAG_OVERLAY ? ! selectedOverlayOf () : drag == DRAG_CHARACTER ? ! selectedCharacterOf ()
+			: drag != DRAG_NONE && drag != DRAG_RECTANGLE && ! selected ()) drag = DRAG_NONE;
 }
 
 const Room * RoomView::room () const {
@@ -162,19 +183,24 @@ const RoomOverlay * RoomView::selectedOverlayOf () const {
 	return r && selectedOverlay >= 0 && selectedOverlay < (int) r->overlays.size () ? &r->overlays[selectedOverlay] : NULL;
 }
 
+const RoomCharacter * RoomView::selectedCharacterOf () const {
+	const Room * r = room ();
+	return r && selectedCharacter >= 0 && selectedCharacter < (int) r->characters.size () ? &r->characters[selectedCharacter] : NULL;
+}
+
 void RoomView::setTab (Tab t) {
 	if (t == tab) return;
 	tab = t;
 	drag = DRAG_NONE;
 	drawnPoints.clear ();
-	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY, t == TAB_OVERLAYS ? "overlays" : "");
+	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY, t == TAB_OVERLAYS ? "overlays" : t == TAB_CHARACTERS ? "characters" : "");
 }
 
 void RoomView::chooseRoom (int index) {
 	if (index < 0 || index >= (int) rooms.size () || index == roomIndex) return;
 	roomIndex = index;
 	roomName = rooms[index].name;
-	selectedRegion = selectedPoint = selectedOverlay = -1;
+	selectedRegion = selectedPoint = selectedOverlay = selectedCharacter = -1;
 	drag = DRAG_NONE;
 	drawnPoints.clear ();
 	if (! script->path ().empty ()) memory.set (script->path (), ROOM_KEY, roomName);
@@ -421,11 +447,176 @@ void RoomView::chooseOverlayFile () {
 
 bool RoomView::takeFile (const std::string & path) {
 	std::string extension = extensionOf (path);
-	if (extension != "png" && extension != "tga") return false;
+	if (extension != "png" && extension != "tga" && extension != "duc") return false;
 	update ();
 	if (! room ()) return false;
-	addOverlayFile (path);
+	if (extension == "duc") startNewCharacter (path);
+	else addOverlayFile (path);
 	return true;
+}
+
+const spriteBank * RoomView::bankOf (const std::string & file) {
+	std::string path = pathOf (file);
+	std::unique_ptr<BankFile> & b = banks[path];
+	if (! b) b.reset (new BankFile);
+	if (b->time == STALE) {
+		b->time = fileTime (path);
+		if (b->loaded) graphics.draw->forgetPictures (&b->bank.sprites ());
+		// load looks for the file first, so that a missing one says nothing.
+		b->loaded = b->time >= 0 && b->bank.load (path);
+	}
+	return b->loaded ? &b->bank.sprites () : NULL;
+}
+
+CostumePicture RoomView::pictureOfCharacter (const RoomCharacter & character) {
+	if (character.picture.known || character.costumeSub.empty ()) return character.picture;
+	std::map<std::string, CostumePicture>::iterator known = subPictures.find (character.costumeSub);
+	if (known != subPictures.end ()) return known->second;
+	CostumePicture & picture = subPictures[character.costumeSub];
+	std::vector<const ScriptSymbol *> found = actions.scriptIndex ().find (character.costumeSub);
+	for (size_t f = 0; f < found.size (); f ++) {
+		if (found[f]->kind != SYMBOL_SUB || ! found[f]->owner.empty ()) continue;
+		// The text of an open script, with its changes, else of the file.
+		if (ScriptDocument * open = dynamic_cast<ScriptDocument *> (actions.findDocument (found[f]->file))) {
+			if (costumeOfSub (open->buffer (), character.costumeSub, &picture)) break;
+		} else {
+			std::string text, error;
+			TextBuffer buffer;
+			if (ScriptDocument::readScript (found[f]->file, &text, &error)) {
+				buffer.setText (text);
+				if (costumeOfSub (buffer, character.costumeSub, &picture)) break;
+			}
+		}
+	}
+	return picture;
+}
+
+float RoomView::scaleAt (const RoomScale & scale, float x, float y) {
+	if (! scale.map.empty () && sceneWidth && sceneHeight) {
+		// As scaleMapAt (Engine/scalemap.cpp): the grey of the map over
+		// the scene, between the centres of its pixels.
+		if (Picture * picture = pictureOf (scale.map)) {
+			const sprite & s = picture->bank.sprites[0];
+			int w = s.width, h = s.height < 0 ? - s.height : s.height;
+			if (s.data && w > 0 && h > 0) {
+				float u = x * w / sceneWidth - 0.5f, v = y * h / sceneHeight - 0.5f;
+				if (! (u > 0)) u = 0;
+				if (! (v > 0)) v = 0;
+				if (u > w - 1) u = (float) (w - 1);
+				if (v > h - 1) v = (float) (h - 1);
+				int x0 = (int) u, y0 = (int) v;
+				int x1 = x0 + 1 < w ? x0 + 1 : x0, y1 = y0 + 1 < h ? y0 + 1 : y0;
+				float fx = u - x0, fy = v - y0;
+				const unsigned char * d = s.data;
+				#define GREY(px, py) ((d[((py) * w + (px)) * 4] + d[((py) * w + (px)) * 4 + 1] + d[((py) * w + (px)) * 4 + 2] + 1) / 3)
+				float top = GREY (x0, y0) * (1 - fx) + GREY (x1, y0) * fx;
+				float bottom = GREY (x0, y1) * (1 - fx) + GREY (x1, y1) * fx;
+				#undef GREY
+				float t = (top * (1 - fy) + bottom * fy) / 255.0f;
+				return (scale.mapMin + (scale.mapMax - scale.mapMin) * t) / 100.0f;
+			}
+		}
+	}
+	return scale.at (y);
+}
+
+bool RoomView::characterShown (int index, CharacterShown * shown) {
+	const RoomCharacter & character = room ()->characters[index];
+	if (! character.movable ()) return false;
+	shown->x = character.x.value;
+	shown->y = character.y.value;
+	if (index == selectedCharacter && drag == DRAG_CHARACTER) {
+		shown->x = clampX (shown->x + mouseX - pressX);
+		shown->y = clampY (shown->y + mouseY - pressY);
+	}
+	shown->scale = scaleAt (character.scale, (float) shown->x, (float) shown->y);
+	shown->bank = NULL;
+	shown->frame = 0;
+	shown->mirror = false;
+	CostumePicture picture = pictureOfCharacter (character);
+	const spriteBank * bank = picture.known ? bankOf (picture.bank) : NULL;
+	// As drawPeople (Engine/people.cpp): no picture at all below 5%.
+	if (bank && picture.frame >= 0 && picture.frame < bank->total && bank->sprites[picture.frame].data && shown->scale > 0.05f) {
+		const sprite & sp = bank->sprites[picture.frame];
+		float s = shown->scale;
+		// As scaleSprite (Engine/sprites.cpp), with the hotspot at x, y.
+		shown->x1 = picture.mirror ? shown->x - (sp.width - (sp.xhot + 1)) * s : shown->x - sp.xhot * s;
+		shown->y1 = shown->y - sp.yhot * s;
+		shown->x2 = shown->x1 + sp.width * s;
+		shown->y2 = shown->y1 + sp.height * s;
+		shown->bank = bank;
+		shown->frame = picture.frame;
+		shown->mirror = picture.mirror;
+	} else {
+		float r = canvas.pixelsOfPoints (7.0f);
+		shown->x1 = shown->x - r;
+		shown->y1 = shown->y - r;
+		shown->x2 = shown->x + r;
+		shown->y2 = shown->y + r;
+	}
+	return true;
+}
+
+// The characters in the order the game draws them: from the back.
+static bool fartherBack (const std::pair<int, int> & a, const std::pair<int, int> & b) {
+	return a.first < b.first || (a.first == b.first && a.second < b.second);
+}
+
+int RoomView::characterAt (float fx, float fy) {
+	const Room * r = room ();
+	if (! r) return -1;
+	std::vector<std::pair<int, int> > order;
+	for (int c = 0; c < (int) r->characters.size (); c ++) {
+		if (r->characters[c].movable ()) order.push_back (std::make_pair (r->characters[c].y.value, c));
+	}
+	std::sort (order.begin (), order.end (), fartherBack);
+	for (int i = (int) order.size () - 1; i >= 0; i --) {
+		CharacterShown shown;
+		if (! characterShown (order[i].second, &shown)) continue;
+		if (fx < shown.x1 || fx >= shown.x2 || fy < shown.y1 || fy >= shown.y2) continue;
+		if (shown.bank) {
+			// Not where the sprite is transparent.
+			const sprite & sp = shown.bank->sprites[shown.frame];
+			int px = (int) ((fx - shown.x1) / shown.scale), py = (int) ((fy - shown.y1) / shown.scale);
+			if (shown.mirror) px = sp.width - 1 - px;
+			if (px < 0 || py < 0 || px >= sp.width || py >= sp.height) continue;
+			bool clear = shown.bank->type >= 2 ? ! sp.data[((size_t) py * sp.width + px) * 4 + 3] : ! sp.data[(size_t) py * sp.width + px];
+			if (clear) continue;
+		}
+		return order[i].second;
+	}
+	return -1;
+}
+
+void RoomView::chooseBankFile () {
+	std::vector<FileFilter> filters;
+	FileFilter banks = { "Sprite banks", "duc" };
+	filters.push_back (banks);
+	std::string folder = ! actions.projectFile ().empty () ? folderOf (actions.projectFile ()) : folderOf (script->path ());
+	std::shared_ptr<std::string> chosen = chosenBank;
+	actions.platform ().openFileDialog ("Sprite Bank", filters, folder, false, [chosen] (const std::vector<std::string> & files) {
+		if (! files.empty ()) *chosen = files[0];
+	});
+}
+
+void RoomView::startNewCharacter (const std::string & bankPath) {
+	// The costume subs of the project and of the open scripts, with their
+	// changes.
+	costumeSubList = costumeSubs (actions.scriptIndex ().files (), [this] (const std::string & file, TextBuffer * text) {
+		if (ScriptDocument * open = dynamic_cast<ScriptDocument *> (actions.findDocument (file))) {
+			*text = open->buffer ();
+			return true;
+		}
+		std::string fileText, error;
+		if (! ScriptDocument::readScript (file, &fileText, &error)) return false;
+		text->setText (fileText);
+		return true;
+	});
+	newBank = bankPath;
+	newCostume = bankPath.empty () && ! costumeSubList.empty () ? 0 : -1;
+	newCharacterPending = openCharacterPopup = true;
+	setTab (TAB_CHARACTERS);
+	tabPending = true;
 }
 
 void RoomView::apply (const std::vector<TextChange> & changes, const std::string & label, TextPos at) {
@@ -479,6 +670,11 @@ void RoomView::drawToolbar () {
 			}
 			ImGui::EndTabItem ();
 		}
+		if (ImGui::BeginTabItem ("Characters", NULL, tabPending && tab == TAB_CHARACTERS ? ImGuiTabItemFlags_SetSelected : 0)) {
+			if (! tabPending) setTab (TAB_CHARACTERS);
+			if (ImGui::Button ("Add Character...")) startNewCharacter (std::string ());
+			ImGui::EndTabItem ();
+		}
 		ImGui::EndTabBar ();
 	}
 	tabPending = false;
@@ -503,7 +699,7 @@ void RoomView::finishShape () {
 }
 
 void RoomView::handleKeys () {
-	if (ImGui::GetIO ().WantTextInput || newPending || ! ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) return;
+	if (ImGui::GetIO ().WantTextInput || newPending || newCharacterPending || ! ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) return;
 	if (! drawnPoints.empty ()) {
 		if (ImGui::Shortcut (ImGuiKey_Escape)) drawnPoints.clear ();
 		else if (ImGui::Shortcut (ImGuiKey_Enter) || ImGui::Shortcut (ImGuiKey_KeypadEnter)) finishShape ();
@@ -512,6 +708,17 @@ void RoomView::handleKeys () {
 	}
 	if (drag != DRAG_NONE) {
 		if (ImGui::Shortcut (ImGuiKey_Escape)) drag = DRAG_NONE;
+		return;
+	}
+	if (tab == TAB_CHARACTERS) {
+		const RoomCharacter * character = selectedCharacterOf ();
+		if (ImGui::Shortcut (ImGuiKey_Escape)) selectedCharacter = -1;
+		bool deleteKey = ImGui::Shortcut (ImGuiKey_Delete);
+		bool backspace = ImGui::Shortcut (ImGuiKey_Backspace);
+		if (character && (deleteKey || backspace)) {
+			apply (roomEdit::remove (script->buffer (), *character), "Delete Character", character->call);
+			selectedCharacter = -1;
+		}
 		return;
 	}
 	if (tab == TAB_OVERLAYS) {
@@ -548,6 +755,14 @@ void RoomView::handleKeys () {
 }
 
 void RoomView::finishDrag () {
+	if (drag == DRAG_CHARACTER) {
+		const RoomCharacter * character = selectedCharacterOf ();
+		CharacterShown shown;
+		bool moved = character && characterShown (selectedCharacter, &shown);
+		drag = DRAG_NONE;
+		if (moved && (mouseX != pressX || mouseY != pressY)) apply (roomEdit::moveCharacter (*character, shown.x, shown.y), "Move Character", character->call);
+		return;
+	}
 	if (drag == DRAG_OVERLAY) {
 		const RoomOverlay * overlay = selectedOverlayOf ();
 		int x, y, w, h;
@@ -593,8 +808,9 @@ void RoomView::handleMouse () {
 	float fx = canvas.mouseX (), fy = canvas.mouseY ();
 	mouseX = (int) floorf (fx);
 	mouseY = (int) floorf (fy);
-	if (! room () || newPending) return;
+	if (! room () || newPending || newCharacterPending) return;
 	if (tab == TAB_OVERLAYS) handleOverlayMouse (fx, fy);
+	else if (tab == TAB_CHARACTERS) handleCharacterMouse (fx, fy);
 	else handleRegionMouse (fx, fy);
 	if (drag != DRAG_NONE && canvas.released ()) finishDrag ();
 }
@@ -609,6 +825,18 @@ void RoomView::handleOverlayMouse (float fx, float fy) {
 	pressY = mouseY;
 	selectedOverlay = overlayAt (fx, fy);
 	if (selectedOverlay >= 0) drag = DRAG_OVERLAY;
+}
+
+void RoomView::handleCharacterMouse (float fx, float fy) {
+	if (canvas.hovered () && drag == DRAG_NONE && ! canvas.animating ()) {
+		int over = characterAt (fx, fy);
+		if (over >= 0 && over == selectedCharacter) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeAll);
+	}
+	if (! canvas.pressed ()) return;
+	pressX = mouseX;
+	pressY = mouseY;
+	selectedCharacter = characterAt (fx, fy);
+	if (selectedCharacter >= 0) drag = DRAG_CHARACTER;
 }
 
 void RoomView::handleRegionMouse (float fx, float fy) {
@@ -725,6 +953,46 @@ void RoomView::paint (Draw2D & draw) {
 		draw.setDrawingColour (1.0f, 1.0f, 1.0f, r->overlays[o].conditional ? 0.6f : 1.0f);
 		draw.drawPicture (&picture->bank, 0, false, (float) x, (float) y, (float) (x + w), (float) (y + h), 0, 0, 1, 1);
 	}
+
+	// The characters, from the back, as the game draws them.
+	bool charactersTab = tab == TAB_CHARACTERS;
+	std::vector<std::pair<int, int> > order;
+	for (int c = 0; c < (int) r->characters.size (); c ++) {
+		CharacterShown shown;
+		if (characterShown (c, &shown)) order.push_back (std::make_pair (shown.y, c));
+	}
+	std::sort (order.begin (), order.end (), fartherBack);
+	for (size_t i = 0; i < order.size (); i ++) {
+		int c = order[i].second;
+		CharacterShown shown;
+		characterShown (c, &shown);
+		float alpha = r->characters[c].conditional ? 0.6f : 1.0f;
+		if (shown.bank) {
+			draw.setDrawingColour (1.0f, 1.0f, 1.0f, alpha);
+			draw.drawPicture (shown.bank, shown.frame, false, shown.x1, shown.y1, shown.x2, shown.y2,
+				shown.mirror ? 1.0f : 0.0f, 0, shown.mirror ? 0.0f : 1.0f, 1);
+		} else {
+			// A marker: a ring with a cross, where the feet are.
+			std::vector<float> ring;
+			float radius = (shown.x2 - shown.x1) * 0.5f;
+			for (int k = 0; k < 16; k ++) {
+				float a = k * 3.14159265f / 8;
+				ring.push_back (shown.x + cosf (a) * radius);
+				ring.push_back (shown.y + sinf (a) * radius);
+			}
+			draw.setDrawingColour (1.0f, 0.6f, 0.3f, (charactersTab ? 1.0f : 0.5f) * alpha);
+			draw.drawLineLoop (ring.data (), 16);
+			const float cross[] = { (float) shown.x - radius, (float) shown.y, (float) shown.x + radius, (float) shown.y,
+				(float) shown.x, (float) shown.y - radius, (float) shown.x, (float) shown.y + radius };
+			draw.drawLines (cross, 4);
+		}
+		if (charactersTab && c == selectedCharacter) {
+			const float box[] = { shown.x1, shown.y1, shown.x2, shown.y1, shown.x2, shown.y2, shown.x1, shown.y2 };
+			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
+			draw.drawLineLoop (box, 4);
+		}
+	}
+
 	draw.setDrawingColour (0.5f, 0.5f, 0.55f, 1.0f);
 	draw.drawLineLoop (scene, 4);
 
@@ -867,41 +1135,47 @@ void RoomView::drawLabels () {
 		list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, tab == TAB_REGIONS ? 150 : 60), 2.0f);
 		list->AddText (at, colour, name);
 	}
+	if (tab == TAB_CHARACTERS) {
+		for (int c = 0; c < (int) r->characters.size (); c ++) {
+			CharacterShown shown;
+			if (! characterShown (c, &shown)) continue;
+			const char * name = r->characters[c].objectType.c_str ();
+			ImVec2 size = ImGui::CalcTextSize (name);
+			ImVec2 feet = canvas.toWindow ((float) shown.x, shown.y2 > shown.y ? shown.y2 : (float) shown.y);
+			ImVec2 at (feet.x - size.x * 0.5f, feet.y + 3);
+			ImU32 colour = c == selectedCharacter ? IM_COL32 (255, 205, 50, 255) : IM_COL32 (255, 175, 110, 230);
+			list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, 150), 2.0f);
+			list->AddText (at, colour, name);
+		}
+	}
 	list->PopClipRect ();
 }
 
-// The window that asks which objectType a new region is of.
-void RoomView::drawNewRegion () {
-	static const char * const TITLE = "New Region";
-	if (! newPending) return;
-	const ScriptIndex & index = actions.scriptIndex ();
+std::vector<std::string> RoomView::objectTypes () const {
 	std::vector<std::string> types;
-	std::vector<const ScriptSymbol *> symbols = index.allSymbols ();
+	std::vector<const ScriptSymbol *> symbols = actions.scriptIndex ().allSymbols ();
 	for (size_t s = 0; s < symbols.size (); s ++) {
 		if (symbols[s]->kind == SYMBOL_OBJECT_TYPE) types.push_back (symbols[s]->name);
 	}
 	std::sort (types.begin (), types.end ());
 	types.erase (std::unique (types.begin (), types.end ()), types.end ());
-	if (openNewPopup) {
-		ImGui::OpenPopup (TITLE);
-		openNewPopup = false;
-		newName.clear ();
-		// The objectType of the last new region, else a new one.
-		newChoice = (int) types.size ();
-		for (size_t t = 0; t < types.size (); t ++) {
-			if (types[t] == lastType) newChoice = (int) t;
-		}
-		focusNewName = newChoice == (int) types.size ();
-	}
-	if (newChoice > (int) types.size ()) newChoice = (int) types.size ();
+	return types;
+}
 
-	bool open = true;
-	ImGui::SetNextWindowPos (ImGui::GetMainViewport ()->GetCenter (), ImGuiCond_Appearing, ImVec2 (0.5f, 0.5f));
-	if (! ImGui::BeginPopupModal (TITLE, &open, ImGuiWindowFlags_AlwaysAutoResize)) {
-		newPending = false;
-		return;
+void RoomView::startObjectTypeChoice (const std::vector<std::string> & types) {
+	newName.clear ();
+	// The objectType of the last new region or character, else a new one.
+	newChoice = (int) types.size ();
+	for (size_t t = 0; t < types.size (); t ++) {
+		if (types[t] == lastType) newChoice = (int) t;
 	}
-	const char * NEW_TYPE = "New Object Type";
+	focusNewName = newChoice == (int) types.size ();
+}
+
+static const char * const NEW_TYPE = "New Object Type";
+
+void RoomView::drawObjectTypeFields (const std::vector<std::string> & types, bool * creating, bool * entered, std::string * problem) {
+	if (newChoice > (int) types.size ()) newChoice = (int) types.size ();
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 14);
 	if (ImGui::BeginCombo ("Object Type", newChoice < (int) types.size () ? types[newChoice].c_str () : NEW_TYPE)) {
 		for (size_t t = 0; t < types.size (); t ++) {
@@ -914,25 +1188,47 @@ void RoomView::drawNewRegion () {
 		}
 		ImGui::EndCombo ();
 	}
-	bool creating = newChoice == (int) types.size ();
-	bool entered = false;
-	std::string problem;
-	if (creating) {
+	*creating = newChoice == (int) types.size ();
+	*entered = false;
+	problem->clear ();
+	if (*creating) {
 		if (focusNewName) {
 			ImGui::SetKeyboardFocusHere ();
 			focusNewName = false;
 		}
 		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 14);
-		entered = ImGui::InputText ("Name", &newName, ImGuiInputTextFlags_EnterReturnsTrue);
+		*entered = ImGui::InputText ("Name", &newName, ImGuiInputTextFlags_EnterReturnsTrue);
 		if (! newName.empty ()) {
-			if (! isIdentifier (newName)) problem = "Not a valid name";
-			else if (! index.find (newName).empty ()) problem = "Name in use";
+			if (! isIdentifier (newName)) *problem = "Not a valid name";
+			else if (! actions.scriptIndex ().find (newName).empty ()) *problem = "Name in use";
 		}
-		if (! problem.empty ()) ImGui::TextColored (ImVec4 (1.0f, 0.45f, 0.4f, 1.0f), "%s", problem.c_str ());
+		if (! problem->empty ()) ImGui::TextColored (ImVec4 (1.0f, 0.45f, 0.4f, 1.0f), "%s", problem->c_str ());
 	}
-	bool ready = creating ? ! newName.empty () && problem.empty () : newChoice < (int) types.size ();
 	// Enter takes the objectType that is chosen.
-	if (! creating && ! ImGui::IsAnyItemActive () && (ImGui::IsKeyPressed (ImGuiKey_Enter) || ImGui::IsKeyPressed (ImGuiKey_KeypadEnter))) entered = true;
+	if (! *creating && ! ImGui::IsAnyItemActive () && (ImGui::IsKeyPressed (ImGuiKey_Enter) || ImGui::IsKeyPressed (ImGuiKey_KeypadEnter))) *entered = true;
+}
+
+// The window that asks which objectType a new region is of.
+void RoomView::drawNewRegion () {
+	static const char * const TITLE = "New Region";
+	if (! newPending) return;
+	std::vector<std::string> types = objectTypes ();
+	if (openNewPopup) {
+		ImGui::OpenPopup (TITLE);
+		openNewPopup = false;
+		startObjectTypeChoice (types);
+	}
+
+	bool open = true;
+	ImGui::SetNextWindowPos (ImGui::GetMainViewport ()->GetCenter (), ImGuiCond_Appearing, ImVec2 (0.5f, 0.5f));
+	if (! ImGui::BeginPopupModal (TITLE, &open, ImGuiWindowFlags_AlwaysAutoResize)) {
+		newPending = false;
+		return;
+	}
+	bool creating, entered;
+	std::string problem;
+	drawObjectTypeFields (types, &creating, &entered, &problem);
+	bool ready = creating ? ! newName.empty () && problem.empty () : newChoice < (int) types.size ();
 	ImGui::BeginDisabled (! ready);
 	bool add = ImGui::Button ("Add Region") || (entered && ready);
 	ImGui::EndDisabled ();
@@ -956,12 +1252,83 @@ void RoomView::drawNewRegion () {
 	ImGui::EndPopup ();
 }
 
+// The window that asks for the objectType and costume of a new character.
+void RoomView::drawNewCharacter () {
+	static const char * const TITLE = "New Character";
+	if (! newCharacterPending) return;
+	std::vector<std::string> types = objectTypes ();
+	if (openCharacterPopup) {
+		ImGui::OpenPopup (TITLE);
+		openCharacterPopup = false;
+		startObjectTypeChoice (types);
+	}
+
+	bool open = true;
+	ImGui::SetNextWindowPos (ImGui::GetMainViewport ()->GetCenter (), ImGuiCond_Appearing, ImVec2 (0.5f, 0.5f));
+	if (! ImGui::BeginPopupModal (TITLE, &open, ImGuiWindowFlags_AlwaysAutoResize)) {
+		newCharacterPending = false;
+		return;
+	}
+	bool creating, entered;
+	std::string problem;
+	drawObjectTypeFields (types, &creating, &entered, &problem);
+
+	// The costume: a sub of the project, or a sprite bank.
+	if (newCostume >= (int) costumeSubList.size ()) newCostume = -1;
+	std::string bankName = newBank.empty () ? std::string () : scriptName (newBank);
+	std::string current = newCostume >= 0 ? costumeSubList[newCostume] + " ()" : bankName.empty () ? std::string ("Sprite Bank...") : bankName;
+	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 14);
+	if (ImGui::BeginCombo ("Costume", current.c_str ())) {
+		for (size_t c = 0; c < costumeSubList.size (); c ++) {
+			std::string label = costumeSubList[c] + " ()";
+			if (ImGui::Selectable (label.c_str (), (int) c == newCostume)) newCostume = (int) c;
+		}
+		if (! costumeSubList.empty ()) ImGui::Separator ();
+		if (! bankName.empty () && ImGui::Selectable (bankName.c_str (), newCostume < 0)) newCostume = -1;
+		if (ImGui::Selectable ("Sprite Bank...")) {
+			newCostume = -1;
+			chooseBankFile ();
+		}
+		ImGui::EndCombo ();
+	}
+	bool hasCostume = newCostume >= 0 || ! newBank.empty ();
+	bool ready = hasCostume && (creating ? ! newName.empty () && problem.empty () : newChoice < (int) types.size ());
+	ImGui::BeginDisabled (! ready);
+	bool add = ImGui::Button ("Add Character") || (entered && ready);
+	ImGui::EndDisabled ();
+	ImGui::SameLine ();
+	bool cancel = ImGui::Button ("Cancel") || (ImGui::IsKeyPressed (ImGuiKey_Escape) && ! ImGui::IsAnyItemActive ());
+	const Room * r = room ();
+	if (add && ready && r) {
+		std::string name = creating ? newName : types[newChoice];
+		std::string costume = newCostume >= 0 ? costumeSubList[newCostume] + " ()" : "anim ('" + bankName + "', 0)";
+		TextPos where;
+		// In the middle of the lower half of the scene, to be dragged.
+		std::vector<TextChange> changes = roomEdit::addCharacter (script->buffer (), *r, script->indentUnit (), name, creating,
+			sceneWidth / 2, sceneHeight * 3 / 4, costume, &where);
+		apply (changes, "Add Character", where);
+		selectCharacterPending = true;
+		selectAt = where;
+		lastType = name;
+	}
+	if (add || cancel || ! open) {
+		newCharacterPending = false;
+		ImGui::CloseCurrentPopup ();
+	}
+	ImGui::EndPopup ();
+}
+
 void RoomView::draw () {
 	update ();
 	if (! chosenOverlay->empty ()) {
 		addOverlayFile (*chosenOverlay);
 		chosenOverlay->clear ();
 		update ();
+	}
+	if (! chosenBank->empty ()) {
+		newBank = *chosenBank;
+		newCostume = -1;
+		chosenBank->clear ();
 	}
 	if (ImGui::GetTime () >= nextFileCheck) {
 		// The pictures and floors are looked at again when they are drawn.
@@ -971,6 +1338,11 @@ void RoomView::draw () {
 		for (std::map<std::string, FloorFile>::iterator f = floors.begin (); f != floors.end (); ++ f) {
 			if (fileTime (f->first) != f->second.time) f->second.time = STALE;
 		}
+		for (std::map<std::string, std::unique_ptr<BankFile> >::iterator b = banks.begin (); b != banks.end (); ++ b) {
+			if (fileTime (b->first) != b->second->time) b->second->time = STALE;
+		}
+		// The costume subs may have changed.
+		subPictures.clear ();
 		// A file may have come, or changed its case.
 		paths.clear ();
 		nextFileCheck = ImGui::GetTime () + FILE_CHECK_SECONDS;
@@ -995,6 +1367,7 @@ void RoomView::draw () {
 	handleMouse ();
 	handleKeys ();
 	drawNewRegion ();
+	drawNewCharacter ();
 
 	ImGui::TextDisabled ("%s", canvas.status ().c_str ());
 	if (! notice.empty () && ImGui::GetTime () < noticeUntil) {
@@ -1034,6 +1407,7 @@ void RoomView::drawInspector () {
 	}
 
 	if (tab == TAB_OVERLAYS) drawOverlayInspector ();
+	else if (tab == TAB_CHARACTERS) drawCharacterInspector ();
 	else drawRegionInspector ();
 }
 
@@ -1101,6 +1475,80 @@ void RoomView::drawOverlayInspector () {
 	if (wrappedButton ("Delete Overlay", &first)) {
 		apply (roomEdit::remove (script->buffer (), *overlay), "Delete Overlay", overlay->call);
 		selectedOverlay = -1;
+	}
+}
+
+void RoomView::drawCharacterInspector () {
+	const Room * r = room ();
+	ImGui::SeparatorText ("Characters");
+	if (r->characters.empty ()) ImGui::TextDisabled ("No characters");
+	for (int c = 0; c < (int) r->characters.size (); c ++) {
+		const RoomCharacter & character = r->characters[c];
+		ImGui::PushID (c);
+		if (ImGui::Selectable (character.objectType.c_str (), c == selectedCharacter)) selectedCharacter = c;
+		ImGui::SameLine ();
+		CharacterShown shown;
+		if (! character.movable ()) {
+			ImGui::TextDisabled ("Not a number");
+		} else if (characterShown (c, &shown) && ! shown.bank) {
+			ImGui::TextDisabled ("No picture");
+		} else {
+			std::string detail = character.x.text + ", " + character.y.text;
+			if (character.conditional) detail += ", Conditional";
+			ImGui::TextDisabled ("%s", detail.c_str ());
+		}
+		ImGui::PopID ();
+	}
+
+	const RoomCharacter * character = selectedCharacterOf ();
+	if (! character) return;
+	CharacterShown shown;
+	bool placed = characterShown (selectedCharacter, &shown);
+	if (! fieldsEditing && placed) {
+		fieldCharacter[0] = (float) shown.x;
+		fieldCharacter[1] = (float) shown.y;
+	}
+	if (beginProperties ("Character")) {
+		propertyRow ("Object Type");
+		ImGui::TextUnformatted (character->objectType.c_str ());
+		propertyRow ("Costume");
+		// One line of it; all of it in the tooltip.
+		std::string costume;
+		for (size_t i = 0; i < character->costume.text.size (); i ++) {
+			char ch = character->costume.text[i];
+			bool space = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+			if (! space) costume += ch;
+			else if (! costume.empty () && costume[costume.size () - 1] != ' ' && costume[costume.size () - 1] != '(') costume += ' ';
+		}
+		if (costume.size () > 40) costume = costume.substr (0, 37) + "...";
+		ImGui::TextUnformatted (costume.c_str ());
+		ImGui::SetItemTooltip ("%s", character->costume.text.c_str ());
+		propertyRow ("Position");
+		if (placed) {
+			bool done = false;
+			fieldsEditing |= xyFields ("position", &fieldCharacter[0], &fieldCharacter[1], 1.0f, "%.0f", 0, 0, &done);
+			if (done) {
+				fieldsEditing = false;
+				int nx = (int) fieldCharacter[0], ny = (int) fieldCharacter[1];
+				if (nx != shown.x || ny != shown.y) apply (roomEdit::moveCharacter (*character, nx, ny), "Move Character", character->call);
+			}
+			propertyRow ("Scale");
+			ImGui::Text ("%d%%", (int) floorf (shown.scale * 100.0f + 0.5f));
+		} else {
+			ImGui::TextDisabled ("Not a number");
+		}
+		ImGui::EndTable ();
+	}
+	character = selectedCharacterOf ();
+	if (! character) return;
+	bool first = true;
+	if (wrappedButton ("Show in Script", &first) && showInScript) {
+		showInScript (character->call, (int) std::string ("addCharacter").size ());
+		return;
+	}
+	if (wrappedButton ("Delete Character", &first)) {
+		apply (roomEdit::remove (script->buffer (), *character), "Delete Character", character->call);
+		selectedCharacter = -1;
 	}
 }
 

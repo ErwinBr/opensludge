@@ -17,6 +17,7 @@
  * against the mouse plus the camera.
  */
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -78,12 +79,51 @@ struct RoomRegion {
 	bool contains (float x, float y) const;
 };
 
+// What a costume looks like when its character stands still, facing south,
+// as addCharacter puts it: the first frame of its first animation.
+struct CostumePicture {
+	std::string bank;		// The sprite bank, as written
+	int frame;
+	bool mirror;			// A negative frame number
+	bool known;				// False for NULL, clips, variables...
+	CostumePicture () : frame (0), mirror (false), known (false) {}
+};
+
+// How the game scales characters at a point of the script: by setScale
+// (horizon, divide), or by the picture of setScaleMap, which wins.
+struct RoomScale {
+	bool set;				// A setScale with numbers
+	int horizon, divide;
+	std::string map;		// The file of setScaleMap, or empty
+	int mapMin, mapMax;		// Its percentages
+	RoomScale () : set (false), horizon (0), divide (0), mapMin (100), mapMax (100) {}
+	// The scale at a height, without a map: 1 when nothing sets it.
+	float at (float y) const { return set && divide ? (y - horizon) / (float) divide : 1.0f; }
+};
+
+struct RoomCharacter {
+	std::string objectType;
+	TextPos call, statementEnd;
+	RoomArg x, y;
+	RoomArg costume;			// The whole costume argument
+	CostumePicture picture;		// Read from it, when it says
+	// When the costume is a call of a sub without arguments, as
+	// makeEgoAnim (): its name, to look into.
+	std::string costumeSub;
+	RoomScale scale;			// As the game has it at this call
+	bool conditional;
+	RoomCharacter () : conditional (false) {}
+	bool movable () const { return x.literal && y.literal; }
+};
+
 struct Room {
 	std::string name;				// Of the sub
 	TextPos at;						// Of its name
 	TextPos open, close;			// Its { and }
 	std::vector<RoomOverlay> overlays;
 	std::vector<RoomRegion> regions;
+	std::vector<RoomCharacter> characters;
+	RoomScale scale;				// As the game has it at the end of the sub
 	std::string floor;				// The file of setFloor, as written
 	int sceneWidth, sceneHeight;	// Of setSceneDimensions, or 0
 	// Where a new region goes: on a line after the line of this statement,
@@ -94,11 +134,24 @@ struct Room {
 	// setSceneDimensions (which wipes the backdrop, so it comes first).
 	bool hasOverlayAnchor;
 	TextPos overlayAnchorStart, overlayAnchorEnd;
-	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false) {}
+	// The same for a new character: after the last one, else where a new
+	// region goes.
+	bool hasCharacterAnchor;
+	TextPos characterAnchorStart, characterAnchorEnd;
+	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false), hasCharacterAnchor (false) {}
 };
 
 // The rooms of a script, in order.
 std::vector<Room> readRooms (const TextBuffer & text);
+
+// The picture of the costume that a sub without parameters returns, from
+// the first return of the sub of that name in a script's text.
+bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture);
+// The subs without parameters, outside objectTypes, of some scripts that
+// return a costume or an animation, sorted: for a new character. textOf
+// gives the text of a file, or false.
+std::vector<std::string> costumeSubs (const std::vector<std::string> & files,
+	std::function<bool (const std::string & file, TextBuffer * text)> textOf);
 
 // The name of a direction: NORTH... for 0, 45... 315, else the number.
 std::string directionText (int direction);
@@ -132,6 +185,15 @@ namespace roomEdit {
 	// the start of the new call.
 	std::vector<TextChange> addOverlay (const TextBuffer & text, const Room & room, const std::string & indentUnit,
 		const std::string & file, int x, int y, TextPos * where);
+
+	// Put a character at x, y.
+	std::vector<TextChange> moveCharacter (const RoomCharacter & character, int x, int y);
+	std::vector<TextChange> remove (const TextBuffer & text, const RoomCharacter & character);
+	// A new addCharacter of objectType at x, y with a costume (as code):
+	// after the room's characters, else where a new region goes. With
+	// newObjectType, also an empty objectType after the sub.
+	std::vector<TextChange> addCharacter (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & objectType, bool newObjectType, int x, int y, const std::string & costume, TextPos * where);
 
 	// A new region of objectType, a rectangle (4 numbers) or a shape (6 or
 	// more): after the last region of the room that isn't in an if, else

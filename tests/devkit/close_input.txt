@@ -78,6 +78,17 @@ wait 1
 down
 up
 wait 3
+# Its Characters tab, with the duck selected.
+move 450 104
+wait 1
+down
+up
+wait 3
+move 543 425
+wait 1
+down
+up
+wait 3
 close
 wait 2
 documents 0

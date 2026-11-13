@@ -1,0 +1,66 @@
+# The Characters tab of the room editor on VerbCoin's outside room, in the
+# window of a smoke test (1280 x 800). The scene, 640 x 480, fits the canvas
+# at 80%: its top left is at 384, 155 in the window, and a pixel of the
+# scene is 0.797 points. The Characters tab is at 450, 104, and the list of
+# characters in the Inspector starts at y = 186, a row every 19.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+# Room, at the top of the tab, then the Characters tab.
+move 340 57
+wait 2
+down
+up
+wait 6
+move 450 104
+wait 1
+down
+up
+wait 6
+
+# Drag the duck, whose feet are at 200, 350, by about 75, 25.
+move 543 425
+wait 2
+down
+wait 1
+move 573 435
+wait 1
+move 603 445
+wait 2
+up
+wait 4
+
+# A sprite bank dropped on the room asks for the objectType and costume of
+# a new character, which takes the bank: a new objectType, alien.
+drop ${EXAMPLES}/VerbCoin/ego/alien.duc
+wait 6
+type alien
+wait 2
+key Enter
+wait 6
+
+# The ego at 420, 400, clicked on its body, goes with Delete.
+move 719 450
+wait 2
+down
+up
+wait 3
+key Delete
+wait 4
+
+# The other ego, chosen in the Inspector's list (duck, alien, ego), goes
+# with Delete Character.
+move 1050 224
+wait 2
+down
+up
+wait 3
+move 1100 400
+wait 2
+down
+up
+wait 4
+
+save ${OUTPUT}
+wait 2

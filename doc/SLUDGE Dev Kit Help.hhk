@@ -180,6 +180,7 @@
 		<param name="Name" value="Room Editor">
 		<param name="Name" value="Screen regions, drawing">
 		<param name="Name" value="Overlays, adding and moving">
+		<param name="Name" value="Characters, placing">
 		<param name="Name" value="Rooms">
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Room_Editor.html">
 		</OBJECT>

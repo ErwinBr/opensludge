@@ -7,7 +7,9 @@
  * its floor, and its screen regions over them. Each kind of thing has a
  * tab of its own, with its tools and its part of the Inspector: in the
  * Overlays tab the user adds, moves and removes the pictures, in the
- * Regions tab moves, reshapes and draws the regions. Every change is a
+ * Regions tab moves, reshapes and draws the regions, and in the Characters
+ * tab adds, moves and removes the characters, drawn standing as the game
+ * puts them, at the size it gives them there. Every change is a
  * change to the text of the script, which undoes and saves as typing does;
  * and what the user types in the script shows here at once.
  */
@@ -22,6 +24,7 @@
 
 #include "CanvasView.h"
 #include "FloorDocument.h"
+#include "posedraw.h"
 #include "RoomScript.h"
 #include "ScriptDocument.h"
 #include "sprites.h"
@@ -39,14 +42,15 @@ public:
 	void draw ();
 	void drawInspector ();
 	bool animating () const;
-	// A PNG or TGA dropped on the room becomes a new overlay.
+	// A PNG or TGA dropped on the room becomes a new overlay, a sprite bank
+	// a new character.
 	bool takeFile (const std::string & path);
 
 	// Show a place of the script in Script mode, with length bytes selected.
 	std::function<void (TextPos at, int length)> showInScript;
 
 	enum Tool { TOOL_SELECT, TOOL_RECTANGLE, TOOL_SHAPE, TOOL_COUNT };
-	enum Tab { TAB_OVERLAYS, TAB_REGIONS };
+	enum Tab { TAB_OVERLAYS, TAB_REGIONS, TAB_CHARACTERS };
 
 private:
 	// A picture of an overlay, as the floor editor loads its backdrop.
@@ -62,13 +66,31 @@ private:
 		bool loaded;
 		FloorFile ();
 	};
+	// A sprite bank of a costume.
+	struct BankFile {
+		DevKitAnimBank bank;
+		int64_t time;			// Of the file, or STALE to look again
+		bool loaded;
+		BankFile ();
+	};
+	// Where a character is drawn: its frame of its bank, and the box of
+	// the sprite on the scene.
+	struct CharacterShown {
+		int x, y;				// Its feet, as a drag leaves them
+		float scale;
+		const spriteBank * bank;	// NULL for a marker
+		int frame;
+		bool mirror;
+		float x1, y1, x2, y2;
+	};
 	// What the mouse drags.
-	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY };
+	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER };
 
 	void update ();
 	const Room * room () const;
 	const RoomRegion * selected () const;
 	const RoomOverlay * selectedOverlayOf () const;
+	const RoomCharacter * selectedCharacterOf () const;
 	void setTab (Tab t);
 	void chooseRoom (int index);
 	std::string pathOf (const std::string & file) const;
@@ -81,12 +103,34 @@ private:
 	void handleMouse ();
 	void handleOverlayMouse (float x, float y);
 	void handleRegionMouse (float x, float y);
+	void handleCharacterMouse (float x, float y);
 	void handleKeys ();
 	void paint (Draw2D & draw);
 	void drawLabels ();
 	void drawNewRegion ();
+	void drawNewCharacter ();
+	// The objectType of a new region or character: the project's, or a
+	// new name. Sets creating, entered (Enter in the name) and problem.
+	std::vector<std::string> objectTypes () const;
+	void drawObjectTypeFields (const std::vector<std::string> & types, bool * creating, bool * entered, std::string * problem);
+	void startObjectTypeChoice (const std::vector<std::string> & types);
 	void drawOverlayInspector ();
 	void drawRegionInspector ();
+	void drawCharacterInspector ();
+
+	// The bank of a costume, loaded, or NULL.
+	const spriteBank * bankOf (const std::string & file);
+	// The standing picture of a character's costume, looking into a sub
+	// when the costume is one.
+	CostumePicture pictureOfCharacter (const RoomCharacter & character);
+	// The scale of the game at a point, with that setScale or scale map.
+	float scaleAt (const RoomScale & scale, float x, float y);
+	// How a character is drawn; false when its place isn't numbers.
+	bool characterShown (int character, CharacterShown * shown);
+	// The character under a point of the scene, the one in front.
+	int characterAt (float x, float y);
+	void chooseBankFile ();
+	void startNewCharacter (const std::string & bankPath);
 
 	// Where an overlay is on the scene, as a drag leaves it, and its size;
 	// false when it has no picture or its place isn't numbers.
@@ -134,6 +178,9 @@ private:
 	mutable std::map<std::string, std::string> paths;
 	std::map<std::string, std::unique_ptr<Picture> > pictures;
 	std::map<std::string, FloorFile> floors;
+	std::map<std::string, std::unique_ptr<BankFile> > banks;
+	// The pictures of the costume subs, by name, until the files change.
+	std::map<std::string, CostumePicture> subPictures;
 	double nextFileCheck;
 	bool showFloor;
 	int sceneWidth, sceneHeight;
@@ -142,14 +189,16 @@ private:
 	bool tabPending;			// Make tab the selected one of the tab bar
 	Tool tool;
 	int selectedRegion, selectedPoint;	// -1 for none
-	int selectedOverlay;
-	// Select the region or overlay that starts here when we read the rooms
-	// again.
-	bool selectPending, selectOverlayPending;
+	int selectedOverlay, selectedCharacter;
+	// Select the region, overlay or character that starts here when we
+	// read the rooms again.
+	bool selectPending, selectOverlayPending, selectCharacterPending;
 	TextPos selectAt;
 	// The answer of the file dialog of Add Overlay, which may come after we
 	// are gone.
 	std::shared_ptr<std::string> chosenOverlay;
+	// The same for the sprite bank of a new character.
+	std::shared_ptr<std::string> chosenBank;
 
 	Drag drag;
 	std::pair<int, int> dragHandle;
@@ -165,8 +214,15 @@ private:
 	bool focusNewName;
 	std::string lastType;		// That a region was added with
 
+	// A character that waits for its objectType and costume: the costume
+	// subs of the project, which of them (or -1 for the bank), the bank.
+	bool newCharacterPending, openCharacterPopup;
+	std::vector<std::string> costumeSubList;
+	int newCostume;
+	std::string newBank;		// With its folder
+
 	// The fields of the Inspector, while the user changes them.
-	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2];
+	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2], fieldCharacter[2];
 	bool fieldsEditing;
 
 	std::string notice;

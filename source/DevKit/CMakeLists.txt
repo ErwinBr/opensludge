@@ -417,6 +417,16 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-overlay
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room-overlay PROPERTIES LABELS capture)
+		# Its Characters tab: a character dragged, one added from a dropped
+		# sprite bank, and two taken away.
+		add_test(NAME capture-devkit-room-character
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_character_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-character-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-character
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room-character PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

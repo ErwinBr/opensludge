@@ -2734,6 +2734,136 @@ static void testRoomScript () {
 		overlays->commands ().undo ();
 	}
 
+	// Characters: their places, costumes and scale, and the tools.
+	CHECK (outside.buffer ().fileText () == original);
+	rooms = readRooms (outside.buffer ());
+	if (rooms.size () == 1 && rooms[0].characters.size () == 3) {
+		const std::vector<RoomCharacter> & people = rooms[0].characters;
+		const RoomCharacter & duck = people[0];
+		CHECK (duck.objectType == "duck" && duck.x.value == 200 && duck.y.value == 350 && duck.movable () && ! duck.conditional);
+		CHECK (duck.picture.known && duck.picture.bank == "outside/duck.duc" && duck.picture.frame == 0 && ! duck.picture.mirror);
+		CHECK (duck.scale.set && duck.scale.horizon == 200 && duck.scale.divide == 150 && duck.scale.map.empty ());
+		CHECK (fabsf (duck.scale.at (350) - 1.0f) < 0.001f);
+		CHECK (people[1].objectType == "ego" && people[1].conditional && people[1].costumeSub == "makeEgoAnim" && ! people[1].picture.known);
+		CHECK (people[2].objectType == "ego" && people[2].conditional && people[2].x.value == 420 && people[2].y.value == 400);
+		CHECK (rooms[0].hasCharacterAnchor && rooms[0].characterAnchorStart == duck.call);
+
+		std::string text = applied (outside, roomEdit::moveCharacter (duck, 250, 360));
+		CHECK (text.find ("addCharacter (duck, 250, 360, costume (") != std::string::npos);
+		outside.commands ().undo ();
+		text = applied (outside, roomEdit::remove (outside.buffer (), duck));
+		CHECK (text.find ("duck.duc") == std::string::npos && text.find ("WEST);\n\n\n\tif (lastRoom == insideRoom)") != std::string::npos);
+		outside.commands ().undo ();
+		text = applied (outside, roomEdit::addCharacter (outside.buffer (), rooms[0], "\t", "cat", true, 300, 400, "anim ('ego/alien.duc', 0)", &where));
+		CHECK (text.find ("\t));\n\taddCharacter (cat, 300, 400, anim ('ego/alien.duc', 0));\n\n\tif (lastRoom") != std::string::npos);
+		CHECK (text.find ("\n\nobjectType cat (\"cat\") {\n}") != std::string::npos);
+		std::vector<Room> more = readRooms (outside.buffer ());
+		CHECK (more.size () == 1 && more[0].characters.size () == 4 && more[0].characters[1].call == where && more[0].characters[1].picture.frame == 0);
+		outside.commands ().undo ();
+		CHECK (outside.buffer ().fileText () == original);
+	} else {
+		CHECK (! "the outside room has the duck and two egos");
+	}
+
+	// The costume of a sub: makeEgoAnim stands as sprite 4.
+	ScriptDocument ego;
+	CHECK (ego.load (examples + "VerbCoin/ego/ego.slu", &error));
+	CostumePicture standing;
+	CHECK (costumeOfSub (ego.buffer (), "makeEgoAnim", &standing) && standing.known && standing.bank == "ego/alien.duc" && standing.frame == 4);
+	CHECK (! costumeOfSub (ego.buffer (), "noSuchSub", &standing));
+	std::vector<std::string> scripts;
+	scripts.push_back (examples + "VerbCoin/ego/ego.slu");
+	scripts.push_back (examples + "VerbCoin/outside/room.slu");
+	std::vector<std::string> subs = costumeSubs (scripts, [] (const std::string & file, TextBuffer * text) {
+		std::string fileText, problem;
+		if (! ScriptDocument::readScript (file, &fileText, &problem)) return false;
+		text->setText (fileText);
+		return true;
+	});
+	CHECK (std::find (subs.begin (), subs.end (), "makeEgoAnim") != subs.end () && std::find (subs.begin (), subs.end (), "outsideRoom") == subs.end ());
+
+	// The scale map of the scale map test, and the setScale before it.
+	ScriptDocument scaled;
+	CHECK (scaled.load (fixtures + "../../render/scalemap.slu", &error));
+	rooms = readRooms (scaled.buffer ());
+	const Room * initRoom = roomCalled (rooms, "init");
+	CHECK (initRoom && initRoom->characters.size () >= 2);
+	if (initRoom && initRoom->characters.size () >= 2) {
+		const RoomCharacter & first = initRoom->characters[0];
+		const RoomCharacter & second = initRoom->characters[1];
+		CHECK (first.scale.set && first.scale.horizon == 0 && first.scale.divide == 400 && first.scale.map.empty () && first.costumeSub == "egoCostume");
+		CHECK (second.scale.map == "scalemap.png" && second.scale.mapMin == 20 && second.scale.mapMax == 120);
+		CHECK (initRoom->scale.map.empty ());
+	}
+
+	// Costumes that wait, mirror, or can't be read.
+	std::unique_ptr<ScriptDocument> costumes (scriptOf (
+		"sub people () {\n"
+		"\taddCharacter (a, 1, 2, anim ('a.duc', wait (3, 5), 4));\n"
+		"\taddCharacter (b, 1, 2, costume (anim ('b.duc', 'step.wav', -2), NULL, NULL));\n"
+		"\taddCharacter (c, 1, 2, loadClip ('c.clp'));\n"
+		"\taddCharacter (d, x, 2, someCostume);\n"
+		"\taddCharacter (e, 1, 2, costume (NULL, NULL, NULL));\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (costumes->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 5);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 5) {
+		const std::vector<RoomCharacter> & c = rooms[0].characters;
+		CHECK (c[0].picture.known && c[0].picture.bank == "a.duc" && c[0].picture.frame == 3 && ! c[0].picture.mirror);
+		CHECK (c[1].picture.known && c[1].picture.bank == "b.duc" && c[1].picture.frame == 2 && c[1].picture.mirror);
+		CHECK (! c[2].picture.known && c[2].costumeSub.empty ());
+		CHECK (! c[3].picture.known && c[3].costumeSub.empty () && ! c[3].movable ());
+		CHECK (! c[4].picture.known);
+		CHECK (! rooms[0].scale.set && fabsf (rooms[0].scale.at (100) - 1.0f) < 0.001f);
+	}
+
+	// Costumes in variables: of the costume sub, as an old example writes
+	// it, and of the room.
+	std::unique_ptr<ScriptDocument> variables (scriptOf (
+		"sub makeEgoAnim () {\n"
+		"\tvar standFrames =\tanim ('alien.duc', 4);\n"
+		"\tvar walkFrames =\tanim ('alien.duc', wait (0, 2), wait (1, 2));\n"
+		"\tvar backStandFrames =\tanim ('alien.duc', 11);\n"
+		"\treturn costume (\n"
+		"\t\tstandFrames, standFrames, backStandFrames, standFrames,\n"
+		"\t\twalkFrames, walkFrames, walkFrames, walkFrames,\n"
+		"\t\tstandFrames, standFrames, backStandFrames, standFrames);\n"
+		"}\n"
+		"sub held () {\n"
+		"\tvar c = costume (anim ('a.duc', 1), NULL, NULL);\n"
+		"\treturn c;\n"
+		"}\n"
+		"sub room () {\n"
+		"\tvar ego = makeEgoAnim (), s = anim ('b.duc', 3);\n"
+		"\taddCharacter (one, 1, 2, ego);\n"
+		"\taddCharacter (two, 1, 2, costume (s, s, s));\n"
+		"\ts = anim ('b.duc', 5);\n"
+		"\taddCharacter (three, 1, 2, costume (s, s, s));\n"
+		"\taddCharacter (four, 1, 2, nothing);\n"
+		"\tvar s2 = s2;\n"
+		"\taddCharacter (five, 1, 2, s2);\n"
+		"}\n", TextPos ()));
+	CostumePicture held;
+	CHECK (costumeOfSub (variables->buffer (), "makeEgoAnim", &held) && held.known && held.bank == "alien.duc" && held.frame == 4);
+	CHECK (costumeOfSub (variables->buffer (), "held", &held) && held.known && held.bank == "a.duc" && held.frame == 1);
+	rooms = readRooms (variables->buffer ());
+	const Room * withVariables = roomCalled (rooms, "room");
+	CHECK (withVariables && withVariables->characters.size () == 5);
+	if (withVariables && withVariables->characters.size () == 5) {
+		const std::vector<RoomCharacter> & c = withVariables->characters;
+		CHECK (! c[0].picture.known && c[0].costumeSub == "makeEgoAnim");
+		CHECK (c[1].picture.known && c[1].picture.bank == "b.duc" && c[1].picture.frame == 3);
+		CHECK (c[2].picture.known && c[2].picture.frame == 5);
+		CHECK (! c[3].picture.known && c[3].costumeSub.empty ());
+		CHECK (! c[4].picture.known);
+	}
+	std::vector<std::string> variableFiles (1, "variables.slu");
+	std::vector<std::string> held2 = costumeSubs (variableFiles, [&variables] (const std::string &, TextBuffer * text) {
+		*text = variables->buffer ();
+		return true;
+	});
+	CHECK (held2.size () == 2 && held2[0] == "held" && held2[1] == "makeEgoAnim");
+
 	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));
 }
 
