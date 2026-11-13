@@ -20,5 +20,7 @@ void killZBuffer ();
 void drawZBuffer(int x, int y);
 // The panel of the z-buffer at a point of the scene, or 0 outside it.
 int zBufferPanelAt (int x, int y);
+// The panel that a character at this depth into the scene is behind.
+int zBufferPanelFor (float depth);
 
 #endif

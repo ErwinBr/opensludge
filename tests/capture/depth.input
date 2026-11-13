@@ -1,0 +1,4 @@
+# DepthTest (tests/render/depth.slu): the mouse stays on one point of the
+# scene, where the game checks which character is in front.
+
+0 move 30 320

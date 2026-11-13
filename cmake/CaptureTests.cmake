@@ -162,7 +162,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
-			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu
+			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png sky.png movie.webm)
@@ -259,6 +259,21 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DMESSAGE=Wrong number of parameters"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-watch-fatal PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Fixed Z of characters: with the mouse on one point, the game checks
+	# which character is in front, fresh, frozen, after saving and after
+	# loading. Older engines don't have setCharacterZ, so no reference.
+	sludge_compile_game(DepthTest ${render_project}/DepthTest.slp)
+	sludge_add_capture_test(depth GAME ${CMAKE_BINARY_DIR}/games/DepthTest.slg
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/depth.input FRAMES 0-100/5 NO_REFERENCE)
+	add_test(NAME capture-depth-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/DepthTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/depth-saveload
+			"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/depth.input"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-depth-saveload PROPERTIES LABELS capture TIMEOUT 300)
 
 	# A clip that a character uses can't change.
 	sludge_compile_game(SealTest ${render_project}/SealTest.slp)

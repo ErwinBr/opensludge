@@ -66,6 +66,12 @@
 		<param name="Local" value="SLUDGEDevKitHelp\Animation_Clips.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="clearCharacterZ">
+		<param name="Name" value="clearCharacterZ (built-in function)">
+		<param name="Name" value="setCharacterZ and clearCharacterZ (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterZ_and_clearCharacterZ.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="clearPartProperty">
 		<param name="Name" value="clearPartProperty (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\clearPartProperty.html">
@@ -1887,6 +1893,12 @@
 		<param name="Name" value="setCharacterWalkSpeed">
 		<param name="Name" value="setCharacterWalkSpeed (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterWalkSpeed.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCharacterZ">
+		<param name="Name" value="setCharacterZ (built-in function)">
+		<param name="Name" value="setCharacterZ and clearCharacterZ (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterZ_and_clearCharacterZ.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setCostume">

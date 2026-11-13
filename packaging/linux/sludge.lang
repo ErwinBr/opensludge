@@ -104,6 +104,7 @@
                     <keyword>callEvent</keyword>
                     <keyword>cancelSub</keyword>
                     <keyword>captureAllKeys</keyword>
+                    <keyword>clearCharacterZ</keyword>
                     <keyword>clearStatus</keyword>
                     <keyword>completeTimers</keyword>
                     <keyword>copyStack</keyword>
@@ -201,6 +202,7 @@
                     <keyword>setCharacterSpinSpeed</keyword>
                     <keyword>setCharacterTransparency</keyword>
                     <keyword>setCharacterWalkSpeed</keyword>
+                    <keyword>setCharacterZ</keyword>
                     <keyword>setCostume</keyword>
                     <keyword>setCursor</keyword>
                     <keyword>setCustomEncoding</keyword>

@@ -451,13 +451,7 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 	int panel = 0;
 
 	if (behindZBuffer) {
-		int i;
-		for (i = 1; i<zBuffer.numPanels; i++) {
-			if (zBuffer.panel[i] >= y + cameraY) {
-				i--;
-				break;
-			}
-		}
+		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + cameraY);
 		panel = i;
 		z = 0.999 - (double) i * (1.0 / 128.0);
 	} else {
@@ -588,13 +582,7 @@ void fixScaleSprite (int x, int y, const sprite & single, const spriteBank & ban
 
 
 	if (useZB && zBuffer.numPanels) {
-		int i;
-		for (i = 1; i<zBuffer.numPanels; i++) {
-			if (zBuffer.panel[i] >= y + cameraY) {
-				i--;
-				break;
-			}
-		}
+		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + cameraY);
 		z = 0.999 - (double) i * (1.0 / 128.0);
 	} else {
 		z = -0.5;

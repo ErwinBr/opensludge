@@ -1,0 +1,28 @@
+[SETTINGS]
+windowname=SLUDGE DepthTest
+finalfile=DepthTest
+language=English
+datafolder=
+quitmessage=Quit the depth test?
+customicon=
+customlogo=
+mouse=0
+fullscreen=N
+makesilent=N
+showlogo=N
+showloading=N
+invisible=N
+ditherimages=N
+width=640
+height=480
+speed=50
+chrRender_def_enabled=Y
+chrRender_def_softX=4
+chrRender_def_softY=4
+chrRender_max_enabled=Y
+chrRender_max_readIni=Y
+chrRender_max_softX=100
+chrRender_max_softY=100
+
+[FILES]
+depth.slu

@@ -1,0 +1,167 @@
+# DepthTest: the fixed Z of characters (setCharacterZ and clearCharacterZ,
+# see source/Engine/people.h). The mouse stays on one point (see
+# tests/capture/depth.input), and the game checks with getOverObject which
+# character is in front there, and stops with an error when it is wrong
+# (see cmake/CaptureTests.cmake):
+#
+#  - Without a fixed Z, the character with the larger y is in front.
+#  - A fixed Z takes the place of y, at once, even when the character has
+#    to pass many others; clearCharacterZ brings back y.
+#  - FRONT still puts a character in front of one with a larger Z.
+#  - The z-buffer goes by the fixed Z too.
+#  - Freezing and unfreezing, and saving and loading, keep the fixed Z.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+objectType f1 ("f1") {
+}
+
+objectType f2 ("f2") {
+}
+
+objectType f3 ("f3") {
+}
+
+objectType f4 ("f4") {
+}
+
+objectType f5 ("f5") {
+}
+
+objectType f6 ("f6") {
+}
+
+objectType nobody ("nobody") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("DepthTest: " + what);
+}
+
+sub nameOf (o) {
+	if (o == ego) return "ego";
+	if (o == duck) return "duck";
+	if (o == NULL) return "nothing";
+	return "another character";
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 0),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 6, 4, 5));
+}
+
+# Show the step for a frame, and check what the mouse is over. One frame,
+# so that the sort of the characters a tick couldn't have done it.
+sub step (name, expected) {
+	statusText (name);
+	pause (1);
+	var over = getOverObject ();
+	check (over == expected, name + ": over " + nameOf (over) + ", not " + nameOf (expected));
+}
+
+# Show a step for some more frames, for the captures.
+sub show (name, expected) {
+	for (var i = 0; i < 4; i ++) step (name, expected);
+}
+
+# Walking holds the function that walks, so this runs on its own.
+sub walkAway () {
+	setCharacterWalkSpeed (f1, 1);
+	forceCharacter (f1, 620, 341);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	setSceneDimensions (640, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+
+	# Both under the mouse, each on its own.
+	addCharacter (ego, 30, 340, egoCostume ());
+	show ("ego alone", ego);
+	removeCharacter (ego);
+	addCharacter (duck, 30, 350, egoCostume ());
+	show ("duck alone", duck);
+
+	# Six characters between them, away from the mouse: in one pass of the
+	# sort, the duck can pass only one of them going back.
+	addCharacter (ego, 30, 340, egoCostume ());
+	addCharacter (f1, 400, 341, egoCostume ());
+	addCharacter (f2, 430, 342, egoCostume ());
+	addCharacter (f3, 460, 343, egoCostume ());
+	addCharacter (f4, 490, 344, egoCostume ());
+	addCharacter (f5, 520, 345, egoCostume ());
+	addCharacter (f6, 550, 346, egoCostume ());
+	show ("by y", duck);
+
+	check (setCharacterZ (duck, 300), "setCharacterZ of a character");
+	step ("duck at Z 300", ego);
+	show ("duck at Z 300", ego);
+	check (clearCharacterZ (duck), "clearCharacterZ of a character");
+	step ("duck by y again", duck);
+
+	# Z goes past y, either way, and walking doesn't change it.
+	setCharacterZ (ego, 400);
+	step ("ego at Z 400", ego);
+	jumpCharacter (ego, 30, 330);
+	step ("ego moved", ego);
+	jumpCharacter (ego, 30, 340);
+	setCharacterZ (duck, 401);
+	step ("duck at Z 401", duck);
+	clearCharacterZ (duck);
+	step ("duck by y, ego at Z 400", ego);
+
+	# FRONT goes over Z.
+	setCharacterExtra (duck, FRONT);
+	step ("duck in FRONT", duck);
+	setCharacterExtra (duck, NORMAL);
+	step ("duck NORMAL", ego);
+	clearCharacterZ (ego);
+	step ("both by y", duck);
+
+	# Not characters.
+	check (! setCharacterZ (nobody, 10), "setCharacterZ of no character");
+	check (! clearCharacterZ (nobody), "clearCharacterZ of no character");
+
+	# The z-buffer: its panel at y 363 covers the mouse, in front of
+	# characters up to y 363.
+	removeCharacter (duck);
+	setZBuffer ('outside/room.zbu');
+	show ("ego behind the z-buffer", NULL);
+	setCharacterZ (ego, 400);
+	show ("ego at Z 400 in front of the z-buffer", ego);
+	jumpCharacter (ego, 30, 420);
+	setCharacterZ (ego, 300);
+	show ("ego at Z 300 behind the z-buffer", NULL);
+	clearCharacterZ (ego);
+	jumpCharacter (ego, 30, 340);
+	setZBuffer (NULL);
+
+	# Frozen and unfrozen, the duck keeps its Z.
+	addCharacter (duck, 30, 350, egoCostume ());
+	setCharacterZ (duck, 300);
+	step ("duck at Z 300 again", ego);
+	freeze ();
+	step ("frozen", NULL);
+	unfreeze ();
+	show ("unfrozen", ego);
+
+	# Save, step, load, and step again: the second time round, saved is
+	# FALSE, as it was when the game saved. The frames show the same both
+	# times, which saveload.cmake compares.
+	var saved = saveGame ("depth.sav");
+	# Another character walks, away from the mouse, so that the frames
+	# after saving and after loading move.
+	spawnSub (walkAway);
+	for (var i = 0; i < 10; i ++) show ("after saving", ego);
+	clearCharacterZ (duck);
+	show ("duck by y before loading", duck);
+	if (saved) loadGame ("depth.sav");
+	quitGame ();
+}

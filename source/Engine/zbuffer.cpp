@@ -129,6 +129,17 @@ int zBufferPanelAt (int x, int y) {
 	return zBuffer.tex[y * stride + x] / 16;
 }
 
+int zBufferPanelFor (float depth) {
+	int i;
+	for (i = 1; i < zBuffer.numPanels; i ++) {
+		if (zBuffer.panel[i] >= depth) {
+			i --;
+			break;
+		}
+	}
+	return i;
+}
+
 void drawZBuffer(int x, int y) {
 	int i;
 	

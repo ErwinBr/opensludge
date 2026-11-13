@@ -524,6 +524,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterWalkSpeed.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCharacterZ and clearCharacterZ">
+					<param name="Local" value="SLUDGEDevKitHelp\setCharacterZ_and_clearCharacterZ.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setClipSpeed">
 					<param name="Local" value="SLUDGEDevKitHelp\setClipSpeed.html">
 					</OBJECT>

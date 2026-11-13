@@ -39,8 +39,6 @@ frozenStuffStruct * frozenStuff = NULL;
 
 extern unsigned int sceneWidth, sceneHeight;
 
-void shufflePeople ();
-
 gfx::Texture * freezeTex = NULL;
 
 void freezeGraphics() {

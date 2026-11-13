@@ -62,6 +62,10 @@ struct onScreenPerson {
 	int direction, directionWhenDoneWalking;
 	struct objectType * thisType;
 	int extra, spinSpeed;
+	// A depth set with setCharacterZ, which takes the place of y for the
+	// order of drawing and for the z-buffer, until clearCharacterZ.
+	bool hasFixedZ = false;
+	float fixedZ = 0;
 	unsigned char r,g,b,colourmix,transparency;
 	// A number of its own, from addCharacter, which orders the events of
 	// TIMELINE clips: the order of drawing never decides when or whether an
@@ -79,6 +83,11 @@ struct onScreenPerson {
 	std::vector<PartOverride> overrides;
 	LifetimeCounter<onScreenPerson> counted;
 };
+
+// How far into the scene a character is: its fixed Z, or else its y.
+inline float depthOf (const onScreenPerson & p) {
+	return p.hasFixedZ ? p.fixedZ : p.y;
+}
 
 // Initialisation and creation
 
@@ -142,6 +151,10 @@ void animatePerson (int obj, persona * per);
 // The frames of anim (), from the stack.
 std::vector<AnimationFrame> readAnimationFrames (int num, struct variableStack * & stacky);
 bool setPersonExtra (int f, int newSetting);
+bool setPersonZ (int thisNum, float z);
+bool clearPersonZ (int thisNum);
+// One pass of the sort by depth; true when it moved a character.
+bool shufflePeople ();
 int timeForAnim (const personaAnimation * fram);
 // A new handle on the same definition: no frames are copied.
 AnimationHandle copyAnim (const personaAnimation * orig);

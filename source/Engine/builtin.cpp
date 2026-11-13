@@ -1764,6 +1764,28 @@ builtIn(setCharacterExtra)
 	return BR_CONTINUE;
 }
 
+builtIn(setCharacterZ)
+{
+	UNUSEDALL
+	int obj, z;
+	if (! getValueType (z, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, setPersonZ (obj, (float) z));
+	return BR_CONTINUE;
+}
+
+builtIn(clearCharacterZ)
+{
+	UNUSEDALL
+	int obj;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, clearPersonZ (obj));
+	return BR_CONTINUE;
+}
+
 builtIn(removeCharacter)
 {
 	UNUSEDALL

@@ -27,6 +27,10 @@ If <i>zBufferFile</i> is NULL (or anything other than a file handle) the current
 </P>
 
 <P>
+Whether a character is behind a part of the z-buffer depends on the y position of its feet, or on its depth if you've given it one using <a href="setCharacterZ_and_clearCharacterZ.html">setCharacterZ</a>.
+</P>
+
+<P>
 If <i>zBufferFile</i> is a valid file handle, the z-buffer to be loaded must be the same width and height as the current scene, as set using the <a href="setSceneDimensions.html">setSceneDimensions</a> function.
 </P>
 
@@ -40,6 +44,10 @@ No return value.
 
 <P>
 <a href="About_the_SLUDGE_Z-Buffer_Maker.html">About the SLUDGE Z-Buffer Maker</a>
+</P>
+
+<P>
+<a href="setCharacterZ_and_clearCharacterZ.html">setCharacterZ and clearCharacterZ</a>
 </P>
 
 <P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2012

@@ -1,0 +1,88 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCharacterZ and clearCharacterZ</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCharacterZ and clearCharacterZ</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCharacterZ (<i>thisCharacter, z</i>);</pre>
+</P>
+
+<P>
+<pre class="syntax">clearCharacterZ (<i>thisCharacter</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+setCharacterZ fixes how far into the scene <i>thisCharacter</i> is drawn, whatever its y position. clearCharacterZ goes back to working it out from y.
+</P>
+
+<P>
+Normally the engine uses a character's y position (where its feet are) as its depth: a character lower down the screen is drawn in front of a character higher up, and in front of or behind the parts of the z-buffer (see <a href="setZBuffer.html">setZBuffer</a>) according to where it stands. That's what you want nearly all the time. Now and then it isn't, such as for a character sitting at the far side of a table, or a bird that has to stay in front of everybody while it swoops about.
+</P>
+
+<P>
+After setCharacterZ, the character is drawn as if its feet were at <i>z</i>, in pixels of the scene, just like a y position. So a character with a <i>z</i> of 300 is drawn in front of characters standing higher up than 300, and behind characters standing lower down. The z-buffer goes by <i>z</i> too. The character can still walk, jump and float as usual, and its depth stays put until you call setCharacterZ again or clearCharacterZ. The change shows straight away, in the next frame.
+</P>
+
+<P>
+A fixed Z only changes the depth: the character is still scaled by its y position (see <a href="setScale.html">setScale</a>). A <b>FRONT</b> character (see <a href="setCharacterExtra.html">setCharacterExtra</a>) is still drawn in front of all non-<b>FRONT</b> characters, whatever their Z. Freezing the scene and saving the game both keep the fixed Z.
+</P>
+
+<P>
+If <i>thisCharacter</i> is an object type which is not currently represented on the screen as a character, the code has no effect.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if <i>thisCharacter</i> is an object type which is currently represented on the screen as a character, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub birdFliesPast () {
+   addCharacter (bird, 0, 100, birdCostume ());
+
+   # High up on the screen, but close to the camera, so draw it
+   # in front of everybody, and of the scenery, as it flies past
+   setCharacterZ (bird, 480);
+   moveCharacter (bird, 640, 120);
+   removeCharacter (bird);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Object_Types_as_Characters.html">Object Types as Characters</a>
+</P>
+
+<P>
+<a href="setCharacterExtra.html">setCharacterExtra</a>
+</P>
+
+<P>
+<a href="setScale.html">setScale</a>
+</P>
+
+<P>
+<a href="setZBuffer.html">setZBuffer</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

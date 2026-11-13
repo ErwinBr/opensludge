@@ -44,20 +44,14 @@ static Transform2D personTransform (const onScreenPerson * p, bool onScreen) {
 	return Transform2D::translation (x, y) * Transform2D::scaling (scale) * Transform2D::translation (0, (float) p -> floaty);
 }
 
-// The panel of the z-buffer that the character is behind, by its feet, and
+// The panel of the z-buffer that the character is behind, by its depth, and
 // its depth; -1 and in front of the z-buffer when it isn't behind one.
 static int zPanel (const onScreenPerson * p, GLfloat & z) {
 	if ((p -> extra & EXTRA_NOZB) || ! zBuffer.numPanels) {
 		z = -0.5;
 		return -1;
 	}
-	int i;
-	for (i = 1; i < zBuffer.numPanels; i ++) {
-		if (zBuffer.panel[i] >= p -> y) {
-			i --;
-			break;
-		}
-	}
+	int i = zBufferPanelFor (depthOf (* p));
 	z = 0.999 - (double) i * (1.0 / 128.0);
 	return i;
 }

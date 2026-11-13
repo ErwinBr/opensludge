@@ -219,6 +219,29 @@ bool setPersonExtra (int thisNum, int extra) {
 	return false;
 }
 
+// Sorts the characters fully, so that a new depth shows at once.
+static void sortPeople () {
+	while (shufflePeople ()) {}
+}
+
+bool setPersonZ (int thisNum, float z) {
+	onScreenPerson * thisPerson = findPerson (thisNum);
+	if (! thisPerson) return false;
+	thisPerson -> hasFixedZ = true;
+	thisPerson -> fixedZ = z;
+	sortPeople ();
+	return true;
+}
+
+bool clearPersonZ (int thisNum) {
+	onScreenPerson * thisPerson = findPerson (thisNum);
+	if (! thisPerson) return false;
+	thisPerson -> hasFixedZ = false;
+	thisPerson -> fixedZ = 0;
+	sortPeople ();
+	return true;
+}
+
 void setScale (short int h, short int d) {
 	scaleHorizon = h;
 	scaleDivide = d;
@@ -408,17 +431,18 @@ void setPersonColourise (int ob, unsigned char r, unsigned char g, unsigned char
 
 extern screenRegion * overRegion;
 
-void shufflePeople () {
+bool shufflePeople () {
 	onScreenPerson * * thisReference = & allPeople;
 	onScreenPerson * A, * B;
+	bool moved = false;
 
-	if (! allPeople) return;
+	if (! allPeople) return false;
 
 	while ((* thisReference) -> next) {
-		float y1 = (* thisReference) -> y;
+		float y1 = depthOf (** thisReference);
 		if ((* thisReference) -> extra & EXTRA_FRONT) y1 += 1000;
 
-		float y2 = (* thisReference) -> next -> y;
+		float y2 = depthOf (* (* thisReference) -> next);
 		if ((* thisReference) -> next -> extra & EXTRA_FRONT) y2 += 1000;
 
 		if (y1 > y2) {
@@ -427,10 +451,12 @@ void shufflePeople () {
 			A -> next = B -> next;
 			B -> next = A;
 			(* thisReference) = B;
+			moved = true;
 		} else {
 			thisReference = & ((* thisReference) -> next);
 		}
 	}
+	return moved;
 }
 
 
@@ -1430,6 +1456,9 @@ bool savePeople (FILE * fp) {
 			fputc (po.channel, fp);
 			putFloat (po.value, fp);
 		}
+		// Since 2.6: its fixed Z.
+		fputc (me -> hasFixedZ ? 1 : 0, fp);
+		putFloat (me -> fixedZ, fp);
 
 		me = me -> next;
 	}
@@ -1578,6 +1607,12 @@ bool loadPeople (FILE * fp) {
 				if (! me -> rig) return false;
 			}
 			if (! loadLayers (* me, fp)) return false;
+			if (ssgVersion >= VERSION (2, 6)) {
+				int hasFixedZ = fgetc (fp);
+				if (hasFixedZ < 0 || hasFixedZ > 1) return false;
+				me -> hasFixedZ = hasFixedZ;
+				me -> fixedZ = getFloat (fp);
+			}
 		} else {
 			me -> sequence = a + 1;
 		}
