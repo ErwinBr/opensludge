@@ -874,6 +874,52 @@ static void testScriptAnalysisQuiet () {
 	CHECK (found.empty ());
 }
 
+// An event with code is a sub of its objectType, objectType.event (), as
+// the compiler makes it; an event = sub is none.
+static void testScriptEventMembers () {
+	TextBuffer text;
+	ScriptIndex index;
+	std::string file = "/tmp/events.slu";
+	text.setText ("objectType select (\"\") {}\n"
+		"objectType deselect (\"\") {}\n"
+		"objectType pickUp (\"\") {\n"
+		"\tevent deselect { }\n"
+		"\tevent select = helper;\n"
+		"}\n"
+		"sub helper () {}\n"
+		"sub init () {\n"
+		"\tpickUp.deselect ();\n"
+		"\tpickUp.select ();\n"
+		"\tpickUp.deselect (1);\n"
+		"\tpickUp.\n"
+		"}\n");
+	index.update (file, text, 1);
+	std::vector<Diagnostic> found = analyseScript (text, index, file, true);
+	for (size_t d = 0; d < found.size (); d ++) fprintf (stderr, "events.slu:%d:%d: %s\n", found[d].start.line + 1, found[d].start.column + 1, found[d].message.c_str ());
+	bool select = false, count = false;
+	for (size_t d = 0; d < found.size (); d ++) {
+		// Nothing on the call of the event with code.
+		CHECK (found[d].start.line != 8);
+		if (found[d].start.line == 9 && found[d].message == "The objectType pickUp has no member 'select'.") select = true;
+		if (found[d].start.line == 10 && found[d].message == "pickUp.deselect takes 0 arguments, not 1.") count = true;
+	}
+	CHECK (select && count);
+
+	Definition definition;
+	CHECK (assist::definitionAt (text, TextPos (8, 10), index, file, &definition) && definition.at.line == 3);
+	CHECK (! assist::definitionAt (text, TextPos (9, 10), index, file, &definition));
+	SignatureHelp help;
+	CHECK (assist::signatureAt (text, TextPos (8, 18), index, file, &help) && help.name == "pickUp.deselect");
+
+	CompletionList list = assist::complete (text, TextPos (11, 8), index, file, true);
+	bool hasDeselect = false, hasSelect = false;
+	for (size_t i = 0; i < list.items.size (); i ++) {
+		if (list.items[i].label == "deselect") hasDeselect = true;
+		if (list.items[i].label == "select") hasSelect = true;
+	}
+	CHECK (hasDeselect && ! hasSelect);
+}
+
 // Each mistake of tests/devkit/fixtures/mistakes.slu, where it is.
 static void testScriptAnalysisMistakes () {
 	std::string file = fixtures + "mistakes.slu", fileText, error;
@@ -2680,6 +2726,7 @@ int main (int argc, char ** argv) {
 	testScriptAssist ();
 	testScriptAnalysisQuiet ();
 	testScriptAnalysisMistakes ();
+	testScriptEventMembers ();
 	testProjectSearch ();
 	testRoomScript ();
 

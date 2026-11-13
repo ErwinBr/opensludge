@@ -152,7 +152,8 @@ static Resolved resolve (const std::string & name, const std::string & qualifier
 	if (! qualifier.empty ()) {
 		std::vector<const ScriptSymbol *> members = index.membersOf (qualifier);
 		for (size_t m = 0; m < members.size (); m ++) {
-			if (members[m]->name == name && members[m]->kind != SYMBOL_EVENT) {
+			// Events with code too, which the compiler makes subs of.
+			if (members[m]->name == name && (members[m]->kind != SYMBOL_EVENT || members[m]->callable ())) {
 				r.what = Resolved::PROJECT;
 				r.symbol = *members[m];
 				return r;
@@ -276,8 +277,8 @@ CompletionList complete (const TextBuffer & text, TextPos at, const ScriptIndex 
 		std::vector<const ScriptSymbol *> members = index.membersOf (qualifier);
 		for (size_t m = 0; m < members.size (); m ++) {
 			const ScriptSymbol & s = *members[m];
-			if (s.kind == SYMBOL_EVENT) continue;
-			addItem (items, seen, typed, s.name, tokenOfSymbol (s.kind), s.declaration (), s.doc, 50);
+			if (s.kind == SYMBOL_EVENT && ! s.callable ()) continue;
+			addItem (items, seen, typed, s.name, s.kind == SYMBOL_EVENT ? TOKEN_SUB : tokenOfSymbol (s.kind), s.declaration (), s.doc, 50);
 		}
 		std::sort (items.begin (), items.end (), byScore);
 		return list;
@@ -388,7 +389,7 @@ bool signatureAt (const TextBuffer & text, TextPos at, const ScriptIndex & index
 				help->argument = commas;
 				help->signatures.clear ();
 				help->doc.clear ();
-				if (r.what == Resolved::PROJECT && r.symbol.kind == SYMBOL_SUB) {
+				if (r.what == Resolved::PROJECT && r.symbol.callable ()) {
 					std::string form = help->name + " (";
 					for (size_t p = 0; p < r.symbol.parameters.size (); p ++) form += (p ? ", " : "") + r.symbol.parameters[p];
 					help->signatures.push_back (Signature::parse (form + ")"));

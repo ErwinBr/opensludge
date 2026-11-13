@@ -51,6 +51,10 @@ struct ScriptSymbol {
 	ScriptSymbol () : kind (SYMBOL_SUB), unfreezable (false) {}
 	// "sub name (a, b)", "objectType name (\"shown\")", "var name"...
 	std::string declaration () const;
+	// Whether name () calls it: a sub, or an event with code of its own,
+	// which the compiler makes a sub of, as objectType.event, without
+	// parameters (an event = sub makes none).
+	bool callable () const { return kind == SYMBOL_SUB || (kind == SYMBOL_EVENT && detail.empty ()); }
 };
 
 // The code of a sub or an event, from its { to its }, and its own names.

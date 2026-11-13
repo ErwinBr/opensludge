@@ -221,11 +221,15 @@ private:
 		return false;
 	}
 
-	const ScriptSymbol * member (const std::string & owner, const std::string & name) const {
+	// A member of an objectType. After a dot, as in owner.name (), its
+	// events with code are members too, as the compiler makes subs of them;
+	// alone, the name of an event is the objectType's that it is named for.
+	const ScriptSymbol * member (const std::string & owner, const std::string & name, bool dotted = false) const {
 		if (owner.empty ()) return NULL;
 		std::vector<const ScriptSymbol *> members = index.membersOf (owner);
 		for (size_t m = 0; m < members.size (); m ++) {
-			if (members[m]->name == name && members[m]->kind != SYMBOL_EVENT) return members[m];
+			if (members[m]->name != name) continue;
+			if (members[m]->kind != SYMBOL_EVENT || (dotted && members[m]->callable ())) return members[m];
 		}
 		return NULL;
 	}
@@ -251,7 +255,7 @@ private:
 		std::string full = qualifier.empty () ? name.text : qualifier + "." + name.text;
 		const ScriptSymbol * sub = NULL;
 		if (! qualifier.empty ()) {
-			sub = member (qualifier, name.text);
+			sub = member (qualifier, name.text, true);
 		} else {
 			if (isLocal (scope, name.text)) return;
 			if (const BuiltinFunction * f = catalog.functionCalled (name.text)) {
@@ -267,7 +271,7 @@ private:
 			if (own && own->kind != SYMBOL_SUB) return;
 			sub = own ? own : global (name.text);
 		}
-		if (! sub || sub->kind != SYMBOL_SUB || (int) sub->parameters.size () == count) return;
+		if (! sub || ! sub->callable () || (int) sub->parameters.size () == count) return;
 		char text[96];
 		int wanted = (int) sub->parameters.size ();
 		snprintf (text, sizeof (text), " takes %d argument%s, not %d.", wanted, wanted == 1 ? "" : "s", count);
@@ -334,7 +338,7 @@ private:
 					}
 					continue;
 				}
-				if (allNames && ! member (qualifier, nameToken->text)) {
+				if (allNames && ! member (qualifier, nameToken->text, true)) {
 					error (*nameToken, "The objectType " + qualifier + " has no member '" + nameToken->text + "'.");
 					continue;
 				}
