@@ -166,6 +166,10 @@ void ScriptView::setRoomMode (bool on) {
 	if (! script->path ().empty ()) memory.set (script->path (), MODE_KEY, on ? "room" : "");
 }
 
+bool ScriptView::takeFile (const std::string & path) {
+	return roomMode && room->takeFile (path);
+}
+
 // Script | Room, at the top of the tab.
 void ScriptView::drawModeSwitch () {
 	const char * const modes[] = { "Script", "Room" };

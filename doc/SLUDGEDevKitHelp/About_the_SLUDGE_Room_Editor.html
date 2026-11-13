@@ -23,7 +23,11 @@ There's no separate file for a room. The room editor reads the script itself: it
 <H3>Opening a room:</H3>
 
 <P>
-Open the script in the script editor, and click <b>Room</b> at the top of its tab (or choose <b>Room Editor</b> from the <b>View</b> menu). <b>Script</b> takes you back to the text. Pick the room you want from the list in the toolbar. This is the outside of the verb coin example, with the tunnel selected:
+Open the script in the script editor, and click <b>Room</b> at the top of its tab (or choose <b>Room Editor</b> from the <b>View</b> menu). <b>Script</b> takes you back to the text. Pick the room you want from the list in the toolbar.
+</P>
+
+<P>
+Under the toolbar are two tabs: <b>Overlays</b>, for the pictures of the room, and <b>Regions</b>, for its screen regions. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
 </P>
 
 <P>
@@ -53,10 +57,28 @@ The editor shows the scene as the game builds it: the pictures of addOverlay and
 The scene is the size that <a href="setSceneDimensions.html">setSceneDimensions</a> gives it, if the room calls it, and otherwise the size of your game's window, from the project. The file names are found the way the compiler finds them, in the folder of the project. The <b>Inspector</b> lists the room's pictures and regions, and says so when it can't find a picture.
 </P>
 
+<H3>Adding and moving overlays:</H3>
+
+<P>
+In the <b>Overlays</b> tab, <b>Add Overlay...</b> asks for a picture (a PNG or TGA file) and adds an addOverlay for it to the room, at 0, 0. Quicker still: drag the picture onto the room from your file manager. The new overlay goes after the room's other overlays, so it's drawn on top of them. Its file name is written from the folder of your project, as the compiler wants it.
+</P>
+
+<P>
+<IMG SRC="images/devkit-room-overlays.png" alt="The verb coin's picture added to the outside room of the verb coin example, in the Overlays tab, selected">
+</P>
+
+<P>
+Click an overlay to select it, either on the room or in the Inspector's list, and drag it to move it, or type its position in the Inspector. A click on a see-through part of a picture goes to the picture under it, so a cut-out on top of the backdrop won't get in your way. Delete (or Backspace), or <b>Delete Overlay</b> in the Inspector, takes the selected overlay out of the script again.
+</P>
+
+<P>
+The editor keeps overlays inside the scene when you move them, because the game stops with an error when an overlay doesn't fit. If one of your overlays is already sticking out, the Inspector says "Outside the scene". An overlay at CENTRE gets numbers once you move it.
+</P>
+
 <H3>Moving and reshaping regions:</H3>
 
 <P>
-Choose <b>Select</b> (or press 1). Click a region to select it, and drag it to move it. Drag one of its handles to move a corner or an edge of a rectangle, or a point of a shape. Drag the cross to move the place where characters walk to. You can type the numbers in the Inspector too, and choose the direction there.
+In the <b>Regions</b> tab, choose <b>Select</b> (or press 1). Click a region to select it, and drag it to move it. Drag one of its handles to move a corner or an edge of a rectangle, or a point of a shape. Drag the cross to move the place where characters walk to. You can type the numbers in the Inspector too, and choose the direction there.
 </P>
 
 <P>
@@ -66,7 +88,7 @@ To add a point to a shape, double-click its edge where you want the point. Delet
 <H3>Drawing new regions:</H3>
 
 <P>
-Choose <b>Rectangle</b> (2) and drag out a rectangle, or choose <b>Shape</b> (3) and click the points of a shape one at a time. Click the first point again, or press Enter, to finish the shape. Backspace takes back the last point, and Esc gives up on it.
+In the <b>Regions</b> tab, choose <b>Rectangle</b> (2) and drag out a rectangle, or choose <b>Shape</b> (3) and click the points of a shape one at a time. Click the first point again, or press Enter, to finish the shape. Backspace takes back the last point, and Esc gives up on it.
 </P>
 
 <P>
@@ -86,7 +108,7 @@ Regions inside an if or a loop are drawn more faintly. You can still edit them, 
 <H3>Undoing and saving:</H3>
 
 <P>
-Every change the editor makes is a change to the script, so <b>Undo</b> in the <b>Edit</b> menu takes it back, and you save the script as usual. The editor remembers which room you were looking at, and whether the script was showing its room, for next time.
+Every change the editor makes is a change to the script, so <b>Undo</b> in the <b>Edit</b> menu takes it back, and you save the script as usual. The editor remembers which room and which tab you were looking at, and whether the script was showing its room, for next time.
 </P>
 
 <H3>See also:</H3>

@@ -4,10 +4,12 @@
 /*
  * The room editor, the Room mode of a script's tab: a room of the script
  * (Core/RoomScript.h) as the game builds it, its overlays on the scene,
- * its floor, and its screen regions over them, which the user moves,
- * reshapes and draws. Every change is a change to the text of the script,
- * which undoes and saves as typing does; and what the user types in the
- * script shows here at once.
+ * its floor, and its screen regions over them. Each kind of thing has a
+ * tab of its own, with its tools and its part of the Inspector: in the
+ * Overlays tab the user adds, moves and removes the pictures, in the
+ * Regions tab moves, reshapes and draws the regions. Every change is a
+ * change to the text of the script, which undoes and saves as typing does;
+ * and what the user types in the script shows here at once.
  */
 
 #include <stdint.h>
@@ -37,11 +39,14 @@ public:
 	void draw ();
 	void drawInspector ();
 	bool animating () const;
+	// A PNG or TGA dropped on the room becomes a new overlay.
+	bool takeFile (const std::string & path);
 
 	// Show a place of the script in Script mode, with length bytes selected.
 	std::function<void (TextPos at, int length)> showInScript;
 
 	enum Tool { TOOL_SELECT, TOOL_RECTANGLE, TOOL_SHAPE, TOOL_COUNT };
+	enum Tab { TAB_OVERLAYS, TAB_REGIONS };
 
 private:
 	// A picture of an overlay, as the floor editor loads its backdrop.
@@ -58,11 +63,13 @@ private:
 		FloorFile ();
 	};
 	// What the mouse drags.
-	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE };
+	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY };
 
 	void update ();
 	const Room * room () const;
 	const RoomRegion * selected () const;
+	const RoomOverlay * selectedOverlayOf () const;
+	void setTab (Tab t);
 	void chooseRoom (int index);
 	std::string pathOf (const std::string & file) const;
 	Picture * pictureOf (const std::string & file);
@@ -72,10 +79,27 @@ private:
 
 	void drawToolbar ();
 	void handleMouse ();
+	void handleOverlayMouse (float x, float y);
+	void handleRegionMouse (float x, float y);
 	void handleKeys ();
 	void paint (Draw2D & draw);
 	void drawLabels ();
 	void drawNewRegion ();
+	void drawOverlayInspector ();
+	void drawRegionInspector ();
+
+	// Where an overlay is on the scene, as a drag leaves it, and its size;
+	// false when it has no picture or its place isn't numbers.
+	bool overlayShown (int overlay, int * x, int * y, int * width, int * height);
+	// The overlay under a point of the scene, where its picture isn't
+	// transparent: the one drawn last.
+	int overlayAt (float x, float y);
+	// Keep an overlay of a size in the scene, as the game must.
+	void clampOverlay (int width, int height, int * x, int * y) const;
+	void chooseOverlayFile ();
+	void addOverlayFile (const std::string & path);
+	// A file as the script names it: from the folder of the project.
+	std::string scriptName (const std::string & path) const;
 
 	// The coordinates of a region as they are shown: as a drag leaves them.
 	std::vector<int> shownValues (int region) const;
@@ -114,11 +138,18 @@ private:
 	bool showFloor;
 	int sceneWidth, sceneHeight;
 
+	Tab tab;
+	bool tabPending;			// Make tab the selected one of the tab bar
 	Tool tool;
 	int selectedRegion, selectedPoint;	// -1 for none
-	// Select the region that starts here when we read the rooms again.
-	bool selectPending;
+	int selectedOverlay;
+	// Select the region or overlay that starts here when we read the rooms
+	// again.
+	bool selectPending, selectOverlayPending;
 	TextPos selectAt;
+	// The answer of the file dialog of Add Overlay, which may come after we
+	// are gone.
+	std::shared_ptr<std::string> chosenOverlay;
 
 	Drag drag;
 	std::pair<int, int> dragHandle;
@@ -135,7 +166,7 @@ private:
 	std::string lastType;		// That a region was added with
 
 	// The fields of the Inspector, while the user changes them.
-	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2];
+	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2];
 	bool fieldsEditing;
 
 	std::string notice;

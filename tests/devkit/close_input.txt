@@ -67,6 +67,17 @@ wait 2
 down
 up
 wait 3
+# Its Overlays tab, with a picture selected.
+move 300 104
+wait 1
+down
+up
+wait 3
+move 600 300
+wait 1
+down
+up
+wait 3
 close
 wait 2
 documents 0

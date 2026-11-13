@@ -408,6 +408,15 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room PROPERTIES LABELS capture)
+		# Its Overlays tab: a picture dropped, moved and taken away.
+		add_test(NAME capture-devkit-room-overlay
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_overlay_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-overlay-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-overlay
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room-overlay PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

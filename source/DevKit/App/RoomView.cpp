@@ -11,6 +11,7 @@
 #include "draw2d.h"
 
 #include "FileMemory.h"
+#include "Platform.h"
 #include "ProjectCheck.h"
 #include "ProjectDocument.h"
 #include "Properties.h"
@@ -33,6 +34,7 @@ static const int64_t STALE = -2;
 
 static const char * const ROOM_KEY = "room.sub";
 static const char * const FLOOR_KEY = "room.floor";
+static const char * const TAB_KEY = "room.tab";
 
 struct ToolInfo {
 	const char * name;
@@ -68,14 +70,17 @@ RoomView::Picture::Picture () : time (STALE), loaded (false) {
 RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphics & g, FileMemory & m)
 	: script (s), actions (a), graphics (g), memory (m), canvas (g), roomsVersion (0), read (false), roomIndex (-1),
 	  nextFileCheck (0), showFloor (true), sceneWidth (DEFAULT_WIDTH), sceneHeight (DEFAULT_HEIGHT),
-	  tool (TOOL_SELECT), selectedRegion (-1), selectedPoint (-1), selectPending (false),
+	  tab (TAB_REGIONS), tabPending (true), tool (TOOL_SELECT), selectedRegion (-1), selectedPoint (-1), selectedOverlay (-1),
+	  selectPending (false), selectOverlayPending (false), chosenOverlay (new std::string),
 	  drag (DRAG_NONE), dragHandle (-1, -1), pressX (0), pressY (0), mouseX (0), mouseY (0),
 	  newPending (false), newShape (false), openNewPopup (false), newChoice (0), focusNewName (false),
 	  fieldsEditing (false), noticeUntil (0) {
 	fieldTopLeft[0] = fieldTopLeft[1] = fieldBottomRight[0] = fieldBottomRight[1] = fieldStand[0] = fieldStand[1] = 0;
+	fieldOverlay[0] = fieldOverlay[1] = 0;
 	if (! script->path ().empty ()) {
 		roomName = memory.get (script->path (), ROOM_KEY);
 		showFloor = memory.get (script->path (), FLOOR_KEY) != "off";
+		if (memory.get (script->path (), TAB_KEY) == "overlays") tab = TAB_OVERLAYS;
 	}
 }
 
@@ -102,6 +107,7 @@ void RoomView::update () {
 	read = true;
 	roomsVersion = text.version ();
 	int regionsBefore = roomIndex >= 0 ? (int) rooms[roomIndex].regions.size () : -1;
+	int overlaysBefore = roomIndex >= 0 ? (int) rooms[roomIndex].overlays.size () : -1;
 	int previousIndex = roomIndex;
 	rooms = readRooms (text);
 	roomIndex = -1;
@@ -130,7 +136,16 @@ void RoomView::update () {
 	if (const RoomRegion * region = selected ()) {
 		if (selectedPoint >= (int) region->values ().size () / 2 || ! region->shape) selectedPoint = -1;
 	}
-	if (drag != DRAG_NONE && ! selected () && drag != DRAG_RECTANGLE) drag = DRAG_NONE;
+	if (selectOverlayPending && shown) {
+		selectOverlayPending = false;
+		selectedOverlay = -1;
+		for (size_t o = 0; o < shown->overlays.size (); o ++) {
+			if (shown->overlays[o].call == selectAt) selectedOverlay = (int) o;
+		}
+	} else if (! shown || (int) shown->overlays.size () != overlaysBefore) {
+		selectedOverlay = -1;
+	}
+	if ((drag == DRAG_OVERLAY && ! selectedOverlayOf ()) || (drag != DRAG_NONE && drag != DRAG_OVERLAY && drag != DRAG_RECTANGLE && ! selected ())) drag = DRAG_NONE;
 }
 
 const Room * RoomView::room () const {
@@ -142,11 +157,24 @@ const RoomRegion * RoomView::selected () const {
 	return r && selectedRegion >= 0 && selectedRegion < (int) r->regions.size () ? &r->regions[selectedRegion] : NULL;
 }
 
+const RoomOverlay * RoomView::selectedOverlayOf () const {
+	const Room * r = room ();
+	return r && selectedOverlay >= 0 && selectedOverlay < (int) r->overlays.size () ? &r->overlays[selectedOverlay] : NULL;
+}
+
+void RoomView::setTab (Tab t) {
+	if (t == tab) return;
+	tab = t;
+	drag = DRAG_NONE;
+	drawnPoints.clear ();
+	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY, t == TAB_OVERLAYS ? "overlays" : "");
+}
+
 void RoomView::chooseRoom (int index) {
 	if (index < 0 || index >= (int) rooms.size () || index == roomIndex) return;
 	roomIndex = index;
 	roomName = rooms[index].name;
-	selectedRegion = selectedPoint = -1;
+	selectedRegion = selectedPoint = selectedOverlay = -1;
 	drag = DRAG_NONE;
 	drawnPoints.clear ();
 	if (! script->path ().empty ()) memory.set (script->path (), ROOM_KEY, roomName);
@@ -321,12 +349,92 @@ int RoomView::regionAt (float x, float y) const {
 	return -1;
 }
 
+void RoomView::clampOverlay (int width, int height, int * x, int * y) const {
+	// As loadHSI (Engine/backdrop.cpp), which stops the game otherwise.
+	if (*x > sceneWidth - width) *x = sceneWidth - width;
+	if (*y > sceneHeight - height) *y = sceneHeight - height;
+	if (*x < 0) *x = 0;
+	if (*y < 0) *y = 0;
+}
+
+bool RoomView::overlayShown (int index, int * x, int * y, int * width, int * height) {
+	const RoomOverlay & overlay = room ()->overlays[index];
+	if (! overlay.movable ()) return false;
+	Picture * picture = pictureOf (overlay.file);
+	if (! picture) return false;
+	const sprite & s = picture->bank.sprites[0];
+	*width = s.width;
+	*height = s.height < 0 ? - s.height : s.height;
+	overlayPlace (overlay, picture, x, y);
+	if (index == selectedOverlay && drag == DRAG_OVERLAY) {
+		*x += mouseX - pressX;
+		*y += mouseY - pressY;
+		clampOverlay (*width, *height, x, y);
+	}
+	return true;
+}
+
+int RoomView::overlayAt (float fx, float fy) {
+	const Room * r = room ();
+	if (! r) return -1;
+	for (int o = (int) r->overlays.size () - 1; o >= 0; o --) {
+		int x, y, w, h;
+		if (! overlayShown (o, &x, &y, &w, &h)) continue;
+		int px = (int) floorf (fx) - x, py = (int) floorf (fy) - y;
+		if (px < 0 || py < 0 || px >= w || py >= h) continue;
+		// A click on a transparent part goes to what is under it.
+		const sprite & s = pictureOf (r->overlays[o].file)->bank.sprites[0];
+		if (s.data && ! s.data[((size_t) py * w + px) * 4 + 3]) continue;
+		return o;
+	}
+	return -1;
+}
+
+std::string RoomView::scriptName (const std::string & path) const {
+	std::string folder = ! actions.projectFile ().empty () ? folderOf (actions.projectFile ()) : folderOf (script->path ());
+	std::string name = folder.empty () ? path : relativePathFrom (folder, path);
+	std::replace (name.begin (), name.end (), '\\', '/');
+	return name;
+}
+
+void RoomView::addOverlayFile (const std::string & path) {
+	const Room * r = room ();
+	if (! r) return;
+	TextPos where;
+	apply (roomEdit::addOverlay (script->buffer (), *r, script->indentUnit (), scriptName (path), 0, 0, &where), "Add Overlay", where);
+	selectOverlayPending = true;
+	selectAt = where;
+	setTab (TAB_OVERLAYS);
+	tabPending = true;
+}
+
+void RoomView::chooseOverlayFile () {
+	std::vector<FileFilter> filters;
+	FileFilter images = { "Images", "png;tga" };
+	filters.push_back (images);
+	std::string folder = ! actions.projectFile ().empty () ? folderOf (actions.projectFile ()) : folderOf (script->path ());
+	std::shared_ptr<std::string> chosen = chosenOverlay;
+	actions.platform ().openFileDialog ("Add Overlay", filters, folder, false, [chosen] (const std::vector<std::string> & files) {
+		if (! files.empty ()) *chosen = files[0];
+	});
+}
+
+bool RoomView::takeFile (const std::string & path) {
+	std::string extension = extensionOf (path);
+	if (extension != "png" && extension != "tga") return false;
+	update ();
+	if (! room ()) return false;
+	addOverlayFile (path);
+	return true;
+}
+
 void RoomView::apply (const std::vector<TextChange> & changes, const std::string & label, TextPos at) {
 	if (changes.empty ()) return;
 	script->edit (changes, TextSelection (at), EDIT_OTHER, label);
 }
 
 void RoomView::drawToolbar () {
+	// What both tabs share: the room, the zoom and the floor.
 	ImGui::SetNextItemWidth (ImGui::GetFontSize () * 12);
 	const Room * r = room ();
 	if (ImGui::BeginCombo ("##room", r ? r->name.c_str () : "")) {
@@ -340,19 +448,6 @@ void RoomView::drawToolbar () {
 	ImGui::SetItemTooltip ("Room");
 	ImGui::SameLine ();
 	ImGui::TextDisabled ("|");
-	for (int t = 0; t < TOOL_COUNT; t ++) {
-		ImGui::SameLine ();
-		bool current = tool == t;
-		if (current) ImGui::PushStyleColor (ImGuiCol_Button, ImGui::GetStyleColorVec4 (ImGuiCol_ButtonActive));
-		if (ImGui::Button (tools[t].name)) {
-			tool = (Tool) t;
-			drawnPoints.clear ();
-		}
-		if (current) ImGui::PopStyleColor ();
-		ImGui::SetItemTooltip ("%s (%d)", tools[t].hint, t + 1);
-	}
-	ImGui::SameLine ();
-	ImGui::TextDisabled ("|");
 	ImGui::SameLine ();
 	canvas.drawZoomButtons ();
 	ImGui::SameLine ();
@@ -362,7 +457,33 @@ void RoomView::drawToolbar () {
 		memory.set (script->path (), FLOOR_KEY, showFloor ? "" : "off");
 	}
 
-	if (! ImGui::GetIO ().WantTextInput && ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) {
+	// The tabs, each with its tools.
+	if (ImGui::BeginTabBar ("##roomTabs")) {
+		if (ImGui::BeginTabItem ("Overlays", NULL, tabPending && tab == TAB_OVERLAYS ? ImGuiTabItemFlags_SetSelected : 0)) {
+			if (! tabPending) setTab (TAB_OVERLAYS);
+			if (ImGui::Button ("Add Overlay...")) chooseOverlayFile ();
+			ImGui::EndTabItem ();
+		}
+		if (ImGui::BeginTabItem ("Regions", NULL, tabPending && tab == TAB_REGIONS ? ImGuiTabItemFlags_SetSelected : 0)) {
+			if (! tabPending) setTab (TAB_REGIONS);
+			for (int t = 0; t < TOOL_COUNT; t ++) {
+				if (t) ImGui::SameLine ();
+				bool current = tool == t;
+				if (current) ImGui::PushStyleColor (ImGuiCol_Button, ImGui::GetStyleColorVec4 (ImGuiCol_ButtonActive));
+				if (ImGui::Button (tools[t].name)) {
+					tool = (Tool) t;
+					drawnPoints.clear ();
+				}
+				if (current) ImGui::PopStyleColor ();
+				ImGui::SetItemTooltip ("%s (%d)", tools[t].hint, t + 1);
+			}
+			ImGui::EndTabItem ();
+		}
+		ImGui::EndTabBar ();
+	}
+	tabPending = false;
+
+	if (tab == TAB_REGIONS && ! ImGui::GetIO ().WantTextInput && ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) {
 		for (int t = 0; t < TOOL_COUNT; t ++) {
 			if (ImGui::Shortcut (tools[t].key) && tool != t) {
 				tool = (Tool) t;
@@ -393,6 +514,17 @@ void RoomView::handleKeys () {
 		if (ImGui::Shortcut (ImGuiKey_Escape)) drag = DRAG_NONE;
 		return;
 	}
+	if (tab == TAB_OVERLAYS) {
+		const RoomOverlay * overlay = selectedOverlayOf ();
+		if (ImGui::Shortcut (ImGuiKey_Escape)) selectedOverlay = -1;
+		bool deleteKey = ImGui::Shortcut (ImGuiKey_Delete);
+		bool backspace = ImGui::Shortcut (ImGuiKey_Backspace);
+		if (overlay && (deleteKey || backspace)) {
+			apply (roomEdit::remove (script->buffer (), *overlay), "Delete Overlay", overlay->call);
+			selectedOverlay = -1;
+		}
+		return;
+	}
 	const RoomRegion * region = selected ();
 	if (ImGui::Shortcut (ImGuiKey_Escape)) selectedRegion = selectedPoint = -1;
 	// Delete, or the Delete key of a Mac (Backspace): the selected point,
@@ -416,6 +548,14 @@ void RoomView::handleKeys () {
 }
 
 void RoomView::finishDrag () {
+	if (drag == DRAG_OVERLAY) {
+		const RoomOverlay * overlay = selectedOverlayOf ();
+		int x, y, w, h;
+		bool shown = overlay && overlayShown (selectedOverlay, &x, &y, &w, &h);
+		drag = DRAG_NONE;
+		if (shown && (mouseX != pressX || mouseY != pressY)) apply (roomEdit::moveOverlay (*overlay, x, y), "Move Overlay", overlay->call);
+		return;
+	}
 	const RoomRegion * region = selected ();
 	Drag was = drag;
 	// The values as the drag leaves them, before it ends.
@@ -453,9 +593,27 @@ void RoomView::handleMouse () {
 	float fx = canvas.mouseX (), fy = canvas.mouseY ();
 	mouseX = (int) floorf (fx);
 	mouseY = (int) floorf (fy);
+	if (! room () || newPending) return;
+	if (tab == TAB_OVERLAYS) handleOverlayMouse (fx, fy);
+	else handleRegionMouse (fx, fy);
+	if (drag != DRAG_NONE && canvas.released ()) finishDrag ();
+}
+
+void RoomView::handleOverlayMouse (float fx, float fy) {
+	if (canvas.hovered () && drag == DRAG_NONE && ! canvas.animating ()) {
+		int over = overlayAt (fx, fy);
+		if (over >= 0 && over == selectedOverlay) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeAll);
+	}
+	if (! canvas.pressed ()) return;
+	pressX = mouseX;
+	pressY = mouseY;
+	selectedOverlay = overlayAt (fx, fy);
+	if (selectedOverlay >= 0) drag = DRAG_OVERLAY;
+}
+
+void RoomView::handleRegionMouse (float fx, float fy) {
 	float near = closeness ();
 	const Room * r = room ();
-	if (! r || newPending) return;
 
 	if (tool == TOOL_SELECT && canvas.hovered () && drag == DRAG_NONE && ! canvas.animating ()) {
 		// The pointer over what a drag would take.
@@ -548,7 +706,6 @@ void RoomView::handleMouse () {
 				break;
 		}
 	}
-	if (drag != DRAG_NONE && canvas.released ()) finishDrag ();
 }
 
 void RoomView::paint (Draw2D & draw) {
@@ -561,16 +718,12 @@ void RoomView::paint (Draw2D & draw) {
 		draw.finish ();
 		return;
 	}
-	for (size_t o = 0; o < r->overlays.size (); o ++) {
-		const RoomOverlay & overlay = r->overlays[o];
-		if (! overlay.x.literal || ! overlay.y.literal) continue;
-		Picture * picture = pictureOf (overlay.file);
-		if (! picture) continue;
-		int x, y;
-		overlayPlace (overlay, picture, &x, &y);
-		const sprite & s = picture->bank.sprites[0];
-		draw.setDrawingColour (1.0f, 1.0f, 1.0f, overlay.conditional ? 0.6f : 1.0f);
-		draw.drawPicture (&picture->bank, 0, false, (float) x, (float) y, (float) (x + s.width), (float) (y - s.height), 0, 0, 1, 1);
+	for (int o = 0; o < (int) r->overlays.size (); o ++) {
+		int x, y, w, h;
+		if (! overlayShown (o, &x, &y, &w, &h)) continue;
+		Picture * picture = pictureOf (r->overlays[o].file);
+		draw.setDrawingColour (1.0f, 1.0f, 1.0f, r->overlays[o].conditional ? 0.6f : 1.0f);
+		draw.drawPicture (&picture->bank, 0, false, (float) x, (float) y, (float) (x + w), (float) (y + h), 0, 0, 1, 1);
 	}
 	draw.setDrawingColour (0.5f, 0.5f, 0.55f, 1.0f);
 	draw.drawLineLoop (scene, 4);
@@ -591,7 +744,8 @@ void RoomView::paint (Draw2D & draw) {
 	}
 
 	float handleSize = canvas.pixelsOfPoints (3.5f);
-	int hovered = drag == DRAG_NONE && tool == TOOL_SELECT && canvas.hovered () ? regionAt (canvas.mouseX (), canvas.mouseY ()) : -1;
+	bool regionsTab = tab == TAB_REGIONS;
+	int hovered = regionsTab && drag == DRAG_NONE && tool == TOOL_SELECT && canvas.hovered () ? regionAt (canvas.mouseX (), canvas.mouseY ()) : -1;
 	for (int g = 0; g < (int) r->regions.size (); g ++) {
 		const RoomRegion & region = r->regions[g];
 		std::vector<int> v = shownValues (g);
@@ -600,14 +754,15 @@ void RoomView::paint (Draw2D & draw) {
 		std::vector<int> outline = shown.outline ();
 		if (outline.size () < 6) continue;
 		std::vector<float> points (outline.begin (), outline.end ());
-		bool isSelected = g == selectedRegion;
-		float alpha = region.conditional ? 0.6f : 1.0f;
+		// In the Overlays tab, the regions are only there to see.
+		bool isSelected = regionsTab && g == selectedRegion;
+		float alpha = (region.conditional ? 0.6f : 1.0f) * (regionsTab ? 1.0f : 0.35f);
 		if (isSelected && ! region.shape) {
 			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 0.18f);
 			draw.drawPolygon (points.data (), 4);
 		}
 		if (isSelected) draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
-		else if (! region.editable) draw.setDrawingColour (0.65f, 0.65f, 0.65f, 0.8f * alpha);
+		else if (! region.editable || ! regionsTab) draw.setDrawingColour (0.65f, 0.65f, 0.65f, 0.8f * alpha);
 		else if (g == hovered) draw.setDrawingColour (0.7f, 1.0f, 0.75f, alpha);
 		else draw.setDrawingColour (0.35f, 0.95f, 0.45f, alpha);
 		draw.drawLineLoop (points.data (), (int) points.size () / 2);
@@ -649,6 +804,16 @@ void RoomView::paint (Draw2D & draw) {
 				const float line[] = { cx / n, cy / n, (float) sx, (float) sy };
 				draw.drawLines (line, 2);
 			}
+		}
+	}
+
+	// The selected overlay.
+	if (! regionsTab && selectedOverlayOf ()) {
+		int x, y, w, h;
+		if (overlayShown (selectedOverlay, &x, &y, &w, &h)) {
+			const float box[] = { (float) x, (float) y, (float) (x + w), (float) y, (float) (x + w), (float) (y + h), (float) x, (float) (y + h) };
+			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
+			draw.drawLineLoop (box, 4);
 		}
 	}
 
@@ -695,10 +860,11 @@ void RoomView::drawLabels () {
 		ImVec2 at = canvas.toWindow ((float) minX, (float) minY);
 		at.x += 3;
 		at.y += 2;
-		ImU32 colour = g == selectedRegion ? IM_COL32 (255, 205, 50, 255) : region.editable ? IM_COL32 (110, 245, 130, 230) : IM_COL32 (170, 170, 170, 220);
+		ImU32 colour = tab != TAB_REGIONS ? IM_COL32 (170, 170, 170, 110)
+			: g == selectedRegion ? IM_COL32 (255, 205, 50, 255) : region.editable ? IM_COL32 (110, 245, 130, 230) : IM_COL32 (170, 170, 170, 220);
 		const char * name = region.objectType.c_str ();
 		ImVec2 size = ImGui::CalcTextSize (name);
-		list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, 150), 2.0f);
+		list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, tab == TAB_REGIONS ? 150 : 60), 2.0f);
 		list->AddText (at, colour, name);
 	}
 	list->PopClipRect ();
@@ -792,6 +958,11 @@ void RoomView::drawNewRegion () {
 
 void RoomView::draw () {
 	update ();
+	if (! chosenOverlay->empty ()) {
+		addOverlayFile (*chosenOverlay);
+		chosenOverlay->clear ();
+		update ();
+	}
 	if (ImGui::GetTime () >= nextFileCheck) {
 		// The pictures and floors are looked at again when they are drawn.
 		for (std::map<std::string, std::unique_ptr<Picture> >::iterator p = pictures.begin (); p != pictures.end (); ++ p) {
@@ -862,21 +1033,79 @@ void RoomView::drawInspector () {
 		ImGui::EndTable ();
 	}
 
+	if (tab == TAB_OVERLAYS) drawOverlayInspector ();
+	else drawRegionInspector ();
+}
+
+void RoomView::drawOverlayInspector () {
+	const Room * r = room ();
 	ImGui::SeparatorText ("Overlays");
-	if (r->overlays.empty ()) ImGui::TextDisabled ("None");
-	for (size_t o = 0; o < r->overlays.size (); o ++) {
+	if (r->overlays.empty ()) ImGui::TextDisabled ("No overlays");
+	for (int o = 0; o < (int) r->overlays.size (); o ++) {
 		const RoomOverlay & overlay = r->overlays[o];
-		ImGui::PushID ((int) o);
-		if (ImGui::Selectable (overlay.file.c_str ())) {
-			if (showInScript) showInScript (overlay.call, 0);
-		}
+		ImGui::PushID (o);
+		if (ImGui::Selectable (overlay.file.c_str (), o == selectedOverlay)) selectedOverlay = o;
 		ImGui::SameLine ();
-		if (! pictureOf (overlay.file)) ImGui::TextColored (ImVec4 (1.0f, 0.45f, 0.4f, 1.0f), "Not found");
-		else if (! overlay.x.literal || ! overlay.y.literal) ImGui::TextDisabled ("Not a number");
-		else ImGui::TextDisabled ("%s, %s", overlay.x.text.c_str (), overlay.y.text.c_str ());
+		int x, y, w, h;
+		ImVec4 red (1.0f, 0.45f, 0.4f, 1.0f);
+		if (! pictureOf (overlay.file)) {
+			ImGui::TextColored (red, "Not found");
+		} else if (! overlay.movable ()) {
+			ImGui::TextDisabled ("Not a number");
+		} else if (overlayShown (o, &x, &y, &w, &h) && (x < 0 || y < 0 || x + w > sceneWidth || y + h > sceneHeight)) {
+			ImGui::TextColored (red, "Outside the scene");
+		} else {
+			std::string detail = overlay.x.text + ", " + overlay.y.text;
+			if (overlay.conditional) detail += ", Conditional";
+			ImGui::TextDisabled ("%s", detail.c_str ());
+		}
 		ImGui::PopID ();
 	}
 
+	const RoomOverlay * overlay = selectedOverlayOf ();
+	if (! overlay) return;
+	int x = 0, y = 0, w = 0, h = 0;
+	bool shown = overlayShown (selectedOverlay, &x, &y, &w, &h);
+	if (! fieldsEditing) {
+		fieldOverlay[0] = (float) x;
+		fieldOverlay[1] = (float) y;
+	}
+	if (beginProperties ("Overlay")) {
+		propertyRow ("File");
+		ImGui::TextUnformatted (overlay->file.c_str ());
+		propertyRow ("Function");
+		ImGui::TextUnformatted (overlay->mix ? "mixOverlay" : "addOverlay");
+		propertyRow ("Position");
+		if (shown) {
+			bool done = false;
+			fieldsEditing |= xyFields ("position", &fieldOverlay[0], &fieldOverlay[1], 1.0f, "%.0f", 0, 0, &done);
+			if (done) {
+				fieldsEditing = false;
+				int nx = (int) fieldOverlay[0], ny = (int) fieldOverlay[1];
+				clampOverlay (w, h, &nx, &ny);
+				if (nx != x || ny != y) apply (roomEdit::moveOverlay (*overlay, nx, ny), "Move Overlay", overlay->call);
+			}
+		} else {
+			ImGui::TextDisabled (overlay->movable () ? "Not found" : "Not a number");
+		}
+		ImGui::EndTable ();
+	}
+	overlay = selectedOverlayOf ();
+	if (! overlay) return;
+	bool first = true;
+	if (wrappedButton ("Show in Script", &first) && showInScript) {
+		// addOverlay and mixOverlay are as long.
+		showInScript (overlay->call, (int) std::string ("addOverlay").size ());
+		return;
+	}
+	if (wrappedButton ("Delete Overlay", &first)) {
+		apply (roomEdit::remove (script->buffer (), *overlay), "Delete Overlay", overlay->call);
+		selectedOverlay = -1;
+	}
+}
+
+void RoomView::drawRegionInspector () {
+	const Room * r = room ();
 	ImGui::SeparatorText ("Regions");
 	if (r->regions.empty ()) ImGui::TextDisabled ("None");
 	for (int g = 0; g < (int) r->regions.size (); g ++) {

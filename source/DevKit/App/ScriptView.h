@@ -42,6 +42,8 @@ public:
 	void drawInspector ();
 	bool animating () const;
 	double secondsToWake () const;
+	// In Room mode, a picture dropped on the room becomes an overlay.
+	bool takeFile (const std::string & path);
 	bool canCopy () const { return ! roomMode && ! script->selection ().empty (); }
 	void copy ();
 	bool canPaste () const { return ! roomMode; }

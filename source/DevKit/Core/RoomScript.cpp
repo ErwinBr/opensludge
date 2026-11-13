@@ -122,7 +122,7 @@ private:
 	void readBody (size_t open, size_t close, Room & room) {
 		int braces = 0, brackets = 0;
 		bool guarded = false, atStart = true;
-		bool floorTopLevel = false, afterRegion = false;
+		bool floorTopLevel = false, afterRegion = false, afterOverlay = false;
 		for (size_t k = open + 1; k < close; k ++) {
 			const FileToken & token = t[k];
 			const std::string & word = token.text;
@@ -181,6 +181,7 @@ private:
 					overlay.mix = word == "mixOverlay";
 					overlay.conditional = conditional;
 					overlay.call = token.at;
+					overlay.statementEnd = end;
 					room.overlays.push_back (overlay);
 				}
 				setup = true;
@@ -200,6 +201,14 @@ private:
 				setup = true;
 			} else if (word == "setZBuffer" || word == "setScale" || word == "setScaleMap") {
 				setup = true;
+			}
+			// A new overlay goes after the overlays, else after the size of
+			// the scene.
+			if (! conditional && (word == "addOverlay" || word == "mixOverlay" || (word == "setSceneDimensions" && ! afterOverlay))) {
+				room.hasOverlayAnchor = true;
+				room.overlayAnchorStart = token.at;
+				room.overlayAnchorEnd = end;
+				if (word != "setSceneDimensions") afterOverlay = true;
 			}
 			// A new region goes after the regions, else after the setting up.
 			if (setup && ! conditional && ! afterRegion) {
@@ -399,8 +408,16 @@ std::vector<TextChange> toShape (const RoomRegion & region) {
 }
 
 std::vector<TextChange> remove (const TextBuffer & text, const RoomRegion & region) {
+	return removeStatement (text, region.call, region.statementEnd);
+}
+
+std::vector<TextChange> remove (const TextBuffer & text, const RoomOverlay & overlay) {
+	return removeStatement (text, overlay.call, overlay.statementEnd);
+}
+
+std::vector<TextChange> removeStatement (const TextBuffer & text, TextPos call, TextPos statementEnd) {
 	std::vector<TextChange> changes;
-	TextPos from = region.call, to = region.statementEnd;
+	TextPos from = call, to = statementEnd;
 	const std::string & first = text.line (from.line);
 	const std::string & last = text.line (to.line);
 	if (onlySpace (first.substr (0, from.column)) && onlySpace (last.substr (to.column))) {
@@ -425,6 +442,33 @@ std::vector<TextChange> remove (const TextBuffer & text, const RoomRegion & regi
 	return changes;
 }
 
+// Insert a line of code into a room: after the statement from start to end,
+// on a line of its own indented as the line where it starts, or, without
+// one, at the start of the body.
+static void insertLine (const TextBuffer & text, const Room & room, bool hasAnchor, TextPos start, TextPos end,
+		const std::string & indentUnit, const std::string & code, std::vector<TextChange> & changes, TextPos * where) {
+	if (hasAnchor && end.line == room.close.line) {
+		// The } is on the line: the new call goes on a line between.
+		std::string indent = leadingSpace (text.line (room.open.line)) + indentUnit;
+		changes.push_back (TextChange (end, end, "\n" + indent + code + "\n" + leadingSpace (text.line (room.close.line))));
+		if (where) *where = TextPos (end.line + 1, (int) indent.size ());
+	} else if (hasAnchor) {
+		std::string indent = leadingSpace (text.line (start.line));
+		TextPos at (end.line, (int) text.line (end.line).size ());
+		changes.push_back (TextChange (at, at, "\n" + indent + code));
+		if (where) *where = TextPos (at.line + 1, (int) indent.size ());
+	} else {
+		std::string braceIndent = leadingSpace (text.line (room.open.line));
+		std::string indent = braceIndent + indentUnit;
+		TextPos at (room.open.line, room.open.column + 1);
+		// A sub with its } on the line of its {: that goes on a line after.
+		std::string with = "\n" + indent + code;
+		if (room.close.line == room.open.line) with += "\n" + braceIndent;
+		changes.push_back (TextChange (at, at, with));
+		if (where) *where = TextPos (at.line + 1, (int) indent.size ());
+	}
+}
+
 std::vector<TextChange> add (const TextBuffer & text, const Room & room, const std::string & indentUnit,
 		const std::string & objectType, bool newObjectType, bool shape, const std::vector<int> & coordinates,
 		int standX, int standY, int direction, TextPos * where) {
@@ -434,26 +478,22 @@ std::vector<TextChange> add (const TextBuffer & text, const Room & room, const s
 		changes.push_back (TextChange (after, after, "\n\nobjectType " + objectType + " (\"" + objectType + "\") {\n}"));
 	}
 	std::string call = regionCall (objectType, shape, coordinates, standX, standY, direction);
-	if (room.hasAnchor && room.anchorEnd.line == room.close.line) {
-		// The } is on the line: the new call goes on a line between.
-		std::string indent = leadingSpace (text.line (room.open.line)) + indentUnit;
-		changes.push_back (TextChange (room.anchorEnd, room.anchorEnd, "\n" + indent + call + "\n" + leadingSpace (text.line (room.close.line))));
-		if (where) *where = TextPos (room.anchorEnd.line + 1, (int) indent.size ());
-	} else if (room.hasAnchor) {
-		std::string indent = leadingSpace (text.line (room.anchorStart.line));
-		TextPos at (room.anchorEnd.line, (int) text.line (room.anchorEnd.line).size ());
-		changes.push_back (TextChange (at, at, "\n" + indent + call));
-		if (where) *where = TextPos (at.line + 1, (int) indent.size ());
-	} else {
-		std::string braceIndent = leadingSpace (text.line (room.open.line));
-		std::string indent = braceIndent + indentUnit;
-		TextPos at (room.open.line, room.open.column + 1);
-		// A sub with its } on the line of its {: that goes on a line after.
-		std::string with = "\n" + indent + call;
-		if (room.close.line == room.open.line) with += "\n" + braceIndent;
-		changes.push_back (TextChange (at, at, with));
-		if (where) *where = TextPos (at.line + 1, (int) indent.size ());
-	}
+	insertLine (text, room, room.hasAnchor, room.anchorStart, room.anchorEnd, indentUnit, call, changes, where);
+	return changes;
+}
+
+std::vector<TextChange> moveOverlay (const RoomOverlay & overlay, int x, int y) {
+	std::vector<TextChange> changes;
+	change (changes, overlay.x, x);
+	change (changes, overlay.y, y);
+	return ordered (changes);
+}
+
+std::vector<TextChange> addOverlay (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, int x, int y, TextPos * where) {
+	std::vector<TextChange> changes;
+	std::string call = "addOverlay ('" + file + "', " + numberText (x) + ", " + numberText (y) + ");";
+	insertLine (text, room, room.hasOverlayAnchor, room.overlayAnchorStart, room.overlayAnchorEnd, indentUnit, call, changes, where);
 	return changes;
 }
 

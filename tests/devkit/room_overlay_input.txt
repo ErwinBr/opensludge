@@ -1,0 +1,64 @@
+# The Overlays tab of the room editor on VerbCoin's outside room, in the
+# window of a smoke test (1280 x 800). The scene, 640 x 480, fits the canvas
+# at 80%: its top left is at 384, 155 in the window, and a pixel of the
+# scene is 0.797 points. The Overlays tab is at 300, 104, and the list of
+# overlays in the Inspector starts at y = 186, a row every 19.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+# Room, at the top of the tab, then the Overlays tab.
+move 340 57
+wait 2
+down
+up
+wait 6
+move 300 104
+wait 1
+down
+up
+wait 4
+
+# A picture dropped on the room becomes an overlay at 0, 0, selected.
+drop ${EXAMPLES}/VerbCoin/iface/verbcoin.tga
+wait 6
+
+# Drag it by about 100, 50.
+move 424 192
+wait 2
+down
+wait 1
+move 464 212
+wait 1
+move 504 232
+wait 2
+up
+wait 4
+
+# A click on its transparent corner selects the room's picture under it;
+# Delete takes that overlay away.
+move 466 197
+wait 2
+down
+up
+wait 4
+key Delete
+wait 4
+
+# The coin, now the only overlay, chosen in the Inspector's list, and dragged.
+move 1100 186
+wait 2
+down
+up
+wait 4
+move 504 232
+wait 2
+down
+wait 1
+move 520 240
+wait 2
+up
+wait 4
+
+save ${OUTPUT}
+wait 2

@@ -46,7 +46,10 @@ struct RoomOverlay {
 	bool mix;				// mixOverlay
 	bool conditional;		// In an if, a loop or a block
 	TextPos call;			// The name of the function
+	TextPos statementEnd;	// After its ; (or its ) when there is none)
 	RoomOverlay () : mix (false), conditional (false) {}
+	// Whether its place is numbers (or CENTRE), which we can move.
+	bool movable () const { return x.literal && y.literal; }
 };
 
 struct RoomRegion {
@@ -87,7 +90,11 @@ struct Room {
 	// indented as the line where it starts; or, with none, after the {.
 	bool hasAnchor;
 	TextPos anchorStart, anchorEnd;
-	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false) {}
+	// The same for a new overlay: after the last overlay, else after
+	// setSceneDimensions (which wipes the backdrop, so it comes first).
+	bool hasOverlayAnchor;
+	TextPos overlayAnchorStart, overlayAnchorEnd;
+	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false) {}
 };
 
 // The rooms of a script, in order.
@@ -113,6 +120,18 @@ namespace roomEdit {
 	std::vector<TextChange> toShape (const RoomRegion & region);
 	// Take away the call, with its lines when it is alone on them.
 	std::vector<TextChange> remove (const TextBuffer & text, const RoomRegion & region);
+	std::vector<TextChange> remove (const TextBuffer & text, const RoomOverlay & overlay);
+	// The same for any statement, from its first token to its end.
+	std::vector<TextChange> removeStatement (const TextBuffer & text, TextPos call, TextPos statementEnd);
+
+	// Put an overlay at x, y: numbers, also in the place of CENTRE.
+	std::vector<TextChange> moveOverlay (const RoomOverlay & overlay, int x, int y);
+	// A new addOverlay of file (as the compiler finds it, from the folder
+	// of the project) at x, y: after the room's overlays, else after
+	// setSceneDimensions, else at the start of the sub. where is set to
+	// the start of the new call.
+	std::vector<TextChange> addOverlay (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, int x, int y, TextPos * where);
 
 	// A new region of objectType, a rectangle (4 numbers) or a shape (6 or
 	// more): after the last region of the room that isn't in an if, else

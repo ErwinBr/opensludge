@@ -2683,6 +2683,57 @@ static void testRoomScript () {
 		text = applied (*script, roomEdit::add (script->buffer (), rooms[1], "    ", "door", true, false, box, 0, 0, -1, &where));
 		CHECK (text.find ("sub roomTwo () { setFloor ('b.flo');\n    addScreenRegion (door, 300, 200, 340, 260, 0, 0, -1);\n }\n\nobjectType door (\"door\") {\n}") != std::string::npos);
 	}
+	// Overlays: added after the others, moved, and taken away.
+	CHECK (outside.buffer ().fileText () == original);
+	rooms = readRooms (outside.buffer ());
+	if (rooms.size () == 1 && rooms[0].overlays.size () == 1) {
+		const RoomOverlay & backdrop = rooms[0].overlays[0];
+		CHECK (rooms[0].hasOverlayAnchor && rooms[0].overlayAnchorStart == backdrop.call && backdrop.movable ());
+		std::string text = applied (outside, roomEdit::addOverlay (outside.buffer (), rooms[0], "\t", "iface/verbcoin.tga", 0, 0, &where));
+		CHECK (text.find ("\taddOverlay ('outside/room.tga', 0, 0);\n\taddOverlay ('iface/verbcoin.tga', 0, 0);\n\tsetFloor") != std::string::npos);
+		CHECK (where == TextPos (backdrop.call.line + 1, 1));
+		std::vector<Room> two = readRooms (outside.buffer ());
+		CHECK (two.size () == 1 && two[0].overlays.size () == 2 && two[0].overlays[1].file == "iface/verbcoin.tga" && two[0].overlays[1].call == where);
+		outside.commands ().undo ();
+		CHECK (applied (outside, roomEdit::moveOverlay (backdrop, 10, -20)).find ("addOverlay ('outside/room.tga', 10, -20);") != std::string::npos);
+		outside.commands ().undo ();
+		CHECK (roomEdit::moveOverlay (backdrop, 0, 0).empty ());
+		text = applied (outside, roomEdit::remove (outside.buffer (), backdrop));
+		CHECK (text.find ("room.tga") == std::string::npos && text.find ("\tstartMusic ('outside/music.xm', 0, 0);\n\tsetFloor") != std::string::npos);
+		outside.commands ().undo ();
+		CHECK (outside.buffer ().fileText () == original);
+	}
+	std::unique_ptr<ScriptDocument> overlays (scriptOf (
+		"sub sized () {\n"
+		"\tsetSceneDimensions (800, 600);\n"
+		"\taddScreenRegion (thing, 1, 2, 3, 4, 0, 0, -1);\n"
+		"}\n"
+		"sub centred () {\n"
+		"\tsetSceneDimensions (800, 600);\n"
+		"\tif (x) addOverlay ('b.png', 0, 0);\n"
+		"\taddOverlay ('a.png', CENTRE, 10);\n"
+		"\tsetSceneDimensions (900, 700);\n"
+		"}\n"
+		"sub bare () { setFloor ('b.flo'); }\n", TextPos ()));
+	rooms = readRooms (overlays->buffer ());
+	CHECK (rooms.size () == 3);
+	if (rooms.size () == 3) {
+		std::string text = applied (*overlays, roomEdit::addOverlay (overlays->buffer (), rooms[0], "\t", "c.png", 5, 6, &where));
+		CHECK (text.find ("\tsetSceneDimensions (800, 600);\n\taddOverlay ('c.png', 5, 6);\n\taddScreenRegion") != std::string::npos && where == TextPos (2, 1));
+		overlays->commands ().undo ();
+		// After the last overlay outside the if, not after the size that
+		// comes later.
+		CHECK (rooms[1].overlays.size () == 2 && rooms[1].overlays[0].conditional && ! rooms[1].overlays[1].conditional);
+		text = applied (*overlays, roomEdit::addOverlay (overlays->buffer (), rooms[1], "\t", "c.png", 0, 0, &where));
+		CHECK (text.find ("\taddOverlay ('a.png', CENTRE, 10);\n\taddOverlay ('c.png', 0, 0);\n\tsetSceneDimensions (900, 700);") != std::string::npos);
+		overlays->commands ().undo ();
+		CHECK (applied (*overlays, roomEdit::moveOverlay (rooms[1].overlays[1], 7, 10)).find ("addOverlay ('a.png', 7, 10);") != std::string::npos);
+		overlays->commands ().undo ();
+		text = applied (*overlays, roomEdit::addOverlay (overlays->buffer (), rooms[2], "    ", "c.png", 0, 0, &where));
+		CHECK (text.find ("sub bare () {\n    addOverlay ('c.png', 0, 0);\n setFloor ('b.flo'); }") != std::string::npos);
+		overlays->commands ().undo ();
+	}
+
 	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));
 }
 
