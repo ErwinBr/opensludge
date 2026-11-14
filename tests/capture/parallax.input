@@ -1,0 +1,5 @@
+# ParallaxTest (tests/render/parallax.slu): the mouse stays on one point,
+# 150 pixels left of the middle of the screen, where the game checks which
+# character is drawn.
+
+0 move 170 330

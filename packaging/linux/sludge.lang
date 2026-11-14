@@ -203,6 +203,7 @@
                     <keyword>setCharacterOutlineColour</keyword>
                     <keyword>setCharacterOutlineColor</keyword>
                     <keyword>setCharacterOutlineThickness</keyword>
+                    <keyword>setCharacterParallax</keyword>
                     <keyword>setCharacterSpinSpeed</keyword>
                     <keyword>setCharacterTransparency</keyword>
                     <keyword>setCharacterWalkSpeed</keyword>

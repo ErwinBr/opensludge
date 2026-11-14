@@ -406,18 +406,21 @@ private:
 					room.characterAnchorEnd = end;
 				}
 			}
-			if ((word == "setCharacterDrawMode" || word == "setCharacterExtra" || word == "setCharacterWalkSpeed"
-					|| word == "turnCharacter" || word == "setCharacterZ") && args.size () == 2 && ! args[0].empty ()) {
+			if (((word == "setCharacterDrawMode" || word == "setCharacterExtra" || word == "setCharacterWalkSpeed"
+					|| word == "turnCharacter" || word == "setCharacterZ") && args.size () == 2 && ! args[0].empty ())
+					|| (word == "setCharacterParallax" && args.size () == 3 && ! args[0].empty ())) {
 				// The latest character of that objectType before it.
 				std::string objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
 				for (int c = (int) room.characters.size () - 1; c >= 0; c --) {
 					RoomCharacter & character = room.characters[c];
 					if (character.objectType != objectType) continue;
 					RoomSetting & setting = word == "setCharacterDrawMode" ? character.drawMode : word == "setCharacterExtra" ? character.extra
-						: word == "setCharacterWalkSpeed" ? character.walkSpeed : word == "turnCharacter" ? character.facing : character.depth;
+						: word == "setCharacterWalkSpeed" ? character.walkSpeed : word == "turnCharacter" ? character.facing
+						: word == "setCharacterZ" ? character.depth : character.parallax;
 					if (! setting.present) {
 						setting.present = true;
 						setting.value = word == "setCharacterExtra" ? flags (args[1]) : argument (args[1]);
+						if (args.size () == 3) setting.second = argument (args[2]);
 						setting.call = token.at;
 						setting.statementEnd = end;
 						setting.conditional = conditional;
@@ -889,8 +892,8 @@ static std::vector<TextChange> setting (const TextBuffer & text, const Room & ro
 	if (isDefault) return changes;
 	// After the last setting of the character, else its addCharacter.
 	TextPos end = character.statementEnd;
-	const RoomSetting * settings[] = { &character.drawMode, &character.extra, &character.walkSpeed, &character.facing, &character.depth };
-	for (size_t s = 0; s < 5; s ++) {
+	const RoomSetting * settings[] = { &character.drawMode, &character.extra, &character.walkSpeed, &character.facing, &character.depth, &character.parallax };
+	for (size_t s = 0; s < sizeof (settings) / sizeof (settings[0]); s ++) {
 		if (settings[s]->present && end < settings[s]->statementEnd) end = settings[s]->statementEnd;
 	}
 	std::string call = std::string (function) + " (" + character.objectType + ", " + value + ");";
@@ -916,6 +919,21 @@ std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, c
 
 std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z) {
 	return setting (text, room, character, character.depth, "setCharacterZ", ! fixed, numberText (z));
+}
+
+std::vector<TextChange> setParallax (const TextBuffer & text, const Room & room, const RoomCharacter & character, int x, int y) {
+	const RoomSetting & which = character.parallax;
+	bool isDefault = x == 100 && y == 100;
+	if (which.present) {
+		if (! which.value.literal || ! which.second.literal) return std::vector<TextChange> ();
+		if (! isDefault) {
+			std::vector<TextChange> changes;
+			change (changes, which.value, x);
+			change (changes, which.second, y);
+			return ordered (changes);
+		}
+	}
+	return setting (text, room, character, which, "setCharacterParallax", isDefault, numberText (x) + ", " + numberText (y));
 }
 
 // A new line of the scale: before the first character outside an if when

@@ -1,0 +1,121 @@
+# ParallaxTest: the parallax of characters (setCharacterParallax, see
+# shownPosition in source/Engine/people.h). The mouse stays on one point,
+# 150 pixels left of the middle of the screen (see
+# tests/capture/parallax.input). The game moves the camera, checks with
+# getOverObject which character is drawn under the mouse, and stops with an
+# error when it is wrong (see cmake/CaptureTests.cmake). A character with
+# parallax f shows at the middle of the screen plus its distance from the
+# camera's centre times f / 100:
+#
+#  - At 100 it shows where it is.
+#  - At 200 it is under the mouse when the camera's centre is 75 pixels
+#    right of it, at 50 when it is 300 pixels right of it.
+#  - The y parallax works the same way: at 0, it shows at the middle.
+#  - Freezing and unfreezing, and saving and loading, keep the parallax.
+
+objectType ego ("ego") {
+}
+
+objectType walker ("walker") {
+}
+
+objectType nobody ("nobody") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("ParallaxTest: " + what);
+}
+
+sub nameOf (o) {
+	if (o == ego) return "ego";
+	if (o == walker) return "walker";
+	if (o == NULL) return "nothing";
+	return "another character";
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 0),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 6, 4, 5));
+}
+
+# Show the step for a frame, and check what the mouse is over.
+sub step (name, expected) {
+	statusText (name);
+	pause (1);
+	var over = getOverObject ();
+	check (over == expected, name + ": over " + nameOf (over) + ", not " + nameOf (expected));
+}
+
+# Show a step for some more frames, for the captures.
+sub show (name, expected) {
+	for (var i = 0; i < 4; i ++) step (name, expected);
+}
+
+# Walking holds the function that walks, so this runs on its own.
+sub walkAway () {
+	setCharacterWalkSpeed (walker, 1);
+	forceCharacter (walker, 1560, 341);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	setSceneDimensions (1920, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+	addOverlay ('outside/room.tga', 640, 0);
+	addOverlay ('outside/room.tga', 1280, 0);
+
+	# The camera's centre 150 pixels right of the ego: a normal character
+	# is under the mouse.
+	addCharacter (ego, 960, 340, egoCostume ());
+	aimCamera (1110, 240);
+	show ("normal", ego);
+
+	# At 200, it moves twice as far: 300 pixels left of the middle.
+	check (setCharacterParallax (ego, 200, 100), "setCharacterParallax of a character");
+	step ("200 too far", NULL);
+	aimCamera (1035, 240);
+	show ("200 under the mouse", ego);
+	# Its own position when the camera is centred on it, in the middle.
+	aimCamera (960, 240);
+	step ("200 centred", NULL);
+
+	# At 50, half as far.
+	setCharacterParallax (ego, 50, 100);
+	aimCamera (1110, 240);
+	step ("50 not far enough", NULL);
+	aimCamera (1260, 240);
+	show ("50 under the mouse", ego);
+
+	# The y too: at 0, its feet are in the middle of the screen, above
+	# the mouse.
+	setCharacterParallax (ego, 50, 0);
+	step ("y at 0", NULL);
+	setCharacterParallax (ego, 50, 100);
+	step ("y at 100", ego);
+
+	# Not a character.
+	check (! setCharacterParallax (nobody, 50, 50), "setCharacterParallax of no character");
+
+	# Frozen and unfrozen, it keeps its parallax.
+	freeze ();
+	step ("frozen", NULL);
+	unfreeze ();
+	show ("unfrozen", ego);
+
+	# Save, step, load, and step again: the second time round, saved is
+	# FALSE, as it was when the game saved. The frames show the same both
+	# times, which saveload.cmake compares.
+	addCharacter (walker, 1500, 341, egoCostume ());
+	var saved = saveGame ("parallax.sav");
+	# Another character walks, away from the mouse, so that the frames
+	# after saving and after loading move.
+	spawnSub (walkAway);
+	for (var i = 0; i < 10; i ++) show ("after saving", ego);
+	setCharacterParallax (ego, 100, 100);
+	show ("normal before loading", NULL);
+	if (saved) loadGame ("parallax.sav");
+	quitGame ();
+}

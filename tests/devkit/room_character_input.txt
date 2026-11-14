@@ -56,7 +56,7 @@ wait 2
 down
 up
 wait 3
-move 1100 675
+move 1100 700
 wait 2
 down
 up

@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCharacterParallax</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCharacterParallax</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCharacterParallax (<i>thisCharacter, scrollSpeedX, scrollSpeedY</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Makes <i>thisCharacter</i> move across the screen faster or slower than the scene as the camera scrolls, as a parallax layer does, so that it looks nearer to or further from the camera.
+</P>
+
+<P>
+<a href="parallaxAdd.html">parallaxAdd</a> is great for scenery behind the room, but things in front of the room, such as a tree trunk or a pillar that the camera pans past, are usually characters. Things close to the camera should whizz past faster than the room does, and that's what this function is for.
+</P>
+
+<P>
+<i>scrollSpeedX</i> and <i>scrollSpeedY</i> are percentages of the camera's speed, as they are for parallaxAdd. 100 is a normal character. With 150, the character moves 3 pixels on the screen for every 2 that the scene moves, so it looks closer to the camera. With 50, it moves 1 pixel for every 2, so it looks further away. With 0, it stays in the middle of the screen, however the camera moves.
+</P>
+
+<P>
+The character is always where you put it when the camera is centred on that spot. As the camera moves away, the character drifts away from it, faster or slower according to its scroll speeds, and comes back as the camera returns. That way, the position you give addCharacter still means something, and a character that you place in the <a href="About_the_SLUDGE_Room_Editor.html">room editor</a> is in the right place when the camera looks at it. Say a tree is at 1200, 400, with a scroll speed of 150. When the camera is centred on 1200, 400, the tree is in the middle of the screen. Move the camera 200 pixels to the right, and the tree moves 300 pixels to the left.
+</P>
+
+<P>
+Only where the character is drawn changes. Its speech, the mouse and the gamepad all go by where it's drawn, but it still walks, scales, sorts and goes behind the z-buffer by where it really is, which is also what getCharacterX and getCharacterY tell you. The light map lights it from where it really is too. A character that's <b>FIXTOSCREEN</b> (see <a href="setCharacterExtra.html">setCharacterExtra</a>) stays put on the screen and ignores its scroll speeds. pasteCharacter pastes the character where it really is, not where it's drawn.
+</P>
+
+<P>
+Things that close to the camera are usually in front of everything, so you'll often want <b>FRONT</b> and <b>NOZBUFFER</b> too. To make the character normal again, set both speeds back to 100. Freezing the scene and saving the game both keep the scroll speeds.
+</P>
+
+<P>
+If <i>thisCharacter</i> is an object type which is not currently represented on the screen as a character, the code has no effect.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if <i>thisCharacter</i> is an object type which is currently represented on the screen as a character, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType tree ("tree") {
+}
+
+sub forest () {
+   addOverlay ('forest.tga', 0, 0);
+   parallaxAdd ('hills.tga', 50, 100);
+
+   # A tree trunk close to the camera, which whizzes past
+   # faster than the room
+   addCharacter (tree, 1200, 480, anim ('tree.duc', 0));
+   setCharacterExtra (tree, FRONT + NOZBUFFER);
+   setCharacterParallax (tree, 150, 100);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Object_Types_as_Characters.html">Object Types as Characters</a>
+</P>
+
+<P>
+<a href="parallaxAdd.html">parallaxAdd</a>
+</P>
+
+<P>
+<a href="Scrolling_Scenes.html">Scrolling Scenes</a>
+</P>
+
+<P>
+<a href="setCharacterExtra.html">setCharacterExtra</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

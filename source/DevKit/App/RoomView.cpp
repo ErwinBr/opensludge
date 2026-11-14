@@ -1733,8 +1733,8 @@ void RoomView::drawOverlayInspector () {
 }
 
 // A setting's row: false, with the reason, when the editor can't change it.
-static bool settingEditable (const RoomSetting & setting) {
-	if (setting.present && ! setting.value.literal) {
+static bool settingEditable (const RoomSetting & setting, bool twoValues = false) {
+	if (setting.present && (! setting.value.literal || (twoValues && ! setting.second.literal))) {
 		ImGui::TextDisabled ("Not a number");
 		return false;
 	}
@@ -1821,6 +1821,10 @@ void RoomView::drawCharacterSettings (const RoomCharacter & character) {
 		fieldWalkSpeed = character.walkSpeed.present ? std::string (number) : std::string ();
 		snprintf (number, sizeof (number), "%d", character.depth.value.value);
 		fieldDepth = character.hasDepth () ? std::string (number) : std::string ();
+		snprintf (number, sizeof (number), "%d", character.parallaxX ());
+		fieldParallaxX = character.parallax.present ? std::string (number) : std::string ();
+		snprintf (number, sizeof (number), "%d", character.parallaxY ());
+		fieldParallaxY = character.parallax.present ? std::string (number) : std::string ();
 	}
 	propertyRow ("Walk Speed");
 	if (settingEditable (character.walkSpeed)) {
@@ -1851,6 +1855,28 @@ void RoomView::drawCharacterSettings (const RoomCharacter & character) {
 			}
 		}
 		conditionalMark (character.depth);
+	}
+	// Parallax in percent, x then y; an empty field is 100.
+	propertyRow ("Parallax");
+	if (settingEditable (character.parallax, true)) {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+		ImGui::InputTextWithHint ("##parallaxX", "100", &fieldParallaxX, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		bool done = ImGui::IsItemDeactivated ();
+		ImGui::SameLine ();
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+		ImGui::InputTextWithHint ("##parallaxY", "100", &fieldParallaxY, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		done |= ImGui::IsItemDeactivated ();
+		if (done) {
+			textFieldsEditing = false;
+			int x = 100, y = 100;
+			bool emptyX, emptyY;
+			if (typedNumber (fieldParallaxX, &x, &emptyX) && typedNumber (fieldParallaxY, &y, &emptyY)) {
+				apply (roomEdit::setParallax (text, *r, character, emptyX ? 100 : x, emptyY ? 100 : y), "Change Parallax", character.call);
+			}
+		}
+		conditionalMark (character.parallax);
 	}
 }
 

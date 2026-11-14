@@ -283,8 +283,8 @@ private:
 
 	// The fields of the Inspector, while the user changes them.
 	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2], fieldCharacter[2];
-	// The walk speed and depth of a character as typed, while typed.
-	std::string fieldWalkSpeed, fieldDepth;
+	// The walk speed, depth and parallax of a character as typed, while typed.
+	std::string fieldWalkSpeed, fieldDepth, fieldParallaxX, fieldParallaxY;
 	bool textFieldsEditing;
 	bool fieldsEditing;
 

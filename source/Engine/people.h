@@ -67,6 +67,11 @@ struct onScreenPerson {
 	// order of drawing and for the z-buffer, until clearCharacterZ.
 	bool hasFixedZ = false;
 	float fixedZ = 0;
+	// Parallax, as setCharacterParallax sets it: how fast the character
+	// moves on screen as the camera moves, in percent of the camera's speed.
+	// 100 is a normal character; at its own position when the camera is
+	// centred there (shownPosition).
+	float parallaxX = 100, parallaxY = 100;
 	unsigned char r,g,b,colourmix,transparency;
 	// Draw mode OUTLINE: an outline around the character (outline.h), as
 	// setCharacterOutlineColour and setCharacterOutlineThickness set it.
@@ -88,6 +93,13 @@ struct onScreenPerson {
 	std::vector<PartOverride> overrides;
 	LifetimeCounter<onScreenPerson> counted;
 };
+
+// Where the character shows, in room coordinates, as its parallax moves it
+// from its position: the screen's centre plus its distance from the
+// camera's centre, times its parallax. Its own position when it has none,
+// or when it is fixed to the screen. Drawing, speech and gamepad hotspots
+// use this; walking, depth, light and regions use its position.
+void shownPosition (const onScreenPerson & p, float & x, float & y);
 
 // How far into the scene a character is: its fixed Z, or else its y.
 inline float depthOf (const onScreenPerson & p) {
@@ -164,6 +176,7 @@ std::vector<AnimationFrame> readAnimationFrames (int num, struct variableStack *
 bool setPersonExtra (int f, int newSetting);
 bool setPersonZ (int thisNum, float z);
 bool clearPersonZ (int thisNum);
+bool setPersonParallax (int thisNum, float x, float y);
 // One pass of the sort by depth; true when it moved a character.
 bool shufflePeople ();
 int timeForAnim (const personaAnimation * fram);

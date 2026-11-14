@@ -516,6 +516,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterOutlineThickness.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCharacterParallax">
+					<param name="Local" value="SLUDGEDevKitHelp\setCharacterParallax.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCharacterRig">
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterRig.html">
 					</OBJECT>

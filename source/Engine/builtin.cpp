@@ -1875,6 +1875,20 @@ builtIn(setCharacterZ)
 	return BR_CONTINUE;
 }
 
+builtIn(setCharacterParallax)
+{
+	UNUSEDALL
+	int obj, x, y;
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, setPersonParallax (obj, (float) x, (float) y));
+	return BR_CONTINUE;
+}
+
 builtIn(clearCharacterZ)
 {
 	UNUSEDALL

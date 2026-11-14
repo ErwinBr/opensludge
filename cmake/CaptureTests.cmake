@@ -162,7 +162,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	endforeach()
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
-			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu
+			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu ParallaxTest.slp parallax.slu
 			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
@@ -275,6 +275,22 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/depth.input"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 	set_tests_properties(capture-depth-saveload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# The parallax of characters: with the mouse on one point, the game
+	# checks which character is drawn there as the camera moves, fresh,
+	# frozen, after saving and after loading. Older engines don't have
+	# setCharacterParallax, so no reference.
+	sludge_compile_game(ParallaxTest ${render_project}/ParallaxTest.slp)
+	sludge_add_capture_test(parallax GAME ${CMAKE_BINARY_DIR}/games/ParallaxTest.slg
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/parallax.input FRAMES 0-100/5 NO_REFERENCE)
+	add_test(NAME capture-parallax-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/ParallaxTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/parallax-saveload
+			"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/parallax.input"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-parallax-saveload PROPERTIES LABELS capture TIMEOUT 300)
 
 	# The scale map: the game checks the scale of characters on it, fresh,
 	# frozen, after saving and after loading. Older engines don't have

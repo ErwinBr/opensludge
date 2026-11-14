@@ -132,7 +132,10 @@ int wrapSpeechXY (char * theText, int x, int y, int wrap, int sampleFile) {
 }
 
 int wrapSpeechPerson (char * theText, onScreenPerson & thePerson, int sampleFile, bool animPerson) {
-	int i = wrapSpeechXY (theText, thePerson.x - cameraX, thePerson.y - cameraY - (thePerson.scale * (thePerson.height - thePerson.floaty)) - thePerson.thisType -> speechGap, thePerson.thisType -> wrapSpeech, sampleFile);
+	// Over where the character shows (its parallax moves it).
+	float shownX, shownY;
+	shownPosition (thePerson, shownX, shownY);
+	int i = wrapSpeechXY (theText, shownX - cameraX, shownY - cameraY - (thePerson.scale * (thePerson.height - thePerson.floaty)) - thePerson.thisType -> speechGap, thePerson.thisType -> wrapSpeech, sampleFile);
 	if (animPerson) {
 		makeTalker (thePerson);
 		speech -> currentTalker = & thePerson;

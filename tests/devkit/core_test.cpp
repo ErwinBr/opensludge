@@ -2876,9 +2876,11 @@ static void testRoomScript () {
 		"\tsetCharacterWalkSpeed (ego, speed);\n"
 		"\tsetCharacterZ (ego, 40);\n"
 		"\tturnCharacter (ego, WEST);\n"
+		"\tsetCharacterParallax (ego, 150, -50);\n"
 		"\tsetCharacterDrawMode (duck, DARK1);\n"
 		"\taddCharacter (duck, 5, 6, anim ('d.duc', 0));\n"
 		"\tsetCharacterDrawMode (duck, 7);\n"
+		"\tsetCharacterParallax (duck, far, 100);\n"
 		"}\n", TextPos ()));
 	std::string settingsText = settings->buffer ().text ();
 	rooms = readRooms (settings->buffer ());
@@ -2894,7 +2896,10 @@ static void testRoomScript () {
 		CHECK (ego.walkSpeed.present && ! ego.walkSpeed.value.literal && ego.hasDepth () && ego.depth.value.value == 40 && ego.angle () == 270);
 		// Four directions, facing west: the second standing one.
 		CHECK (ego.picture.known && ego.picture.bank == "e.duc" && ego.picture.frame == 2);
-		CHECK (second.drawModeValue () == 7 && second.call.line == 11);
+		CHECK (second.drawModeValue () == 7 && second.call.line == 12);
+		CHECK (ego.parallax.present && ego.parallaxX () == 150 && ego.parallaxY () == -50);
+		CHECK (! duck.parallax.present && duck.parallaxX () == 100 && duck.parallaxY () == 100);
+		CHECK (second.parallax.present && ! second.parallax.value.literal && second.parallax.second.literal);
 
 		std::string text = applied (*settings, roomEdit::setDrawMode (settings->buffer (), rooms[0], duck, 15));
 		CHECK (text.find ("setCharacterDrawMode (duck, GLOW1);\n\tturnCharacter (duck, NORTH);") != std::string::npos);
@@ -2924,9 +2929,26 @@ static void testRoomScript () {
 		text = applied (*settings, roomEdit::setDepth (settings->buffer (), rooms[0], ego, false, 0));
 		CHECK (text.find ("setCharacterZ") == std::string::npos);
 		settings->commands ().undo ();
+		// Parallax: both numbers change, 100, 100 takes it away, and one
+		// that isn't a number stays as it is.
+		text = applied (*settings, roomEdit::setParallax (settings->buffer (), rooms[0], ego, 80, 25));
+		CHECK (text.find ("\tsetCharacterParallax (ego, 80, 25);\n") != std::string::npos);
+		settings->commands ().undo ();
+		text = applied (*settings, roomEdit::setParallax (settings->buffer (), rooms[0], ego, 100, 100));
+		CHECK (text.find ("setCharacterParallax (ego") == std::string::npos);
+		settings->commands ().undo ();
+		text = applied (*settings, roomEdit::setParallax (settings->buffer (), rooms[0], duck, 50, 100));
+		CHECK (text.find ("\tturnCharacter (duck, NORTH);\n\tsetCharacterParallax (duck, 50, 100);\n\taddCharacter (ego,") != std::string::npos);
+		settings->commands ().undo ();
+		CHECK (roomEdit::setParallax (settings->buffer (), rooms[0], duck, 100, 100).empty ());
+		CHECK (roomEdit::setParallax (settings->buffer (), rooms[0], second, 50, 50).empty ());
+		// A new setting goes after the parallax too.
+		text = applied (*settings, roomEdit::setWalkSpeed (settings->buffer (), rooms[0], second, 2));
+		CHECK (text.find ("\tsetCharacterParallax (duck, far, 100);\n\tsetCharacterWalkSpeed (duck, 2);\n") != std::string::npos);
+		settings->commands ().undo ();
 		// After the setting that the second duck has.
 		text = applied (*settings, roomEdit::setExtras (settings->buffer (), rooms[0], second, ROOM_ICON));
-		CHECK (text.find ("\taddCharacter (duck, 5, 6, anim ('d.duc', 0));\n\tsetCharacterDrawMode (duck, 7);\n\tsetCharacterExtra (duck, ICON);") != std::string::npos);
+		CHECK (text.find ("\taddCharacter (duck, 5, 6, anim ('d.duc', 0));\n\tsetCharacterDrawMode (duck, 7);\n\tsetCharacterParallax (duck, far, 100);\n\tsetCharacterExtra (duck, ICON);") != std::string::npos);
 		settings->commands ().undo ();
 		CHECK (settings->buffer ().text () == settingsText);
 	}

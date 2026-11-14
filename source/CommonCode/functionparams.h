@@ -35,4 +35,5 @@ calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 3, 2,										// watchScreenRegion, isInScreenRegion
 2, 1,										// setCharacterZ, clearCharacterZ
 -1,											// setScaleMap
-5, 2, 5										// setCharacterOutlineColour, setCharacterOutlineThickness, setCursorOutline
+5, 2, 5,									// setCharacterOutlineColour, setCharacterOutlineThickness, setCursorOutline
+3											// setCharacterParallax

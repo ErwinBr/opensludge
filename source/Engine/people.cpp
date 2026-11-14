@@ -34,6 +34,8 @@ extern variableStack * noStack;
 extern int ssgVersion;
 
 extern int cameraX, cameraY;
+extern float cameraZoom;
+extern unsigned int winWidth, winHeight;
 screenRegion personRegion;
 extern screenRegion * lastRegion;
 extern flor * currentFloor;
@@ -241,6 +243,28 @@ bool clearPersonZ (int thisNum) {
 	thisPerson -> fixedZ = 0;
 	sortPeople ();
 	return true;
+}
+
+bool setPersonParallax (int thisNum, float x, float y) {
+	onScreenPerson * thisPerson = findPerson (thisNum);
+	if (! thisPerson) return false;
+	thisPerson -> parallaxX = x;
+	thisPerson -> parallaxY = y;
+	return true;
+}
+
+void shownPosition (const onScreenPerson & p, float & x, float & y) {
+	x = p.x;
+	y = p.y;
+	if (p.extra & EXTRA_FIXTOSCREEN) return;
+	if (p.parallaxX != 100) {
+		float centre = cameraX + (float) winWidth / (2 * cameraZoom);
+		x = centre + (p.x - centre) * p.parallaxX / 100;
+	}
+	if (p.parallaxY != 100) {
+		float centre = cameraY + (float) winHeight / (2 * cameraZoom);
+		y = centre + (p.y - centre) * p.parallaxY / 100;
+	}
 }
 
 void setScale (short int h, short int d) {
@@ -1505,6 +1529,9 @@ bool savePeople (FILE * fp) {
 		fputc (me -> outlined ? 1 : 0, fp);
 		put2bytes (me -> outline.thickness, fp);
 		for (int c = 0; c < 4; c ++) fputc (me -> outline.colour[c], fp);
+		// Since 2.9: its parallax.
+		putFloat (me -> parallaxX, fp);
+		putFloat (me -> parallaxY, fp);
 
 		me = me -> next;
 	}
@@ -1667,6 +1694,10 @@ bool loadPeople (FILE * fp) {
 				if (thickness > maxOutlineThickness) return false;
 				me -> outline.thickness = thickness;
 				for (int c = 0; c < 4; c ++) me -> outline.colour[c] = fgetc (fp);
+			}
+			if (ssgVersion >= VERSION (2, 9)) {
+				me -> parallaxX = getFloat (fp);
+				me -> parallaxY = getFloat (fp);
 			}
 		} else {
 			me -> sequence = a + 1;

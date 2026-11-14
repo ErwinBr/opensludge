@@ -30,8 +30,9 @@ extern unsigned char curLight[3];
 void setDrawMode (const onScreenPerson * thisPerson);	// In sprites.cpp
 
 // Where the character's parts go: its place, its scale, and its float, as
-// scaleSprite places a sprite's hotspot. On screen, less the camera, or for
-// FIXTOSCREEN as the screen is zoomed; in the scene, for pasting.
+// scaleSprite places a sprite's hotspot. On screen, where it shows (its
+// parallax moves it) less the camera, or for FIXTOSCREEN as the screen is
+// zoomed; in the scene, for pasting.
 static Transform2D personTransform (const onScreenPerson * p, bool onScreen) {
 	float scale = p -> scale;
 	float x = p -> x, y = p -> y;
@@ -40,6 +41,7 @@ static Transform2D personTransform (const onScreenPerson * p, bool onScreen) {
 		y /= cameraZoom;
 		scale /= cameraZoom;
 	} else if (onScreen) {
+		shownPosition (* p, x, y);
 		x -= cameraX;
 		y -= cameraY;
 	}
@@ -178,6 +180,10 @@ bool drawRiggedPerson (const onScreenPerson * p) {
 		drawOutline (p, shape, p -> outline, 1.0f - p -> transparency / 255.f, z, true);
 	}
 
+	// The light comes from where the character is, not where it shows.
+	float shownX, shownY;
+	shownPosition (* p, shownX, shownY);
+	float awayX = p -> x - shownX, awayY = p -> y - shownY;
 	float x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 	bool over = false;
 	for (size_t i = 0; i < quads.size (); i ++) {
@@ -189,7 +195,7 @@ bool drawRiggedPerson (const onScreenPerson * p) {
 		// The light map at each corner, as scaleSprite has it.
 		GLfloat ltexCoords[8];
 		for (int k = 0; k < 4; k ++) {
-			sceneTexCoords (c[k * 2] + cameraX, c[k * 2 + 1] + cameraY, lightMap.texW, lightMap.texH, ltexCoords[k * 2], ltexCoords[k * 2 + 1]);
+			sceneTexCoords (c[k * 2] + cameraX + awayX, c[k * 2 + 1] + cameraY + awayY, lightMap.texW, lightMap.texH, ltexCoords[k * 2], ltexCoords[k * 2 + 1]);
 			if (i == 0 && k == 0) {
 				x1 = x2 = c[0];
 				y1 = y2 = c[1];

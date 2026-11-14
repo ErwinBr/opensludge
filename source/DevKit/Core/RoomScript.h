@@ -117,6 +117,7 @@ struct RoomScaleCall {
 struct RoomSetting {
 	bool present;
 	RoomArg value;			// literal when we can read it (a sum of flags too)
+	RoomArg second;			// The y of setCharacterParallax
 	TextPos call, statementEnd;
 	bool conditional;
 	RoomSetting () : present (false), conditional (false) {}
@@ -142,15 +143,17 @@ struct RoomCharacter {
 	RoomScale scale;			// As the game has it at this call
 	bool conditional;
 	// The first of each of these after the addCharacter, for this character.
-	RoomSetting drawMode, extra, walkSpeed, facing, depth;
+	RoomSetting drawMode, extra, walkSpeed, facing, depth, parallax;
 	RoomCharacter () : conditional (false) {}
 	// What they come to: NORMAL, no extras, the objectType's speed (-1),
-	// facing south (180), no fixed depth.
+	// facing south (180), no fixed depth, no parallax (100).
 	int drawModeValue () const { return drawMode.present && drawMode.value.literal ? drawMode.value.value : 0; }
 	int extraFlags () const { return extra.present && extra.value.literal ? extra.value.value : 0; }
 	int walkSpeedValue () const { return walkSpeed.present && walkSpeed.value.literal ? walkSpeed.value.value : -1; }
 	int angle () const { return facing.present && facing.value.literal ? facing.value.value : 180; }
 	bool hasDepth () const { return depth.present && depth.value.literal; }
+	int parallaxX () const { return parallax.present && parallax.value.literal ? parallax.value.value : 100; }
+	int parallaxY () const { return parallax.present && parallax.second.literal ? parallax.second.value : 100; }
 	bool movable () const { return x.literal && y.literal; }
 };
 
@@ -255,7 +258,8 @@ namespace roomEdit {
 
 	// The settings of a character after its addCharacter. Each changes the
 	// call that is there, takes it away for the default (NORMAL, no
-	// extras, the objectType's speed -1, facing -1, no depth), or adds one
+	// extras, the objectType's speed -1, facing -1, no depth, parallax
+	// 100, 100), or adds one
 	// on a line after the character's last setting, else after its
 	// addCharacter. A setting that isn't a number is left alone.
 	std::vector<TextChange> setDrawMode (const TextBuffer & text, const Room & room, const RoomCharacter & character, int mode);
@@ -263,6 +267,7 @@ namespace roomEdit {
 	std::vector<TextChange> setWalkSpeed (const TextBuffer & text, const Room & room, const RoomCharacter & character, int speed);
 	std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, const RoomCharacter & character, int angle);
 	std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z);
+	std::vector<TextChange> setParallax (const TextBuffer & text, const Room & room, const RoomCharacter & character, int x, int y);
 
 	// The room's setScale: its numbers, or a new call before the first
 	// character (the game scales only those added after it), else after

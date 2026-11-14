@@ -38,6 +38,12 @@ void gameToWindowCoords (float gameX, float gameY, float * x, float * y) {
 	*y = gameY;
 }
 
+// The characters here have no parallax: they show where they are.
+void shownPosition (const onScreenPerson & p, float & x, float & y) {
+	x = p.x;
+	y = p.y;
+}
+
 static int failures = 0;
 
 static void check (bool condition, const char * description) {

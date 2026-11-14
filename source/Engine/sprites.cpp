@@ -411,8 +411,13 @@ static bool mouseOverSprite (const sprite & single, float x1, float y1, float x2
 
 bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreenPerson * thisPerson, bool mirror) {
 
-	float x = thisPerson->x;
-	float y = thisPerson->y;
+	// Where it shows, which its parallax moves from where it is (shownX,
+	// shownY): the light and the depth come from where it is.
+	float shownX, shownY;
+	shownPosition (* thisPerson, shownX, shownY);
+	float x = shownX;
+	float y = shownY;
+	float awayX = thisPerson->x - shownX, awayY = thisPerson->y - shownY;
 
 	float scale = thisPerson-> scale;
 	bool light = ! (thisPerson->extra & EXTRA_NOLITE);
@@ -458,7 +463,7 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 	int panel = 0;
 
 	if (behindZBuffer) {
-		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + cameraY);
+		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + cameraY + awayY);
 		panel = i;
 		z = 0.999 - (double) i * (1.0 / 128.0);
 	} else {
@@ -467,15 +472,15 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 
 	float ltx1, ltx2, lty1, lty2;
 	if (! NPOT_textures) {
-		ltx1 = lightMap.texW * (x1+cameraX) / sceneWidth;
-		ltx2 = lightMap.texW * (x2+cameraX) / sceneWidth;
-		lty1 = lightMap.texH * (y1+cameraY) / sceneHeight;
-		lty2 = lightMap.texH * (y2+cameraY) / sceneHeight;
+		ltx1 = lightMap.texW * (x1+cameraX+awayX) / sceneWidth;
+		ltx2 = lightMap.texW * (x2+cameraX+awayX) / sceneWidth;
+		lty1 = lightMap.texH * (y1+cameraY+awayY) / sceneHeight;
+		lty2 = lightMap.texH * (y2+cameraY+awayY) / sceneHeight;
 	} else {
-		ltx1 = (float) (x1+cameraX) / sceneWidth;
-		ltx2 = (float) (x2+cameraX) / sceneWidth;
-		lty1 = (float) (y1+cameraY) / sceneHeight;
-		lty2 = (float) (y2+cameraY) / sceneHeight;
+		ltx1 = (float) (x1+cameraX+awayX) / sceneWidth;
+		ltx2 = (float) (x2+cameraX+awayX) / sceneWidth;
+		lty1 = (float) (y1+cameraY+awayY) / sceneHeight;
+		lty2 = (float) (y2+cameraY+awayY) / sceneHeight;
 	}
 
 	const GLfloat ltexCoords[] = { 
@@ -487,8 +492,8 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 
 	if (light && lightMap.data) {
 		if (lightMapMode == LIGHTMAPMODE_HOTSPOT) {
-			int lx=(int)(x+cameraX);
-			int ly=(int)(y+cameraY);
+			int lx=(int)(x+cameraX+awayX);
+			int ly=(int)(y+cameraY+awayY);
 
 			if (lx<0) lx = 0;
 			else if (lx>=sceneWidth) lx = sceneWidth-1;
