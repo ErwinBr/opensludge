@@ -24,6 +24,23 @@ const NamedValue roomConstants[] = {
 	{ "CENTRE", ROOM_CENTRE }, { "CENTER", ROOM_CENTRE },
 };
 
+struct ConstantText {
+	const char * name;
+	const char * value;
+};
+
+const ConstantText compilerConstants[] = {
+#define CONSTANT(n, v) { #n, v },
+#include "constantlist.h"
+#undef CONSTANT
+};
+
+const char * const drawModeNames[ROOM_DRAW_MODES] = {
+	"NORMAL", "TRANSPARENT3", "TRANSPARENT2", "TRANSPARENT1", "DARK1", "DARK2", "DARK3", "DARK4",
+	"SHADOW1", "SHADOW2", "SHADOW3", "FOGGY1", "FOGGY2", "FOGGY3", "FOGGY4",
+	"GLOW1", "GLOW2", "GLOW3", "GLOW4", "INVISIBLE"
+};
+
 bool allDigits (const std::string & s) {
 	if (s.empty ()) return false;
 	for (size_t i = 0; i < s.size (); i ++) {
@@ -102,12 +119,12 @@ bool valueOf (const std::vector<FileToken> & t, size_t scope, size_t before, con
 // (...) takes its first animation; anim ('bank', frame...) its first frame.
 // A call of a sub without arguments gives its name in *sub. A variable of
 // the sub whose { is at scope is followed to the value it got before.
-CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t to, std::string * sub, size_t scope, int depth = 0) {
+CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t to, std::string * sub, size_t scope, int angle = 180, int depth = 0) {
 	CostumePicture picture;
 	if (to <= from || to > t.size () || depth > 8) return picture;
 	if (to - from == 1 && scope != NO_SCOPE && (t[from].kind == TOKEN_IDENTIFIER || t[from].kind == TOKEN_VARIABLE)) {
 		size_t valueFrom, valueTo;
-		if (valueOf (t, scope, from, t[from].text, &valueFrom, &valueTo)) return costumeIn (t, valueFrom, valueTo, sub, scope, depth + 1);
+		if (valueOf (t, scope, from, t[from].text, &valueFrom, &valueTo)) return costumeIn (t, valueFrom, valueTo, sub, scope, angle, depth + 1);
 		return picture;
 	}
 	size_t last = to - 1;
@@ -117,7 +134,12 @@ CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t 
 	std::vector<TokenRange> args = splitArguments (t, from + 1, last);
 	if (name == "costume") {
 		if (args.empty ()) return picture;
-		return costumeIn (t, args[0].from, args[0].to, NULL, scope, depth + 1);
+		// Standing, walking, talking: each in n directions. The standing
+		// one that the character faces.
+		int directions = args.size () >= 3 ? (int) args.size () / 3 : 1;
+		size_t stand = (size_t) facingDirection (angle, directions);
+		if (stand >= args.size ()) stand = 0;
+		return costumeIn (t, args[stand].from, args[stand].to, NULL, scope, angle, depth + 1);
 	}
 	if (name == "anim") {
 		if (args.size () < 2 || args[0].to - args[0].from != 1 || t[args[0].from].kind != TOKEN_FILE) return picture;
@@ -242,6 +264,9 @@ private:
 		bool guarded = false, atStart = true;
 		bool floorTopLevel = false, afterRegion = false, afterOverlay = false;
 		RoomScale scale;
+		// The costume of each character of the room, to read again once we
+		// know which way it faces.
+		std::vector<TokenRange> costumes;
 		for (size_t k = open + 1; k < close; k ++) {
 			const FileToken & token = t[k];
 			const std::string & word = token.text;
@@ -348,6 +373,7 @@ private:
 				character.y = argument (args[2]);
 				character.costume = argument (args[3]);
 				character.picture = costumeIn (t, args[3].from, args[3].to, &character.costumeSub, open);
+				costumes.push_back (args[3]);
 				character.scale = scale;
 				character.conditional = conditional;
 				room.characters.push_back (character);
@@ -355,6 +381,25 @@ private:
 					room.hasCharacterAnchor = true;
 					room.characterAnchorStart = token.at;
 					room.characterAnchorEnd = end;
+				}
+			}
+			if ((word == "setCharacterDrawMode" || word == "setCharacterExtra" || word == "setCharacterWalkSpeed"
+					|| word == "turnCharacter" || word == "setCharacterZ") && args.size () == 2 && ! args[0].empty ()) {
+				// The latest character of that objectType before it.
+				std::string objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
+				for (int c = (int) room.characters.size () - 1; c >= 0; c --) {
+					RoomCharacter & character = room.characters[c];
+					if (character.objectType != objectType) continue;
+					RoomSetting & setting = word == "setCharacterDrawMode" ? character.drawMode : word == "setCharacterExtra" ? character.extra
+						: word == "setCharacterWalkSpeed" ? character.walkSpeed : word == "turnCharacter" ? character.facing : character.depth;
+					if (! setting.present) {
+						setting.present = true;
+						setting.value = word == "setCharacterExtra" ? flags (args[1]) : argument (args[1]);
+						setting.call = token.at;
+						setting.statementEnd = end;
+						setting.conditional = conditional;
+					}
+					break;
 				}
 			}
 			// setSceneDimensions takes the scale map away.
@@ -375,12 +420,39 @@ private:
 			}
 		}
 		room.scale = scale;
+		// The standing picture that each character faces.
+		for (size_t c = 0; c < room.characters.size () && c < costumes.size (); c ++) {
+			std::string sub;
+			room.characters[c].picture = costumeIn (t, costumes[c].from, costumes[c].to, &sub, open, room.characters[c].angle ());
+		}
 	}
 
 	std::string fileOf (const TokenRange & r) const {
 		if (r.to - r.from != 1 || t[r.from].kind != TOKEN_FILE) return std::string ();
 		const std::string & q = t[r.from].text;
 		return q.size () >= 2 ? q.substr (1, q.size () - 2) : std::string ();
+	}
+
+	// The flags of setCharacterExtra: numbers and constants added up, as
+	// ICON + NOREMOVE.
+	RoomArg flags (const TokenRange & r) const {
+		RoomArg arg = argument (r);
+		if (arg.literal || r.empty ()) return arg;
+		int sum = 0;
+		bool term = true;		// A number or a name comes next
+		for (size_t k = r.from; k < r.to; k ++) {
+			const std::string & w = t[k].text;
+			int value;
+			if (term && t[k].kind == TOKEN_NUMBER && allDigits (w)) sum += atoi (w.c_str ());
+			else if (term && constantValue (w, &value)) sum += value;
+			else if (! term && w == "+") {}
+			else return arg;
+			term = ! term;
+		}
+		if (term) return arg;		// Ends with +
+		arg.literal = true;
+		arg.value = sum;
+		return arg;
 	}
 
 	RoomArg argument (const TokenRange & r) const {
@@ -402,6 +474,11 @@ private:
 					arg.literal = true;
 					arg.value = roomConstants[c].value;
 				}
+			}
+			int value;
+			if (! arg.literal && constantValue (t[r.from].text, &value)) {
+				arg.literal = true;
+				arg.value = value;
 			}
 		}
 		return arg;
@@ -499,13 +576,57 @@ std::vector<Room> readRooms (const TextBuffer & text) {
 	return reader.readAll ();
 }
 
-bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture) {
+bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture, int facing) {
 	std::vector<FileToken> t = fileTokens (text);
 	size_t from, to;
 	size_t scope;
 	if (! returnOf (t, sub, &from, &to, &scope)) return false;
-	*picture = costumeIn (t, from, to, NULL, scope);
+	*picture = costumeIn (t, from, to, NULL, scope, facing);
 	return true;
+}
+
+int facingDirection (int angle, int directions) {
+	if (directions < 1) return 0;
+	int direc = angle + 180 / directions + 180;
+	direc %= 360;
+	if (direc < 0) direc += 360;
+	return direc * directions / 360;
+}
+
+bool constantValue (const std::string & name, int * value) {
+	for (size_t c = 0; c < sizeof (compilerConstants) / sizeof (compilerConstants[0]); c ++) {
+		if (name != compilerConstants[c].name) continue;
+		// Some are other names of functions, not numbers.
+		if (! allDigits (compilerConstants[c].value)) return false;
+		*value = atoi (compilerConstants[c].value);
+		return true;
+	}
+	return false;
+}
+
+const char * drawModeName (int mode) {
+	return mode >= 0 && mode < ROOM_DRAW_MODES ? drawModeNames[mode] : "NORMAL";
+}
+
+std::string extrasText (int flags) {
+	static const struct { int value; const char * name; } names[] = {
+		{ ROOM_FRONT, "FRONT" }, { ROOM_FIXEDSIZE, "FIXEDSIZE" }, { ROOM_NOZBUFFER, "NOZBUFFER" },
+		{ ROOM_FIXTOSCREEN, "FIXTOSCREEN" }, { ROOM_NOLIGHTMAP, "NOLIGHTMAP" },
+		{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" },
+	};
+	std::string text;
+	// The game adds the flags up, so ICON only goes with all of its own.
+	if ((flags & ROOM_ICON) == ROOM_ICON) {
+		text = "ICON";
+		flags &= ~ROOM_ICON;
+	}
+	for (size_t n = 0; n < sizeof (names) / sizeof (names[0]); n ++) {
+		if (! (flags & names[n].value)) continue;
+		text += (text.empty () ? "" : " + ") + std::string (names[n].name);
+		flags &= ~names[n].value;
+	}
+	if (flags) text += (text.empty () ? "" : " + ") + numberText (flags);
+	return text.empty () ? std::string ("NORMAL") : text;
 }
 
 std::vector<std::string> costumeSubs (const std::vector<std::string> & files,
@@ -718,6 +839,50 @@ std::vector<TextChange> addCharacter (const TextBuffer & text, const Room & room
 	if (room.hasCharacterAnchor) insertLine (text, room, true, room.characterAnchorStart, room.characterAnchorEnd, indentUnit, call, changes, where);
 	else insertLine (text, room, room.hasAnchor, room.anchorStart, room.anchorEnd, indentUnit, call, changes, where);
 	return changes;
+}
+
+// Change a setting of a character: the call that is there, or a new one
+// after its last setting, else after its addCharacter; none for the
+// default.
+static std::vector<TextChange> setting (const TextBuffer & text, const Room & room, const RoomCharacter & character,
+		const RoomSetting & which, const char * function, bool isDefault, const std::string & value) {
+	std::vector<TextChange> changes;
+	if (which.present) {
+		if (! which.value.literal) return changes;
+		if (isDefault) return removeStatement (text, which.call, which.statementEnd);
+		if (which.value.text != value) changes.push_back (TextChange (which.value.from, which.value.to, value));
+		return changes;
+	}
+	if (isDefault) return changes;
+	// After the last setting of the character, else its addCharacter.
+	TextPos end = character.statementEnd;
+	const RoomSetting * settings[] = { &character.drawMode, &character.extra, &character.walkSpeed, &character.facing, &character.depth };
+	for (size_t s = 0; s < 5; s ++) {
+		if (settings[s]->present && end < settings[s]->statementEnd) end = settings[s]->statementEnd;
+	}
+	std::string call = std::string (function) + " (" + character.objectType + ", " + value + ");";
+	insertLine (text, room, true, character.call, end, std::string (), call, changes, NULL);
+	return changes;
+}
+
+std::vector<TextChange> setDrawMode (const TextBuffer & text, const Room & room, const RoomCharacter & character, int mode) {
+	return setting (text, room, character, character.drawMode, "setCharacterDrawMode", mode == 0, drawModeName (mode));
+}
+
+std::vector<TextChange> setExtras (const TextBuffer & text, const Room & room, const RoomCharacter & character, int flags) {
+	return setting (text, room, character, character.extra, "setCharacterExtra", flags == 0, extrasText (flags));
+}
+
+std::vector<TextChange> setWalkSpeed (const TextBuffer & text, const Room & room, const RoomCharacter & character, int speed) {
+	return setting (text, room, character, character.walkSpeed, "setCharacterWalkSpeed", speed <= 0, numberText (speed));
+}
+
+std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, const RoomCharacter & character, int angle) {
+	return setting (text, room, character, character.facing, "turnCharacter", angle < 0, directionText (angle));
+}
+
+std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z) {
+	return setting (text, room, character, character.depth, "setCharacterZ", ! fixed, numberText (z));
 }
 
 } // namespace roomEdit

@@ -62,6 +62,13 @@ RoomView::FloorFile::FloorFile () : time (STALE), loaded (false) {}
 
 RoomView::BankFile::BankFile () : time (STALE), loaded (false) {}
 
+RoomView::TintedFrame::TintedFrame () {
+	memset (&bank, 0, sizeof (bank));
+	bank.type = 2;
+	reserveSpritePal (&bank.myPalette, 0);
+	addSprite (0, &bank);
+}
+
 RoomView::Picture::Picture () : time (STALE), loaded (false) {
 	memset (&bank, 0, sizeof (bank));
 	bank.type = 2;
@@ -78,7 +85,7 @@ RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphi
 	  drag (DRAG_NONE), dragHandle (-1, -1), pressX (0), pressY (0), mouseX (0), mouseY (0),
 	  newPending (false), newShape (false), openNewPopup (false), newChoice (0), focusNewName (false),
 	  newCharacterPending (false), openCharacterPopup (false), newCostume (-1),
-	  fieldsEditing (false), noticeUntil (0) {
+	  fieldsEditing (false), textFieldsEditing (false), noticeUntil (0) {
 	fieldTopLeft[0] = fieldTopLeft[1] = fieldBottomRight[0] = fieldBottomRight[1] = fieldStand[0] = fieldStand[1] = 0;
 	fieldOverlay[0] = fieldOverlay[1] = fieldCharacter[0] = fieldCharacter[1] = 0;
 	if (! script->path ().empty ()) {
@@ -94,6 +101,10 @@ RoomView::~RoomView () {
 	for (std::map<std::string, std::unique_ptr<Picture> >::iterator p = pictures.begin (); p != pictures.end (); ++ p) {
 		graphics.draw->forgetPictures (&p->second->bank);
 		forgetSpriteBank (&p->second->bank);
+	}
+	for (std::map<std::string, std::unique_ptr<TintedFrame> >::iterator f = tinted.begin (); f != tinted.end (); ++ f) {
+		graphics.draw->forgetPictures (&f->second->bank);
+		forgetSpriteBank (&f->second->bank);
 	}
 	// The banks forget themselves; their textures are the drawing's.
 	for (std::map<std::string, std::unique_ptr<BankFile> >::iterator b = banks.begin (); b != banks.end (); ++ b) {
@@ -470,25 +481,65 @@ const spriteBank * RoomView::bankOf (const std::string & file) {
 
 CostumePicture RoomView::pictureOfCharacter (const RoomCharacter & character) {
 	if (character.picture.known || character.costumeSub.empty ()) return character.picture;
-	std::map<std::string, CostumePicture>::iterator known = subPictures.find (character.costumeSub);
+	char key[32];
+	snprintf (key, sizeof (key), "@%d", character.angle ());
+	std::map<std::string, CostumePicture>::iterator known = subPictures.find (character.costumeSub + key);
 	if (known != subPictures.end ()) return known->second;
-	CostumePicture & picture = subPictures[character.costumeSub];
+	CostumePicture & picture = subPictures[character.costumeSub + key];
 	std::vector<const ScriptSymbol *> found = actions.scriptIndex ().find (character.costumeSub);
 	for (size_t f = 0; f < found.size (); f ++) {
 		if (found[f]->kind != SYMBOL_SUB || ! found[f]->owner.empty ()) continue;
 		// The text of an open script, with its changes, else of the file.
 		if (ScriptDocument * open = dynamic_cast<ScriptDocument *> (actions.findDocument (found[f]->file))) {
-			if (costumeOfSub (open->buffer (), character.costumeSub, &picture)) break;
+			if (costumeOfSub (open->buffer (), character.costumeSub, &picture, character.angle ())) break;
 		} else {
 			std::string text, error;
 			TextBuffer buffer;
 			if (ScriptDocument::readScript (found[f]->file, &text, &error)) {
 				buffer.setText (text);
-				if (costumeOfSub (buffer, character.costumeSub, &picture)) break;
+				if (costumeOfSub (buffer, character.costumeSub, &picture, character.angle ())) break;
 			}
 		}
 	}
 	return picture;
+}
+
+// How each draw mode colours a character, as setMyDrawMode (Engine/
+// people.cpp) has it: the colour it mixes in, how much, and how
+// transparent it makes it.
+static const unsigned char drawModeColours[ROOM_DRAW_MODES][3] = {
+	{ 0, 0, 0 }, { 0, 0, 192 }, { 0, 0, 128 }, { 0, 0, 64 },
+	{ 0, 192, 0 }, { 0, 128, 0 }, { 0, 64, 0 }, { 0, 255, 0 },
+	{ 0, 255, 64 }, { 0, 255, 128 }, { 0, 255, 192 },
+	{ 128, 64, 0 }, { 128, 128, 0 }, { 128, 192, 0 }, { 128, 255, 0 },
+	{ 255, 64, 0 }, { 255, 128, 0 }, { 255, 192, 0 }, { 255, 255, 0 },
+	{ 0, 0, 254 },
+};
+
+const spriteBank * RoomView::tintedFrame (const std::string & bankFile, const spriteBank * bank, int frame, int mode) {
+	BankFile * file = banks[pathOf (bankFile)].get ();
+	char key[64];
+	snprintf (key, sizeof (key), "|%lld|%d|%d", file ? (long long) file->time : 0LL, frame, mode);
+	std::unique_ptr<TintedFrame> & tint = tinted[pathOf (bankFile) + key];
+	if (tint) return &tint->bank;
+	tint.reset (new TintedFrame);
+	const sprite & from = bank->sprites[frame];
+	unsigned char * rgba = spritePixels (bank, frame);
+	// As the engine's shader: rgb = rgb (1 - m) + C m, alpha (1 - t).
+	float c = drawModeColours[mode][0], m = drawModeColours[mode][1] / 255.0f, keep = 1.0f - drawModeColours[mode][2] / 255.0f;
+	for (int p = 0; p < from.width * from.height; p ++) {
+		unsigned char * px = rgba + p * 4;
+		for (int k = 0; k < 3; k ++) px[k] = (unsigned char) (px[k] * (1 - m) + c * m + 0.5f);
+		px[3] = (unsigned char) (px[3] * keep + 0.5f);
+	}
+	sprite & to = tint->bank.sprites[0];
+	to.data = rgba;
+	to.width = from.width;
+	to.height = from.height;
+	to.xhot = from.xhot;
+	to.yhot = from.yhot;
+	spriteBankChanged (&tint->bank);
+	return &tint->bank;
 }
 
 float RoomView::scaleAt (const RoomScale & scale, float x, float y) {
@@ -529,12 +580,18 @@ bool RoomView::characterShown (int index, CharacterShown * shown) {
 		shown->x = clampX (shown->x + mouseX - pressX);
 		shown->y = clampY (shown->y + mouseY - pressY);
 	}
-	shown->scale = scaleAt (character.scale, (float) shown->x, (float) shown->y);
-	shown->bank = NULL;
-	shown->frame = 0;
+	int extras = character.extraFlags ();
+	// FIXEDSIZE keeps it at its size, as moveAndScale does.
+	shown->scale = extras & ROOM_FIXEDSIZE ? 1.0f : scaleAt (character.scale, (float) shown->x, (float) shown->y);
+	// As depthOf and shufflePeople: the fixed depth, else y; FRONT in front.
+	shown->depth = (character.hasDepth () ? character.depth.value.value : shown->y) + (extras & ROOM_FRONT ? 1000 : 0);
+	shown->bank = shown->picture = NULL;
+	shown->frame = shown->pictureIndex = 0;
 	shown->mirror = false;
+	int mode = character.drawModeValue ();
 	CostumePicture picture = pictureOfCharacter (character);
-	const spriteBank * bank = picture.known ? bankOf (picture.bank) : NULL;
+	// An INVISIBLE character shows as one without a picture, to be found.
+	const spriteBank * bank = picture.known && mode != ROOM_INVISIBLE ? bankOf (picture.bank) : NULL;
 	// As drawPeople (Engine/people.cpp): no picture at all below 5%.
 	if (bank && picture.frame >= 0 && picture.frame < bank->total && bank->sprites[picture.frame].data && shown->scale > 0.05f) {
 		const sprite & sp = bank->sprites[picture.frame];
@@ -547,6 +604,12 @@ bool RoomView::characterShown (int index, CharacterShown * shown) {
 		shown->bank = bank;
 		shown->frame = picture.frame;
 		shown->mirror = picture.mirror;
+		shown->picture = bank;
+		shown->pictureIndex = picture.frame;
+		if (mode > 0 && mode < ROOM_DRAW_MODES) {
+			shown->picture = tintedFrame (picture.bank, bank, picture.frame, mode);
+			shown->pictureIndex = 0;
+		}
 	} else {
 		float r = canvas.pixelsOfPoints (7.0f);
 		shown->x1 = shown->x - r;
@@ -567,7 +630,8 @@ int RoomView::characterAt (float fx, float fy) {
 	if (! r) return -1;
 	std::vector<std::pair<int, int> > order;
 	for (int c = 0; c < (int) r->characters.size (); c ++) {
-		if (r->characters[c].movable ()) order.push_back (std::make_pair (r->characters[c].y.value, c));
+		CharacterShown shown;
+		if (characterShown (c, &shown)) order.push_back (std::make_pair (shown.depth, c));
 	}
 	std::sort (order.begin (), order.end (), fartherBack);
 	for (int i = (int) order.size () - 1; i >= 0; i --) {
@@ -959,7 +1023,7 @@ void RoomView::paint (Draw2D & draw) {
 	std::vector<std::pair<int, int> > order;
 	for (int c = 0; c < (int) r->characters.size (); c ++) {
 		CharacterShown shown;
-		if (characterShown (c, &shown)) order.push_back (std::make_pair (shown.y, c));
+		if (characterShown (c, &shown)) order.push_back (std::make_pair (shown.depth, c));
 	}
 	std::sort (order.begin (), order.end (), fartherBack);
 	for (size_t i = 0; i < order.size (); i ++) {
@@ -969,7 +1033,7 @@ void RoomView::paint (Draw2D & draw) {
 		float alpha = r->characters[c].conditional ? 0.6f : 1.0f;
 		if (shown.bank) {
 			draw.setDrawingColour (1.0f, 1.0f, 1.0f, alpha);
-			draw.drawPicture (shown.bank, shown.frame, false, shown.x1, shown.y1, shown.x2, shown.y2,
+			draw.drawPicture (shown.picture, shown.pictureIndex, false, shown.x1, shown.y1, shown.x2, shown.y2,
 				shown.mirror ? 1.0f : 0.0f, 0, shown.mirror ? 0.0f : 1.0f, 1);
 		} else {
 			// A marker: a ring with a cross, where the feet are.
@@ -1478,6 +1542,128 @@ void RoomView::drawOverlayInspector () {
 	}
 }
 
+// A setting's row: false, with the reason, when the editor can't change it.
+static bool settingEditable (const RoomSetting & setting) {
+	if (setting.present && ! setting.value.literal) {
+		ImGui::TextDisabled ("Not a number");
+		return false;
+	}
+	return true;
+}
+
+static void conditionalMark (const RoomSetting & setting) {
+	if (! setting.present || ! setting.conditional) return;
+	ImGui::SameLine ();
+	ImGui::TextDisabled ("Conditional");
+}
+
+// A number typed into a field, or none when it is empty.
+static bool typedNumber (const std::string & text, int * value, bool * empty) {
+	size_t start = text.find_first_not_of (" \t"), end = text.find_last_not_of (" \t");
+	*empty = start == std::string::npos;
+	if (*empty) return true;
+	std::string t = text.substr (start, end - start + 1);
+	size_t digits = t[0] == '-' ? 1 : 0;
+	if (digits >= t.size () || t.find_first_not_of ("0123456789", digits) != std::string::npos) return false;
+	*value = atoi (t.c_str ());
+	return true;
+}
+
+void RoomView::drawCharacterSettings (const RoomCharacter & character) {
+	const Room * r = room ();
+	const TextBuffer & text = script->buffer ();
+
+	propertyRow ("Facing");
+	if (settingEditable (character.facing)) {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 9);
+		std::string current = character.facing.present ? directionText (character.angle ()) : std::string ("Default");
+		if (ImGui::BeginCombo ("##facing", current.c_str ())) {
+			if (ImGui::Selectable ("Default", ! character.facing.present)) apply (roomEdit::setFacing (text, *r, character, -1), "Change Facing", character.call);
+			for (int d = 1; d < DIRECTION_COUNT; d ++) {
+				std::string name = directionText (directions[d]);
+				if (ImGui::Selectable (name.c_str (), character.facing.present && character.angle () == directions[d])) {
+					apply (roomEdit::setFacing (text, *r, character, directions[d]), "Change Facing", character.call);
+				}
+			}
+			ImGui::EndCombo ();
+		}
+		conditionalMark (character.facing);
+	}
+
+	propertyRow ("Draw Mode");
+	if (settingEditable (character.drawMode)) {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 9);
+		int mode = character.drawModeValue ();
+		if (ImGui::BeginCombo ("##drawMode", drawModeName (mode))) {
+			for (int m = 0; m < ROOM_DRAW_MODES; m ++) {
+				if (ImGui::Selectable (drawModeName (m), m == mode) && m != mode) {
+					apply (roomEdit::setDrawMode (text, *r, character, m), "Change Draw Mode", character.call);
+				}
+			}
+			ImGui::EndCombo ();
+		}
+		conditionalMark (character.drawMode);
+	}
+
+	propertyRow ("Extras");
+	if (settingEditable (character.extra)) {
+		static const struct { int flag; const char * name; } extras[] = {
+			{ ROOM_FRONT, "FRONT" }, { ROOM_FIXEDSIZE, "FIXEDSIZE" }, { ROOM_NOZBUFFER, "NOZBUFFER" },
+			{ ROOM_FIXTOSCREEN, "FIXTOSCREEN" }, { ROOM_NOLIGHTMAP, "NOLIGHTMAP" },
+			{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" },
+		};
+		int flags = character.extraFlags ();
+		ImGui::BeginGroup ();
+		for (int e = 0; e < 7; e ++) {
+			bool on = (flags & extras[e].flag) != 0;
+			if (ImGui::Checkbox (extras[e].name, &on)) {
+				apply (roomEdit::setExtras (text, *r, character, on ? flags | extras[e].flag : flags & ~extras[e].flag), "Change Extras", character.call);
+			}
+		}
+		ImGui::EndGroup ();
+		conditionalMark (character.extra);
+	}
+
+	// The speed and the depth as typed; written when the field is let go.
+	if (! textFieldsEditing) {
+		char number[16];
+		snprintf (number, sizeof (number), "%d", character.walkSpeedValue ());
+		fieldWalkSpeed = character.walkSpeed.present ? std::string (number) : std::string ();
+		snprintf (number, sizeof (number), "%d", character.depth.value.value);
+		fieldDepth = character.hasDepth () ? std::string (number) : std::string ();
+	}
+	propertyRow ("Walk Speed");
+	if (settingEditable (character.walkSpeed)) {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
+		ImGui::InputTextWithHint ("##walkSpeed", "Default", &fieldWalkSpeed, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		if (ImGui::IsItemDeactivated ()) {
+			textFieldsEditing = false;
+			int speed = 0;
+			bool empty;
+			if (typedNumber (fieldWalkSpeed, &speed, &empty) && (empty || speed > 0)) {
+				apply (roomEdit::setWalkSpeed (text, *r, character, empty ? -1 : speed), "Change Walk Speed", character.call);
+			}
+		}
+		conditionalMark (character.walkSpeed);
+	}
+	propertyRow ("Depth");
+	if (settingEditable (character.depth)) {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 6);
+		ImGui::InputTextWithHint ("##depth", "None", &fieldDepth, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		if (ImGui::IsItemDeactivated ()) {
+			textFieldsEditing = false;
+			int z = 0;
+			bool empty;
+			if (typedNumber (fieldDepth, &z, &empty)) {
+				apply (roomEdit::setDepth (text, *r, character, ! empty, z), "Change Depth", character.call);
+			}
+		}
+		conditionalMark (character.depth);
+	}
+}
+
 void RoomView::drawCharacterInspector () {
 	const Room * r = room ();
 	ImGui::SeparatorText ("Characters");
@@ -1537,6 +1723,7 @@ void RoomView::drawCharacterInspector () {
 		} else {
 			ImGui::TextDisabled ("Not a number");
 		}
+		drawCharacterSettings (*character);
 		ImGui::EndTable ();
 	}
 	character = selectedCharacterOf ();

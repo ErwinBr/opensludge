@@ -101,6 +101,24 @@ struct RoomScale {
 	float at (float y) const { return set && divide ? (y - horizon) / (float) divide : 1.0f; }
 };
 
+// A call that sets a character up after addCharacter, as
+// setCharacterDrawMode (duck, DARK1): its value, and where it is.
+struct RoomSetting {
+	bool present;
+	RoomArg value;			// literal when we can read it (a sum of flags too)
+	TextPos call, statementEnd;
+	bool conditional;
+	RoomSetting () : present (false), conditional (false) {}
+};
+
+// The extra flags of setCharacterExtra, as Engine/people.h has them.
+enum {
+	ROOM_FRONT = 1, ROOM_FIXEDSIZE = 2, ROOM_NOZBUFFER = 4, ROOM_FIXTOSCREEN = 8, ROOM_NOLIGHTMAP = 16,
+	ROOM_ICON = 31, ROOM_NOREMOVE = 32, ROOM_RECTANGULAR = 64
+};
+// The draw modes of setCharacterDrawMode, 0 (NORMAL) to 19 (INVISIBLE).
+enum { ROOM_DRAW_MODES = 20, ROOM_INVISIBLE = 19 };
+
 struct RoomCharacter {
 	std::string objectType;
 	TextPos call, statementEnd;
@@ -112,7 +130,16 @@ struct RoomCharacter {
 	std::string costumeSub;
 	RoomScale scale;			// As the game has it at this call
 	bool conditional;
+	// The first of each of these after the addCharacter, for this character.
+	RoomSetting drawMode, extra, walkSpeed, facing, depth;
 	RoomCharacter () : conditional (false) {}
+	// What they come to: NORMAL, no extras, the objectType's speed (-1),
+	// facing south (180), no fixed depth.
+	int drawModeValue () const { return drawMode.present && drawMode.value.literal ? drawMode.value.value : 0; }
+	int extraFlags () const { return extra.present && extra.value.literal ? extra.value.value : 0; }
+	int walkSpeedValue () const { return walkSpeed.present && walkSpeed.value.literal ? walkSpeed.value.value : -1; }
+	int angle () const { return facing.present && facing.value.literal ? facing.value.value : 180; }
+	bool hasDepth () const { return depth.present && depth.value.literal; }
 	bool movable () const { return x.literal && y.literal; }
 };
 
@@ -146,7 +173,19 @@ std::vector<Room> readRooms (const TextBuffer & text);
 
 // The picture of the costume that a sub without parameters returns, from
 // the first return of the sub of that name in a script's text.
-bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture);
+// facing is the angle that the character faces, which picks the costume's
+// standing animation for it.
+bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePicture * picture, int facing = 180);
+// Which of n directions of a costume an angle shows, as turnMeAngle
+// (Engine/people.cpp) works it out: 0 is the first, south.
+int facingDirection (int angle, int directions);
+
+// The value of a constant of the compiler (CommonCode/constantlist.h).
+bool constantValue (const std::string & name, int * value);
+// The name of a draw mode to write: the first of its names.
+const char * drawModeName (int mode);
+// The extra flags as a script writes them: ICON + NOREMOVE, or NORMAL.
+std::string extrasText (int flags);
 // The subs without parameters, outside objectTypes, of some scripts that
 // return a costume or an animation, sorted: for a new character. textOf
 // gives the text of a file, or false.
@@ -194,6 +233,17 @@ namespace roomEdit {
 	// newObjectType, also an empty objectType after the sub.
 	std::vector<TextChange> addCharacter (const TextBuffer & text, const Room & room, const std::string & indentUnit,
 		const std::string & objectType, bool newObjectType, int x, int y, const std::string & costume, TextPos * where);
+
+	// The settings of a character after its addCharacter. Each changes the
+	// call that is there, takes it away for the default (NORMAL, no
+	// extras, the objectType's speed -1, facing -1, no depth), or adds one
+	// on a line after the character's last setting, else after its
+	// addCharacter. A setting that isn't a number is left alone.
+	std::vector<TextChange> setDrawMode (const TextBuffer & text, const Room & room, const RoomCharacter & character, int mode);
+	std::vector<TextChange> setExtras (const TextBuffer & text, const Room & room, const RoomCharacter & character, int flags);
+	std::vector<TextChange> setWalkSpeed (const TextBuffer & text, const Room & room, const RoomCharacter & character, int speed);
+	std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, const RoomCharacter & character, int angle);
+	std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z);
 
 	// A new region of objectType, a rectangle (4 numbers) or a shape (6 or
 	// more): after the last region of the room that isn't in an if, else

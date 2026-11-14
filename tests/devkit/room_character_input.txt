@@ -50,13 +50,13 @@ key Delete
 wait 4
 
 # The other ego, chosen in the Inspector's list (duck, alien, ego), goes
-# with Delete Character.
+# with Delete Character, under the settings.
 move 1050 224
 wait 2
 down
 up
 wait 3
-move 1100 400
+move 1100 675
 wait 2
 down
 up

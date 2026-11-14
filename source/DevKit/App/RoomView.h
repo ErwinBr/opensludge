@@ -82,6 +82,15 @@ private:
 		int frame;
 		bool mirror;
 		float x1, y1, x2, y2;
+		// What we draw: the frame, or a copy in the colours of its draw mode.
+		const spriteBank * picture;
+		int pictureIndex;
+		int depth;				// The order of drawing, as the game's
+	};
+	// A frame of a bank in the colours of a draw mode.
+	struct TintedFrame {
+		struct spriteBank bank;
+		TintedFrame ();
 	};
 	// What the mouse drags.
 	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER };
@@ -117,7 +126,12 @@ private:
 	void drawOverlayInspector ();
 	void drawRegionInspector ();
 	void drawCharacterInspector ();
+	// Its facing, draw mode, extras, walk speed and depth, as rows of the
+	// Inspector's table.
+	void drawCharacterSettings (const RoomCharacter & character);
 
+	// A frame in the colours of a draw mode, made once.
+	const spriteBank * tintedFrame (const std::string & bankFile, const spriteBank * bank, int frame, int mode);
 	// The bank of a costume, loaded, or NULL.
 	const spriteBank * bankOf (const std::string & file);
 	// The standing picture of a character's costume, looking into a sub
@@ -179,8 +193,10 @@ private:
 	std::map<std::string, std::unique_ptr<Picture> > pictures;
 	std::map<std::string, FloorFile> floors;
 	std::map<std::string, std::unique_ptr<BankFile> > banks;
-	// The pictures of the costume subs, by name, until the files change.
+	// The pictures of the costume subs, by name and facing, until the files
+	// change.
 	std::map<std::string, CostumePicture> subPictures;
+	std::map<std::string, std::unique_ptr<TintedFrame> > tinted;
 	double nextFileCheck;
 	bool showFloor;
 	int sceneWidth, sceneHeight;
@@ -223,6 +239,9 @@ private:
 
 	// The fields of the Inspector, while the user changes them.
 	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2], fieldCharacter[2];
+	// The walk speed and depth of a character as typed, while typed.
+	std::string fieldWalkSpeed, fieldDepth;
+	bool textFieldsEditing;
 	bool fieldsEditing;
 
 	std::string notice;

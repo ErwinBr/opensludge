@@ -427,6 +427,16 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-character
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room-character PROPERTIES LABELS capture)
+		# The settings of a character in the Inspector: facing, draw mode,
+		# extras and walk speed, written after its addCharacter.
+		add_test(NAME capture-devkit-room-settings
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_settings_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-settings-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-settings
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room-settings PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

@@ -2864,6 +2864,81 @@ static void testRoomScript () {
 	});
 	CHECK (held2.size () == 2 && held2[0] == "held" && held2[1] == "makeEgoAnim");
 
+	// The settings of characters after their addCharacter.
+	std::unique_ptr<ScriptDocument> settings (scriptOf (
+		"sub room () {\n"
+		"\taddCharacter (duck, 1, 2, anim ('d.duc', 0));\n"
+		"\tsetCharacterExtra (duck, ICON + NOREMOVE);\n"
+		"\tsetCharacterDrawMode (duck, TRANSPARENT);\n"
+		"\tturnCharacter (duck, NORTH);\n"
+		"\taddCharacter (ego, 3, 4, costume (anim ('e.duc', 1), anim ('e.duc', 2), anim ('e.duc', 3), anim ('e.duc', 4),\n"
+		"\t\tNULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL));\n"
+		"\tsetCharacterWalkSpeed (ego, speed);\n"
+		"\tsetCharacterZ (ego, 40);\n"
+		"\tturnCharacter (ego, WEST);\n"
+		"\tsetCharacterDrawMode (duck, DARK1);\n"
+		"\taddCharacter (duck, 5, 6, anim ('d.duc', 0));\n"
+		"\tsetCharacterDrawMode (duck, 7);\n"
+		"}\n", TextPos ()));
+	std::string settingsText = settings->buffer ().text ();
+	rooms = readRooms (settings->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 3);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 3) {
+		const RoomCharacter & duck = rooms[0].characters[0];
+		const RoomCharacter & ego = rooms[0].characters[1];
+		const RoomCharacter & second = rooms[0].characters[2];
+		CHECK (duck.extraFlags () == ROOM_ICON + ROOM_NOREMOVE && duck.drawModeValue () == 2 && duck.angle () == 0);
+		CHECK (! duck.walkSpeed.present && duck.walkSpeedValue () == -1 && ! duck.hasDepth ());
+		// The later DARK1 of the duck is a scene's, not its setting up.
+		CHECK (duck.drawMode.value.text == "TRANSPARENT");
+		CHECK (ego.walkSpeed.present && ! ego.walkSpeed.value.literal && ego.hasDepth () && ego.depth.value.value == 40 && ego.angle () == 270);
+		// Four directions, facing west: the second standing one.
+		CHECK (ego.picture.known && ego.picture.bank == "e.duc" && ego.picture.frame == 2);
+		CHECK (second.drawModeValue () == 7 && second.call.line == 11);
+
+		std::string text = applied (*settings, roomEdit::setDrawMode (settings->buffer (), rooms[0], duck, 15));
+		CHECK (text.find ("setCharacterDrawMode (duck, GLOW1);\n\tturnCharacter (duck, NORTH);") != std::string::npos);
+		settings->commands ().undo ();
+		text = applied (*settings, roomEdit::setDrawMode (settings->buffer (), rooms[0], duck, 0));
+		CHECK (text.find ("TRANSPARENT") == std::string::npos && text.find ("NOREMOVE);\n\tturnCharacter (duck, NORTH);") != std::string::npos);
+		settings->commands ().undo ();
+		// ICON only with all five of its flags.
+		text = applied (*settings, roomEdit::setExtras (settings->buffer (), rooms[0], duck, ROOM_FRONT + ROOM_FIXEDSIZE + ROOM_RECTANGULAR));
+		CHECK (text.find ("setCharacterExtra (duck, FRONT + FIXEDSIZE + RECTANGULAR);") != std::string::npos);
+		settings->commands ().undo ();
+		CHECK (extrasText (ROOM_ICON + ROOM_NOREMOVE) == "ICON + NOREMOVE" && extrasText (0) == "NORMAL" && extrasText (ROOM_ICON - ROOM_FRONT) == "FIXEDSIZE + NOZBUFFER + FIXTOSCREEN + NOLIGHTMAP");
+		// A new setting goes after the last one of the character.
+		text = applied (*settings, roomEdit::setWalkSpeed (settings->buffer (), rooms[0], duck, 3));
+		CHECK (text.find ("\tturnCharacter (duck, NORTH);\n\tsetCharacterWalkSpeed (duck, 3);\n\taddCharacter (ego,") != std::string::npos);
+		settings->commands ().undo ();
+		text = applied (*settings, roomEdit::setDepth (settings->buffer (), rooms[0], duck, true, -20));
+		CHECK (text.find ("\tturnCharacter (duck, NORTH);\n\tsetCharacterZ (duck, -20);\n") != std::string::npos);
+		settings->commands ().undo ();
+		text = applied (*settings, roomEdit::setFacing (settings->buffer (), rooms[0], duck, -1));
+		CHECK (text.find ("turnCharacter (duck") == std::string::npos);
+		settings->commands ().undo ();
+		CHECK (applied (*settings, roomEdit::setFacing (settings->buffer (), rooms[0], duck, 135)).find ("turnCharacter (duck, SOUTHEAST);") != std::string::npos);
+		settings->commands ().undo ();
+		// A speed that isn't a number stays as it is.
+		CHECK (roomEdit::setWalkSpeed (settings->buffer (), rooms[0], ego, 4).empty () && roomEdit::setWalkSpeed (settings->buffer (), rooms[0], ego, -1).empty ());
+		text = applied (*settings, roomEdit::setDepth (settings->buffer (), rooms[0], ego, false, 0));
+		CHECK (text.find ("setCharacterZ") == std::string::npos);
+		settings->commands ().undo ();
+		// After the setting that the second duck has.
+		text = applied (*settings, roomEdit::setExtras (settings->buffer (), rooms[0], second, ROOM_ICON));
+		CHECK (text.find ("\taddCharacter (duck, 5, 6, anim ('d.duc', 0));\n\tsetCharacterDrawMode (duck, 7);\n\tsetCharacterExtra (duck, ICON);") != std::string::npos);
+		settings->commands ().undo ();
+		CHECK (settings->buffer ().text () == settingsText);
+	}
+	CHECK (facingDirection (180, 4) == 0 && facingDirection (270, 4) == 1 && facingDirection (0, 4) == 2 && facingDirection (90, 4) == 3);
+	CHECK (facingDirection (0, 2) == 1 && facingDirection (180, 1) == 0 && facingDirection (-90, 4) == 1);
+	int constant;
+	CHECK (constantValue ("GLOW", &constant) && constant == 16 && constantValue ("ICON", &constant) && constant == 31 && ! constantValue ("nothing", &constant));
+	CHECK (std::string (drawModeName (5)) == "DARK2" && std::string (drawModeName (19)) == "INVISIBLE");
+	// VerbCoin's ego, facing north: sprite 11.
+	CostumePicture north;
+	CHECK (costumeOfSub (ego.buffer (), "makeEgoAnim", &north, 0) && north.known && north.frame == 11);
+
 	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));
 }
 

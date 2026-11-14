@@ -1,0 +1,73 @@
+# The settings of a character in the room editor's Inspector, on VerbCoin's
+# outside room, in the window of a smoke test (1280 x 800). The duck's
+# feet are at 543, 434 in the window. With the duck selected, the
+# Inspector has Facing at y = 373, Draw Mode at 398, the Extras from FRONT
+# at 423, a row every 25, and Walk Speed at 597. A list opens below its
+# field, its items 19 apart.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+# Room, at the top of the tab, then the Characters tab, and the duck.
+move 340 57
+wait 2
+down
+up
+wait 6
+move 450 104
+wait 1
+down
+up
+wait 6
+move 543 425
+wait 2
+down
+up
+wait 4
+
+# Facing: EAST, the fourth item of the list.
+move 1210 373
+wait 1
+down
+up
+wait 3
+move 1200 455
+wait 1
+down
+up
+wait 4
+# Draw Mode: DARK1, the fifth.
+move 1210 398
+wait 1
+down
+up
+wait 3
+move 1200 499
+wait 1
+down
+up
+wait 4
+# FRONT and FIXEDSIZE.
+move 1142 423
+wait 1
+down
+up
+wait 3
+move 1142 448
+wait 1
+down
+up
+wait 3
+# Walk Speed: 3, written when the field is let go.
+move 1178 597
+wait 1
+down
+up
+wait 3
+type 3
+wait 2
+key Enter
+wait 4
+
+save ${OUTPUT}
+wait 2

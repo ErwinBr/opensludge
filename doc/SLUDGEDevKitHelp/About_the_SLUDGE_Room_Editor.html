@@ -121,6 +121,20 @@ Click a character, on the room or in the Inspector's list, and drag it to move i
 The two egos of the verb coin example are drawn faintly, because they're inside an if: the game only adds one of them, depending on the room you came from.
 </P>
 
+<H3>Character settings:</H3>
+
+<P>
+Rooms often set a character up straight after adding it: which way it faces, how it's drawn, how fast it walks. The Inspector shows these settings for the selected character, and changing one changes the script: <b>Facing</b> is <a href="turnCharacter_and_spinCharacter.html">turnCharacter</a>, <b>Draw Mode</b> is <a href="setCharacterDrawMode.html">setCharacterDrawMode</a>, the <b>Extras</b> are <a href="setCharacterExtra.html">setCharacterExtra</a>, <b>Walk Speed</b> is <a href="setCharacterWalkSpeed.html">setCharacterWalkSpeed</a> and <b>Depth</b> is <a href="setCharacterZ_and_clearCharacterZ.html">setCharacterZ</a>.
+</P>
+
+<P>
+The editor reads the first of each of these after the character's addCharacter, as long as it's for the same objectType. A new one goes on a line of its own after the character's other settings. Set something back to how a new character starts (Default, NORMAL, no extras, an empty Walk Speed or Depth) and its line is taken out again, so you won't end up with a script full of calls that do nothing.
+</P>
+
+<P>
+The room shows what it can: the facing picks the costume's standing picture for that direction, the draw mode colours the character as the game does, FIXEDSIZE keeps it at full size, and FRONT and Depth change which character is drawn in front. An INVISIBLE character is drawn as a ring with a cross, like a character without a picture, or you'd never find it again. The other extras and the walk speed only show in the game.
+</P>
+
 <H3>What the editor won't change:</H3>
 
 <P>
