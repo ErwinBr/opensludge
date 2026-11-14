@@ -22,6 +22,7 @@
 
 #include "shaders.h"
 #include "spritebankdecode.h"
+#include "outline.h"
 
 extern zBufferData zBuffer;
 
@@ -316,7 +317,6 @@ void burnSpriteToBackDrop (int x1, int y1, const sprite & single, const spriteBa
 
 
 static void fontSprite (bool flip, int x, int y, const sprite & single, const spriteBank & bank, const spritePalette & fontPal) {
-	fontSpriteDraws ++;
 
 	const AtlasPage & page = bank.pages[single.texNum];
 	spritebank::TexRect r = spritebank::texRect (single.tex_x, single.tex_y, single.width, single.height, page.w, page.h, (flip ? spritebank::TEXKIND_FONT_FLIP : spritebank::TEXKIND_FONT));
@@ -349,6 +349,13 @@ static void fontSprite (bool flip, int x, int y, const sprite & single, const sp
 		tx1, ty2,
 		tx2, ty2
 	}; 
+
+	// While we take the cursor's shape (outline.h), we draw nothing.
+	if (shapeSink) {
+		shapeSink -> push_back (shapeQuad (bank.pages[single.texNum].tex.get (), vertices, texCoords, 1.0f));
+		return;
+	}
+	fontSpriteDraws ++;
 
 	//glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // GL_MODULATE instead of decal mixes the colours!
 	setPrimaryColor(fontPal.originalRed/255.f, fontPal.originalGreen/255.f, fontPal.originalBlue/255.f, 1.0f);
@@ -527,6 +534,16 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 		tx2, ty2,
 		tx1, ty2
 	}; 
+
+	// While we take the character's shape (outline.h), we draw nothing.
+	ShapeQuad shape = shapeQuad (bank.pages[single.texNum].tex.get (), vertices, texCoords, 1.0f);
+	if (shapeSink) {
+		shapeSink -> push_back (shape);
+		return false;
+	}
+	if (thisPerson -> outlined) {
+		drawOutline (thisPerson, std::vector<ShapeQuad> (1, shape), thisPerson -> outline, 1.0f - thisPerson -> transparency / 255.f, z, true);
+	}
 
 	// Characters are drawn with the depth test, behind the z-buffer.
 	gfx::Texture * const textures[3] = { bank.pages[single.texNum].tex.get (), uniforms.useLightTexture ? lightMap.tex : NULL, NULL };

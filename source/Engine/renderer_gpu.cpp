@@ -86,6 +86,7 @@ struct FragmentUniforms {
 	int32_t modulateColor;
 	float padding[2];
 	float tint[4];
+	float outline[4];
 };
 
 // The fragment shader of each program, with its number of samplers and
@@ -103,6 +104,9 @@ const ProgramInfo programs[PROG_COUNT] = {
 	{ "color.frag", 0, 1 },
 	{ "yuv.frag", 3, 0 },
 	{ "vertexcolor.frag", 1, 1 },
+	{ "outline_seed.frag", 1, 1 },
+	{ "outline_jump.frag", 1, 1 },
+	{ "outline.frag", 2, 1 },
 };
 
 // A vertex buffer or index buffer for meshes, which we fill from the start
@@ -780,6 +784,7 @@ void GPURenderer::pushFragmentUniforms (Program program, const DrawUniforms & u)
 	f.zBuffer = u.zBuffer;
 	f.modulateColor = u.modulateColor;
 	memcpy (f.tint, u.tint, sizeof (f.tint));
+	memcpy (f.outline, u.outline, sizeof (f.outline));
 	SDL_PushGPUFragmentUniformData (cmd, 0, &f, sizeof (f));
 }
 

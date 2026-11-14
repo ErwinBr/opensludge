@@ -200,12 +200,16 @@
                     <keyword>setCharacterColourise</keyword>
                     <keyword>setCharacterDrawMode</keyword>
                     <keyword>setCharacterExtra</keyword>
+                    <keyword>setCharacterOutlineColour</keyword>
+                    <keyword>setCharacterOutlineColor</keyword>
+                    <keyword>setCharacterOutlineThickness</keyword>
                     <keyword>setCharacterSpinSpeed</keyword>
                     <keyword>setCharacterTransparency</keyword>
                     <keyword>setCharacterWalkSpeed</keyword>
                     <keyword>setCharacterZ</keyword>
                     <keyword>setCostume</keyword>
                     <keyword>setCursor</keyword>
+                    <keyword>setCursorOutline</keyword>
                     <keyword>setCustomEncoding</keyword>
                     <keyword>setDefaultMusicVolume</keyword>
                     <keyword>setDefaultSoundVolume</keyword>
@@ -296,6 +300,7 @@
                     <keyword>GLOW4</keyword>
                     <keyword>ICON</keyword>
                     <keyword>INVISIBLE</keyword>
+                    <keyword>OUTLINE</keyword>
                     <keyword>TRUE</keyword>
                     <keyword>NOLIGHTMAP</keyword>
                     <keyword>NORTH</keyword>

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdlib.h>
 
 #include <algorithm>
@@ -345,6 +346,14 @@ private:
 				setup = true;
 			} else if (word == "setScale" && args.size () == 2) {
 				RoomArg horizon = argument (args[0]), divide = argument (args[1]);
+				if (! room.setScale.present || (room.setScale.conditional && ! conditional)) {
+					room.setScale.present = true;
+					room.setScale.call = token.at;
+					room.setScale.statementEnd = end;
+					room.setScale.first = horizon;
+					room.setScale.second = divide;
+					room.setScale.conditional = conditional;
+				}
 				if (horizon.literal && divide.literal) {
 					scale.set = true;
 					scale.horizon = horizon.value;
@@ -355,6 +364,16 @@ private:
 				std::string file = args.empty () ? std::string () : fileOf (args[0]);
 				if (args.size () == 3 && ! file.empty ()) {
 					RoomArg low = argument (args[1]), high = argument (args[2]);
+					if (! room.scaleMap.present || (room.scaleMap.conditional && ! conditional)) {
+						room.scaleMap.present = true;
+						room.scaleMap.call = token.at;
+						room.scaleMap.statementEnd = end;
+						room.scaleMap.first = argument (args[0]);
+						room.scaleMap.second = low;
+						room.scaleMap.third = high;
+						room.scaleMap.file = file;
+						room.scaleMap.conditional = conditional;
+					}
 					scale.map = file;
 					scale.mapMin = low.literal ? low.value : 100;
 					scale.mapMax = high.literal ? high.value : 100;
@@ -377,6 +396,10 @@ private:
 				character.scale = scale;
 				character.conditional = conditional;
 				room.characters.push_back (character);
+				if (! conditional && ! room.hasFirstCharacter) {
+					room.hasFirstCharacter = true;
+					room.firstCharacter = token.at;
+				}
 				if (! conditional) {
 					room.hasCharacterAnchor = true;
 					room.characterAnchorStart = token.at;
@@ -591,6 +614,16 @@ int facingDirection (int angle, int directions) {
 	direc %= 360;
 	if (direc < 0) direc += 360;
 	return direc * directions / 360;
+}
+
+bool scaleFromPoints (int y1, int percent1, int y2, int percent2, int * horizon, int * divide) {
+	if (y1 == y2 || percent1 == percent2) return false;
+	// scale = (y - horizon) / divide, through both points.
+	double d = (y2 - y1) * 100.0 / (percent2 - percent1);
+	double h = y1 - percent1 / 100.0 * d;
+	*divide = (int) floor (d + 0.5);
+	*horizon = (int) floor (h + 0.5);
+	return *divide != 0;
 }
 
 bool constantValue (const std::string & name, int * value) {
@@ -883,6 +916,51 @@ std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, c
 
 std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z) {
 	return setting (text, room, character, character.depth, "setCharacterZ", ! fixed, numberText (z));
+}
+
+// A new line of the scale: before the first character outside an if when
+// it comes before the setting up ends, else after the setting up.
+static void insertScaleLine (const TextBuffer & text, const Room & room, const std::string & indentUnit, const std::string & code,
+		std::vector<TextChange> & changes) {
+	if (room.hasFirstCharacter && (! room.hasAnchor || room.firstCharacter < room.anchorEnd)) {
+		const std::string & line = text.line (room.firstCharacter.line);
+		std::string indent = leadingSpace (line);
+		if ((int) indent.size () == room.firstCharacter.column) {
+			TextPos at (room.firstCharacter.line, 0);
+			changes.push_back (TextChange (at, at, indent + code + "\n"));
+			return;
+		}
+	}
+	insertLine (text, room, room.hasAnchor, room.anchorStart, room.anchorEnd, indentUnit, code, changes, NULL);
+}
+
+std::vector<TextChange> setScale (const TextBuffer & text, const Room & room, const std::string & indentUnit, int horizon, int divide) {
+	std::vector<TextChange> changes;
+	if (room.setScale.present) {
+		change (changes, room.setScale.first, horizon);
+		change (changes, room.setScale.second, divide);
+		return ordered (changes);
+	}
+	insertScaleLine (text, room, indentUnit, "setScale (" + numberText (horizon) + ", " + numberText (divide) + ");", changes);
+	return changes;
+}
+
+std::vector<TextChange> setScaleMap (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, int minPercent, int maxPercent) {
+	std::vector<TextChange> changes;
+	if (room.scaleMap.present) {
+		if (room.scaleMap.file != file) changes.push_back (TextChange (room.scaleMap.first.from, room.scaleMap.first.to, "'" + file + "'"));
+		change (changes, room.scaleMap.second, minPercent);
+		change (changes, room.scaleMap.third, maxPercent);
+		return ordered (changes);
+	}
+	insertScaleLine (text, room, indentUnit, "setScaleMap ('" + file + "', " + numberText (minPercent) + ", " + numberText (maxPercent) + ");", changes);
+	return changes;
+}
+
+std::vector<TextChange> removeScaleMap (const TextBuffer & text, const Room & room) {
+	if (! room.scaleMap.present) return std::vector<TextChange> ();
+	return removeStatement (text, room.scaleMap.call, room.scaleMap.statementEnd);
 }
 
 } // namespace roomEdit

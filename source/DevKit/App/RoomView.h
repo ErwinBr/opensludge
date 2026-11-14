@@ -9,7 +9,10 @@
  * Overlays tab the user adds, moves and removes the pictures, in the
  * Regions tab moves, reshapes and draws the regions, and in the Characters
  * tab adds, moves and removes the characters, drawn standing as the game
- * puts them, at the size it gives them there. Every change is a
+ * puts them, at the size it gives them there. The Scaling tab is for
+ * setScale and setScaleMap: characters there, and a reference character
+ * loaded from disk, are dragged only to try the scale, and two points of
+ * a size at a height make the setScale. Every change is a
  * change to the text of the script, which undoes and saves as typing does;
  * and what the user types in the script shows here at once.
  */
@@ -50,7 +53,7 @@ public:
 	std::function<void (TextPos at, int length)> showInScript;
 
 	enum Tool { TOOL_SELECT, TOOL_RECTANGLE, TOOL_SHAPE, TOOL_COUNT };
-	enum Tab { TAB_OVERLAYS, TAB_REGIONS, TAB_CHARACTERS };
+	enum Tab { TAB_OVERLAYS, TAB_REGIONS, TAB_CHARACTERS, TAB_SCALING };
 
 private:
 	// A picture of an overlay, as the floor editor loads its backdrop.
@@ -93,7 +96,7 @@ private:
 		TintedFrame ();
 	};
 	// What the mouse drags.
-	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER };
+	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER, DRAG_TRY, DRAG_SIZE };
 
 	void update ();
 	const Room * room () const;
@@ -132,8 +135,9 @@ private:
 
 	// A frame in the colours of a draw mode, made once.
 	const spriteBank * tintedFrame (const std::string & bankFile, const spriteBank * bank, int frame, int mode);
-	// The bank of a costume, loaded, or NULL.
+	// The bank of a costume, loaded, or NULL; and of a file on disk.
 	const spriteBank * bankOf (const std::string & file);
+	const spriteBank * bankAtPath (const std::string & path);
 	// The standing picture of a character's costume, looking into a sub
 	// when the costume is one.
 	CostumePicture pictureOfCharacter (const RoomCharacter & character);
@@ -143,7 +147,24 @@ private:
 	bool characterShown (int character, CharacterShown * shown);
 	// The character under a point of the scene, the one in front.
 	int characterAt (float x, float y);
+	// Whether a point is just at a character's feet.
+	bool nearFeet (const CharacterShown & shown, float x, float y) const;
 	void chooseBankFile ();
+
+	// The Scaling tab.
+	void handleScalingMouse (float x, float y);
+	void drawScalingInspector ();
+	// How the reference character is drawn; false when there is none.
+	bool referenceShown (CharacterShown * shown);
+	bool referenceAt (float x, float y);
+	// The size a handle drag gives the selected character, from its feet.
+	float draggedScale (const CharacterShown & shown) const;
+	// The corner of the selected character's box under a point, or -1.
+	int sizeHandleAt (float x, float y);
+	// The points of the setScale from the room's, when it changes.
+	void syncScalePoints ();
+	// Write the setScale of the two points, when they make one.
+	void applyScalePoints ();
 	void startNewCharacter (const std::string & bankPath);
 
 	// Where an overlay is on the scene, as a drag leaves it, and its size;
@@ -197,6 +218,29 @@ private:
 	// change.
 	std::map<std::string, CostumePicture> subPictures;
 	std::map<std::string, std::unique_ptr<TintedFrame> > tinted;
+
+	// The Scaling tab: where its drags left the characters (by index), the
+	// reference character, which is selected (REFERENCE for it), the two
+	// points of the setScale (a size at a height), the sizes of the scale
+	// map, and how opaque the map is drawn.
+	enum { REFERENCE = -2 };
+	std::map<int, std::pair<int, int> > tries;
+	// The sizes that its handles gave the characters, and the reference
+	// (below 0 for none), until they move; and a drag of a handle: the
+	// size and the distance of the handle from the feet when it began.
+	std::map<int, float> triedScales;
+	float referenceScale;
+	float sizeFrom, sizeDistance;
+	std::string referenceBank;		// With its folder, or empty
+	int referenceX, referenceY;
+	int scalingSelected;
+	int pointPercent[2], pointY[2];
+	bool pointSet[2];
+	int syncedHorizon, syncedDivide;	// The setScale that the points are of
+	bool syncedScale;
+	int mapPercent[2];
+	float mapOpacity;
+	std::shared_ptr<std::string> chosenReference, chosenScaleMap;
 	double nextFileCheck;
 	bool showFloor;
 	int sceneWidth, sceneHeight;

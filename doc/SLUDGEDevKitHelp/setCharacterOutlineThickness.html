@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCharacterOutlineThickness</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCharacterOutlineThickness</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCharacterOutlineThickness (<i>thisCharacter, pixels</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets how thick the outline of <i>thisCharacter</i> is in the OUTLINE draw mode, in pixels of the screen.
+</P>
+
+<P>
+<i>pixels</i> goes from 0 (no outline at all) to 64. A new character has an outline of 2 pixels. The pixels are those of your game's screen, so the outline stays just as thick when the character is scaled, or when you zoom in with <a href="zoomCamera.html">zoomCamera</a>: a far-away character doesn't get a hairline, and a close-up doesn't get a thick black border.
+</P>
+
+<P>
+The outline follows the shape of the character's sprite, round its corners and in between its legs, and is drawn under the character, so it only shows outside it. The z-buffer hides it where it hides the character.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType key ("key") {
+}
+
+# Called when the mouse moves over the key, and away again.
+sub pointAtKey (over) {
+   if (over) {
+      setCharacterOutlineThickness (key, 2);
+      setCharacterDrawMode (key, OUTLINE);
+   } else {
+      setCharacterDrawMode (key, NORMAL);
+   }
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="setCharacterDrawMode.html">setCharacterDrawMode</a>
+</P>
+
+<P>
+<a href="setCharacterOutlineColour.html">setCharacterOutlineColour</a>
+</P>
+
+<P>
+<a href="setCursorOutline.html">setCursorOutline</a>
+</P>
+
+<P>
+<a href="zoomCamera.html">zoomCamera</a>
+</P>
+
+<P>
+<a href="Object_Types_as_Characters.html">Object Types as Characters</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

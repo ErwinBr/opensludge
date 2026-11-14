@@ -27,7 +27,7 @@ Open the script in the script editor, and click <b>Room</b> at the top of its ta
 </P>
 
 <P>
-Under the toolbar are three tabs: <b>Overlays</b>, for the pictures of the room, <b>Regions</b>, for its screen regions, and <b>Characters</b>, for the characters it puts in it. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
+Under the toolbar are four tabs: <b>Overlays</b>, for the pictures of the room, <b>Regions</b>, for its screen regions, <b>Characters</b>, for the characters it puts in it, and <b>Scaling</b>, for how big those characters are wherever they stand. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
 </P>
 
 <P>
@@ -133,6 +133,32 @@ The editor reads the first of each of these after the character's addCharacter, 
 
 <P>
 The room shows what it can: the facing picks the costume's standing picture for that direction, the draw mode colours the character as the game does, FIXEDSIZE keeps it at full size, and FRONT and Depth change which character is drawn in front. An INVISIBLE character is drawn as a ring with a cross, like a character without a picture, or you'd never find it again. The other extras and the walk speed only show in the game.
+</P>
+
+<H3>Scaling:</H3>
+
+<P>
+Characters in SLUDGE get smaller as they walk away from you, and how much smaller is up to <a href="setScale.html">setScale</a>. Its two numbers are easy enough to work out on paper, but it's a lot quicker to stand a character where you want it and see. The <b>Scaling</b> tab shows the room's pictures and characters, and nothing else, with each character's size under its feet.
+</P>
+
+<P>
+<IMG SRC="images/devkit-room-scaling.png" alt="The outside room of the verb coin example in the Scaling tab, with a scale map over it and a reference character selected">
+</P>
+
+<P>
+Dragging a character in this tab doesn't move it in the script: it's only there to try the scale. If the room has no characters yet, or you'd rather not use them, <b>Load Reference...</b> (or dropping a sprite bank on the room) brings in a character of your own, which never goes near the script.
+</P>
+
+<P>
+To make a setScale, drag a character to the back of the walkable area and pull one of the handles on the corners of its box until it's as big as it should be there. It grows and shrinks from its feet, and keeps its shape. Click <b>Set Minimum Scale</b>, and the editor takes both its size and where it stands. Then drag it to the front, size it again, and click <b>Set Maximum Scale</b>. The editor works out the setScale from the two points and writes it into the room, and every character takes its new size straight away. You can also type the sizes and Y positions in the Inspector. If the room had no setScale, the new one goes before its first character, because the game only scales the characters added after it.
+</P>
+
+<P>
+A character that has become tiny has its handles right on its feet, so grabbing it there moves it. Zoom in if you want to size it.
+</P>
+
+<P>
+For a room where a straight line from small to big won't do, such as a path that winds up a hill, use a scale map instead: a grey picture as big as the room (or smaller, it's stretched), dark where characters are small and light where they're big. <b>Load Scale Map...</b> (or dropping the picture on the room) adds a <a href="setScaleMap.html">setScaleMap</a>, and then only the <b>Minimum</b> and <b>Maximum</b> sizes matter: the sizes of black and of white. The map is drawn over the room so you can see what's where, and <b>Opacity</b> makes it more or less see-through. <b>Remove Scale Map</b> takes it out of the script again.
 </P>
 
 <H3>What the editor won't change:</H3>

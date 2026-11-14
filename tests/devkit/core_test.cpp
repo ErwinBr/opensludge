@@ -2939,6 +2939,57 @@ static void testRoomScript () {
 	CostumePicture north;
 	CHECK (costumeOfSub (ego.buffer (), "makeEgoAnim", &north, 0) && north.known && north.frame == 11);
 
+	// The scale of a room: setScale from two points, and a scale map.
+	int horizon, divide;
+	CHECK (scaleFromPoints (200, 10, 400, 100, &horizon, &divide) && divide == 222 && horizon == 178);
+	CHECK (scaleFromPoints (400, 100, 200, 10, &horizon, &divide) && divide == 222 && horizon == 178);
+	CHECK (! scaleFromPoints (200, 10, 200, 100, &horizon, &divide) && ! scaleFromPoints (200, 50, 300, 50, &horizon, &divide));
+	CHECK (outside.buffer ().fileText () == original);
+	rooms = readRooms (outside.buffer ());
+	if (rooms.size () == 1) {
+		const Room & room = rooms[0];
+		CHECK (room.setScale.present && room.setScale.first.value == 200 && room.setScale.second.value == 150 && ! room.scaleMap.present);
+		CHECK (room.hasFirstCharacter && room.firstCharacter == room.characters[0].call);
+		CHECK (applied (outside, roomEdit::setScale (outside.buffer (), room, "\t", 178, 222)).find ("\tsetScale (178, 222);") != std::string::npos);
+		outside.commands ().undo ();
+		// A map before the first character, which is after the setting up.
+		std::string text = applied (outside, roomEdit::setScaleMap (outside.buffer (), room, "\t", "outside/scale.png", 20, 120));
+		CHECK (text.find ("WEST);\n\tsetScaleMap ('outside/scale.png', 20, 120);\n\n\taddCharacter (duck") != std::string::npos);
+		std::vector<Room> mapped = readRooms (outside.buffer ());
+		CHECK (mapped.size () == 1 && mapped[0].scaleMap.present && mapped[0].scaleMap.file == "outside/scale.png" && mapped[0].scaleMap.second.value == 20);
+		if (mapped.size () == 1) {
+			text = applied (outside, roomEdit::setScaleMap (outside.buffer (), mapped[0], "\t", "other.png", 30, 120));
+			CHECK (text.find ("setScaleMap ('other.png', 30, 120);") != std::string::npos);
+			outside.commands ().undo ();
+			text = applied (outside, roomEdit::removeScaleMap (outside.buffer (), mapped[0]));
+			CHECK (text.find ("setScaleMap") == std::string::npos);
+			outside.commands ().undo ();
+		}
+		outside.commands ().undo ();
+		CHECK (outside.buffer ().fileText () == original);
+	}
+	// Without a setScale: the first character outside an if, when it comes
+	// before the setting up ends; else after it.
+	std::unique_ptr<ScriptDocument> unscaled (scriptOf (
+		"sub one () {\n"
+		"    addOverlay ('a.png', 0, 0);\n"
+		"    addCharacter (a, 1, 2, anim ('a.duc', 0));\n"
+		"    setFloor ('a.flo');\n"
+		"}\n"
+		"sub two () {\n"
+		"    setFloor ('b.flo');\n"
+		"    if (x) addCharacter (b, 1, 2, anim ('b.duc', 0));\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (unscaled->buffer ());
+	CHECK (rooms.size () == 2 && ! rooms[0].setScale.present);
+	if (rooms.size () == 2) {
+		CHECK (applied (*unscaled, roomEdit::setScale (unscaled->buffer (), rooms[0], "    ", 0, 400)).find ("('a.png', 0, 0);\n    setScale (0, 400);\n    addCharacter (a,") != std::string::npos);
+		unscaled->commands ().undo ();
+		CHECK (! rooms[1].hasFirstCharacter);
+		CHECK (applied (*unscaled, roomEdit::setScale (unscaled->buffer (), rooms[1], "    ", 0, 400)).find ("setFloor ('b.flo');\n    setScale (0, 400);\n    if (x)") != std::string::npos);
+		unscaled->commands ().undo ();
+	}
+
 	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));
 }
 

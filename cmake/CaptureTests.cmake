@@ -163,7 +163,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
 			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu
-			ScaleMapTest.slp scalemap.slu
+			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png scalemap.png sky.png movie.webm)
@@ -290,6 +290,20 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DENGINE_ARGS=--renderer=gl"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 	set_tests_properties(capture-scalemap-saveload PROPERTIES LABELS capture TIMEOUT 300)
+
+	# Outlines around characters and the cursor. Older engines don't have
+	# them, so no reference.
+	sludge_compile_game(OutlineTest ${render_project}/OutlineTest.slp)
+	sludge_add_capture_test(outline GAME ${CMAKE_BINARY_DIR}/games/OutlineTest.slg
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/outline.input FRAMES 0-700/10 NO_REFERENCE)
+	add_test(NAME capture-outline-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/OutlineTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/outline-saveload
+			"-DENGINE_ARGS=--renderer=gl"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-outline-saveload PROPERTIES LABELS capture TIMEOUT 300)
 
 	# A clip that a character uses can't change.
 	sludge_compile_game(SealTest ${render_project}/SealTest.slp)

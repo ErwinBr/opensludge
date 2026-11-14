@@ -300,10 +300,13 @@ enum drawModes {
 	drawModeGlow3,
 	drawModeGlow4,
 	drawModeInvisible,
+	drawModeOutline,
 	numDrawModes
 };
 
 void setMyDrawMode (onScreenPerson *moveMe, int h) {
+	// OUTLINE draws as NORMAL does, with the outline.
+	moveMe->outlined = h == drawModeOutline;
 	switch (h) {
 		case drawModeTransparent3:
 			moveMe->r=moveMe->g=moveMe->b=0;
@@ -432,6 +435,23 @@ void setPersonColourise (int ob, unsigned char r, unsigned char g, unsigned char
 	moveMe->g = g;
 	moveMe->b = b;
 	moveMe->colourmix = colourmix;
+}
+
+void setPersonOutlineColour (int ob, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+	onScreenPerson * moveMe = findPerson (ob);
+	if (! moveMe) return;
+
+	moveMe->outline.colour[0] = r;
+	moveMe->outline.colour[1] = g;
+	moveMe->outline.colour[2] = b;
+	moveMe->outline.colour[3] = a;
+}
+
+void setPersonOutlineThickness (int ob, int thickness) {
+	onScreenPerson * moveMe = findPerson (ob);
+	if (! moveMe) return;
+
+	moveMe->outline.thickness = std::max (0, std::min (thickness, maxOutlineThickness));
 }
 
 
@@ -722,55 +742,70 @@ static void pointAtPerson (const onScreenPerson * thisPerson) {
 	}
 }
 
+// Draw the character as it shows now. Whether the mouse is over it.
+static bool drawPerson (const onScreenPerson * thisPerson) {
+	const personaAnimation * myAnim = thisPerson -> myAnim;
+
+	// A character of parts draws its pose, whatever its animation.
+	if (thisPerson -> rig) return drawRiggedPerson (thisPerson);
+	// A layer above 0 with a sprite for the character shows it, over
+	// layer 0.
+	if (const SpriteRef * r = layeredSprite (thisPerson, false)) {
+		const spriteBank * bank;
+		const sprite * s = resolveSprite (r, bank);
+		return s && scaleSprite (* s, * bank, thisPerson, r -> mirror);
+	}
+	if (! myAnim) return false;
+
+	// A TIMELINE clip shows the sprite of its root's track.
+	if (isTimeline (myAnim)) {
+		const SpriteRef * r = sampleSprite (* myAnim -> definition, "", shownTime (thisPerson -> playback, myAnim));
+		const spriteBank * bank;
+		const sprite * s = resolveSprite (r, bank);
+		return s && scaleSprite (* s, * bank, thisPerson, r -> mirror);
+	}
+	if (! myAnim -> numFrames ()) return false;
+
+	// The frame that the last update chose. Until an update has started
+	// a new animation (as when freeze draws), its first frame.
+	int f = thisPerson -> playback.playing == myAnim ? thisPerson -> playback.displayFrame : 0;
+	if (f >= myAnim -> numFrames ()) f = 0;
+
+	int fNumSign = myAnim -> frame (f).sprite;
+	int m = fNumSign < 0;
+	int fNum = abs (fNumSign);
+	const spriteBank & bank = myAnim -> sprites () -> bank;
+	if (fNum >= bank.total) {
+		fNum = 0;
+		m = 2 - m;
+	}
+	if (m == 2) return false;
+	return scaleSprite (bank.sprites[fNum], bank, thisPerson, m);
+}
+
 void drawPeople () {
 	overRegion = NULL;
 
 	for (const onScreenPerson * thisPerson = allPeople; thisPerson; thisPerson = thisPerson -> next) {
-		const personaAnimation * myAnim = thisPerson -> myAnim;
 		if (! thisPerson -> show) continue;
+		if (drawPerson (thisPerson)) pointAtPerson (thisPerson);
+	}
+}
 
-		// A character of parts draws its pose, whatever its animation.
-		if (thisPerson -> rig) {
-			if (drawRiggedPerson (thisPerson)) pointAtPerson (thisPerson);
-			continue;
-		}
-		// A layer above 0 with a sprite for the character shows it, over
-		// layer 0.
-		if (const SpriteRef * r = layeredSprite (thisPerson, false)) {
-			const spriteBank * bank;
-			const sprite * s = resolveSprite (r, bank);
-			if (s && scaleSprite (* s, * bank, thisPerson, r -> mirror)) pointAtPerson (thisPerson);
-			continue;
-		}
-		if (! myAnim) continue;
+void personShape (const onScreenPerson * p, std::vector<ShapeQuad> & shape) {
+	shape.clear ();
+	shapeSink = & shape;
+	drawPerson (p);
+	shapeSink = NULL;
+}
 
-		// A TIMELINE clip shows the sprite of its root's track.
-		if (isTimeline (myAnim)) {
-			const SpriteRef * r = sampleSprite (* myAnim -> definition, "", shownTime (thisPerson -> playback, myAnim));
-			const spriteBank * bank;
-			const sprite * s = resolveSprite (r, bank);
-			if (s && scaleSprite (* s, * bank, thisPerson, r -> mirror)) pointAtPerson (thisPerson);
-			continue;
-		}
-		if (! myAnim -> numFrames ()) continue;
-
-		// The frame that the last update chose. Until an update has started
-		// a new animation (as when freeze draws), its first frame.
-		int f = thisPerson -> playback.playing == myAnim ? thisPerson -> playback.displayFrame : 0;
-		if (f >= myAnim -> numFrames ()) f = 0;
-
-		int fNumSign = myAnim -> frame (f).sprite;
-		int m = fNumSign < 0;
-		int fNum = abs (fNumSign);
-		const spriteBank & bank = myAnim -> sprites () -> bank;
-		if (fNum >= bank.total) {
-			fNum = 0;
-			m = 2 - m;
-		}
-		if (m != 2) {
-			bool r = scaleSprite (bank.sprites[fNum], bank, thisPerson, m);
-			if (r) pointAtPerson (thisPerson);
-		}
+void prepareOutlines () {
+	releaseUnusedOutlines ();
+	std::vector<ShapeQuad> shape;
+	for (const onScreenPerson * p = allPeople; p; p = p -> next) {
+		if (! p -> show || ! p -> outlined || p -> outline.thickness <= 0 || ! p -> outline.colour[3]) continue;
+		personShape (p, shape);
+		makeOutlineField (p, shape, p -> outline.thickness, true);
 	}
 }
 
@@ -1466,6 +1501,10 @@ bool savePeople (FILE * fp) {
 		// Since 2.6: its fixed Z.
 		fputc (me -> hasFixedZ ? 1 : 0, fp);
 		putFloat (me -> fixedZ, fp);
+		// Since 2.8: its outline.
+		fputc (me -> outlined ? 1 : 0, fp);
+		put2bytes (me -> outline.thickness, fp);
+		for (int c = 0; c < 4; c ++) fputc (me -> outline.colour[c], fp);
 
 		me = me -> next;
 	}
@@ -1619,6 +1658,15 @@ bool loadPeople (FILE * fp) {
 				if (hasFixedZ < 0 || hasFixedZ > 1) return false;
 				me -> hasFixedZ = hasFixedZ;
 				me -> fixedZ = getFloat (fp);
+			}
+			if (ssgVersion >= VERSION (2, 8)) {
+				int outlined = fgetc (fp);
+				if (outlined < 0 || outlined > 1) return false;
+				me -> outlined = outlined;
+				int thickness = get2bytes (fp);
+				if (thickness > maxOutlineThickness) return false;
+				me -> outline.thickness = thickness;
+				for (int c = 0; c < 4; c ++) me -> outline.colour[c] = fgetc (fp);
 			}
 		} else {
 			me -> sequence = a + 1;

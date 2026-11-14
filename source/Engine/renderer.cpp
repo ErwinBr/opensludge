@@ -98,6 +98,7 @@ DrawUniforms::DrawUniforms ()
 		color[i] = 1.0f;
 		secondaryColor[i] = 0.0f;
 		tint[i] = 1.0f;
+		outline[i] = 0.0f;
 	}
 }
 

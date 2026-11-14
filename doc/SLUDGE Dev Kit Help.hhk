@@ -181,6 +181,7 @@
 		<param name="Name" value="Screen regions, drawing">
 		<param name="Name" value="Overlays, adding and moving">
 		<param name="Name" value="Characters, placing">
+		<param name="Name" value="Scaling characters, in the room editor">
 		<param name="Name" value="Rooms">
 		<param name="Local" value="SLUDGEDevKitHelp\About_the_SLUDGE_Room_Editor.html">
 		</OBJECT>
@@ -1137,6 +1138,13 @@
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterDrawMode.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="OUTLINE">
+		<param name="Name" value="Built-in Constants">
+		<param name="Local" value="SLUDGEDevKitHelp\Built-in_Constants.html">
+		<param name="Name" value="setCharacterDrawMode">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterDrawMode.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="FADE">
 		<param name="Name" value="Built-in Constants">
 		<param name="Local" value="SLUDGEDevKitHelp\Built-in_Constants.html">
@@ -1882,6 +1890,19 @@
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterExtra.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCharacterOutlineColour">
+		<param name="Name" value="setCharacterOutlineColour (built-in function)">
+		<param name="Name" value="setCharacterOutlineColor">
+		<param name="Name" value="Outlines around characters">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterOutlineColour.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCharacterOutlineThickness">
+		<param name="Name" value="setCharacterOutlineThickness (built-in function)">
+		<param name="Name" value="Outlines around characters">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterOutlineThickness.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setCharacterSpinSpeed">
 		<param name="Name" value="setCharacterSpinSpeed (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterSpinSpeed.html">
@@ -1911,6 +1932,12 @@
 		<param name="Name" value="setCursor">
 		<param name="Name" value="setCursor (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setCursor.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCursorOutline">
+		<param name="Name" value="setCursorOutline (built-in function)">
+		<param name="Name" value="Outline around the mouse cursor">
+		<param name="Local" value="SLUDGEDevKitHelp\setCursorOutline.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setCustomEncoding">

@@ -44,7 +44,7 @@ struct ProgramInfo {
 	GLuint program;
 	GLint matrix, color, secondaryColor;
 	GLint useLightTexture, antialias, scale;
-	GLint zBuffer, zBufferLayer, modulateColor, tint;
+	GLint zBuffer, zBufferLayer, modulateColor, tint, outline;
 	GLint vertex, texCoords[3], vertexColor;
 };
 
@@ -153,6 +153,7 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 	info.zBufferLayer = glGetUniformLocation (program, "zBufferLayer");
 	info.modulateColor = glGetUniformLocation (program, "modulateColor");
 	info.tint = glGetUniformLocation (program, "tint");
+	info.outline = glGetUniformLocation (program, "outline");
 	info.vertex = glGetAttribLocation (program, "myVertex");
 	info.texCoords[0] = glGetAttribLocation (program, "myUV0");
 	info.texCoords[1] = glGetAttribLocation (program, "myUV1");
@@ -161,13 +162,16 @@ bool GLRenderer::buildProgram (Program p, const char * vertexFile, const char * 
 
 	// The samplers read texture units 0, 1 and 2, in the order in which
 	// the shaders declare them.
-	static const char * const samplers[][3] = {
+	static const char * const samplers[PROG_COUNT][3] = {
 		{ "Texture", "lightTexture", NULL },
 		{ "tex0", "tex1", "tex2" },
 		{ "sampler2d", NULL, NULL },
 		{ NULL, NULL, NULL },
 		{ "Ytex", "Utex", "Vtex" },
 		{ "sampler2d", NULL, NULL },
+		{ "sampler2d", NULL, NULL },
+		{ "sampler2d", NULL, NULL },
+		{ "sampler2d", "silhouette", NULL },
 	};
 	glUseProgram (program);
 	for (int unit = 0; unit < 3; unit ++) {
@@ -193,6 +197,9 @@ bool GLRenderer::init (const char ** error) {
 		{ "color.vert", "color.frag" },
 		{ "yuv.vert", "yuv.frag" },
 		{ "vertexcolor.vert", "vertexcolor.frag" },
+		{ "texture.vert", "outline_seed.frag" },
+		{ "texture.vert", "outline_jump.frag" },
+		{ "texture.vert", "outline.frag" },
 	};
 	for (int p = 0; p < PROG_COUNT; p ++) {
 		if (! buildProgram ((Program) p, files[p][0], files[p][1])) {
@@ -396,6 +403,7 @@ void GLRenderer::setUniforms (const ProgramInfo & info, const DrawUniforms & u) 
 	if (info.color >= 0) glUniform4f (info.color, u.color[0], u.color[1], u.color[2], u.color[3]);
 	if (info.secondaryColor >= 0) glUniform4f (info.secondaryColor, u.secondaryColor[0], u.secondaryColor[1], u.secondaryColor[2], u.secondaryColor[3]);
 	if (info.tint >= 0) glUniform4f (info.tint, u.tint[0], u.tint[1], u.tint[2], u.tint[3]);
+	if (info.outline >= 0) glUniform4f (info.outline, u.outline[0], u.outline[1], u.outline[2], u.outline[3]);
 	if (info.useLightTexture >= 0) glUniform1i (info.useLightTexture, u.useLightTexture);
 	if (info.antialias >= 0) glUniform1i (info.antialias, u.antialias);
 	if (info.scale >= 0) glUniform1f (info.scale, antialiasScale);

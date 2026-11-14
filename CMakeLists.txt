@@ -95,6 +95,7 @@ if(SLUDGE_ENGINE OR SLUDGE_DEVKIT)
 		color.frag color.vert
 		yuv.frag yuv.vert
 		vertexcolor.frag vertexcolor.vert
+		outline_seed.frag outline_jump.frag outline.frag
 	)
 	list(TRANSFORM SHADERS PREPEND ${ENGINE_DIR}/)
 
@@ -151,7 +152,7 @@ if(SLUDGE_ENGINE)
 		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp cp1250.cpp controllersettings.cpp cursors.cpp debug.cpp
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
-		moreio.cpp newfatal.cpp objtypes.cpp people.cpp
+		moreio.cpp newfatal.cpp objtypes.cpp outline.cpp people.cpp
 		region.cpp regionwatch.cpp savedata.cpp scalemap.cpp sludger.cpp sprbanks.cpp
 		animation.cpp composite.cpp spritebankdecode.cpp spriteupload.cpp sprites.cpp statusba.cpp stringy.cpp talk.cpp
 		thumbnail.cpp timing.cpp transition.cpp variable.cpp

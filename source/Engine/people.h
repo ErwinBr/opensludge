@@ -3,6 +3,7 @@
 
 #include "animation.h"
 #include "animpose.h"
+#include "outline.h"
 
 #define EXTRA_FRONT			1
 #define EXTRA_FIXEDSIZE		2
@@ -67,6 +68,10 @@ struct onScreenPerson {
 	bool hasFixedZ = false;
 	float fixedZ = 0;
 	unsigned char r,g,b,colourmix,transparency;
+	// Draw mode OUTLINE: an outline around the character (outline.h), as
+	// setCharacterOutlineColour and setCharacterOutlineThickness set it.
+	bool outlined = false;
+	OutlineStyle outline;
 	// A number of its own, from addCharacter, which orders the events of
 	// TIMELINE clips: the order of drawing never decides when or whether an
 	// event fires. Saved games keep it.
@@ -132,6 +137,10 @@ void setShown (bool h, int ob);
 void setDrawMode (int h, int ob);
 void setPersonTransparency (int ob, unsigned char x);
 void setPersonColourise (int ob, unsigned char r, unsigned char g, unsigned char b, unsigned char colourmix);
+void setPersonOutlineColour (int ob, unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+void setPersonOutlineThickness (int ob, int thickness);
+// What the character draws as it shows now (outline.h), or nothing.
+void personShape (const onScreenPerson * p, std::vector<ShapeQuad> & shape);
 
 // Moving 'em
 

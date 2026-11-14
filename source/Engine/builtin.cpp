@@ -66,7 +66,7 @@ extern statusStuff * nowStatus;
 extern screenRegion * overRegion;
 extern unsigned int sceneWidth, sceneHeight;
 extern int numBIFNames, numUserFunc;
-extern char builtInFunctionNames[][25];
+extern char builtInFunctionNames[][32];
 
 extern char * * allUserFunc;
 extern char * * allBIFNames;
@@ -1602,6 +1602,65 @@ builtIn(setCharacterTransparency)
 	setPersonTransparency (obj, x);
 	return BR_CONTINUE;
 }
+// Read a colour or alpha value, which must be from 0 to 255.
+static bool getColourValue (int & v, loadedFunction * fun, const char * function) {
+	if (! getValueType (v, SVT_INT, fun -> stack -> thisVar)) return false;
+	trimStack (fun -> stack);
+	if (v < 0 || v > 255) {
+		fatal ((std::string (function) + " takes colour values from 0 to 255.").c_str ());
+		return false;
+	}
+	return true;
+}
+
+builtIn(setCharacterOutlineColour)
+{
+	UNUSEDALL
+	int obj, r, g, b, a;
+	if (! getColourValue (a, fun, "setCharacterOutlineColour")) return BR_ERROR;
+	if (! getColourValue (b, fun, "setCharacterOutlineColour")) return BR_ERROR;
+	if (! getColourValue (g, fun, "setCharacterOutlineColour")) return BR_ERROR;
+	if (! getColourValue (r, fun, "setCharacterOutlineColour")) return BR_ERROR;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setPersonOutlineColour (obj, r, g, b, a);
+	return BR_CONTINUE;
+}
+
+builtIn(setCharacterOutlineThickness)
+{
+	UNUSEDALL
+	int obj, thickness;
+	if (! getValueType (thickness, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (thickness < 0 || thickness > maxOutlineThickness) {
+		fatal ("setCharacterOutlineThickness takes a thickness from 0 to 64 pixels.");
+		return BR_ERROR;
+	}
+	setPersonOutlineThickness (obj, thickness);
+	return BR_CONTINUE;
+}
+
+builtIn(setCursorOutline)
+{
+	UNUSEDALL
+	int thickness, r, g, b, a;
+	if (! getColourValue (a, fun, "setCursorOutline")) return BR_ERROR;
+	if (! getColourValue (b, fun, "setCursorOutline")) return BR_ERROR;
+	if (! getColourValue (g, fun, "setCursorOutline")) return BR_ERROR;
+	if (! getColourValue (r, fun, "setCursorOutline")) return BR_ERROR;
+	if (! getValueType (thickness, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (thickness < 0 || thickness > maxOutlineThickness) {
+		fatal ("setCursorOutline takes a thickness from 0 to 64 pixels.");
+		return BR_ERROR;
+	}
+	setCursorOutline (thickness, r, g, b, a);
+	return BR_CONTINUE;
+}
+
 builtIn(setCharacterColourise)
 {
 	UNUSEDALL
@@ -3445,7 +3504,7 @@ static builtInFunctionData builtInFunctionArray[] =
 #undef FUNC
 
 #define FUNC(special,name)		{#name},
-char builtInFunctionNames[][25] =
+char builtInFunctionNames[][32] =
 {
 #include "functionlist.h"
 };

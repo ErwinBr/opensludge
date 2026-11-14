@@ -35,6 +35,7 @@ static const int64_t STALE = -2;
 static const char * const ROOM_KEY = "room.sub";
 static const char * const FLOOR_KEY = "room.floor";
 static const char * const TAB_KEY = "room.tab";
+static const char * const OPACITY_KEY = "room.mapOpacity";
 
 struct ToolInfo {
 	const char * name;
@@ -82,18 +83,29 @@ RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphi
 	  tab (TAB_REGIONS), tabPending (true), tool (TOOL_SELECT), selectedRegion (-1), selectedPoint (-1), selectedOverlay (-1),
 	  selectedCharacter (-1), selectPending (false), selectOverlayPending (false), selectCharacterPending (false),
 	  chosenOverlay (new std::string), chosenBank (new std::string),
+	  referenceScale (-1), sizeFrom (1), sizeDistance (1), referenceX (0), referenceY (0), scalingSelected (-1), syncedHorizon (0), syncedDivide (0), syncedScale (false),
+	  mapOpacity (0.5f), chosenReference (new std::string), chosenScaleMap (new std::string),
 	  drag (DRAG_NONE), dragHandle (-1, -1), pressX (0), pressY (0), mouseX (0), mouseY (0),
 	  newPending (false), newShape (false), openNewPopup (false), newChoice (0), focusNewName (false),
 	  newCharacterPending (false), openCharacterPopup (false), newCostume (-1),
 	  fieldsEditing (false), textFieldsEditing (false), noticeUntil (0) {
 	fieldTopLeft[0] = fieldTopLeft[1] = fieldBottomRight[0] = fieldBottomRight[1] = fieldStand[0] = fieldStand[1] = 0;
 	fieldOverlay[0] = fieldOverlay[1] = fieldCharacter[0] = fieldCharacter[1] = 0;
+	pointPercent[0] = 10;
+	pointPercent[1] = 100;
+	pointY[0] = pointY[1] = 0;
+	pointSet[0] = pointSet[1] = false;
+	mapPercent[0] = 20;
+	mapPercent[1] = 100;
 	if (! script->path ().empty ()) {
 		roomName = memory.get (script->path (), ROOM_KEY);
 		showFloor = memory.get (script->path (), FLOOR_KEY) != "off";
 		std::string remembered = memory.get (script->path (), TAB_KEY);
 		if (remembered == "overlays") tab = TAB_OVERLAYS;
 		else if (remembered == "characters") tab = TAB_CHARACTERS;
+		else if (remembered == "scaling") tab = TAB_SCALING;
+		float opacity;
+		if (sscanf (memory.get (script->path (), OPACITY_KEY).c_str (), "%f", &opacity) == 1) mapOpacity = opacity;
 	}
 }
 
@@ -176,6 +188,13 @@ void RoomView::update () {
 	} else if (! shown || (int) shown->characters.size () != charactersBefore) {
 		selectedCharacter = -1;
 	}
+	if (! shown || (int) shown->characters.size () != charactersBefore) {
+		// The tried places are by index.
+		tries.clear ();
+		triedScales.clear ();
+		if (scalingSelected != REFERENCE) scalingSelected = -1;
+	}
+	syncScalePoints ();
 	if (drag == DRAG_OVERLAY ? ! selectedOverlayOf () : drag == DRAG_CHARACTER ? ! selectedCharacterOf ()
 			: drag != DRAG_NONE && drag != DRAG_RECTANGLE && ! selected ()) drag = DRAG_NONE;
 }
@@ -204,11 +223,17 @@ void RoomView::setTab (Tab t) {
 	tab = t;
 	drag = DRAG_NONE;
 	drawnPoints.clear ();
-	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY, t == TAB_OVERLAYS ? "overlays" : t == TAB_CHARACTERS ? "characters" : "");
+	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY,
+		t == TAB_OVERLAYS ? "overlays" : t == TAB_CHARACTERS ? "characters" : t == TAB_SCALING ? "scaling" : "");
 }
 
 void RoomView::chooseRoom (int index) {
 	if (index < 0 || index >= (int) rooms.size () || index == roomIndex) return;
+	tries.clear ();
+	triedScales.clear ();
+	if (scalingSelected != REFERENCE) scalingSelected = -1;
+	syncedScale = false;
+	pointSet[0] = pointSet[1] = false;
 	roomIndex = index;
 	roomName = rooms[index].name;
 	selectedRegion = selectedPoint = selectedOverlay = selectedCharacter = -1;
@@ -461,13 +486,22 @@ bool RoomView::takeFile (const std::string & path) {
 	if (extension != "png" && extension != "tga" && extension != "duc") return false;
 	update ();
 	if (! room ()) return false;
+	if (tab == TAB_SCALING) {
+		// A reference character, or a scale map.
+		if (extension == "duc") *chosenReference = path;
+		else *chosenScaleMap = path;
+		return true;
+	}
 	if (extension == "duc") startNewCharacter (path);
 	else addOverlayFile (path);
 	return true;
 }
 
 const spriteBank * RoomView::bankOf (const std::string & file) {
-	std::string path = pathOf (file);
+	return bankAtPath (pathOf (file));
+}
+
+const spriteBank * RoomView::bankAtPath (const std::string & path) {
 	std::unique_ptr<BankFile> & b = banks[path];
 	if (! b) b.reset (new BankFile);
 	if (b->time == STALE) {
@@ -580,9 +614,27 @@ bool RoomView::characterShown (int index, CharacterShown * shown) {
 		shown->x = clampX (shown->x + mouseX - pressX);
 		shown->y = clampY (shown->y + mouseY - pressY);
 	}
+	if (tab == TAB_SCALING) {
+		// Where the Scaling tab's drags left it, which the script doesn't know.
+		std::map<int, std::pair<int, int> >::const_iterator tried = tries.find (index);
+		if (tried != tries.end ()) {
+			shown->x = tried->second.first;
+			shown->y = tried->second.second;
+		}
+		if (index == scalingSelected && drag == DRAG_TRY) {
+			shown->x = clampX (shown->x + mouseX - pressX);
+			shown->y = clampY (shown->y + mouseY - pressY);
+		}
+	}
 	int extras = character.extraFlags ();
 	// FIXEDSIZE keeps it at its size, as moveAndScale does.
 	shown->scale = extras & ROOM_FIXEDSIZE ? 1.0f : scaleAt (character.scale, (float) shown->x, (float) shown->y);
+	if (tab == TAB_SCALING) {
+		// The size that its handles gave it, which the script doesn't know.
+		std::map<int, float>::const_iterator sized = triedScales.find (index);
+		if (sized != triedScales.end ()) shown->scale = sized->second;
+		if (index == scalingSelected && drag == DRAG_SIZE) shown->scale = draggedScale (*shown);
+	}
 	// As depthOf and shufflePeople: the fixed depth, else y; FRONT in front.
 	shown->depth = (character.hasDepth () ? character.depth.value.value : shown->y) + (extras & ROOM_FRONT ? 1000 : 0);
 	shown->bank = shown->picture = NULL;
@@ -625,6 +677,11 @@ static bool fartherBack (const std::pair<int, int> & a, const std::pair<int, int
 	return a.first < b.first || (a.first == b.first && a.second < b.second);
 }
 
+bool RoomView::nearFeet (const CharacterShown & shown, float fx, float fy) const {
+	float r = canvas.pixelsOfPoints (HANDLE_POINTS);
+	return fabsf (fx - shown.x) <= r && fy >= shown.y - r * 2 && fy <= shown.y + r;
+}
+
 int RoomView::characterAt (float fx, float fy) {
 	const Room * r = room ();
 	if (! r) return -1;
@@ -637,6 +694,8 @@ int RoomView::characterAt (float fx, float fy) {
 	for (int i = (int) order.size () - 1; i >= 0; i --) {
 		CharacterShown shown;
 		if (! characterShown (order[i].second, &shown)) continue;
+		// Near the feet always counts, so that a small one can be taken.
+		if (nearFeet (shown, fx, fy)) return order[i].second;
 		if (fx < shown.x1 || fx >= shown.x2 || fy < shown.y1 || fy >= shown.y2) continue;
 		if (shown.bank) {
 			// Not where the sprite is transparent.
@@ -739,6 +798,27 @@ void RoomView::drawToolbar () {
 			if (ImGui::Button ("Add Character...")) startNewCharacter (std::string ());
 			ImGui::EndTabItem ();
 		}
+		if (ImGui::BeginTabItem ("Scaling", NULL, tabPending && tab == TAB_SCALING ? ImGuiTabItemFlags_SetSelected : 0)) {
+			if (! tabPending) setTab (TAB_SCALING);
+			if (ImGui::Button ("Load Reference...")) {
+				std::vector<FileFilter> filters;
+				FileFilter banks = { "Sprite banks", "duc" };
+				filters.push_back (banks);
+				std::shared_ptr<std::string> chosen = chosenReference;
+				actions.platform ().openFileDialog ("Reference Character", filters, folderOf (actions.projectFile ().empty () ? script->path () : actions.projectFile ()), false,
+					[chosen] (const std::vector<std::string> & files) { if (! files.empty ()) *chosen = files[0]; });
+			}
+			ImGui::SameLine ();
+			if (ImGui::Button ("Load Scale Map...")) {
+				std::vector<FileFilter> filters;
+				FileFilter images = { "Images", "png;tga" };
+				filters.push_back (images);
+				std::shared_ptr<std::string> chosen = chosenScaleMap;
+				actions.platform ().openFileDialog ("Scale Map", filters, folderOf (actions.projectFile ().empty () ? script->path () : actions.projectFile ()), false,
+					[chosen] (const std::vector<std::string> & files) { if (! files.empty ()) *chosen = files[0]; });
+			}
+			ImGui::EndTabItem ();
+		}
 		ImGui::EndTabBar ();
 	}
 	tabPending = false;
@@ -772,6 +852,10 @@ void RoomView::handleKeys () {
 	}
 	if (drag != DRAG_NONE) {
 		if (ImGui::Shortcut (ImGuiKey_Escape)) drag = DRAG_NONE;
+		return;
+	}
+	if (tab == TAB_SCALING) {
+		if (ImGui::Shortcut (ImGuiKey_Escape)) scalingSelected = -1;
 		return;
 	}
 	if (tab == TAB_CHARACTERS) {
@@ -819,6 +903,34 @@ void RoomView::handleKeys () {
 }
 
 void RoomView::finishDrag () {
+	if (drag == DRAG_SIZE) {
+		// Only to try the scale: the script stays as it is.
+		CharacterShown shown;
+		if (scalingSelected == REFERENCE ? referenceShown (&shown) : scalingSelected >= 0 && characterShown (scalingSelected, &shown)) {
+			if (scalingSelected == REFERENCE) referenceScale = shown.scale;
+			else triedScales[scalingSelected] = shown.scale;
+		}
+		drag = DRAG_NONE;
+		return;
+	}
+	if (drag == DRAG_TRY) {
+		// Only to try the scale: the script stays as it is. Somewhere else,
+		// it takes the size that the room gives it there.
+		CharacterShown shown;
+		bool moved = mouseX != pressX || mouseY != pressY;
+		if (scalingSelected == REFERENCE) {
+			if (referenceShown (&shown)) {
+				referenceX = shown.x;
+				referenceY = shown.y;
+			}
+			if (moved) referenceScale = -1;
+		} else if (scalingSelected >= 0 && characterShown (scalingSelected, &shown)) {
+			tries[scalingSelected] = std::make_pair (shown.x, shown.y);
+			if (moved) triedScales.erase (scalingSelected);
+		}
+		drag = DRAG_NONE;
+		return;
+	}
 	if (drag == DRAG_CHARACTER) {
 		const RoomCharacter * character = selectedCharacterOf ();
 		CharacterShown shown;
@@ -875,6 +987,7 @@ void RoomView::handleMouse () {
 	if (! room () || newPending || newCharacterPending) return;
 	if (tab == TAB_OVERLAYS) handleOverlayMouse (fx, fy);
 	else if (tab == TAB_CHARACTERS) handleCharacterMouse (fx, fy);
+	else if (tab == TAB_SCALING) handleScalingMouse (fx, fy);
 	else handleRegionMouse (fx, fy);
 	if (drag != DRAG_NONE && canvas.released ()) finishDrag ();
 }
@@ -1018,6 +1131,15 @@ void RoomView::paint (Draw2D & draw) {
 		draw.drawPicture (&picture->bank, 0, false, (float) x, (float) y, (float) (x + w), (float) (y + h), 0, 0, 1, 1);
 	}
 
+	// The scale map over the room, as see-through as the Inspector says.
+	bool scalingTab = tab == TAB_SCALING;
+	if (scalingTab && ! r->scale.map.empty ()) {
+		if (Picture * map = pictureOf (r->scale.map)) {
+			draw.setDrawingColour (1.0f, 1.0f, 1.0f, mapOpacity);
+			draw.drawPicture (&map->bank, 0, false, 0, 0, (float) sceneWidth, (float) sceneHeight, 0, 0, 1, 1);
+		}
+	}
+
 	// The characters, from the back, as the game draws them.
 	bool charactersTab = tab == TAB_CHARACTERS;
 	std::vector<std::pair<int, int> > order;
@@ -1050,10 +1172,40 @@ void RoomView::paint (Draw2D & draw) {
 				(float) shown.x, (float) shown.y - radius, (float) shown.x, (float) shown.y + radius };
 			draw.drawLines (cross, 4);
 		}
-		if (charactersTab && c == selectedCharacter) {
+		if ((charactersTab && c == selectedCharacter) || (scalingTab && c == scalingSelected)) {
 			const float box[] = { shown.x1, shown.y1, shown.x2, shown.y1, shown.x2, shown.y2, shown.x1, shown.y2 };
 			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
 			draw.drawLineLoop (box, 4);
+			// Handles to try other sizes.
+			if (scalingTab && shown.bank) {
+				float h = canvas.pixelsOfPoints (3.5f);
+				for (int k = 0; k < 4; k ++) {
+					float hx = box[k * 2], hy = box[k * 2 + 1];
+					const float square[] = { hx - h, hy - h, hx + h, hy - h, hx + h, hy + h, hx - h, hy + h };
+					draw.drawPolygon (square, 4);
+				}
+			}
+		}
+	}
+	// The reference character, in front.
+	CharacterShown reference;
+	if (scalingTab && referenceShown (&reference)) {
+		if (reference.bank) {
+			draw.setDrawingColour (1.0f, 1.0f, 1.0f, 1.0f);
+			draw.drawPicture (reference.picture, reference.pictureIndex, false, reference.x1, reference.y1, reference.x2, reference.y2, 0, 0, 1, 1);
+		}
+		if (scalingSelected == REFERENCE || ! reference.bank) {
+			const float box[] = { reference.x1, reference.y1, reference.x2, reference.y1, reference.x2, reference.y2, reference.x1, reference.y2 };
+			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
+			draw.drawLineLoop (box, 4);
+			if (scalingSelected == REFERENCE && reference.bank) {
+				float h = canvas.pixelsOfPoints (3.5f);
+				for (int k = 0; k < 4; k ++) {
+					float hx = box[k * 2], hy = box[k * 2 + 1];
+					const float square[] = { hx - h, hy - h, hx + h, hy - h, hx + h, hy + h, hx - h, hy + h };
+					draw.drawPolygon (square, 4);
+				}
+			}
 		}
 	}
 
@@ -1077,6 +1229,11 @@ void RoomView::paint (Draw2D & draw) {
 
 	float handleSize = canvas.pixelsOfPoints (3.5f);
 	bool regionsTab = tab == TAB_REGIONS;
+	// The Scaling tab shows the overlays and the characters only.
+	if (scalingTab) {
+		draw.finish ();
+		return;
+	}
 	int hovered = regionsTab && drag == DRAG_NONE && tool == TOOL_SELECT && canvas.hovered () ? regionAt (canvas.mouseX (), canvas.mouseY ()) : -1;
 	for (int g = 0; g < (int) r->regions.size (); g ++) {
 		const RoomRegion & region = r->regions[g];
@@ -1180,7 +1337,7 @@ void RoomView::drawLabels () {
 	if (! r) return;
 	ImDrawList * list = ImGui::GetWindowDrawList ();
 	list->PushClipRect (canvas.viewMin (), canvas.viewMax (), true);
-	for (int g = 0; g < (int) r->regions.size (); g ++) {
+	for (int g = 0; tab != TAB_SCALING && g < (int) r->regions.size (); g ++) {
 		const RoomRegion & region = r->regions[g];
 		std::vector<int> v = shownValues (g);
 		if (v.size () < 2) continue;
@@ -1199,15 +1356,27 @@ void RoomView::drawLabels () {
 		list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, tab == TAB_REGIONS ? 150 : 60), 2.0f);
 		list->AddText (at, colour, name);
 	}
-	if (tab == TAB_CHARACTERS) {
-		for (int c = 0; c < (int) r->characters.size (); c ++) {
+	if (tab == TAB_CHARACTERS || tab == TAB_SCALING) {
+		bool scaling = tab == TAB_SCALING;
+		CharacterShown reference;
+		bool hasReference = scaling && referenceShown (&reference);
+		for (int c = hasReference ? -1 : 0; c < (int) r->characters.size (); c ++) {
 			CharacterShown shown;
-			if (! characterShown (c, &shown)) continue;
-			const char * name = r->characters[c].objectType.c_str ();
+			if (c == -1) shown = reference;
+			else if (! characterShown (c, &shown)) continue;
+			// In the Scaling tab, with its size.
+			std::string label = c == -1 ? std::string ("Reference") : r->characters[c].objectType;
+			if (scaling) {
+				char percent[16];
+				snprintf (percent, sizeof (percent), " %d%%", (int) floorf (shown.scale * 100.0f + 0.5f));
+				label += percent;
+			}
+			const char * name = label.c_str ();
 			ImVec2 size = ImGui::CalcTextSize (name);
 			ImVec2 feet = canvas.toWindow ((float) shown.x, shown.y2 > shown.y ? shown.y2 : (float) shown.y);
 			ImVec2 at (feet.x - size.x * 0.5f, feet.y + 3);
-			ImU32 colour = c == selectedCharacter ? IM_COL32 (255, 205, 50, 255) : IM_COL32 (255, 175, 110, 230);
+			bool chosen = scaling ? (c == -1 ? scalingSelected == REFERENCE : c == scalingSelected) : c == selectedCharacter;
+			ImU32 colour = chosen ? IM_COL32 (255, 205, 50, 255) : IM_COL32 (255, 175, 110, 230);
 			list->AddRectFilled (ImVec2 (at.x - 2, at.y - 1), ImVec2 (at.x + size.x + 2, at.y + size.y + 1), IM_COL32 (0, 0, 0, 150), 2.0f);
 			list->AddText (at, colour, name);
 		}
@@ -1389,6 +1558,26 @@ void RoomView::draw () {
 		chosenOverlay->clear ();
 		update ();
 	}
+	if (! chosenReference->empty ()) {
+		// It stands in the middle of the lower half, to be dragged about.
+		referenceBank = *chosenReference;
+		referenceX = sceneWidth / 2;
+		referenceY = sceneHeight * 3 / 4;
+		scalingSelected = REFERENCE;
+		chosenReference->clear ();
+		setTab (TAB_SCALING);
+		tabPending = true;
+	}
+	if (! chosenScaleMap->empty ()) {
+		if (const Room * r = room ()) {
+			apply (roomEdit::setScaleMap (script->buffer (), *r, script->indentUnit (), scriptName (*chosenScaleMap), mapPercent[0], mapPercent[1]),
+				r->scaleMap.present ? "Change Scale Map" : "Add Scale Map", r->at);
+		}
+		chosenScaleMap->clear ();
+		setTab (TAB_SCALING);
+		tabPending = true;
+		update ();
+	}
 	if (! chosenBank->empty ()) {
 		newBank = *chosenBank;
 		newCostume = -1;
@@ -1472,6 +1661,7 @@ void RoomView::drawInspector () {
 
 	if (tab == TAB_OVERLAYS) drawOverlayInspector ();
 	else if (tab == TAB_CHARACTERS) drawCharacterInspector ();
+	else if (tab == TAB_SCALING) drawScalingInspector ();
 	else drawRegionInspector ();
 }
 
@@ -1838,6 +2028,249 @@ void RoomView::drawRegionInspector () {
 		apply (roomEdit::remove (script->buffer (), *region), "Delete Region", region->call);
 		selectedRegion = selectedPoint = -1;
 	}
+}
+
+bool RoomView::referenceShown (CharacterShown * shown) {
+	const Room * r = room ();
+	if (referenceBank.empty () || ! r) return false;
+	shown->x = referenceX;
+	shown->y = referenceY;
+	if (scalingSelected == REFERENCE && drag == DRAG_TRY) {
+		shown->x = clampX (referenceX + mouseX - pressX);
+		shown->y = clampY (referenceY + mouseY - pressY);
+	}
+	// As a character added at the end of the room would be, or as big as
+	// its handles made it.
+	shown->scale = referenceScale >= 0 ? referenceScale : scaleAt (r->scale, (float) shown->x, (float) shown->y);
+	if (scalingSelected == REFERENCE && drag == DRAG_SIZE) shown->scale = draggedScale (*shown);
+	shown->depth = shown->y;
+	shown->mirror = false;
+	shown->frame = shown->pictureIndex = 0;
+	const spriteBank * bank = bankAtPath (referenceBank);
+	shown->bank = shown->picture = NULL;
+	if (bank && bank->total > 0 && bank->sprites[0].data && shown->scale > 0.05f) {
+		const sprite & sp = bank->sprites[0];
+		float s = shown->scale;
+		shown->x1 = shown->x - sp.xhot * s;
+		shown->y1 = shown->y - sp.yhot * s;
+		shown->x2 = shown->x1 + sp.width * s;
+		shown->y2 = shown->y1 + sp.height * s;
+		shown->bank = shown->picture = bank;
+	} else {
+		float radius = canvas.pixelsOfPoints (7.0f);
+		shown->x1 = shown->x - radius;
+		shown->y1 = shown->y - radius;
+		shown->x2 = shown->x + radius;
+		shown->y2 = shown->y + radius;
+	}
+	return true;
+}
+
+bool RoomView::referenceAt (float fx, float fy) {
+	CharacterShown shown;
+	if (! referenceShown (&shown)) return false;
+	if (nearFeet (shown, fx, fy)) return true;
+	if (fx < shown.x1 || fx >= shown.x2 || fy < shown.y1 || fy >= shown.y2) return false;
+	if (! shown.bank) return true;
+	const sprite & sp = shown.bank->sprites[0];
+	int px = (int) ((fx - shown.x1) / shown.scale), py = (int) ((fy - shown.y1) / shown.scale);
+	if (px < 0 || py < 0 || px >= sp.width || py >= sp.height) return false;
+	return shown.bank->type >= 2 ? sp.data[((size_t) py * sp.width + px) * 4 + 3] != 0 : sp.data[(size_t) py * sp.width + px] != 0;
+}
+
+float RoomView::draggedScale (const CharacterShown & shown) const {
+	// Uniform, from the feet: as far as the handle is from them now.
+	float dx = canvas.mouseX () - shown.x, dy = canvas.mouseY () - shown.y;
+	float scale = sizeFrom * sqrtf (dx * dx + dy * dy) / sizeDistance;
+	return scale < 0.01f ? 0.01f : scale > 10.0f ? 10.0f : scale;
+}
+
+int RoomView::sizeHandleAt (float fx, float fy) {
+	CharacterShown shown;
+	bool has = scalingSelected == REFERENCE ? referenceShown (&shown) : scalingSelected >= 0 && characterShown (scalingSelected, &shown);
+	if (! has || ! shown.bank) return -1;
+	float near = closeness ();
+	const float corners[] = { shown.x1, shown.y1, shown.x2, shown.y1, shown.x2, shown.y2, shown.x1, shown.y2 };
+	for (int k = 0; k < 4; k ++) {
+		if (fabsf (fx - corners[k * 2]) > near || fabsf (fy - corners[k * 2 + 1]) > near) continue;
+		float dx = corners[k * 2] - shown.x, dy = corners[k * 2 + 1] - shown.y;
+		sizeDistance = sqrtf (dx * dx + dy * dy);
+		// A handle on the feet, as a small character has, moves it instead.
+		if (sizeDistance < near * 2) continue;
+		sizeFrom = shown.scale;
+		return k;
+	}
+	return -1;
+}
+
+void RoomView::handleScalingMouse (float fx, float fy) {
+	if (canvas.hovered () && drag == DRAG_NONE && ! canvas.animating ()) {
+		float keepFrom = sizeFrom, keepDistance = sizeDistance;
+		if (sizeHandleAt (fx, fy) >= 0) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeNWSE);
+		sizeFrom = keepFrom;
+		sizeDistance = keepDistance;
+	}
+	if (! canvas.pressed ()) return;
+	pressX = mouseX;
+	pressY = mouseY;
+	// A handle of the selected character resizes it.
+	if (sizeHandleAt (fx, fy) >= 0) {
+		drag = DRAG_SIZE;
+		return;
+	}
+	// The reference is in front of the room's characters.
+	if (referenceAt (fx, fy)) scalingSelected = REFERENCE;
+	else scalingSelected = characterAt (fx, fy);
+	if (scalingSelected != -1) drag = DRAG_TRY;
+}
+
+// The points of the setScale, from the room's when it changed: the sizes
+// stay, and the heights are where the room's setScale gives them.
+void RoomView::syncScalePoints () {
+	const Room * r = room ();
+	if (! r) return;
+	const RoomScaleCall & call = r->setScale;
+	bool has = call.present && call.first.literal && call.second.literal && call.second.value != 0;
+	if (! has) {
+		syncedScale = false;
+		return;
+	}
+	if (syncedScale && syncedHorizon == call.first.value && syncedDivide == call.second.value) return;
+	syncedScale = true;
+	syncedHorizon = call.first.value;
+	syncedDivide = call.second.value;
+	for (int p = 0; p < 2; p ++) {
+		pointY[p] = (int) floorf (syncedHorizon + pointPercent[p] / 100.0f * syncedDivide + 0.5f);
+		pointSet[p] = true;
+	}
+}
+
+void RoomView::applyScalePoints () {
+	const Room * r = room ();
+	int horizon, divide;
+	if (! r || ! pointSet[0] || ! pointSet[1]) return;
+	if (! scaleFromPoints (pointY[0], pointPercent[0], pointY[1], pointPercent[1], &horizon, &divide)) {
+		say ("Two different sizes at two different heights");
+		return;
+	}
+	if (r->setScale.present && r->setScale.first.literal && r->setScale.second.literal
+			&& r->setScale.first.value == horizon && r->setScale.second.value == divide) return;
+	apply (roomEdit::setScale (script->buffer (), *r, script->indentUnit (), horizon, divide), "Change Scale", r->at);
+	// The points are what the user gave, not the rounded setScale's.
+	syncedScale = true;
+	syncedHorizon = horizon;
+	syncedDivide = divide;
+}
+
+void RoomView::drawScalingInspector () {
+	const Room * r = room ();
+	const TextBuffer & text = script->buffer ();
+	CharacterShown chosen;
+	bool hasChosen = scalingSelected == REFERENCE ? referenceShown (&chosen)
+		: scalingSelected >= 0 && scalingSelected < (int) r->characters.size () && characterShown (scalingSelected, &chosen);
+
+	if (beginProperties ("Selected")) {
+		propertyRow ("Character");
+		if (! hasChosen) ImGui::TextDisabled ("None");
+		else ImGui::TextUnformatted (scalingSelected == REFERENCE ? "Reference" : r->characters[scalingSelected].objectType.c_str ());
+		if (hasChosen) {
+			propertyRow ("Y");
+			ImGui::Text ("%d", chosen.y);
+			propertyRow ("Scale");
+			ImGui::Text ("%d%%", (int) floorf (chosen.scale * 100.0f + 0.5f));
+		}
+		ImGui::EndTable ();
+	}
+
+	if (r->scaleMap.present) {
+		// A scale map: the sizes of its black and white, over the scene.
+		if (beginProperties ("Scale Map")) {
+			propertyRow ("File");
+			ImGui::TextUnformatted (r->scaleMap.file.c_str ());
+			if (! pictureOf (r->scaleMap.file)) {
+				ImGui::SameLine ();
+				ImGui::TextColored (ImVec4 (1.0f, 0.45f, 0.4f, 1.0f), "Not found");
+			}
+			const RoomArg * limits[2] = { &r->scaleMap.second, &r->scaleMap.third };
+			const char * names[2] = { "Minimum", "Maximum" };
+			for (int m = 0; m < 2; m ++) {
+				propertyRow (names[m]);
+				if (! limits[m]->literal) {
+					ImGui::TextDisabled ("Not a number");
+					continue;
+				}
+				if (! ImGui::IsAnyItemActive () || ! textFieldsEditing) mapPercent[m] = limits[m]->value;
+				ImGui::PushID (m);
+				ImGui::SetNextItemWidth (ImGui::GetFontSize () * 5);
+				ImGui::InputInt ("##percent", &mapPercent[m], 0, 0);
+				textFieldsEditing |= ImGui::IsItemActive ();
+				if (ImGui::IsItemDeactivatedAfterEdit ()) {
+					textFieldsEditing = false;
+					apply (roomEdit::setScaleMap (text, *r, script->indentUnit (), r->scaleMap.file, mapPercent[0], mapPercent[1]), "Change Scale Map", r->at);
+				}
+				ImGui::SameLine ();
+				ImGui::TextUnformatted ("%");
+				ImGui::PopID ();
+			}
+			propertyRow ("Opacity");
+			int percent = (int) floorf (mapOpacity * 100.0f + 0.5f);
+			if (ImGui::SliderInt ("##opacity", &percent, 0, 100, "%d%%")) mapOpacity = percent / 100.0f;
+			if (ImGui::IsItemDeactivatedAfterEdit () && ! script->path ().empty ()) {
+				char value[16];
+				snprintf (value, sizeof (value), "%.2f", mapOpacity);
+				memory.set (script->path (), OPACITY_KEY, value);
+			}
+			ImGui::EndTable ();
+		}
+		if (ImGui::Button ("Remove Scale Map")) apply (roomEdit::removeScaleMap (text, *r), "Remove Scale Map", r->at);
+		return;
+	}
+
+	// setScale, from a size at a height, twice.
+	const RoomScaleCall & call = r->setScale;
+	bool editable = ! call.present || (call.first.literal && call.second.literal);
+	bool changed = false;
+	if (beginProperties ("setScale")) {
+		const char * sizes[2] = { "Minimum Size", "Maximum Size" };
+		const char * heights[2] = { "Minimum Y", "Maximum Y" };
+		for (int p = 0; p < 2 && editable; p ++) {
+			ImGui::PushID (p);
+			propertyRow (sizes[p]);
+			ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+			ImGui::InputInt ("##percent", &pointPercent[p], 0, 0);
+			changed |= ImGui::IsItemDeactivatedAfterEdit ();
+			ImGui::SameLine (0, 3);
+			ImGui::TextUnformatted ("%");
+			propertyRow (heights[p]);
+			ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+			if (ImGui::InputInt ("##y", &pointY[p], 0, 0)) pointSet[p] = true;
+			changed |= ImGui::IsItemDeactivatedAfterEdit ();
+			ImGui::PopID ();
+		}
+		propertyRow ("Script");
+		if (! call.present) ImGui::TextDisabled ("None");
+		else if (! editable) ImGui::TextDisabled ("Not a number");
+		else ImGui::Text ("setScale (%d, %d)", call.first.value, call.second.value);
+		ImGui::EndTable ();
+	}
+	if (! editable) return;
+	// The size and the Y of the selected character, for either point.
+	bool first = true;
+	ImGui::BeginDisabled (! hasChosen);
+	const char * buttons[2] = { "Set Minimum Scale", "Set Maximum Scale" };
+	for (int p = 0; p < 2; p ++) {
+		if (! wrappedButton (buttons[p], &first)) continue;
+		pointY[p] = chosen.y;
+		pointPercent[p] = (int) floorf (chosen.scale * 100.0f + 0.5f);
+		pointSet[p] = changed = true;
+		// Once both points make a setScale, the room gives it that size there.
+		if (pointSet[0] && pointSet[1]) {
+			if (scalingSelected == REFERENCE) referenceScale = -1;
+			else triedScales.erase (scalingSelected);
+		}
+	}
+	ImGui::EndDisabled ();
+	if (changed) applyScalePoints ();
 }
 
 } // namespace devkit

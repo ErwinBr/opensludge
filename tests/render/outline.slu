@@ -1,0 +1,179 @@
+# OutlineTest: outlines around characters (setCharacterDrawMode OUTLINE,
+# setCharacterOutlineColour, setCharacterOutlineThickness) and the mouse
+# cursor (setCursorOutline), see source/Engine/outline.h. Each scene lasts
+# 30 frames:
+#
+#  - The default outline, white and 2 pixels, and thin and thick ones, of
+#    the alien and the duck, one mirrored.
+#  - Scaled and zoomed: the thickness stays the same on screen.
+#  - A translucent outline, and a translucent character, whose outline
+#    leaves out its inside.
+#  - Walking, and behind the z-buffer, which hides the outline as it hides
+#    the character.
+#  - A character of parts, turned: one outline around all its parts.
+#  - NORMAL takes the outline away; OUTLINE again brings it back as it was.
+#  - The cursor, with and without an outline, as the mouse moves
+#    (tests/capture/outline.input).
+#  - Freezing keeps the outlines in the frozen scene.
+#  - Save, walk, load, walk again (saveload.cmake): the outlines come back.
+
+objectType ego ("ego") {
+}
+
+objectType duck ("duck") {
+}
+
+objectType bloke ("bloke") {
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 4),
+		anim ('ego/alien.duc', 11),
+		anim ('ego/alien.duc', wait (0, 2), wait (1, 2), wait (2, 2), wait (3, 2)),
+		anim ('ego/alien.duc', wait (7, 2), wait (8, 2), wait (9, 2), wait (10, 2)),
+		anim ('ego/alien.duc', wait (6, 2), wait (4, 2), 5, 6, 5, 4, 6, 4, 5),
+		anim ('ego/alien.duc', 11));
+}
+
+sub duckAnim () {
+	return anim ('outside/duck.duc', 0, 1, 2, 2, 1, 0, 3, 3);
+}
+
+sub scene (name) {
+	statusText (name);
+	pause (30);
+}
+
+sub outsideRoom () {
+	setSceneDimensions (640, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+	setFloor ('outside/room.flo');
+	setZBuffer ('outside/room.zbu');
+	setScale (200, 150);
+}
+
+# Larger than the window, so that the camera can zoom; characters at y =
+# 300 have their sprites' size.
+sub plainRoom () {
+	setSceneDimensions (1280, 960);
+	setZBuffer (NULL);
+	setFloor (NULL);
+	setScale (0, 300);
+	setBlankColour (40, 60, 90);
+	blankScreen ();
+}
+
+# A duck with an alien on its back, the alien turned.
+sub blokeRig () {
+	var r = newRig ();
+	addPart (r, "body", "", 0, 0, 'outside/duck.duc', 0);
+	addPart (r, "rider", "body", 10, -40, 'ego/alien.duc', 4);
+	return r;
+}
+
+sub walkAcross () {
+	setCharacterWalkSpeed (ego, 2);
+	forceCharacter (ego, 83, 344);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	plainRoom ();
+
+	addCharacter (ego, 160, 300, egoCostume ());
+	addCharacter (duck, 420, 300, duckAnim ());
+	setCharacterDrawMode (ego, OUTLINE);
+	setCharacterDrawMode (duck, OUTLINE);
+	scene ("default outline");
+
+	setCharacterOutlineColour (ego, 255, 220, 0, 255);
+	setCharacterOutlineThickness (ego, 1);
+	setCharacterOutlineColour (duck, 255, 40, 40, 255);
+	setCharacterOutlineThickness (duck, 8);
+	turnCharacter (ego, 90);
+	scene ("thin and thick, mirrored");
+
+	setCharacterOutlineThickness (duck, 24);
+	scene ("very thick");
+
+	setCharacterOutlineThickness (duck, 4);
+	setScale (0, 100);
+	jumpCharacter (ego, 160, 300);
+	scene ("scaled up, same thickness");
+	setScale (0, 200);
+	jumpCharacter (ego, 120, 200);
+	jumpCharacter (duck, 260, 200);
+	zoomCamera (200);
+	scene ("zoomed, same thickness");
+	zoomCamera (100);
+	setScale (0, 300);
+	jumpCharacter (ego, 160, 300);
+	jumpCharacter (duck, 420, 300);
+
+	setCharacterOutlineColour (ego, 0, 255, 255, 128);
+	setCharacterOutlineThickness (ego, 6);
+	setCharacterTransparency (duck, 128);
+	scene ("translucent outline and character");
+	setCharacterTransparency (duck, 0);
+
+	setCharacterDrawMode (ego, NORMAL);
+	scene ("NORMAL");
+	setCharacterDrawMode (ego, OUTLINE);
+	scene ("OUTLINE again");
+
+	# Walking, getting smaller as it goes, and into the tunnel, behind the
+	# z-buffer.
+	removeAllCharacters ();
+	outsideRoom ();
+	addCharacter (ego, 300, 420, egoCostume ());
+	setCharacterDrawMode (ego, OUTLINE);
+	setCharacterOutlineThickness (ego, 5);
+	statusText ("walking");
+	moveCharacter (ego, 83, 344);
+	forceCharacter (ego, 34, 346);
+	scene ("behind the z-buffer");
+
+	removeAllCharacters ();
+	plainRoom ();
+	addCharacter (bloke, 320, 330, duckAnim ());
+	setCharacterRig (bloke, blokeRig ());
+	setPartProperty (bloke, "rider", PART_ROTATION, 30);
+	setCharacterDrawMode (bloke, OUTLINE);
+	setCharacterOutlineColour (bloke, 255, 128, 0, 255);
+	setCharacterOutlineThickness (bloke, 4);
+	scene ("parts");
+
+	setCursor (anim ('iface/mouse.duc', 0));
+	scene ("cursor");
+	setCursorOutline (3, 0, 255, 0, 255);
+	scene ("cursor outline");
+
+	freeze ();
+	addCharacter (ego, 160, 300, egoCostume ());
+	scene ("frozen");
+	unfreeze ();
+	scene ("unfrozen");
+
+	# Save, walk, load, and walk again: the second time round, saved is
+	# FALSE, as it was when the game saved.
+	removeAllCharacters ();
+	outsideRoom ();
+	addCharacter (ego, 300, 420, egoCostume ());
+	addCharacter (duck, 200, 350, duckAnim ());
+	setCharacterDrawMode (ego, OUTLINE);
+	setCharacterDrawMode (duck, OUTLINE);
+	setCharacterOutlineColour (duck, 255, 0, 255, 200);
+	setCharacterOutlineThickness (duck, 3);
+	var saved = saveGame ("outline.sav");
+	spawnSub (walkAcross);
+	for (var i = 0; i < 3; i ++) scene ("after saving");
+	if (saved) {
+		setCharacterDrawMode (ego, NORMAL);
+		setCharacterDrawMode (duck, NORMAL);
+		setCursorOutline (0, 0, 0, 0, 0);
+		loadGame ("outline.sav");
+	}
+	quitGame ();
+}

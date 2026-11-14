@@ -15,9 +15,10 @@
 // TIMELINE clips (newClip) and the playback of characters' clips; 2.4 the
 // points of shaped screen regions (addScreenRegion with an array); 2.5 the
 // watches on screen regions (watchScreenRegion); 2.6 the fixed Z of
-// characters (setCharacterZ); 2.7 the scale map (setScaleMap).
+// characters (setCharacterZ); 2.7 the scale map (setScaleMap); 2.8 the
+// outlines of characters and of the cursor (setCharacterDrawMode OUTLINE).
 #define SAVE_MAJOR_VERSION 2
-#define SAVE_MINOR_VERSION 7
+#define SAVE_MINOR_VERSION 8
 #define SAVE_VERSION	VERSION (SAVE_MAJOR_VERSION, SAVE_MINOR_VERSION)
 
 extern int gameVersion;

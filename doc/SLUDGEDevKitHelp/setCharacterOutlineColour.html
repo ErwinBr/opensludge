@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCharacterOutlineColour</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCharacterOutlineColour</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCharacterOutlineColour (<i>thisCharacter, red, green, blue, alpha</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets the colour of the outline that <i>thisCharacter</i> has in the OUTLINE draw mode.
+</P>
+
+<P>
+<i>red</i>, <i>green</i>, <i>blue</i> and <i>alpha</i> go from 0 to 255. An <i>alpha</i> of 255 makes a solid outline, and 128 one that you can half see through. A new character has a white outline (255, 255, 255, 255). Anything outside 0 to 255 stops the game with an error, rather than guessing what you meant.
+</P>
+
+<P>
+The colour stays with the character, but you only see it while the character's draw mode is OUTLINE (see <a href="setCharacterDrawMode.html">setCharacterDrawMode</a>), so you can set it once when the character arrives and switch the outline on and off later. Unlike the character, the outline isn't darkened by the light map. If you make the character see-through with <a href="setCharacterTransparency.html">setCharacterTransparency</a>, its outline fades with it, and goes round the character without showing through it.
+</P>
+
+<P>
+setCharacterOutlineColor works too.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego ("Ego") {
+}
+
+sub highlightEgo () {
+   setCharacterOutlineColour (ego, 255, 220, 0, 255);
+   setCharacterOutlineThickness (ego, 3);
+   setCharacterDrawMode (ego, OUTLINE);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="setCharacterDrawMode.html">setCharacterDrawMode</a>
+</P>
+
+<P>
+<a href="setCharacterOutlineThickness.html">setCharacterOutlineThickness</a>
+</P>
+
+<P>
+<a href="setCursorOutline.html">setCursorOutline</a>
+</P>
+
+<P>
+<a href="setCharacterColourise.html">setCharacterColourise</a>
+</P>
+
+<P>
+<a href="setCharacterTransparency.html">setCharacterTransparency</a>
+</P>
+
+<P>
+<a href="Object_Types_as_Characters.html">Object Types as Characters</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

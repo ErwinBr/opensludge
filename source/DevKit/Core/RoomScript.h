@@ -101,6 +101,17 @@ struct RoomScale {
 	float at (float y) const { return set && divide ? (y - horizon) / (float) divide : 1.0f; }
 };
 
+// The call of a room that sets how characters scale: setScale (horizon,
+// divide) or setScaleMap ('file', min, max). The first outside an if.
+struct RoomScaleCall {
+	bool present;
+	TextPos call, statementEnd;
+	RoomArg first, second, third;	// Its arguments; the file of a map is first
+	std::string file;				// Of a map, without its quotes
+	bool conditional;
+	RoomScaleCall () : present (false), conditional (false) {}
+};
+
 // A call that sets a character up after addCharacter, as
 // setCharacterDrawMode (duck, DARK1): its value, and where it is.
 struct RoomSetting {
@@ -151,6 +162,10 @@ struct Room {
 	std::vector<RoomRegion> regions;
 	std::vector<RoomCharacter> characters;
 	RoomScale scale;				// As the game has it at the end of the sub
+	RoomScaleCall setScale, scaleMap;
+	// The first character outside an if, before which a new setScale goes.
+	bool hasFirstCharacter;
+	TextPos firstCharacter;
 	std::string floor;				// The file of setFloor, as written
 	int sceneWidth, sceneHeight;	// Of setSceneDimensions, or 0
 	// Where a new region goes: on a line after the line of this statement,
@@ -165,7 +180,7 @@ struct Room {
 	// region goes.
 	bool hasCharacterAnchor;
 	TextPos characterAnchorStart, characterAnchorEnd;
-	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false), hasCharacterAnchor (false) {}
+	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false), hasCharacterAnchor (false), hasFirstCharacter (false) {}
 };
 
 // The rooms of a script, in order.
@@ -179,6 +194,10 @@ bool costumeOfSub (const TextBuffer & text, const std::string & sub, CostumePict
 // Which of n directions of a costume an angle shows, as turnMeAngle
 // (Engine/people.cpp) works it out: 0 is the first, south.
 int facingDirection (int angle, int directions);
+
+// The setScale that gives percent1 at y1 and percent2 at y2: false when the
+// points can't make one (the same y or the same size).
+bool scaleFromPoints (int y1, int percent1, int y2, int percent2, int * horizon, int * divide);
 
 // The value of a constant of the compiler (CommonCode/constantlist.h).
 bool constantValue (const std::string & name, int * value);
@@ -244,6 +263,15 @@ namespace roomEdit {
 	std::vector<TextChange> setWalkSpeed (const TextBuffer & text, const Room & room, const RoomCharacter & character, int speed);
 	std::vector<TextChange> setFacing (const TextBuffer & text, const Room & room, const RoomCharacter & character, int angle);
 	std::vector<TextChange> setDepth (const TextBuffer & text, const Room & room, const RoomCharacter & character, bool fixed, int z);
+
+	// The room's setScale: its numbers, or a new call before the first
+	// character (the game scales only those added after it), else after
+	// the setting up of the room.
+	std::vector<TextChange> setScale (const TextBuffer & text, const Room & room, const std::string & indentUnit, int horizon, int divide);
+	// The room's setScaleMap, changed or new as setScale; and taken away.
+	std::vector<TextChange> setScaleMap (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, int minPercent, int maxPercent);
+	std::vector<TextChange> removeScaleMap (const TextBuffer & text, const Room & room);
 
 	// A new region of objectType, a rectangle (4 numbers) or a shape (6 or
 	// more): after the last region of the room that isn't in an if, else

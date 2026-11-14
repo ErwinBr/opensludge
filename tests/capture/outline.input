@@ -1,0 +1,6 @@
+# OutlineTest (tests/render/outline.slu): the mouse moves while the cursor
+# shows, without and with its outline.
+1 move 300 200
+480 move 320 240
+500 move 330 250
+520 move 200 150

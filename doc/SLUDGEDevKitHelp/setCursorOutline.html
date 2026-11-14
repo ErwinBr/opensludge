@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCursorOutline</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCursorOutline</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCursorOutline (<i>thickness, red, green, blue, alpha</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Draws an outline around the mouse cursor, <i>thickness</i> pixels thick, in the colour <i>red</i>, <i>green</i>, <i>blue</i> and <i>alpha</i>. A <i>thickness</i> of 0 takes the outline away again.
+</P>
+
+<P>
+<i>thickness</i> goes from 0 to 64 pixels of the screen, and the colour values from 0 to 255, as for <a href="setCharacterOutlineColour.html">setCharacterOutlineColour</a>. The outline follows the shape of whatever cursor you set with <a href="setCursor.html">setCursor</a>, and stays when you change the cursor, so it's handy for showing that the item you're carrying around can be used on whatever the mouse is over.
+</P>
+
+<P>
+Saved games remember the cursor's outline, and freezing doesn't change it.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub showItemCanBeUsed (canBeUsed) {
+   if (canBeUsed) {
+      setCursorOutline (2, 255, 255, 255, 255);
+   } else {
+      setCursorOutline (0, 0, 0, 0, 0);
+   }
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="setCursor.html">setCursor</a>
+</P>
+
+<P>
+<a href="setCharacterOutlineColour.html">setCharacterOutlineColour</a>
+</P>
+
+<P>
+<a href="setCharacterOutlineThickness.html">setCharacterOutlineThickness</a>
+</P>
+
+<P>
+<a href="setCharacterDrawMode.html">setCharacterDrawMode</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

@@ -437,6 +437,15 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-settings
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room-settings PROPERTIES LABELS capture)
+		# The Scaling tab: a setScale from two tried places, and a scale map.
+		add_test(NAME capture-devkit-room-scaling
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_scaling_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-scaling-edited.slu
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-scaling
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room-scaling PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

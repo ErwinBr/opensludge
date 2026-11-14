@@ -10,4 +10,5 @@ layout(set = 3, binding = 0) uniform Draw {
 	int zBuffer;
 	int modulateColor;
 	vec4 tint;
+	vec4 outline;	// The outline programs: thickness, step or fill, width and height
 };

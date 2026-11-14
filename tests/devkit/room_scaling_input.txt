@@ -1,0 +1,94 @@
+# The Scaling tab of the room editor on VerbCoin's outside room, in the
+# window of a smoke test (1280 x 800). The scene, 640 x 480, fits the canvas
+# at 80%: its top left is at 384, 155 in the window, and a pixel of the
+# scene is 0.797 points. The Scaling tab is at 535, 104. With a character
+# selected, the Inspector has Set Minimum Scale at y = 422 and Set Maximum
+# Scale at 447.
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+move 340 57
+wait 2
+down
+up
+wait 6
+move 535 104
+wait 1
+down
+up
+wait 6
+
+# The ego in front, at 420, 400, dragged up to y = 300 only to try the
+# scale: 66% there.
+move 719 450
+wait 2
+down
+wait 1
+move 719 410
+wait 1
+move 719 370
+wait 2
+up
+wait 4
+# Its top right handle, towards its feet: about 14%. That is the minimum.
+move 734 365
+wait 2
+down
+wait 1
+move 728 376
+wait 1
+move 722 387
+wait 2
+up
+wait 4
+move 1090 422
+wait 1
+down
+up
+wait 4
+# It is small now: taken by its feet, dragged down to about y = 420, and
+# by its handle made about as big as it is, 100%. That is the maximum.
+move 719 392
+wait 2
+down
+wait 1
+move 719 440
+wait 1
+move 719 488
+wait 2
+up
+wait 4
+move 749 395
+wait 2
+down
+wait 1
+move 741 420
+wait 1
+move 733 446
+wait 2
+up
+wait 4
+move 1090 447
+wait 1
+down
+up
+wait 6
+
+# A scale map, dropped on the room, and its minimum at 30%. The Inspector
+# has the minimum of the map at y = 320.
+drop ${EXAMPLES}/VerbCoin/iface/verbcoin.tga
+wait 6
+move 1160 320
+wait 1
+down
+up
+wait 3
+key ctrl+A
+type 30
+wait 2
+key Enter
+wait 4
+
+save ${OUTPUT}
+wait 2

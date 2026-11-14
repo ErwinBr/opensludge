@@ -23,4 +23,8 @@ void displayCursor ();
 // coordinates (between game frames, and in the controller settings).
 void drawCursor (int x, int y);
 bool hasCursorSprite ();
+// The outline around the cursor (setCursorOutline): a thickness of 0 for
+// none. Saved games keep it; freezing doesn't change it.
+void setCursorOutline (int thickness, unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+const struct OutlineStyle & cursorOutlineStyle ();
 void pasteCursor (int x, int y, const struct personaAnimation & c);

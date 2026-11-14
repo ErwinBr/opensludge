@@ -20,6 +20,7 @@
 #include "zbuffer.h"
 #include "scalemap.h"
 #include "cursors.h"
+#include "outline.h"
 #include "statusba.h"
 #include "sound.h"
 #include "thumbnail.h"
@@ -452,6 +453,10 @@ bool saveGame (char * fname) {
 	saveAnim (cursorAnimation (), fp);
 	put2bytes (cursorFrame (), fp);
 	put8bytes (cursorPosition (), fp);
+	// Since 2.8: the cursor's outline.
+	const OutlineStyle & cursorOutline = cursorOutlineStyle ();
+	put2bytes (cursorOutline.thickness, fp);
+	for (int c = 0; c < 4; c ++) fputc (cursorOutline.colour[c], fp);
 
 	// Save functions
 	loadedFunction * thisFunction = allRunningFunctions;
@@ -641,6 +646,14 @@ bool loadGame (char * fname) {
 		int frame = get2bytes (fp);
 		int64_t position = ssgVersion >= VERSION (2, 3) ? get8bytes (fp) : 0;
 		setCursorAnim (std::move (cursor), frame, position);
+		if (ssgVersion >= VERSION (2, 8)) {
+			int thickness = get2bytes (fp);
+			unsigned char colour[4];
+			for (int c = 0; c < 4; c ++) colour[c] = fgetc (fp);
+			setCursorOutline (thickness, colour[0], colour[1], colour[2], colour[3]);
+		} else {
+			setCursorOutline (0, 255, 255, 255, 255);
+		}
 	}
 
 	loadedFunction * rFunc;

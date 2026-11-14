@@ -8,6 +8,7 @@
 // pixel of any of its parts.
 
 #include <math.h>
+#include <string.h>
 #include <algorithm>
 
 #include "allfiles.h"
@@ -19,6 +20,7 @@
 #include "graphics.h"
 #include "spritebankdecode.h"
 #include "language.h"
+#include "outline.h"
 
 extern zBufferData zBuffer;
 extern inputType input;
@@ -107,6 +109,22 @@ static PartQuad partQuad (const PosedPart & part, const Transform2D & m) {
 	return q;
 }
 
+// The vertices and texture coordinates of a part's quad, at depth z.
+static void partVertices (const PartQuad & q, GLfloat z, GLfloat vertices[12], GLfloat texCoords[8]) {
+	for (int k = 0; k < 4; k ++) {
+		vertices[k * 3] = q.corners[k * 2];
+		vertices[k * 3 + 1] = q.corners[k * 2 + 1];
+		vertices[k * 3 + 2] = z;
+	}
+	const GLfloat t[] = {
+		q.r.u1, q.r.v1,
+		q.r.u2, q.r.v1,
+		q.r.u1, q.r.v2,
+		q.r.u2, q.r.v2
+	};
+	memcpy (texCoords, t, sizeof (t));
+}
+
 // Whether the mouse is over a pixel of the part, not behind the z-buffer.
 static bool mouseOverPart (const PosedPart & part, const Transform2D & m, int panel) {
 	const sprite & s = engineBank (part.sprite.bank) -> bank.sprites[part.sprite.number];
@@ -140,24 +158,34 @@ bool drawRiggedPerson (const onScreenPerson * p) {
 	uniforms.antialias = gameSettings.antiAlias == 1;
 
 	Transform2D screen = personTransform (p, true);
+	std::vector<PartQuad> quads;
+	quads.reserve (p -> pose.drawOrder.size ());
+	for (size_t i = 0; i < p -> pose.drawOrder.size (); i ++) {
+		quads.push_back (partQuad (p -> pose.parts[p -> pose.drawOrder[i]], screen));
+	}
+
+	// The shape of all the parts, while we take it (outline.h), or for the
+	// outline, which goes under all of them.
+	if (shapeSink || p -> outlined) {
+		std::vector<ShapeQuad> shape;
+		std::vector<ShapeQuad> & to = shapeSink ? * shapeSink : shape;
+		for (size_t i = 0; i < quads.size (); i ++) {
+			GLfloat vertices[12], texCoords[8];
+			partVertices (quads[i], z, vertices, texCoords);
+			to.push_back (shapeQuad (quads[i].page -> tex.get (), vertices, texCoords, quads[i].colour[3]));
+		}
+		if (shapeSink) return false;
+		drawOutline (p, shape, p -> outline, 1.0f - p -> transparency / 255.f, z, true);
+	}
+
 	float x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 	bool over = false;
-	for (size_t i = 0; i < p -> pose.drawOrder.size (); i ++) {
+	for (size_t i = 0; i < quads.size (); i ++) {
 		const PosedPart & part = p -> pose.parts[p -> pose.drawOrder[i]];
-		PartQuad q = partQuad (part, screen);
+		const PartQuad & q = quads[i];
 		const float * c = q.corners;
-		const GLfloat vertices[] = {
-			c[0], c[1], z,
-			c[2], c[3], z,
-			c[4], c[5], z,
-			c[6], c[7], z
-		};
-		const GLfloat texCoords[] = {
-			q.r.u1, q.r.v1,
-			q.r.u2, q.r.v1,
-			q.r.u1, q.r.v2,
-			q.r.u2, q.r.v2
-		};
+		GLfloat vertices[12], texCoords[8];
+		partVertices (q, z, vertices, texCoords);
 		// The light map at each corner, as scaleSprite has it.
 		GLfloat ltexCoords[8];
 		for (int k = 0; k < 4; k ++) {

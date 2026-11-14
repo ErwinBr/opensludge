@@ -90,6 +90,14 @@ void freezeGraphics() {
 				aPMVMatrix[i] = bPMVMatrix[i];
 			}
 			
+			// Legacy: freezing has always moved the characters' animations on
+			// by a tick (firing their frame events) for each tile it draws,
+			// because drawing did. Games time on it, so we keep it, for the
+			// animations of anim () only. Then the fields of the outlines,
+			// which draw into textures of their own.
+			stepLegacyAnimations ();
+			prepareOutlines ();
+
 			// Render scene, as if at the bottom left of the window, and
 			// copied from there into the texture
 			gfx::renderer->setTarget (target);
@@ -99,11 +107,6 @@ void freezeGraphics() {
 
 			drawBackDrop ();				// Draw the room
 			drawZBuffer(cameraX, cameraY);
-			// Legacy: freezing has always moved the characters' animations on
-			// by a tick (firing their frame events) for each tile it draws,
-			// because drawing did. Games time on it, so we keep it, for the
-			// animations of anim () only.
-			stepLegacyAnimations ();
 			drawPeople ();					// Then add any moving characters...
 			
 			y += h;

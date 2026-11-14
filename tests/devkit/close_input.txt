@@ -89,6 +89,14 @@ wait 1
 down
 up
 wait 3
+# Its Scaling tab, with a reference character.
+move 535 104
+wait 1
+down
+up
+wait 3
+drop ${EXAMPLES}/VerbCoin/ego/alien.duc
+wait 3
 close
 wait 2
 documents 0

@@ -54,6 +54,12 @@ enum Program {
 	PROG_COLOR,			// A solid colour
 	PROG_YUV,			// The Y, U and V planes of a movie frame
 	PROG_VERTEX_COLOR,	// Meshes: a texture times the colour of each vertex and the colour
+	// Outlines (outline.cpp): the seeds of a silhouette, a step of the jump
+	// flood, and the outline from the silhouette (unit 1) and its seeds
+	// (unit 0).
+	PROG_OUTLINE_SEED,
+	PROG_OUTLINE_JUMP,
+	PROG_OUTLINE,
 	PROG_COUNT
 };
 
@@ -97,6 +103,10 @@ struct DrawUniforms {
 	// the light and the colours above: a part's colour (components above 1
 	// brighten).
 	float tint[4];
+	// The outline programs: the thickness in pixels of the field, the step
+	// of the jump flood (PROG_OUTLINE_JUMP) or 1 to fill the silhouette and
+	// 0 to leave it out (PROG_OUTLINE), and the size of the field.
+	float outline[4];
 
 	// The identity matrix, white, transparent black as the secondary
 	// colour, a white tint, and false and 0 for the rest. The engine starts from

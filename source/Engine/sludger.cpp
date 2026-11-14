@@ -26,6 +26,7 @@
 #include "sprites.h"
 #include "sprbanks.h"
 #include "people.h"
+#include "outline.h"
 #include "talk.h"
 #include "newfatal.h"
 #include "stringy.h"
@@ -550,6 +551,9 @@ extern float cameraZoom;
 
 
 void sludgeDisplay () {
+	// The fields of the outlines draw into textures of their own, before the
+	// frame.
+	prepareOutlines ();
 	beginFrame ();
 	gfx::renderer->clear (true, true);	// Clear The Screen
 
