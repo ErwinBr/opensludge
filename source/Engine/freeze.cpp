@@ -248,6 +248,13 @@ void unfreeze (bool killImage) {
 
 	sceneWidth = frozenStuff -> sceneWidth;
 	sceneHeight = frozenStuff -> sceneHeight;
+	// Without NPOT textures, how much of its texture the backdrop fills,
+	// which freeze set for the window: the scene's own again, or a scene
+	// wider or taller than the window is drawn too small.
+	if (! NPOT_textures) {
+		backdropTexW = (double) sceneWidth / getNextPOT (sceneWidth);
+		backdropTexH = (double) sceneHeight / getNextPOT (sceneHeight);
+	}
 
 	cameraX = frozenStuff -> cameraX;
 	cameraY = frozenStuff -> cameraY;
