@@ -165,6 +165,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu ParallaxTest.slp parallax.slu
 			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
 			FindStackTest.slp findstack.slu FindStackFatalTest.slp findstackfatal.slu
+			SharedTypeTest.slp sharedtype.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png scalemap.png sky.png movie.webm)
@@ -260,6 +261,17 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DMESSAGE=Parameter isn't a stack"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-findstack-fatal PROPERTIES LABELS capture TIMEOUT 300)
+	# The settings of how a character looks reach every character of its
+	# objectType; the game checks it and stops with "sharedType OK".
+	sludge_compile_game(SharedTypeTest ${render_project}/SharedTypeTest.slp)
+	add_test(NAME capture-sharedtype
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/SharedTypeTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/sharedtype
+			"-DMESSAGE=sharedType OK"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-sharedtype PROPERTIES LABELS capture TIMEOUT 300)
 
 	# Watches on screen regions: the game checks the events of characters
 	# going in and out, fresh, frozen, after saving and after loading.

@@ -409,7 +409,10 @@ private:
 			if (((word == "setCharacterDrawMode" || word == "setCharacterExtra" || word == "setCharacterWalkSpeed"
 					|| word == "turnCharacter" || word == "setCharacterZ") && args.size () == 2 && ! args[0].empty ())
 					|| (word == "setCharacterParallax" && args.size () == 3 && ! args[0].empty ())) {
-				// The latest character of that objectType before it.
+				// The settings of how a character looks go to every character
+				// of that objectType before it, as the engine does. The walk
+				// speed and the facing go to the latest one.
+				bool shared = word != "setCharacterWalkSpeed" && word != "turnCharacter";
 				std::string objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
 				for (int c = (int) room.characters.size () - 1; c >= 0; c --) {
 					RoomCharacter & character = room.characters[c];
@@ -425,7 +428,7 @@ private:
 						setting.statementEnd = end;
 						setting.conditional = conditional;
 					}
-					break;
+					if (! shared) break;
 				}
 			}
 			// setSceneDimensions takes the scale map away.
@@ -890,11 +893,25 @@ static std::vector<TextChange> setting (const TextBuffer & text, const Room & ro
 		return changes;
 	}
 	if (isDefault) return changes;
-	// After the last setting of the character, else its addCharacter.
+	// After the last setting of the character, else its addCharacter. Not
+	// after the next character of the objectType, though, as a setting there
+	// would change that character too.
 	TextPos end = character.statementEnd;
+	bool limited = false;
+	TextPos limit;
+	bool after = false;
+	for (size_t c = 0; c < room.characters.size () && ! limited; c ++) {
+		if (&room.characters[c] == &character) after = true;
+		else if (after && room.characters[c].objectType == character.objectType) {
+			limited = true;
+			limit = room.characters[c].call;
+		}
+	}
 	const RoomSetting * settings[] = { &character.drawMode, &character.extra, &character.walkSpeed, &character.facing, &character.depth, &character.parallax };
 	for (size_t s = 0; s < sizeof (settings) / sizeof (settings[0]); s ++) {
-		if (settings[s]->present && end < settings[s]->statementEnd) end = settings[s]->statementEnd;
+		if (! settings[s]->present || ! (end < settings[s]->statementEnd)) continue;
+		if (limited && limit < settings[s]->statementEnd) continue;
+		end = settings[s]->statementEnd;
 	}
 	std::string call = std::string (function) + " (" + character.objectType + ", " + value + ");";
 	insertLine (text, room, true, character.call, end, std::string (), call, changes, NULL);

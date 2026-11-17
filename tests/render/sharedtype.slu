@@ -1,0 +1,52 @@
+# SharedTypeTest: the functions that set how a character looks change every
+# character of its objectType, not only the one furthest back. Two props
+# share an objectType and a third character doesn't. A check that fails
+# stops the game with its name; when all of them pass, the game stops with
+# "sharedType OK", which tests/capture/expect-fatal.cmake looks for.
+
+objectType prop ("") {
+}
+
+objectType other ("") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("sharedType failed: " + what);
+}
+
+sub propCostume () {
+	return costume (anim ('ego/alien.duc', 0), anim ('ego/alien.duc', 0), anim ('ego/alien.duc', 0));
+}
+
+sub init () {
+	# Characters at y 400 are half size, at y 600 three quarters.
+	setScale (0, 800);
+	addCharacter (prop, 100, 400, propCostume ());
+	addCharacter (prop, 300, 600, propCostume ());
+	addCharacter (other, 500, 400, propCostume ());
+	check (getCharacterScale (prop) == 50, "back prop scaled first");
+
+	check (setCharacterExtra (prop, FIXEDSIZE), "setCharacterExtra on a prop");
+	check (setCharacterZ (prop, 350), "setCharacterZ on a prop");
+	check (setCharacterParallax (prop, 100, 100), "setCharacterParallax on a prop");
+	check (clearCharacterZ (prop), "clearCharacterZ on a prop");
+	setCharacterDrawMode (prop, NORMAL);
+	setCharacterTransparency (prop, 0);
+	pause (2);
+	check (getCharacterScale (other) == 50, "the other character keeps its scale");
+	check (getCharacterScale (prop) == 100, "the back prop is a fixed size");
+
+	# Take away the back prop, so that the front one is left.
+	removeCharacter (prop);
+	check (isCharacter (prop), "the front prop is still there");
+	check (getObjectY (prop) == 600, "the front prop is the one left");
+	check (getCharacterScale (prop) == 100, "the front prop is a fixed size too");
+	moveCharacter (prop, 300, 400);
+	check (getCharacterScale (prop) == 100, "the front prop stays a fixed size when it moves");
+
+	# A prop added afterwards starts as normal.
+	addCharacter (prop, 200, 400, propCostume ());
+	check (getCharacterScale (prop) == 50, "a new prop is scaled");
+
+	quitWithFatalError ("sharedType OK");
+}

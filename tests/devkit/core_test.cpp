@@ -2898,7 +2898,8 @@ static void testRoomScript () {
 		CHECK (ego.picture.known && ego.picture.bank == "e.duc" && ego.picture.frame == 2);
 		CHECK (second.drawModeValue () == 7 && second.call.line == 12);
 		CHECK (ego.parallax.present && ego.parallaxX () == 150 && ego.parallaxY () == -50);
-		CHECK (! duck.parallax.present && duck.parallaxX () == 100 && duck.parallaxY () == 100);
+		// The parallax after the second duck reaches the first one too.
+		CHECK (duck.parallax.present && duck.parallax.call.line == second.parallax.call.line);
 		CHECK (second.parallax.present && ! second.parallax.value.literal && second.parallax.second.literal);
 
 		std::string text = applied (*settings, roomEdit::setDrawMode (settings->buffer (), rooms[0], duck, 15));
@@ -2940,9 +2941,8 @@ static void testRoomScript () {
 		text = applied (*settings, roomEdit::setParallax (settings->buffer (), rooms[0], ego, 100, 100));
 		CHECK (text.find ("setCharacterParallax (ego") == std::string::npos);
 		settings->commands ().undo ();
-		text = applied (*settings, roomEdit::setParallax (settings->buffer (), rooms[0], duck, 50, 100));
-		CHECK (text.find ("\tturnCharacter (duck, NORTH);\n\tsetCharacterParallax (duck, 50, 100);\n\taddCharacter (ego,") != std::string::npos);
-		settings->commands ().undo ();
+		// The first duck shares the parallax of far, which the editor leaves alone.
+		CHECK (roomEdit::setParallax (settings->buffer (), rooms[0], duck, 50, 100).empty ());
 		CHECK (roomEdit::setParallax (settings->buffer (), rooms[0], duck, 100, 100).empty ());
 		CHECK (roomEdit::setParallax (settings->buffer (), rooms[0], second, 50, 50).empty ());
 		// A new setting goes after the parallax too.
@@ -3013,6 +3013,33 @@ static void testRoomScript () {
 		CHECK (! rooms[1].hasFirstCharacter);
 		CHECK (applied (*unscaled, roomEdit::setScale (unscaled->buffer (), rooms[1], "    ", 0, 400)).find ("setFloor ('b.flo');\n    setScale (0, 400);\n    if (x)") != std::string::npos);
 		unscaled->commands ().undo ();
+	}
+	// Two characters of one objectType share how they look, as the engine
+	// does, but the walk speed and facing go to the latest one.
+	std::unique_ptr<ScriptDocument> props (scriptOf (
+		"sub room () {\n"
+		"\taddCharacter (prop, 885, 1003, anim ('desk.duc', 0));\n"
+		"\taddCharacter (prop, 2123, 1014, anim ('fence.duc', 0));\n"
+		"\tsetCharacterExtra (prop, FIXEDSIZE);\n"
+		"\tsetCharacterZ (prop, 900);\n"
+		"\tturnCharacter (prop, NORTH);\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (props->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 2);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 2) {
+		const RoomCharacter & desk = rooms[0].characters[0];
+		const RoomCharacter & fence = rooms[0].characters[1];
+		CHECK (desk.extraFlags () == ROOM_FIXEDSIZE && fence.extraFlags () == ROOM_FIXEDSIZE);
+		CHECK (desk.hasDepth () && fence.hasDepth ());
+		CHECK (! desk.facing.present && fence.facing.present);
+		// Changing one changes the line they share.
+		std::string text = applied (*props, roomEdit::setExtras (props->buffer (), rooms[0], desk, ROOM_FIXEDSIZE + ROOM_FRONT));
+		CHECK (text.find ("\tsetCharacterExtra (prop, FRONT + FIXEDSIZE);\n") != std::string::npos && text.find ("setCharacterExtra (prop, FIXEDSIZE)") == std::string::npos);
+		props->commands ().undo ();
+		// A walk speed of the desk alone goes before the fence comes.
+		text = applied (*props, roomEdit::setWalkSpeed (props->buffer (), rooms[0], desk, 3));
+		CHECK (text.find ("('desk.duc', 0));\n\tsetCharacterWalkSpeed (prop, 3);\n\taddCharacter (prop, 2123,") != std::string::npos);
+		props->commands ().undo ();
 	}
 
 	CHECK (isIdentifier ("bench") && isIdentifier ("_b2") && ! isIdentifier ("2b") && ! isIdentifier ("sub") && ! isIdentifier ("addOverlay") && ! isIdentifier ("a b"));

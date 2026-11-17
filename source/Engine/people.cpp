@@ -212,14 +212,24 @@ bool turnPersonToFace (int thisNum, int direc) {
 	return false;
 }
 
-bool setPersonExtra (int thisNum, int extra) {
-	onScreenPerson * thisPerson = findPerson (thisNum);
-	if (thisPerson) {
-		thisPerson -> extra = extra;
-		if (extra & EXTRA_NOSCALE) thisPerson -> scale = 1;
-		return true;
+// Does f to every character of the objectType: the settings of how a
+// character looks go to all of them, where findPerson would only find the
+// one furthest back. Whether there was one.
+template <class F> static bool forEachPerson (int objNum, F f) {
+	bool found = false;
+	for (onScreenPerson * p = allPeople; p; p = p -> next) {
+		if (p -> thisType -> objectNum != objNum) continue;
+		f (* p);
+		found = true;
 	}
-	return false;
+	return found;
+}
+
+bool setPersonExtra (int thisNum, int extra) {
+	return forEachPerson (thisNum, [extra] (onScreenPerson & p) {
+		p.extra = extra;
+		if (extra & EXTRA_NOSCALE) p.scale = 1;
+	});
 }
 
 // Sorts the characters fully, so that a new depth shows at once.
@@ -228,29 +238,28 @@ static void sortPeople () {
 }
 
 bool setPersonZ (int thisNum, float z) {
-	onScreenPerson * thisPerson = findPerson (thisNum);
-	if (! thisPerson) return false;
-	thisPerson -> hasFixedZ = true;
-	thisPerson -> fixedZ = z;
+	if (! forEachPerson (thisNum, [z] (onScreenPerson & p) {
+		p.hasFixedZ = true;
+		p.fixedZ = z;
+	})) return false;
 	sortPeople ();
 	return true;
 }
 
 bool clearPersonZ (int thisNum) {
-	onScreenPerson * thisPerson = findPerson (thisNum);
-	if (! thisPerson) return false;
-	thisPerson -> hasFixedZ = false;
-	thisPerson -> fixedZ = 0;
+	if (! forEachPerson (thisNum, [] (onScreenPerson & p) {
+		p.hasFixedZ = false;
+		p.fixedZ = 0;
+	})) return false;
 	sortPeople ();
 	return true;
 }
 
 bool setPersonParallax (int thisNum, float x, float y) {
-	onScreenPerson * thisPerson = findPerson (thisNum);
-	if (! thisPerson) return false;
-	thisPerson -> parallaxX = x;
-	thisPerson -> parallaxY = y;
-	return true;
+	return forEachPerson (thisNum, [x, y] (onScreenPerson & p) {
+		p.parallaxX = x;
+		p.parallaxY = y;
+	});
 }
 
 void shownPosition (const onScreenPerson & p, float & x, float & y) {
@@ -437,45 +446,35 @@ void setMyDrawMode (onScreenPerson *moveMe, int h) {
 }
 
 void setDrawMode (int h, int ob) {
-	onScreenPerson * moveMe = findPerson (ob);
-	if (! moveMe) return;
-		
-	setMyDrawMode (moveMe, h);
+	forEachPerson (ob, [h] (onScreenPerson & p) { setMyDrawMode (& p, h); });
 }
 
 void setPersonTransparency (int ob, unsigned char x) {
-	onScreenPerson * moveMe = findPerson (ob);
-	if (! moveMe) return;
-	
 	if (x > 254) x = 254;
-	moveMe->transparency = x;
+	forEachPerson (ob, [x] (onScreenPerson & p) { p.transparency = x; });
 }
 
 void setPersonColourise (int ob, unsigned char r, unsigned char g, unsigned char b, unsigned char colourmix) {
-	onScreenPerson * moveMe = findPerson (ob);
-	if (! moveMe) return;
-	
-	moveMe->r = r;
-	moveMe->g = g;
-	moveMe->b = b;
-	moveMe->colourmix = colourmix;
+	forEachPerson (ob, [=] (onScreenPerson & p) {
+		p.r = r;
+		p.g = g;
+		p.b = b;
+		p.colourmix = colourmix;
+	});
 }
 
 void setPersonOutlineColour (int ob, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-	onScreenPerson * moveMe = findPerson (ob);
-	if (! moveMe) return;
-
-	moveMe->outline.colour[0] = r;
-	moveMe->outline.colour[1] = g;
-	moveMe->outline.colour[2] = b;
-	moveMe->outline.colour[3] = a;
+	forEachPerson (ob, [=] (onScreenPerson & p) {
+		p.outline.colour[0] = r;
+		p.outline.colour[1] = g;
+		p.outline.colour[2] = b;
+		p.outline.colour[3] = a;
+	});
 }
 
 void setPersonOutlineThickness (int ob, int thickness) {
-	onScreenPerson * moveMe = findPerson (ob);
-	if (! moveMe) return;
-
-	moveMe->outline.thickness = std::max (0, std::min (thickness, maxOutlineThickness));
+	thickness = std::max (0, std::min (thickness, maxOutlineThickness));
+	forEachPerson (ob, [thickness] (onScreenPerson & p) { p.outline.thickness = thickness; });
 }
 
 
