@@ -2,7 +2,7 @@
 # outside room, in the window of a smoke test (1280 x 800). The duck's
 # feet are at 543, 434 in the window. With the duck selected, the
 # Inspector has Facing at y = 373, Draw Mode at 398, the Extras from FRONT
-# at 423, a row every 25, and Walk Speed at 597. A list opens below its
+# at 423, a row every 25, and Walk Speed at 622. A list opens below its
 # field, its items 19 apart.
 open ${EXAMPLES}/VerbCoin/VerbCoin.slp
 wait 10
@@ -59,7 +59,7 @@ down
 up
 wait 3
 # Walk Speed: 3, written when the field is let go.
-move 1178 597
+move 1178 622
 wait 1
 down
 up
