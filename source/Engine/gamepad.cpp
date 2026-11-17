@@ -113,7 +113,7 @@ static void moveToNextHotspot (bool forward) {
 		n ++;
 	}
 	for (onScreenPerson * p = allPeople; p; p = p->next) {
-		if (! p->show || ! p->thisType) continue;
+		if (! p->show || ! p->thisType || (p->extra & EXTRA_NOMOUSEOVER)) continue;
 		// The middle of the character, whose position is at the feet, where
 		// it shows (its parallax moves it).
 		float shownX, shownY;

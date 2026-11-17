@@ -812,7 +812,8 @@ void drawPeople () {
 
 	for (const onScreenPerson * thisPerson = allPeople; thisPerson; thisPerson = thisPerson -> next) {
 		if (! thisPerson -> show) continue;
-		if (drawPerson (thisPerson)) pointAtPerson (thisPerson);
+		// A NOMOUSEOVER character still draws, but the mouse goes through it.
+		if (drawPerson (thisPerson) && ! (thisPerson -> extra & EXTRA_NOMOUSEOVER)) pointAtPerson (thisPerson);
 	}
 }
 

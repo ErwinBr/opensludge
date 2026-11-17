@@ -648,7 +648,7 @@ std::string extrasText (int flags) {
 	static const struct { int value; const char * name; } names[] = {
 		{ ROOM_FRONT, "FRONT" }, { ROOM_FIXEDSIZE, "FIXEDSIZE" }, { ROOM_NOZBUFFER, "NOZBUFFER" },
 		{ ROOM_FIXTOSCREEN, "FIXTOSCREEN" }, { ROOM_NOLIGHTMAP, "NOLIGHTMAP" },
-		{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" },
+		{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" }, { ROOM_NOMOUSEOVER, "NOMOUSEOVER" },
 	};
 	std::string text;
 	// The game adds the flags up, so ICON only goes with all of its own.

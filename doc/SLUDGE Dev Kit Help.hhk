@@ -1264,6 +1264,13 @@
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterExtra.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="NOMOUSEOVER">
+		<param name="Name" value="Built-in Constants">
+		<param name="Local" value="SLUDGEDevKitHelp\Built-in_Constants.html">
+		<param name="Name" value="setCharacterExtra">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterExtra.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="NOREMOVE">
 		<param name="Name" value="Built-in Constants">
 		<param name="Local" value="SLUDGEDevKitHelp\Built-in_Constants.html">

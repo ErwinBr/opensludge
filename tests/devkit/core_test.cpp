@@ -2912,6 +2912,9 @@ static void testRoomScript () {
 		CHECK (text.find ("setCharacterExtra (duck, FRONT + FIXEDSIZE + RECTANGULAR);") != std::string::npos);
 		settings->commands ().undo ();
 		CHECK (extrasText (ROOM_ICON + ROOM_NOREMOVE) == "ICON + NOREMOVE" && extrasText (0) == "NORMAL" && extrasText (ROOM_ICON - ROOM_FRONT) == "FIXEDSIZE + NOZBUFFER + FIXTOSCREEN + NOLIGHTMAP");
+		CHECK (extrasText (ROOM_RECTANGULAR + ROOM_NOMOUSEOVER) == "RECTANGULAR + NOMOUSEOVER");
+		int mouseFlags = 0;
+		CHECK (constantValue ("NOMOUSEOVER", &mouseFlags) && mouseFlags == ROOM_NOMOUSEOVER);
 		// A new setting goes after the last one of the character.
 		text = applied (*settings, roomEdit::setWalkSpeed (settings->buffer (), rooms[0], duck, 3));
 		CHECK (text.find ("\tturnCharacter (duck, NORTH);\n\tsetCharacterWalkSpeed (duck, 3);\n\taddCharacter (ego,") != std::string::npos);

@@ -421,6 +421,9 @@ sub init () {
 	setCharacterExtra (ego, RECTANGULAR);
 	mouseScene ("pointing at the box", newStack (
 		newStack (260, 150, TRUE), newStack (180, 300, FALSE)), 60);
+	setCharacterExtra (ego, RECTANGULAR + NOMOUSEOVER);
+	mouseScene ("not pointing at it", newStack (
+		newStack (260, 150, FALSE), newStack (318, 150, FALSE), newStack (318, 250, FALSE)), 60);
 	setCharacterExtra (ego, 0);
 
 	# Pasting it into the backdrop, behind the z-buffer, then walking away.

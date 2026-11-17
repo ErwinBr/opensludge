@@ -1800,11 +1800,11 @@ void RoomView::drawCharacterSettings (const RoomCharacter & character) {
 		static const struct { int flag; const char * name; } extras[] = {
 			{ ROOM_FRONT, "FRONT" }, { ROOM_FIXEDSIZE, "FIXEDSIZE" }, { ROOM_NOZBUFFER, "NOZBUFFER" },
 			{ ROOM_FIXTOSCREEN, "FIXTOSCREEN" }, { ROOM_NOLIGHTMAP, "NOLIGHTMAP" },
-			{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" },
+			{ ROOM_NOREMOVE, "NOREMOVE" }, { ROOM_RECTANGULAR, "RECTANGULAR" }, { ROOM_NOMOUSEOVER, "NOMOUSEOVER" },
 		};
 		int flags = character.extraFlags ();
 		ImGui::BeginGroup ();
-		for (int e = 0; e < 7; e ++) {
+		for (size_t e = 0; e < sizeof (extras) / sizeof (extras[0]); e ++) {
 			bool on = (flags & extras[e].flag) != 0;
 			if (ImGui::Checkbox (extras[e].name, &on)) {
 				apply (roomEdit::setExtras (text, *r, character, on ? flags | extras[e].flag : flags & ~extras[e].flag), "Change Extras", character.call);

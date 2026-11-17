@@ -126,7 +126,7 @@ struct RoomSetting {
 // The extra flags of setCharacterExtra, as Engine/people.h has them.
 enum {
 	ROOM_FRONT = 1, ROOM_FIXEDSIZE = 2, ROOM_NOZBUFFER = 4, ROOM_FIXTOSCREEN = 8, ROOM_NOLIGHTMAP = 16,
-	ROOM_ICON = 31, ROOM_NOREMOVE = 32, ROOM_RECTANGULAR = 64
+	ROOM_ICON = 31, ROOM_NOREMOVE = 32, ROOM_RECTANGULAR = 64, ROOM_NOMOUSEOVER = 128
 };
 // The draw modes of setCharacterDrawMode, 0 (NORMAL) to 19 (INVISIBLE).
 enum { ROOM_DRAW_MODES = 20, ROOM_INVISIBLE = 19 };

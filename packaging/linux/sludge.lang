@@ -304,6 +304,7 @@
                     <keyword>OUTLINE</keyword>
                     <keyword>TRUE</keyword>
                     <keyword>NOLIGHTMAP</keyword>
+                    <keyword>NOMOUSEOVER</keyword>
                     <keyword>NORTH</keyword>
                     <keyword>NORTHEAST</keyword>
                     <keyword>NORTHWEST</keyword>

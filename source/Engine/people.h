@@ -13,6 +13,7 @@
 #define EXTRA_NOLITE		16
 #define EXTRA_NOREMOVE		32
 #define EXTRA_RECTANGULAR	64
+#define EXTRA_NOMOUSEOVER	128
 
 // A costume: 3 animations (stand, walk, talk) for each direction, which it
 // owns. Variables and characters share costumes, and count them in timesUsed
