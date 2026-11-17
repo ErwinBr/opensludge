@@ -1,0 +1,42 @@
+# FindStackTest: findInStack gives the index of the first element that's
+# the same as the value, by the test deleteFromStack uses, or -1. A check
+# that fails stops the game with its name; when all of them pass, the game
+# stops with "findInStack OK", which tests/capture/expect-fatal.cmake
+# looks for.
+
+objectType thing ("thing") {
+}
+
+objectType other ("other") {
+}
+
+sub check (got, expected, what) {
+	if (got != expected) quitWithFatalError ("findInStack failed: " + what + " gave " + got);
+}
+
+sub init () {
+	var numbers = newStack (5, 7, 9, 7);
+	check (findInStack (numbers, 5), 0, "first element");
+	check (findInStack (numbers, 7), 1, "first of two matches");
+	check (findInStack (numbers, 9), 2, "middle element");
+	check (findInStack (numbers, 3), -1, "missing number");
+	check (stackSize (numbers), 4, "stack size afterwards");
+	check (numbers[3], 7, "last element afterwards");
+
+	check (findInStack (newStack (), 5), -1, "empty stack");
+
+	var words = newStack ("Hey!", "Bye " + "then.", "Er...?");
+	check (findInStack (words, "Bye then."), 1, "string by its text");
+	check (findInStack (words, "bye then."), -1, "string of other case");
+
+	var inner = newStack (1, 2);
+	var lookalike = copyStack (inner);
+	var nested = newStack (lookalike, inner);
+	check (findInStack (nested, inner), 1, "the same stack");
+	check (findInStack (newStack (inner), lookalike), -1, "a copy of the stack");
+
+	var things = newStack (other, thing);
+	check (findInStack (things, thing), 1, "object type");
+
+	quitWithFatalError ("findInStack OK");
+}

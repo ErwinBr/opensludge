@@ -645,6 +645,15 @@ int deleteVarFromStack (const variable & va, variableStack * & thisStack, bool a
 	return reply;
 }
 
+// The index of the first element of the stack that's the same as va, by the
+// test deleteVarFromStack uses, or -1 if there isn't one.
+int findVarInStack (const variable & va, const variableStack * hunt) {
+	for (int index = 0; hunt; hunt = hunt -> next, index ++) {
+		if (compareVars (hunt -> thisVar, va)) return index;
+	}
+	return -1;
+}
+
 // Would be a LOT better just to keep this up to date in the above function... ah well
 variableStack * stackFindLast (variableStack * hunt) {
 	if (hunt == NULL)

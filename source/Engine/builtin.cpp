@@ -696,6 +696,24 @@ builtIn(deleteAllFromStack)
 	return BR_CONTINUE;
 }
 
+builtIn(findInStack)
+{
+	UNUSEDALL
+	if (fun -> stack -> next -> thisVar.varType != SVT_STACK) {
+		fatal ("Parameter isn't a stack.");
+		return BR_ERROR;
+	}
+
+	// Return value
+	setVariable (fun -> reg, SVT_INT,
+				 findVarInStack (fun -> stack -> thisVar,
+								 fun -> stack -> next -> thisVar.varData.theStack -> first));
+
+	trimStack (fun -> stack);
+	trimStack (fun -> stack);
+	return BR_CONTINUE;
+}
+
 builtIn(popFromStack)
 {
 	UNUSEDALL

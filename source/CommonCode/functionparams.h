@@ -36,4 +36,5 @@ calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 2, 1,										// setCharacterZ, clearCharacterZ
 -1,											// setScaleMap
 5, 2, 5,									// setCharacterOutlineColour, setCharacterOutlineThickness, setCursorOutline
-3											// setCharacterParallax
+3,											// setCharacterParallax
+2											// findInStack

@@ -164,6 +164,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
 			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu ParallaxTest.slp parallax.slu
 			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
+			FindStackTest.slp findstack.slu FindStackFatalTest.slp findstackfatal.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png scalemap.png sky.png movie.webm)
@@ -237,6 +238,28 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DMESSAGE=at least 3 points"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-region-fatal PROPERTIES LABELS capture TIMEOUT 300)
+
+	# findInStack: the game checks its answers and stops with "findInStack
+	# OK" when they're all right, or with the check that failed.
+	sludge_compile_game(FindStackTest ${render_project}/FindStackTest.slp)
+	add_test(NAME capture-findstack
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/FindStackTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/findstack
+			"-DMESSAGE=findInStack OK"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-findstack PROPERTIES LABELS capture TIMEOUT 300)
+	# findInStack only works on stacks.
+	sludge_compile_game(FindStackFatalTest ${render_project}/FindStackFatalTest.slp)
+	add_test(NAME capture-findstack-fatal
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/FindStackFatalTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/findstack-fatal
+			"-DMESSAGE=Parameter isn't a stack"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-findstack-fatal PROPERTIES LABELS capture TIMEOUT 300)
 
 	# Watches on screen regions: the game checks the events of characters
 	# going in and out, fresh, frozen, after saving and after loading.

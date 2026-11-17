@@ -1,0 +1,9 @@
+# FindStackFatalTest: findInStack only works on stacks, so a fast array
+# must stop the game with that error; tests/capture/expect-fatal.cmake
+# checks that it does.
+
+sub init () {
+	findInStack (makeFastArray (3), 0);
+	pause (2);
+	quitGame ();
+}

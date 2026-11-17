@@ -1441,6 +1441,11 @@
 		<param name="Local" value="SLUDGEDevKitHelp\fileExists.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="findInStack">
+		<param name="Name" value="findInStack (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\findInStack.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="floatCharacter">
 		<param name="Name" value="floatCharacter (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\floatCharacter.html">

@@ -85,6 +85,7 @@ bool addVarToStack (const variable & va, variableStack * & thisStack);
 bool addVarToStackQuick (variable & va, variableStack * & thisStack);
 void trimStack (variableStack * & stack);
 int deleteVarFromStack (const variable & va, variableStack * & thisStack, bool allOfEm = false);
+int findVarInStack (const variable & va, const variableStack * hunt);
 variableStack * stackFindLast (variableStack * hunt);
 bool copyStack (const variable & from, variable & to);
 int stackSize (const stackHandler * me);

@@ -149,6 +149,10 @@ FUNCTION_DOC ("fileExists", "fileExists.html",
 	"fileExists (nameOfFile)",
 	"Checks whether the file nameOfFile exists. The nameOfFile parameter should be a string, not a file handle. Useful for checking whether a saved game exists before attempting to load or overwrite it, or for finding out whether the reason that a file couldn't be launched is because it doesn't exist.\n\nThis function supports filename bodging - for details see the bodgeFilenames command.",
 	"No return value.")
+FUNCTION_DOC ("findInStack", "findInStack.html",
+	"findInStack (thisStack, thisElement)",
+	"Tells you where thisElement is in thisStack, without changing the stack.\n\nThe standard SLUDGE equality test is performed on each element of the stack and the value of thisElement, starting at the front - the same test that deleteFromStack uses. So two strings match if they hold the same text, but two stacks only match if they're the very same stack: a copy made with copyStack doesn't count, however alike the two look.\n\nThe number you get back counts from 0, just like the square brackets do, so you can use it straight away to read the element or to change it. If thisElement is in the stack more than once, you get the first one.\n\nthisStack has to be a stack. A fast array, or anything else, stops the game with an error.",
+	"The position of the first element which matches thisElement, where 0 is the first element of the stack, or -1 if there's no match at all.")
 FUNCTION_DOC ("floatCharacter", "floatCharacter.html",
 	"floatCharacter (thisCharacter, distance)",
 	"Changes how far from ground level thisCharacter is floating. The value distance is measured in pixels in the animation frame used by the character, rather than screen pixels. Positive values move a character down the screen; negative values raise a character above ground level.",

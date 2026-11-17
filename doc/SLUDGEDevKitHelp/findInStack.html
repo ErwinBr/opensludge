@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>findInStack</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>findInStack</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">findInStack (<i>thisStack, thisElement</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Tells you where <i>thisElement</i> is in <i>thisStack</i>, without changing the stack.
+</P>
+
+<P>
+The standard SLUDGE equality test is performed on each element of the stack and the value of <i>thisElement</i>, starting at the front - the same test that <a href="deleteFromStack_and_deleteAllFromStack.html">deleteFromStack</a> uses. So two strings match if they hold the same text, but two stacks only match if they're the very same stack: a copy made with <a href="copyStack.html">copyStack</a> doesn't count, however alike the two look.
+</P>
+
+<P>
+The number you get back counts from 0, just like the square brackets do, so you can use it straight away to read the element or to change it. If <i>thisElement</i> is in the stack more than once, you get the first one.
+</P>
+
+<P>
+<i>thisStack</i> has to be a stack. A fast array, or anything else, stops the game with an error.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+The position of the first element which matches <i>thisElement</i>, where 0 is the first element of the stack, or -1 if there's no match at all.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub swapInventoryItem (oldItem, newItem) {
+	var where = findInStack (inventory, oldItem);
+	if (where == -1) return FALSE;
+	inventory[where] = newItem;
+	return TRUE;
+}</pre>
+</P>
+
+<H3>See also: </H3>
+
+<P>
+<a href="The_Multi-Purpose_Stack___Array___Queue_Type.html">The Multi-Purpose Stack / Array / Queue Type</a>
+</P>
+
+<P>
+<a href="deleteFromStack_and_deleteAllFromStack.html">deleteFromStack and deleteAllFromStack</a>
+</P>
+
+<P>
+<a href="stackSize.html">stackSize</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

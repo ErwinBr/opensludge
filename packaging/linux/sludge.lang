@@ -118,6 +118,7 @@
                     <keyword>enqueue</keyword>
                     <keyword>fetchEvent</keyword>
                     <keyword>fileExists</keyword>
+                    <keyword>findInStack</keyword>
                     <keyword>floatCharacter</keyword>
                     <keyword>forceCharacter</keyword>
                     <keyword>freeSound</keyword>
