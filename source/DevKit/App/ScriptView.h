@@ -38,6 +38,8 @@ public:
 	~ScriptView ();
 
 	Document * document () { return script; }
+	// In Room mode, the floor while the room editor's Floor tab shows.
+	Document * commandTarget ();
 	void draw ();
 	void drawInspector ();
 	bool animating () const;

@@ -334,6 +334,8 @@ private:
 				std::string file = fileOf (args[0]);
 				if (! file.empty () && (room.floor.empty () || (! floorTopLevel && ! conditional))) {
 					room.floor = file;
+					room.hasFloorCall = true;
+					room.floorFile = argument (args[0]);
 					floorTopLevel = ! conditional;
 				}
 				setup = true;
@@ -996,6 +998,18 @@ std::vector<TextChange> setScaleMap (const TextBuffer & text, const Room & room,
 std::vector<TextChange> removeScaleMap (const TextBuffer & text, const Room & room) {
 	if (! room.scaleMap.present) return std::vector<TextChange> ();
 	return removeStatement (text, room.scaleMap.call, room.scaleMap.statementEnd);
+}
+
+std::vector<TextChange> setFloor (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, TextPos * where) {
+	std::vector<TextChange> changes;
+	if (room.hasFloorCall) {
+		*where = room.floorFile.from;
+		if (room.floor != file) changes.push_back (TextChange (room.floorFile.from, room.floorFile.to, "'" + file + "'"));
+		return changes;
+	}
+	insertLine (text, room, room.hasOverlayAnchor, room.overlayAnchorStart, room.overlayAnchorEnd, indentUnit, "setFloor ('" + file + "');", changes, where);
+	return changes;
 }
 
 } // namespace roomEdit

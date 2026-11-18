@@ -18,6 +18,10 @@ public:
 	virtual ~DocumentView () {}
 
 	virtual Document * document () = 0;
+	// The document that Undo, Redo and Save act on while the view is
+	// active: its own, or another that it edits, as the room editor's
+	// Floor tab edits the room's floor.
+	virtual Document * commandTarget () { return document (); }
 	// The contents of the document's tab.
 	virtual void draw () = 0;
 	// The contents of the Inspector while the document is active.

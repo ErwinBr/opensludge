@@ -82,6 +82,7 @@ public:
 	double tickMilliseconds () const;
 	Document * findDocument (const std::string & path) const { return manager.find (path); }
 	bool isOpen (const Document * document) const;
+	Document * openBehind (const std::string & path);
 	std::vector<ClipDocument *> clipsForRename (const animformat::AssetId & rig, const std::string & part, const std::string & folder);
 	bool autoKey () const { return preferences.autoKey; }
 	std::vector<ClipItem> & clipClipboard () { return clipItems; }
@@ -105,6 +106,9 @@ public:
 	void closeActiveTab () { closeTab = true; }
 	// The editor of the active document, if it has one, for the tests.
 	DocumentView * activeView () const;
+	// What Undo, Redo and Save act on: the active view's commandTarget,
+	// or the active document.
+	Document * editingDocument () const;
 
 private:
 	ProjectDocument * project () const;

@@ -1,0 +1,51 @@
+# The Floor tab of the room editor on VerbCoin's outside room, in the window
+# of a smoke test (1280 x 800). The scene, 640 x 480, fits the canvas at
+# 80%: its top left is at 384, 155 in the window, and a pixel of the scene
+# is 0.797 points. The Floor tab is at 597, 104. Showing it opens
+# outside/room.flo behind the script, with the tools in Move:
+# * 132, 338; 505, 356; 639, 479; 0, 479; 0, 416
+open ${EXAMPLES}/VerbCoin/VerbCoin.slp
+wait 10
+open ${EXAMPLES}/VerbCoin/outside/room.slu
+wait 6
+# Room, at the top of the tab.
+move 340 57
+wait 2
+down
+up
+wait 6
+move 597 104
+wait 1
+down
+up
+wait 6
+
+# Drag the vertex at 505, 356 up by 40; Undo takes it back, as it is the
+# floor's while the Floor tab shows, not the script's.
+move 787 439
+wait 2
+down
+wait 1
+move 787 423
+wait 1
+move 787 407
+wait 2
+up
+wait 4
+key ctrl+Z
+wait 4
+
+# Drag the vertex at 132, 338 right by 20.
+move 489 424
+wait 2
+down
+wait 1
+move 497 424
+wait 1
+move 505 424
+wait 2
+up
+wait 4
+
+save ${OUTPUT}
+wait 2

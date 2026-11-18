@@ -51,7 +51,8 @@ void drawFloor (Draw2D & draw, struct polyList * pL, float r, float g, float b, 
 
 struct spriteBank;
 
-// In the floor maker view, we draw the backdrop, the floor in the colour
+// In the floor maker view, we draw the backdrop (or nothing over what is
+// drawn already, when it is NULL), the floor in the colour
 // r, g, b, a larger circle on the vertex at (litX, litY) when lit is set,
 // and the line from (selx1, sely1) to (selx2, sely2) in red when selecting
 // is set. The selected vertices, selectedCount x, y pairs, get large red

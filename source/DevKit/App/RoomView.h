@@ -12,7 +12,10 @@
  * puts them, at the size it gives them there. The Scaling tab is for
  * setScale and setScaleMap: characters there, and a reference character
  * loaded from disk, are dragged only to try the scale, and two points of
- * a size at a height make the setScale. Every change is a
+ * a size at a height make the setScale. The Floor tab edits the room's
+ * floor with the tools of the floor editor (FloorTools.h): the .flo opens
+ * in a tab of its own behind the script, and while the Floor tab shows,
+ * Undo, Redo and Save are the floor's. Every other change is a
  * change to the text of the script, which undoes and saves as typing does;
  * and what the user types in the script shows here at once.
  */
@@ -27,6 +30,7 @@
 
 #include "CanvasView.h"
 #include "FloorDocument.h"
+#include "FloorTools.h"
 #include "posedraw.h"
 #include "RoomScript.h"
 #include "ScriptDocument.h"
@@ -48,12 +52,14 @@ public:
 	// A PNG or TGA dropped on the room becomes a new overlay, a sprite bank
 	// a new character.
 	bool takeFile (const std::string & path);
+	// The floor in the Floor tab, for Undo, Redo and Save; else NULL.
+	Document * commandTarget ();
 
 	// Show a place of the script in Script mode, with length bytes selected.
 	std::function<void (TextPos at, int length)> showInScript;
 
 	enum Tool { TOOL_SELECT, TOOL_RECTANGLE, TOOL_SHAPE, TOOL_COUNT };
-	enum Tab { TAB_OVERLAYS, TAB_REGIONS, TAB_CHARACTERS, TAB_SCALING };
+	enum Tab { TAB_OVERLAYS, TAB_REGIONS, TAB_CHARACTERS, TAB_SCALING, TAB_FLOOR };
 
 private:
 	// A picture of an overlay, as the floor editor loads its backdrop.
@@ -167,6 +173,20 @@ private:
 	void applyScalePoints ();
 	void startNewCharacter (const std::string & bankPath);
 
+	// The Floor tab: the room's floor file on disk (empty without one),
+	// its document when it is open, and whether the file is there.
+	std::string floorPath () const;
+	FloorDocument * floorDocument () const;
+	// Open the floor behind the script once for each visit of the tab.
+	void openFloor ();
+	void chooseFloorFile ();
+	void newFloorFile ();
+	// Write an empty floor, and lay it in the room when it isn't the
+	// room's floor already.
+	void makeFloor (const std::string & path);
+	void layFloor (const std::string & path);
+	void drawFloorInspector ();
+
 	// Where an overlay is on the scene, as a drag leaves it, and its size;
 	// false when it has no picture or its place isn't numbers.
 	bool overlayShown (int overlay, int * x, int * y, int * width, int * height);
@@ -243,6 +263,12 @@ private:
 	std::shared_ptr<std::string> chosenReference, chosenScaleMap;
 	double nextFileCheck;
 	bool showFloor;
+	FloorTools floorTools;
+	// The floor that we opened for this visit of the Floor tab, and that
+	// the tools' selection is of.
+	std::string floorOpened, floorOfTools;
+	// The answers of the file dialogs of Choose Floor and New Floor.
+	std::shared_ptr<std::string> chosenFloor, newFloor;
 	int sceneWidth, sceneHeight;
 
 	Tab tab;

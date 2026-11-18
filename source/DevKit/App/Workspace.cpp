@@ -257,6 +257,28 @@ std::vector<ClipDocument *> Workspace::clipsForRename (const animformat::AssetId
 	return clips;
 }
 
+Document * Workspace::editingDocument () const {
+	DocumentView * view = activeView ();
+	Document * target = view ? view->commandTarget () : NULL;
+	return target && isOpen (target) ? target : manager.active ();
+}
+
+Document * Workspace::openBehind (const std::string & path) {
+	Document * found = manager.find (path);
+	if (found) return found;
+	// The document that the user works in stays in front, as for
+	// clipsForRename.
+	Document * active = manager.active ();
+	Document * opened = manager.open (path);
+	if (active && manager.active () != active) {
+		manager.setActive (active);
+		focusDocument = active;
+		focusLater = active;
+		focusLaterFrames = 3;
+	}
+	return opened;
+}
+
 DocumentView * Workspace::activeView () const {
 	std::map<Document *, std::unique_ptr<DocumentView> >::const_iterator view = views.find (manager.active ());
 	return view == views.end () ? NULL : view->second.get ();
@@ -608,20 +630,21 @@ void Workspace::draw () {
 void Workspace::handleShortcuts () {
 	const ImGuiInputFlags global = ImGuiInputFlags_RouteGlobal;
 	Document * document = manager.active ();
+	Document * target = editingDocument ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Q, global)) requestQuit ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_O, global) && ! manager.types ().empty ()) manager.openWithDialog ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_B, global)) compile ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_R, global)) runGame ();
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F, global)) openFindInProject ();
 	if (! document) return;
-	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_S, global)) manager.save (document);
-	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S, global)) manager.saveAs (document);
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_S, global)) manager.save (target);
+	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S, global)) manager.saveAs (target);
 	if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_W, global)) manager.close (document);
 	// Undo and redo are for the text fields while one is active.
 	if (! ImGui::GetIO ().WantTextInput) {
-		if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Z, global)) document->commands ().undo ();
+		if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Z, global)) target->commands ().undo ();
 		if (ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, global)
-			|| ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Y, global)) document->commands ().redo ();
+			|| ImGui::Shortcut (ImGuiMod_Ctrl | ImGuiKey_Y, global)) target->commands ().redo ();
 	}
 }
 
@@ -644,6 +667,7 @@ void Workspace::drawRecentMenu () {
 void Workspace::drawMenuBar () {
 	if (! ImGui::BeginMainMenuBar ()) return;
 	Document * document = manager.active ();
+	Document * target = editingDocument ();
 	const std::vector<DocumentType> & types = manager.types ();
 
 	if (ImGui::BeginMenu ("File")) {
@@ -656,8 +680,8 @@ void Workspace::drawMenuBar () {
 		if (ImGui::MenuItem ("Open...", shortcut ("O").c_str (), false, ! types.empty ())) manager.openWithDialog ();
 		drawRecentMenu ();
 		ImGui::Separator ();
-		if (ImGui::MenuItem ("Save", shortcut ("S").c_str (), false, document != NULL)) manager.save (document);
-		if (ImGui::MenuItem ("Save As...", shortcut ("Shift+S").c_str (), false, document != NULL)) manager.saveAs (document);
+		if (ImGui::MenuItem ("Save", shortcut ("S").c_str (), false, target != NULL)) manager.save (target);
+		if (ImGui::MenuItem ("Save As...", shortcut ("Shift+S").c_str (), false, target != NULL)) manager.saveAs (target);
 		if (ImGui::MenuItem ("Save All", NULL, false, manager.anyModified ())) manager.saveAll ();
 		if (ImGui::MenuItem ("Close", shortcut ("W").c_str (), false, document != NULL)) manager.close (document);
 		ImGui::Separator ();
@@ -665,7 +689,7 @@ void Workspace::drawMenuBar () {
 		ImGui::EndMenu ();
 	}
 	if (ImGui::BeginMenu ("Edit")) {
-		CommandStack * commands = document ? &document->commands () : NULL;
+		CommandStack * commands = target ? &target->commands () : NULL;
 		std::string undo = commands && commands->canUndo () ? "Undo " + commands->undoLabel () : std::string ("Undo");
 		std::string redo = commands && commands->canRedo () ? "Redo " + commands->redoLabel () : std::string ("Redo");
 		if (ImGui::MenuItem (undo.c_str (), shortcut ("Z").c_str (), false, commands && commands->canUndo ())) commands->undo ();

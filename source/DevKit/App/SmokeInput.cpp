@@ -166,7 +166,8 @@ bool SmokeInput::step (Workspace & workspace) {
 			return false;
 		}
 	} else if (s.what == "save") {
-		Document * document = workspace.documents ().active ();
+		// As Save does: the floor in the room editor's Floor tab.
+		Document * document = workspace.editingDocument ();
 		std::string error;
 		if (! document || ! document->save (s.text, &error)) {
 			Log::get ().add (LogLine::LOG_ERROR, "Smoke input: can't save %s: %s\n", s.text.c_str (),

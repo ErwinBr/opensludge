@@ -44,6 +44,9 @@ public:
 	// The open document of a file, or NULL.
 	virtual Document * findDocument (const std::string & path) const = 0;
 	virtual bool isOpen (const Document * document) const = 0;
+	// Open a file as a document in a tab behind the active one, or find it
+	// open already; NULL when it doesn't open.
+	virtual Document * openBehind (const std::string & path) = 0;
 	// The clips of a rig that have tracks of a part, opened as documents
 	// (those of the project's folder, and those open already), for a
 	// rename of the part.

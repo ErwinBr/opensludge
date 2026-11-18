@@ -79,7 +79,9 @@ RoomView::Picture::Picture () : time (STALE), loaded (false) {
 
 RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphics & g, FileMemory & m)
 	: script (s), actions (a), graphics (g), memory (m), canvas (g), roomsVersion (0), read (false), roomIndex (-1),
-	  nextFileCheck (0), showFloor (true), sceneWidth (DEFAULT_WIDTH), sceneHeight (DEFAULT_HEIGHT),
+	  nextFileCheck (0), showFloor (true),
+	  floorTools (FloorTools::TOOL_MOVE, [this] (const std::string & text) { say (text); }),
+	  chosenFloor (new std::string), newFloor (new std::string), sceneWidth (DEFAULT_WIDTH), sceneHeight (DEFAULT_HEIGHT),
 	  tab (TAB_REGIONS), tabPending (true), tool (TOOL_SELECT), selectedRegion (-1), selectedPoint (-1), selectedOverlay (-1),
 	  selectedCharacter (-1), selectPending (false), selectOverlayPending (false), selectCharacterPending (false),
 	  chosenOverlay (new std::string), chosenBank (new std::string),
@@ -104,6 +106,7 @@ RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphi
 		if (remembered == "overlays") tab = TAB_OVERLAYS;
 		else if (remembered == "characters") tab = TAB_CHARACTERS;
 		else if (remembered == "scaling") tab = TAB_SCALING;
+		else if (remembered == "floor") tab = TAB_FLOOR;
 		float opacity;
 		if (sscanf (memory.get (script->path (), OPACITY_KEY).c_str (), "%f", &opacity) == 1) mapOpacity = opacity;
 	}
@@ -125,7 +128,7 @@ RoomView::~RoomView () {
 }
 
 bool RoomView::animating () const {
-	return drag != DRAG_NONE || ! drawnPoints.empty () || canvas.animating ();
+	return drag != DRAG_NONE || ! drawnPoints.empty () || canvas.animating () || floorTools.busy ();
 }
 
 void RoomView::say (const std::string & text) {
@@ -223,8 +226,10 @@ void RoomView::setTab (Tab t) {
 	tab = t;
 	drag = DRAG_NONE;
 	drawnPoints.clear ();
+	// The next visit opens the floor again, if the user closed it.
+	floorOpened.clear ();
 	if (! script->path ().empty ()) memory.set (script->path (), TAB_KEY,
-		t == TAB_OVERLAYS ? "overlays" : t == TAB_CHARACTERS ? "characters" : t == TAB_SCALING ? "scaling" : "");
+		t == TAB_OVERLAYS ? "overlays" : t == TAB_CHARACTERS ? "characters" : t == TAB_SCALING ? "scaling" : t == TAB_FLOOR ? "floor" : "");
 }
 
 void RoomView::chooseRoom (int index) {
@@ -284,6 +289,8 @@ RoomView::Picture * RoomView::pictureOf (const std::string & file) {
 
 const Floor * RoomView::floorOf (const std::string & file) {
 	std::string path = pathOf (file);
+	// An open floor as it is edited, before it is saved.
+	if (FloorDocument * open = dynamic_cast<FloorDocument *> (actions.findDocument (path))) return &open->floor ();
 	FloorFile & f = floors[path];
 	if (f.time == STALE) {
 		int64_t time = fileTime (path);
@@ -483,9 +490,14 @@ void RoomView::chooseOverlayFile () {
 
 bool RoomView::takeFile (const std::string & path) {
 	std::string extension = extensionOf (path);
-	if (extension != "png" && extension != "tga" && extension != "duc") return false;
+	if (extension != "png" && extension != "tga" && extension != "duc" && extension != "flo") return false;
 	update ();
 	if (! room ()) return false;
+	if (extension == "flo") {
+		// The room's floor.
+		*chosenFloor = path;
+		return true;
+	}
 	if (tab == TAB_SCALING) {
 		// A reference character, or a scale map.
 		if (extension == "duc") *chosenReference = path;
@@ -742,6 +754,80 @@ void RoomView::startNewCharacter (const std::string & bankPath) {
 	tabPending = true;
 }
 
+std::string RoomView::floorPath () const {
+	const Room * r = room ();
+	return r && ! r->floor.empty () ? pathOf (r->floor) : std::string ();
+}
+
+FloorDocument * RoomView::floorDocument () const {
+	std::string path = floorPath ();
+	return path.empty () ? NULL : dynamic_cast<FloorDocument *> (actions.findDocument (path));
+}
+
+Document * RoomView::commandTarget () {
+	return tab == TAB_FLOOR ? floorDocument () : NULL;
+}
+
+void RoomView::openFloor () {
+	std::string path = floorPath ();
+	if (path.empty () || path == floorOpened) return;
+	floorOpened = path;
+	if (! floorDocument () && fileTime (path) >= 0) actions.openBehind (path);
+}
+
+void RoomView::chooseFloorFile () {
+	std::vector<FileFilter> filters;
+	FileFilter floors = { "Floors", "flo" };
+	filters.push_back (floors);
+	std::string folder = ! actions.projectFile ().empty () ? folderOf (actions.projectFile ()) : folderOf (script->path ());
+	std::shared_ptr<std::string> chosen = chosenFloor;
+	actions.platform ().openFileDialog ("Choose Floor", filters, folder, false, [chosen] (const std::vector<std::string> & files) {
+		if (! files.empty ()) *chosen = files[0];
+	});
+}
+
+void RoomView::newFloorFile () {
+	std::vector<FileFilter> filters;
+	FileFilter floors = { "Floors", "flo" };
+	filters.push_back (floors);
+	const Room * r = room ();
+	std::string folder = folderOf (script->path ().empty () ? actions.projectFile () : script->path ());
+	std::string name = (r ? r->name : std::string ("room")) + ".flo";
+	std::shared_ptr<std::string> chosen = newFloor;
+	actions.platform ().saveFileDialog ("New Floor", filters, folder + name, [chosen] (const std::vector<std::string> & files) {
+		if (! files.empty ()) *chosen = files[0];
+	});
+}
+
+void RoomView::makeFloor (const std::string & path) {
+	std::string error;
+	if (! FloorDocument::writeFloor (path, Floor (), &error)) {
+		actions.platform ().showMessage (Platform::MESSAGE_ERROR, "Can't create the floor", error);
+		return;
+	}
+	// The room's setFloor names it already, or it gets one.
+	if (path == floorPath ()) {
+		paths.clear ();
+		floorOpened.clear ();
+	} else {
+		layFloor (path);
+	}
+}
+
+void RoomView::layFloor (const std::string & path) {
+	const Room * r = room ();
+	if (! r) return;
+	TextPos where;
+	std::string name = scriptName (path);
+	if (r->floor != name) apply (roomEdit::setFloor (script->buffer (), *r, script->indentUnit (), name, &where), r->hasFloorCall ? "Change Floor" : "Add Floor", where);
+	// The file may be new: we look for it again.
+	paths.clear ();
+	floorOpened.clear ();
+	setTab (TAB_FLOOR);
+	tabPending = true;
+	update ();
+}
+
 void RoomView::apply (const std::vector<TextChange> & changes, const std::string & label, TextPos at) {
 	if (changes.empty ()) return;
 	script->edit (changes, TextSelection (at), EDIT_OTHER, label);
@@ -819,9 +905,24 @@ void RoomView::drawToolbar () {
 			}
 			ImGui::EndTabItem ();
 		}
+		if (ImGui::BeginTabItem ("Floor", NULL, tabPending && tab == TAB_FLOOR ? ImGuiTabItemFlags_SetSelected : 0)) {
+			if (! tabPending) setTab (TAB_FLOOR);
+			ImGui::BeginDisabled (! floorDocument ());
+			floorTools.drawToolButtons ();
+			ImGui::EndDisabled ();
+			ImGui::SameLine ();
+			ImGui::TextDisabled ("|");
+			ImGui::SameLine ();
+			if (ImGui::Button ("New Floor...")) newFloorFile ();
+			ImGui::SameLine ();
+			if (ImGui::Button ("Choose Floor...")) chooseFloorFile ();
+			ImGui::EndTabItem ();
+		}
 		ImGui::EndTabBar ();
 	}
 	tabPending = false;
+
+	if (tab == TAB_FLOOR && floorDocument () && ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) floorTools.handleToolKeys ();
 
 	if (tab == TAB_REGIONS && ! ImGui::GetIO ().WantTextInput && ImGui::IsWindowFocused (ImGuiFocusedFlags_RootAndChildWindows)) {
 		for (int t = 0; t < TOOL_COUNT; t ++) {
@@ -858,6 +959,8 @@ void RoomView::handleKeys () {
 		if (ImGui::Shortcut (ImGuiKey_Escape)) scalingSelected = -1;
 		return;
 	}
+	// The floor's tools have their keys.
+	if (tab == TAB_FLOOR) return;
 	if (tab == TAB_CHARACTERS) {
 		const RoomCharacter * character = selectedCharacterOf ();
 		if (ImGui::Shortcut (ImGuiKey_Escape)) selectedCharacter = -1;
@@ -988,6 +1091,9 @@ void RoomView::handleMouse () {
 	if (tab == TAB_OVERLAYS) handleOverlayMouse (fx, fy);
 	else if (tab == TAB_CHARACTERS) handleCharacterMouse (fx, fy);
 	else if (tab == TAB_SCALING) handleScalingMouse (fx, fy);
+	else if (tab == TAB_FLOOR) {
+		if (FloorDocument * floor = floorDocument ()) floorTools.handleMouse (*floor, canvas);
+	}
 	else handleRegionMouse (fx, fy);
 	if (drag != DRAG_NONE && canvas.released ()) finishDrag ();
 }
@@ -1212,7 +1318,8 @@ void RoomView::paint (Draw2D & draw) {
 	draw.setDrawingColour (0.5f, 0.5f, 0.55f, 1.0f);
 	draw.drawLineLoop (scene, 4);
 
-	if (showFloor && ! r->floor.empty ()) {
+	FloorDocument * editedFloor = tab == TAB_FLOOR ? floorDocument () : NULL;
+	if ((showFloor || tab == TAB_FLOOR) && ! editedFloor && ! r->floor.empty ()) {
 		if (const Floor * floor = floorOf (r->floor)) {
 			draw.setDrawingColour (0.45f, 0.75f, 1.0f, 0.55f);
 			for (size_t p = 0; p < floor->polygons.size (); p ++) {
@@ -1297,7 +1404,7 @@ void RoomView::paint (Draw2D & draw) {
 	}
 
 	// The selected overlay.
-	if (! regionsTab && selectedOverlayOf ()) {
+	if (! regionsTab && tab != TAB_FLOOR && selectedOverlayOf ()) {
 		int x, y, w, h;
 		if (overlayShown (selectedOverlay, &x, &y, &w, &h)) {
 			const float box[] = { (float) x, (float) y, (float) (x + w), (float) y, (float) (x + w), (float) (y + h), (float) x, (float) (y + h) };
@@ -1327,6 +1434,12 @@ void RoomView::paint (Draw2D & draw) {
 		const float first[] = { points[0] - handleSize, points[1] - handleSize, points[0] + handleSize, points[1] - handleSize,
 			points[0] + handleSize, points[1] + handleSize, points[0] - handleSize, points[1] + handleSize };
 		draw.drawPolygon (first, 4);
+	}
+
+	// The floor that the Floor tab edits, over everything.
+	if (editedFloor) {
+		static const float colour[3] = { 0.55f, 0.85f, 1.0f };
+		floorTools.paint (draw, *editedFloor, canvas, NULL, colour);
 	}
 	draw.finish ();
 }
@@ -1578,6 +1691,23 @@ void RoomView::draw () {
 		tabPending = true;
 		update ();
 	}
+	if (! chosenFloor->empty ()) {
+		layFloor (*chosenFloor);
+		chosenFloor->clear ();
+	}
+	if (! newFloor->empty ()) {
+		makeFloor (*newFloor);
+		newFloor->clear ();
+	}
+	if (tab == TAB_FLOOR) {
+		openFloor ();
+		// Another floor: the selection was of the one before.
+		std::string path = floorPath ();
+		if (path != floorOfTools) {
+			floorTools.reset ();
+			floorOfTools = path;
+		}
+	}
 	if (! chosenBank->empty ()) {
 		newBank = *chosenBank;
 		newCostume = -1;
@@ -1662,7 +1792,32 @@ void RoomView::drawInspector () {
 	if (tab == TAB_OVERLAYS) drawOverlayInspector ();
 	else if (tab == TAB_CHARACTERS) drawCharacterInspector ();
 	else if (tab == TAB_SCALING) drawScalingInspector ();
+	else if (tab == TAB_FLOOR) drawFloorInspector ();
 	else drawRegionInspector ();
+}
+
+void RoomView::drawFloorInspector () {
+	const Room * r = room ();
+	if (! r) return;
+	FloorDocument * floor = floorDocument ();
+	if (floor) {
+		floorTools.drawToolInspector ();
+		floorTools.drawFloorInspector (*floor);
+		return;
+	}
+	ImGui::SeparatorText ("Floor");
+	std::string path = floorPath ();
+	if (path.empty ()) {
+		ImGui::TextDisabled ("No floor");
+	} else if (fileTime (path) < 0) {
+		ImGui::TextDisabled ("%s isn't there", r->floor.c_str ());
+		if (ImGui::Button ("Create Floor")) makeFloor (path);
+	} else {
+		if (ImGui::Button ("Open Floor")) actions.openBehind (path);
+	}
+	bool first = true;
+	if (wrappedButton ("New Floor...", &first)) newFloorFile ();
+	if (wrappedButton ("Choose Floor...", &first)) chooseFloorFile ();
 }
 
 void RoomView::drawOverlayInspector () {

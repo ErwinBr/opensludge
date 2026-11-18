@@ -22,7 +22,7 @@
  *   open <file>      open a file, or drop it on the active document
  *   drop <file>      drop a file on the window, which the active editor may
  *                    take even if the Dev Kit opens it
- *   save <file>      save the active document as file
+ *   save <file>      save the active document as file (what Save saves)
  *   close            close the tab of the active document, as its X does
  *   sheet <file>     open the Import Sprite Sheet dialog of the active
  *                    sprite bank with a picture, as if it had been chosen

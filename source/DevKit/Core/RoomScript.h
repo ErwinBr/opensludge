@@ -170,6 +170,9 @@ struct Room {
 	bool hasFirstCharacter;
 	TextPos firstCharacter;
 	std::string floor;				// The file of setFloor, as written
+	// That setFloor, when it has a file: its file argument, with quotes.
+	bool hasFloorCall;
+	RoomArg floorFile;
 	int sceneWidth, sceneHeight;	// Of setSceneDimensions, or 0
 	// Where a new region goes: on a line after the line of this statement,
 	// indented as the line where it starts; or, with none, after the {.
@@ -183,7 +186,7 @@ struct Room {
 	// region goes.
 	bool hasCharacterAnchor;
 	TextPos characterAnchorStart, characterAnchorEnd;
-	Room () : sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false), hasCharacterAnchor (false), hasFirstCharacter (false) {}
+	Room () : hasFloorCall (false), sceneWidth (0), sceneHeight (0), hasAnchor (false), hasOverlayAnchor (false), hasCharacterAnchor (false), hasFirstCharacter (false) {}
 };
 
 // The rooms of a script, in order.
@@ -277,6 +280,10 @@ namespace roomEdit {
 	std::vector<TextChange> setScaleMap (const TextBuffer & text, const Room & room, const std::string & indentUnit,
 		const std::string & file, int minPercent, int maxPercent);
 	std::vector<TextChange> removeScaleMap (const TextBuffer & text, const Room & room);
+	// Lay the floor of a file: in the room's setFloor, or a new one after
+	// the last overlay (else after setSceneDimensions), as a new overlay.
+	std::vector<TextChange> setFloor (const TextBuffer & text, const Room & room, const std::string & indentUnit,
+		const std::string & file, TextPos * where);
 
 	// A new region of objectType, a rectangle (4 numbers) or a shape (6 or
 	// more): after the last region of the room that isn't in an if, else

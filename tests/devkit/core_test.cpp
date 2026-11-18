@@ -2703,6 +2703,31 @@ static void testRoomScript () {
 		outside.commands ().undo ();
 		CHECK (outside.buffer ().fileText () == original);
 	}
+	// The floor: its setFloor changed, or a new one after the overlays.
+	rooms = readRooms (outside.buffer ());
+	if (rooms.size () == 1) {
+		CHECK (rooms[0].hasFloorCall && rooms[0].floor == "outside/room.flo");
+		CHECK (roomEdit::setFloor (outside.buffer (), rooms[0], "\t", "outside/room.flo", &where).empty ());
+		std::string text = applied (outside, roomEdit::setFloor (outside.buffer (), rooms[0], "\t", "outside/new.flo", &where));
+		CHECK (text.find ("\tsetFloor ('outside/new.flo');") != std::string::npos && text.find ("room.flo") == std::string::npos);
+		outside.commands ().undo ();
+		CHECK (outside.buffer ().fileText () == original);
+	}
+	std::unique_ptr<ScriptDocument> floorless (scriptOf (
+		"sub room () {\n"
+		"\tsetSceneDimensions (800, 600);\n"
+		"\taddOverlay ('a.png', 0, 0);\n"
+		"\taddCharacter (thing, 1, 2, costume ());\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (floorless->buffer ());
+	CHECK (rooms.size () == 1 && ! rooms[0].hasFloorCall);
+	if (rooms.size () == 1) {
+		std::string text = applied (*floorless, roomEdit::setFloor (floorless->buffer (), rooms[0], "\t", "room.flo", &where));
+		CHECK (text.find ("\taddOverlay ('a.png', 0, 0);\n\tsetFloor ('room.flo');\n\taddCharacter") != std::string::npos);
+		CHECK (where == TextPos (3, 1));
+		std::vector<Room> laid = readRooms (floorless->buffer ());
+		CHECK (laid.size () == 1 && laid[0].floor == "room.flo" && laid[0].hasFloorCall);
+	}
 	std::unique_ptr<ScriptDocument> overlays (scriptOf (
 		"sub sized () {\n"
 		"\tsetSceneDimensions (800, 600);\n"

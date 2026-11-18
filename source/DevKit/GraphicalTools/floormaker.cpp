@@ -677,14 +677,17 @@ bool saveFloorToFile (char * filename, struct polyList **firstPoly) {
 }
 
 void drawFloorMakerView (Draw2D & draw, const struct floorMakerView * view) {
-	draw.clear ();
+	// Without a backdrop, we draw over what is there, as the room editor
+	// draws its room.
+	if (view->backdrop) {
+		draw.clear ();
+		draw.setDrawingColour(1.0f, 1.00f, 1.00f, 1.0f);
+		pasteSprite(draw, view->backdrop, 0, false, false);
 
-	draw.setDrawingColour(1.0f, 1.00f, 1.00f, 1.0f);
-	pasteSprite(draw, view->backdrop, 0, false, false);
-
-	draw.setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
-	const float axes[] = { 0.0, 0.0, 1000.0, 0.0, 0.0, 0.0, 0.0, 1000.0 };
-	draw.drawLines(axes, 4);
+		draw.setDrawingColour(1.0f, 0.35f, 0.35f, 1.0f);
+		const float axes[] = { 0.0, 0.0, 1000.0, 0.0, 0.0, 0.0, 0.0, 1000.0 };
+		draw.drawLines(axes, 4);
+	}
 
 	if (view->lit) {
 		draw.setDrawingColour(view->r, view->g, view->b, 1.0f);

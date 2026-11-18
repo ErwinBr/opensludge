@@ -187,6 +187,7 @@ if(SLUDGE_DEVKIT)
 		${DEVKIT_DIR}/App/CanvasView.cpp
 		${DEVKIT_DIR}/App/FileCheckWindow.cpp
 		${DEVKIT_DIR}/App/FindPanel.cpp
+		${DEVKIT_DIR}/App/FloorTools.cpp
 		${DEVKIT_DIR}/App/FloorView.cpp
 		${DEVKIT_DIR}/App/Icons.cpp
 		${DEVKIT_DIR}/App/PartTree.cpp
@@ -446,6 +447,15 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-scaling
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room-scaling PROPERTIES LABELS capture)
+		# The Floor tab: the room's floor edited on the room, with its own undo.
+		add_test(NAME capture-devkit-room-floor
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/room_floor_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/room-floor-edited.flo
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-room-floor
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-room-floor PROPERTIES LABELS capture)
 		# Ctrl on a name: a link, with the hand pointer, that goes to its sub.
 		add_test(NAME capture-devkit-link
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>

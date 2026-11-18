@@ -27,7 +27,7 @@ Open the script in the script editor, and click <b>Room</b> at the top of its ta
 </P>
 
 <P>
-Under the toolbar are four tabs: <b>Overlays</b>, for the pictures of the room, <b>Regions</b>, for its screen regions, <b>Characters</b>, for the characters it puts in it, and <b>Scaling</b>, for how big those characters are wherever they stand. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
+Under the toolbar are five tabs: <b>Overlays</b>, for the pictures of the room, <b>Regions</b>, for its screen regions, <b>Characters</b>, for the characters it puts in it, <b>Scaling</b>, for how big those characters are wherever they stand, and <b>Floor</b>, for where they can walk. Each tab has its own tools, a click on the room picks something of that tab, and the <b>Inspector</b> shows that tab's list and settings. That way you can't grab the backdrop when you meant to grab a door. This is the outside of the verb coin example in the Regions tab, with the tunnel selected:
 </P>
 
 <P>
@@ -50,7 +50,7 @@ sub outsideRoom () {
 <H3>What you see:</H3>
 
 <P>
-The editor shows the scene as the game builds it: the pictures of addOverlay and mixOverlay where they go (CENTRE, or CENTER, centres them, as in the game), the outline of the floor from setFloor (untick <b>Floor</b> in the toolbar to hide it), and every screen region with the name of its objectType. A cross shows where a character walks to when the player uses the region, with a little line for the way it faces.
+The editor shows the scene as the game builds it: the pictures of addOverlay and mixOverlay where they go (CENTRE, or CENTER, centres them, as in the game), the outline of the floor from setFloor (untick <b>Floor</b> in the toolbar to hide it, and it shows changes you haven't saved yet), and every screen region with the name of its objectType. A cross shows where a character walks to when the player uses the region, with a little line for the way it faces.
 </P>
 
 <P>
@@ -165,6 +165,20 @@ A character that has become tiny has its handles right on its feet, so grabbing 
 For a room where a straight line from small to big won't do, such as a path that winds up a hill, use a scale map instead: a grey picture as big as the room (or smaller, it's stretched), dark where characters are small and light where they're big. <b>Load Scale Map...</b> (or dropping the picture on the room) adds a <a href="setScaleMap.html">setScaleMap</a>, and then only the <b>Minimum</b> and <b>Maximum</b> sizes matter: the sizes of black and of white. The map is drawn over the room so you can see what's where, and <b>Opacity</b> makes it more or less see-through. <b>Remove Scale Map</b> takes it out of the script again.
 </P>
 
+<H3>Laying the floor:</H3>
+
+<P>
+The <b>Floor</b> tab is the <a href="About_the_SLUDGE_Floor_Maker.html">floor editor</a> with the room as its backdrop: you draw the floor on the room the game really builds, with its pictures and characters, rather than on a picture you had to find yourself. The tools are the same ones, <b>Draw</b>, <b>Move</b>, <b>Delete</b>, <b>Split Line</b> and <b>Split Floor</b>, with the keys 1 to 5, and the Inspector explains each of them. It also counts the polygons and warns you about the ones that aren't convex, with <b>Split into Convex Polygons</b> to fix them. The regions are drawn faintly, so you can check that every walk-to point is on the floor: characters only walk on the floor, so a walk-to point off it won't get them there.
+</P>
+
+<P>
+The floor lives in its own .flo file, not in the script, so showing the tab opens that file in a tab of its own, behind the script. While the Floor tab is showing, <b>Undo</b>, <b>Redo</b> and <b>Save</b> are for the floor. If you close the floor's tab, <b>Open Floor</b> in the Inspector brings it back.
+</P>
+
+<P>
+A room without a floor gets one with <b>New Floor...</b>, which makes an empty .flo file and adds a <a href="setFloor.html">setFloor</a> after the room's last overlay. <b>Choose Floor...</b>, or dropping a .flo file on the room, uses a floor you have already, and changes the room's setFloor if it had one. If the setFloor names a file that isn't there yet, <b>Create Floor</b> makes it.
+</P>
+
 <H3>What the editor won't change:</H3>
 
 <P>
@@ -178,7 +192,7 @@ Regions inside an if or a loop are drawn more faintly. You can still edit them, 
 <H3>Undoing and saving:</H3>
 
 <P>
-Every change the editor makes is a change to the script, so <b>Undo</b> in the <b>Edit</b> menu takes it back, and you save the script as usual. The editor remembers which room and which tab you were looking at, and whether the script was showing its room, for next time.
+Every change the editor makes is a change to the script, so <b>Undo</b> in the <b>Edit</b> menu takes it back, and you save the script as usual. The one exception is the floor itself, which you undo and save in the Floor tab, or in the floor's own tab. Adding or changing the setFloor line is a change to the script, though. The editor remembers which room and which tab you were looking at, and whether the script was showing its room, for next time.
 </P>
 
 <H3>See also:</H3>
@@ -197,6 +211,14 @@ Every change the editor makes is a change to the script, so <b>Undo</b> in the <
 
 <P>
 <a href="addCharacter.html">addCharacter</a>
+</P>
+
+<P>
+<a href="setFloor.html">setFloor</a>
+</P>
+
+<P>
+<a href="About_the_SLUDGE_Floor_Maker.html">The Floor Editor</a>
 </P>
 
 <P>

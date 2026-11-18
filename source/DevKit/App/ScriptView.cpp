@@ -166,6 +166,11 @@ void ScriptView::setRoomMode (bool on) {
 	if (! script->path ().empty ()) memory.set (script->path (), MODE_KEY, on ? "room" : "");
 }
 
+Document * ScriptView::commandTarget () {
+	Document * target = roomMode && room ? room->commandTarget () : NULL;
+	return target ? target : script;
+}
+
 bool ScriptView::takeFile (const std::string & path) {
 	return roomMode && room->takeFile (path);
 }
