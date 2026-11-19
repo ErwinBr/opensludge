@@ -4,6 +4,7 @@
 #include <setjmp.h>
 #include <memory>
 
+#include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
 
