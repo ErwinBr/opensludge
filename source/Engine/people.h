@@ -68,6 +68,13 @@ struct onScreenPerson {
 	// order of drawing and for the z-buffer, until clearCharacterZ.
 	bool hasFixedZ = false;
 	float fixedZ = 0;
+	// A walk-to point, as addCharacter with seven arguments or
+	// setCharacterStandPoint sets it: where walkToObject and the like take
+	// another character, as an offset from this character's x, y, and the
+	// direction it faces on arriving (-1 to keep its own), as the sX, sY and
+	// direction of addScreenRegion do for a screen region.
+	bool hasStandPoint = false;
+	int standX = 0, standY = 0, standDirection = -1;
 	// Parallax, as setCharacterParallax sets it: how fast the character
 	// moves on screen as the camera moves, in percent of the camera's speed.
 	// 100 is a normal character; at its own position when the camera is
@@ -178,6 +185,8 @@ bool setPersonExtra (int f, int newSetting);
 bool setPersonZ (int thisNum, float z);
 bool clearPersonZ (int thisNum);
 bool setPersonParallax (int thisNum, float x, float y);
+bool setPersonStandPoint (int thisNum, int x, int y, int di);
+bool clearPersonStandPoint (int thisNum);
 // One pass of the sort by depth; true when it moved a character.
 bool shufflePeople ();
 int timeForAnim (const personaAnimation * fram);

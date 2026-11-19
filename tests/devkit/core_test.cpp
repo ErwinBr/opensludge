@@ -676,9 +676,15 @@ static void testScriptLexer () {
 static void testScriptCatalog () {
 	const ScriptCatalog & catalog = ScriptCatalog::get ();
 	const BuiltinFunction * f = catalog.function ("addCharacter");
-	CHECK (f && f->page == "addCharacter.html" && f->signatures.size () == 1);
+	CHECK (f && f->page == "addCharacter.html" && f->signatures.size () == 2);
 	CHECK (f && f->signatures[0].parameters.size () == 4 && f->signatures[0].parameters[3] == "thisCostume");
-	CHECK (f && f->accepts (4) && ! f->accepts (3) && f->purpose.compare (0, 12, "Adds a chara") == 0 && f->returns == "No return value.");
+	CHECK (f && f->signatures[1].parameters.size () == 7 && f->signatures[1].parameters[6] == "direction");
+	// 4 or 7 arguments: the engine says any number, as for moveCharacter.
+	CHECK (f && f->arguments == -1 && f->accepts (4) && f->accepts (7) && f->purpose.compare (0, 12, "Adds a chara") == 0 && f->returns == "No return value.");
+	f = catalog.function ("setCharacterStandPoint");
+	CHECK (f && f->page == "setCharacterStandPoint_and_clearCharacterStandPoint.html" && f->arguments == 4);
+	f = catalog.function ("clearCharacterStandPoint");
+	CHECK (f && f->arguments == 1);
 	f = catalog.function ("anim");
 	CHECK (f && f->signatures[0].minArguments == 2 && f->signatures[0].maxArguments == -1 && f->arguments == -1 && f->accepts (9));
 	// The numbers of the engine, where the help is wrong.
@@ -814,14 +820,14 @@ static void testScriptAssist () {
 
 	SignatureHelp help;
 	CHECK (assist::signatureAt (text, TextPos (11, 25), index, file, &help));
-	CHECK (help.name == "addCharacter" && help.argument == 2 && help.signatures.size () == 1);
+	CHECK (help.name == "addCharacter" && help.argument == 2 && help.signatures.size () == 2);
 	CHECK (assist::signatureAt (text, TextPos (13, 14), index, file, &help));
 	CHECK (help.name == "ego.walk" && help.argument == 1 && help.signatures[0].parameters.size () == 2 && help.doc == "Walks somewhere.");
 	CHECK (! assist::signatureAt (text, TextPos (6, 4), index, file, &help));
 
 	HoverInfo info;
 	CHECK (assist::hoverAt (text, TextPos (11, 3), index, file, &info));
-	CHECK (info.title == "addCharacter (thisObject, atX, atY, thisCostume)" && info.page == "addCharacter.html");
+	CHECK (info.title.compare (0, 48, "addCharacter (thisObject, atX, atY, thisCostume)") == 0 && info.page == "addCharacter.html");
 	CHECK (assist::hoverAt (text, TextPos (13, 7), index, file, &info));
 	CHECK (info.title == "sub ego.walk (x, y)" && info.body == "Walks somewhere." && info.where == "game.slu, line 5");
 	CHECK (info.range == TextSelection (TextPos (13, 5), TextPos (13, 9)));
@@ -2918,6 +2924,60 @@ static void testRoomScript () {
 		return true;
 	});
 	CHECK (held2.size () == 2 && held2[0] == "held" && held2[1] == "makeEgoAnim");
+
+	// addCharacter with a walk-to point: still a character, the point kept
+	// as written when it moves.
+	std::unique_ptr<ScriptDocument> standPoint (scriptOf (
+		"sub room () {\n"
+		"\taddCharacter (duck, 1, 2, anim ('d.duc', 0), -40, 5, EAST);\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (standPoint->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 1);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 1) {
+		const RoomCharacter & duck = rooms[0].characters[0];
+		CHECK (duck.x.value == 1 && duck.y.value == 2 && duck.picture.known && duck.picture.bank == "d.duc");
+		CHECK (duck.hasStandPoint && duck.standX.literal && duck.standX.value == -40 && duck.standY.value == 5
+			&& duck.standDirection.text == "EAST");
+		CHECK (applied (*standPoint, roomEdit::moveCharacter (duck, 30, 60)).find ("addCharacter (duck, 30, 60, anim ('d.duc', 0), -40, 5, EAST);") != std::string::npos);
+		standPoint->commands ().undo ();
+	}
+
+	// The Inspector's Walk To and Direction of a character: the last three
+	// arguments of addCharacter, added, changed and taken away.
+	std::unique_ptr<ScriptDocument> walkTo (scriptOf (
+		"sub room () {\n"
+		"\taddCharacter (duck, 1, 2, anim ('d.duc', 0));\n"
+		"\taddCharacter (ego, 3, 4, anim ('e.duc', 0), far, 0, SOUTH);\n"
+		"}\n", TextPos ()));
+	rooms = readRooms (walkTo->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 2);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 2) {
+		CHECK (! rooms[0].characters[0].hasStandPoint);
+		CHECK (roomEdit::setStandPoint (rooms[0].characters[0], false, 0, 0).empty ());
+		CHECK (roomEdit::setDirection (rooms[0].characters[0], 90).empty ());
+		std::string text = applied (*walkTo, roomEdit::setStandPoint (rooms[0].characters[0], true, 10, -5));
+		CHECK (text.find ("addCharacter (duck, 1, 2, anim ('d.duc', 0), 10, -5, -1);") != std::string::npos);
+		rooms = readRooms (walkTo->buffer ());
+		const RoomCharacter & duck = rooms[0].characters[0];
+		CHECK (duck.hasStandPoint && duck.standX.value == 10 && duck.standY.value == -5 && duck.standDirection.value == -1);
+		text = applied (*walkTo, roomEdit::setStandPoint (duck, true, -20, 0));
+		CHECK (text.find ("anim ('d.duc', 0), -20, 0, -1);") != std::string::npos);
+		rooms = readRooms (walkTo->buffer ());
+		text = applied (*walkTo, roomEdit::setDirection (rooms[0].characters[0], 90));
+		CHECK (text.find ("anim ('d.duc', 0), -20, 0, EAST);") != std::string::npos);
+		rooms = readRooms (walkTo->buffer ());
+		text = applied (*walkTo, roomEdit::setDirection (rooms[0].characters[0], -1));
+		CHECK (text.find ("anim ('d.duc', 0), -20, 0, -1);") != std::string::npos);
+		rooms = readRooms (walkTo->buffer ());
+		text = applied (*walkTo, roomEdit::setStandPoint (rooms[0].characters[0], false, 0, 0));
+		CHECK (text.find ("addCharacter (duck, 1, 2, anim ('d.duc', 0));") != std::string::npos);
+		// A walk-to point that isn't a number stays, its direction changes.
+		rooms = readRooms (walkTo->buffer ());
+		const RoomCharacter & ego = rooms[0].characters[1];
+		CHECK (ego.hasStandPoint && ! ego.standX.literal);
+		CHECK (roomEdit::setStandPoint (ego, true, 1, 1).empty ());
+		CHECK (applied (*walkTo, roomEdit::setDirection (ego, 270)).find ("anim ('e.duc', 0), far, 0, WEST);") != std::string::npos);
+	}
 
 	// The settings of characters after their addCharacter.
 	std::unique_ptr<ScriptDocument> settings (scriptOf (

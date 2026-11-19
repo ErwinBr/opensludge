@@ -66,6 +66,12 @@
 		<param name="Local" value="SLUDGEDevKitHelp\Animation_Clips.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="clearCharacterStandPoint">
+		<param name="Name" value="clearCharacterStandPoint (built-in function)">
+		<param name="Name" value="setCharacterStandPoint and clearCharacterStandPoint (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterStandPoint_and_clearCharacterStandPoint.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="clearCharacterZ">
 		<param name="Name" value="clearCharacterZ (built-in function)">
 		<param name="Name" value="setCharacterZ and clearCharacterZ (built-in function)">
@@ -1948,6 +1954,12 @@
 		<param name="Name" value="setCharacterSpinSpeed">
 		<param name="Name" value="setCharacterSpinSpeed (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\setCharacterSpinSpeed.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCharacterStandPoint">
+		<param name="Name" value="setCharacterStandPoint (built-in function)">
+		<param name="Name" value="setCharacterStandPoint and clearCharacterStandPoint (built-in function)">
+		<param name="Local" value="SLUDGEDevKitHelp\setCharacterStandPoint_and_clearCharacterStandPoint.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setCharacterTransparency">

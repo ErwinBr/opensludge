@@ -203,7 +203,7 @@ void RoomView::update () {
 		if (scalingSelected != REFERENCE) scalingSelected = -1;
 	}
 	syncScalePoints ();
-	if (drag == DRAG_OVERLAY ? ! selectedOverlayOf () : drag == DRAG_CHARACTER ? ! selectedCharacterOf ()
+	if (drag == DRAG_OVERLAY ? ! selectedOverlayOf () : drag == DRAG_CHARACTER || drag == DRAG_CHARACTER_STAND ? ! selectedCharacterOf ()
 			: drag != DRAG_NONE && drag != DRAG_RECTANGLE && ! selected ()) drag = DRAG_NONE;
 }
 
@@ -401,6 +401,19 @@ std::vector<int> RoomView::shownValues (int index) const {
 		if (dragHandle.second >= 0) v[dragHandle.second] = clampY (mouseY);
 	}
 	return v;
+}
+
+bool RoomView::characterStandShown (int index, int * x, int * y) {
+	const RoomCharacter & character = room ()->characters[index];
+	CharacterShown shown;
+	if (! character.hasStandPoint || ! character.standX.literal || ! character.standY.literal || ! characterShown (index, &shown)) return false;
+	*x = shown.x + character.standX.value;
+	*y = shown.y + character.standY.value;
+	if (index == selectedCharacter && drag == DRAG_CHARACTER_STAND) {
+		*x = clampX (mouseX);
+		*y = clampY (mouseY);
+	}
+	return true;
 }
 
 void RoomView::standShown (int index, int * x, int * y) const {
@@ -1110,6 +1123,17 @@ void RoomView::finishDrag () {
 		drag = DRAG_NONE;
 		return;
 	}
+	if (drag == DRAG_CHARACTER_STAND) {
+		const RoomCharacter * character = selectedCharacterOf ();
+		int x, y;
+		CharacterShown shown;
+		bool placed = character && characterStandShown (selectedCharacter, &x, &y) && characterShown (selectedCharacter, &shown);
+		drag = DRAG_NONE;
+		if (placed && (mouseX != pressX || mouseY != pressY)) {
+			apply (roomEdit::setStandPoint (*character, true, x - shown.x, y - shown.y), "Move Walk-To Point", character->call);
+		}
+		return;
+	}
 	if (drag == DRAG_CHARACTER) {
 		const RoomCharacter * character = selectedCharacterOf ();
 		CharacterShown shown;
@@ -1187,13 +1211,23 @@ void RoomView::handleOverlayMouse (float fx, float fy) {
 }
 
 void RoomView::handleCharacterMouse (float fx, float fy) {
+	// The walk-to point of the selected character, before the characters.
+	float near = closeness ();
+	int sx, sy;
+	bool overStand = selectedCharacterOf () && characterStandShown (selectedCharacter, &sx, &sy)
+		&& fabsf (fx - sx) <= near && fabsf (fy - sy) <= near;
 	if (canvas.hovered () && drag == DRAG_NONE && ! canvas.animating ()) {
 		int over = characterAt (fx, fy);
-		if (over >= 0 && over == selectedCharacter) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeAll);
+		if (overStand) ImGui::SetMouseCursor (ImGuiMouseCursor_Hand);
+		else if (over >= 0 && over == selectedCharacter) ImGui::SetMouseCursor (ImGuiMouseCursor_ResizeAll);
 	}
 	if (! canvas.pressed ()) return;
 	pressX = mouseX;
 	pressY = mouseY;
+	if (overStand) {
+		drag = DRAG_CHARACTER_STAND;
+		return;
+	}
 	selectedCharacter = characterAt (fx, fy);
 	if (selectedCharacter >= 0) drag = DRAG_CHARACTER;
 }
@@ -1295,6 +1329,19 @@ void RoomView::handleRegionMouse (float fx, float fy) {
 	}
 }
 
+// A walk-to point: a cross, and a line the way the walker faces there
+// (none for -1, which keeps its own).
+static void drawWalkTo (Draw2D & draw, float arm, int sx, int sy, int direction, float alpha) {
+	draw.setDrawingColour (0.45f, 0.8f, 1.0f, alpha);
+	const float cross[] = { sx - arm, (float) sy, sx + arm, (float) sy, (float) sx, sy - arm, (float) sx, sy + arm };
+	draw.drawLines (cross, 4);
+	if (direction >= 0) {
+		float angle = direction * 3.14159265f / 180.0f, length = arm * 2.5f;
+		const float facing[] = { (float) sx, (float) sy, sx + sinf (angle) * length, sy - cosf (angle) * length };
+		draw.drawLines (facing, 2);
+	}
+}
+
 void RoomView::paint (Draw2D & draw) {
 	draw.clear ();
 	const float scene[] = { 0, 0, (float) sceneWidth, 0, (float) sceneWidth, (float) sceneHeight, 0, (float) sceneHeight };
@@ -1393,6 +1440,26 @@ void RoomView::paint (Draw2D & draw) {
 		}
 	}
 
+	// The walk-to points of the characters, and a line from the feet of the
+	// selected one to its point.
+	if (charactersTab) {
+		for (int c = 0; c < (int) r->characters.size (); c ++) {
+			const RoomCharacter & character = r->characters[c];
+			int sx, sy;
+			CharacterShown shown;
+			if (! characterStandShown (c, &sx, &sy) || ! characterShown (c, &shown)) continue;
+			bool isSelected = c == selectedCharacter;
+			float alpha = character.conditional ? 0.6f : 1.0f;
+			drawWalkTo (draw, canvas.pixelsOfPoints (isSelected ? 6.0f : 4.0f), sx, sy,
+				character.standDirection.literal ? character.standDirection.value : -1, (isSelected ? 1.0f : 0.7f) * alpha);
+			if (isSelected) {
+				draw.setDrawingColour (0.45f, 0.8f, 1.0f, 0.35f);
+				const float line[] = { (float) shown.x, (float) shown.y, (float) sx, (float) sy };
+				draw.drawLines (line, 2);
+			}
+		}
+	}
+
 	draw.setDrawingColour (0.5f, 0.5f, 0.55f, 1.0f);
 	draw.drawLineLoop (scene, 4);
 
@@ -1457,15 +1524,8 @@ void RoomView::paint (Draw2D & draw) {
 		int sx, sy;
 		standShown (g, &sx, &sy);
 		if ((sx || sy) && region.standX.literal && region.standY.literal) {
-			float arm = canvas.pixelsOfPoints (isSelected ? 6.0f : 4.0f);
-			draw.setDrawingColour (0.45f, 0.8f, 1.0f, (isSelected ? 1.0f : 0.7f) * alpha);
-			const float cross[] = { sx - arm, (float) sy, sx + arm, (float) sy, (float) sx, sy - arm, (float) sx, sy + arm };
-			draw.drawLines (cross, 4);
-			if (region.direction.literal && region.direction.value >= 0) {
-				float angle = region.direction.value * 3.14159265f / 180.0f, length = arm * 2.5f;
-				const float facing[] = { (float) sx, (float) sy, sx + sinf (angle) * length, sy - cosf (angle) * length };
-				draw.drawLines (facing, 2);
-			}
+			drawWalkTo (draw, canvas.pixelsOfPoints (isSelected ? 6.0f : 4.0f), sx, sy,
+				region.direction.literal ? region.direction.value : -1, (isSelected ? 1.0f : 0.7f) * alpha);
 			if (isSelected) {
 				// From the middle of the region to its walk-to point.
 				float cx = 0, cy = 0;
@@ -2061,6 +2121,10 @@ void RoomView::drawCharacterSettings (const RoomCharacter & character) {
 		fieldParallaxX = character.parallax.present ? std::string (number) : std::string ();
 		snprintf (number, sizeof (number), "%d", character.parallaxY ());
 		fieldParallaxY = character.parallax.present ? std::string (number) : std::string ();
+		snprintf (number, sizeof (number), "%d", character.standX.value);
+		fieldStandX = character.hasStandPoint ? std::string (number) : std::string ();
+		snprintf (number, sizeof (number), "%d", character.standY.value);
+		fieldStandY = character.hasStandPoint ? std::string (number) : std::string ();
 	}
 	propertyRow ("Walk Speed");
 	if (settingEditable (character.walkSpeed)) {
@@ -2113,6 +2177,50 @@ void RoomView::drawCharacterSettings (const RoomCharacter & character) {
 			}
 		}
 		conditionalMark (character.parallax);
+	}
+
+	// The walk-to point of addCharacter: an offset from the feet, x then y;
+	// both fields empty for none.
+	propertyRow ("Walk To");
+	if (character.hasStandPoint && (! character.standX.literal || ! character.standY.literal)) {
+		ImGui::TextDisabled ("Not a number");
+	} else {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+		ImGui::InputTextWithHint ("##standX", "None", &fieldStandX, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		bool done = ImGui::IsItemDeactivated ();
+		ImGui::SameLine ();
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 4);
+		ImGui::InputTextWithHint ("##standY", "None", &fieldStandY, ImGuiInputTextFlags_CharsDecimal);
+		textFieldsEditing |= ImGui::IsItemActive ();
+		done |= ImGui::IsItemDeactivated ();
+		if (done) {
+			textFieldsEditing = false;
+			int x = 0, y = 0;
+			bool emptyX, emptyY;
+			if (typedNumber (fieldStandX, &x, &emptyX) && typedNumber (fieldStandY, &y, &emptyY)) {
+				apply (roomEdit::setStandPoint (character, ! (emptyX && emptyY), x, y), "Change Walk-To Point", character.call);
+			}
+		}
+	}
+	propertyRow ("Direction");
+	if (! character.hasStandPoint) {
+		ImGui::TextDisabled ("None");
+	} else if (! character.standDirection.literal) {
+		ImGui::TextDisabled ("Not a number");
+	} else {
+		ImGui::SetNextItemWidth (ImGui::GetFontSize () * 9);
+		int direction = character.standDirection.value;
+		std::string current = direction == -1 ? "Keep" : directionText (direction);
+		if (ImGui::BeginCombo ("##standDirection", current.c_str ())) {
+			for (int d = 0; d < DIRECTION_COUNT; d ++) {
+				std::string name = directions[d] == -1 ? "Keep" : directionText (directions[d]);
+				if (ImGui::Selectable (name.c_str (), directions[d] == direction)) {
+					apply (roomEdit::setDirection (character, directions[d]), "Change Direction", character.call);
+				}
+			}
+			ImGui::EndCombo ();
+		}
 	}
 }
 

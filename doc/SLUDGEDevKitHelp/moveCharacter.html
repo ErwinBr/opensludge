@@ -35,6 +35,10 @@ If the function call provides only two parameters, the second is assumed to be a
 </P>
 
 <P>
+<i>thisObject</i> can also be a character with a walk-to point (see <a href="addCharacter.html">addCharacter</a> and <a href="setCharacterStandPoint_and_clearCharacterStandPoint.html">setCharacterStandPoint</a>), and then it works the same way, with the point measured from where that character stands right now. If <i>thisObject</i> is both a screen region and a character, the region wins.
+</P>
+
+<P>
 In either of these cases, if the final co-ordinates to which the character is told to walk are (0, 0) the character will not move.
 </P>
 

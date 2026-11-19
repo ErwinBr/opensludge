@@ -1,0 +1,122 @@
+# StandPointTest: walk-to points of characters, from addCharacter with seven
+# arguments and from setCharacterStandPoint (see moveChr in
+# source/Engine/builtin.cpp). A check that fails stops the game with its
+# name; when all of them pass, the game stops with "standPoint OK", which
+# tests/capture/expect-fatal.cmake looks for.
+#
+#  - A character without a walk-to point: walking to it does nothing, as
+#    before.
+#  - The point is an offset from where the character stands, and goes with
+#    it when it moves; on arrival the walker faces the direction.
+#  - clearCharacterStandPoint takes it away; a region of the same
+#    objectType comes first.
+#  - Saving and loading keep the point, and the negative numbers of a screen
+#    region.
+
+objectType ego ("") {
+}
+
+objectType barman ("") {
+}
+
+objectType plain ("") {
+}
+
+objectType both ("") {
+}
+
+objectType compass ("") {
+}
+
+objectType door ("") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("standPoint failed: " + what);
+}
+
+sub someCostume () {
+	# Four directions, so that facing east shows.
+	var a = anim ('ego/alien.duc', 0);
+	return costume (a, a, a, a, a, a, a, a, a, a, a, a);
+}
+
+sub at (x, y) {
+	return getObjectX (ego) == x && getObjectY (ego) == y;
+}
+
+# What getCharacterDirection gives for a character of someCostume facing angle.
+sub facing (angle) {
+	turnCharacter (compass, angle);
+	return getCharacterDirection (compass);
+}
+
+sub init () {
+	addCharacter (ego, 100, 300, someCostume ());
+	addCharacter (compass, 600, 50, someCostume ());
+	addCharacter (plain, 200, 300, someCostume ());
+	addCharacter (barman, 400, 300, someCostume (), -50, 10, EAST);
+
+	jumpCharacter (ego, plain);
+	check (at (100, 300), "no walk-to point, no move");
+
+	jumpCharacter (ego, barman);
+	check (at (350, 310), "jump to the barman's walk-to point");
+	check (getObjectX (barman) == 400, "getObjectX of a character is still where it stands");
+
+	jumpCharacter (barman, 300, 200);
+	jumpCharacter (ego, barman);
+	check (at (250, 210), "the walk-to point goes with the barman");
+
+	jumpCharacter (ego, 100, 300);
+	turnCharacter (ego, WEST);
+	pause (2);
+	forceCharacter (ego, barman);
+	pause (20);
+	check (at (250, 210), "walk to the barman");
+	check (getCharacterDirection (ego) == facing (EAST), "face east on arriving");
+
+	check (clearCharacterStandPoint (barman), "clearCharacterStandPoint finds the barman");
+	jumpCharacter (ego, 100, 300);
+	jumpCharacter (ego, barman);
+	check (at (100, 300), "no move once cleared");
+	check (setCharacterStandPoint (barman, 20, -30, -1), "setCharacterStandPoint finds the barman");
+	check (! setCharacterStandPoint (both, 1, 1, -1), "setCharacterStandPoint of no character");
+	jumpCharacter (ego, barman);
+	check (at (320, 170), "jump to the new walk-to point");
+
+	# A region and a character of one objectType: the region wins.
+	addCharacter (both, 500, 400, someCostume (), 10, 10, -1);
+	addScreenRegion (both, 480, 300, 520, 400, 60, 380, -1);
+	jumpCharacter (ego, both);
+	check (at (60, 380), "the region comes first");
+	removeScreenRegion (both);
+	jumpCharacter (ego, both);
+	check (at (510, 410), "the character once the region has gone");
+
+	# A region off the left of the scene that keeps the walker's direction:
+	# negative numbers that saves used to break (-1 came back as 255).
+	addScreenRegion (door, 0, 200, 20, 300, -20, 290, -1);
+
+	# Save, load, and check again: the second time round, saved is FALSE,
+	# as it was when the game saved.
+	var saved = saveGame ("standpoint.sav");
+	if (saved) {
+		clearCharacterStandPoint (barman);
+		loadGame ("standpoint.sav");
+		# The game loads at the end of the frame.
+		pause (1);
+		check (FALSE, "loadGame didn't load");
+	}
+	jumpCharacter (ego, 100, 300);
+	jumpCharacter (ego, barman);
+	check (at (320, 170), "the walk-to point after loading");
+	check (getObjectX (door) == -20 && getObjectY (door) == 290, "the region's walk-to point after loading");
+	turnCharacter (ego, WEST);
+	pause (2);
+	forceCharacter (ego, door);
+	pause (20);
+	check (at (-20, 290), "walk to the region after loading");
+	check (getCharacterDirection (ego) == facing (WEST), "a direction of -1 after loading keeps the walker's");
+	quitWithFatalError ("standPoint OK");
+}

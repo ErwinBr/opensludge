@@ -429,7 +429,8 @@ if(SLUDGE_DEVKIT)
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-room-character PROPERTIES LABELS capture)
 		# The settings of a character in the Inspector: facing, draw mode,
-		# extras and walk speed, written after its addCharacter.
+		# extras and walk speed, written after its addCharacter, and its walk-to
+		# point, the last arguments of addCharacter.
 		add_test(NAME capture-devkit-room-settings
 			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
 				-DEXAMPLES=${PROJECT_SOURCE_DIR}/doc/ExampleProjects

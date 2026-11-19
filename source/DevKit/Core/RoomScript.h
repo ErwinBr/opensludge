@@ -144,6 +144,10 @@ struct RoomCharacter {
 	// makeEgoAnim (): its name, to look into.
 	std::string costumeSub;
 	RoomScale scale;			// As the game has it at this call
+	// The walk-to point of addCharacter with seven arguments: an offset from
+	// the character, and the direction to face. Kept as written.
+	bool hasStandPoint;
+	RoomArg standX, standY, standDirection;
 	bool conditional;
 	// The first of each of these after the addCharacter, for this character.
 	RoomSetting drawMode, extra, walkSpeed, facing, depth, parallax;
@@ -151,7 +155,7 @@ struct RoomCharacter {
 	// a variable), as written; empty for 0 or what we can't read.
 	RoomSetting rig;
 	std::string rigFile;
-	RoomCharacter () : conditional (false) {}
+	RoomCharacter () : hasStandPoint (false), conditional (false) {}
 	// What they come to: NORMAL, no extras, the objectType's speed (-1),
 	// facing south (180), no fixed depth, no parallax (100).
 	int drawModeValue () const { return drawMode.present && drawMode.value.literal ? drawMode.value.value : 0; }
@@ -259,6 +263,12 @@ namespace roomEdit {
 
 	// Put a character at x, y.
 	std::vector<TextChange> moveCharacter (const RoomCharacter & character, int x, int y);
+	// The walk-to point of a character, an offset from it, as the last
+	// three arguments of its addCharacter: changed, added (with direction
+	// -1, which keeps the walker's) or, without has, taken away. Numbers
+	// that aren't literal are left alone.
+	std::vector<TextChange> setStandPoint (const RoomCharacter & character, bool has, int x, int y);
+	std::vector<TextChange> setDirection (const RoomCharacter & character, int direction);
 	std::vector<TextChange> remove (const TextBuffer & text, const RoomCharacter & character);
 	// A new addCharacter of objectType at x, y with a costume (as code):
 	// after the room's characters, else where a new region goes. With

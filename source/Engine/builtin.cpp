@@ -1614,6 +1614,21 @@ builtIn(addCharacter)
 	UNUSEDALL
 	int x, y, objectNumber;
 
+	// addCharacter (thisObject, x, y, costume, sX, sY, direction): a walk-to
+	// point too, as an offset from the character (see setCharacterStandPoint).
+	int sX = 0, sY = 0, di = -1;
+	if (numParams == 7) {
+		if (! getValueType (di, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (! getValueType (sY, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+		if (! getValueType (sX, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+		trimStack (fun -> stack);
+	} else if (numParams != 4) {
+		fatal ("Built-in function must have either 4 or 7 parameters.");
+		return BR_ERROR;
+	}
+
 	// Our reference goes on every return; addPerson takes its own.
 	CostumeRef p (getCostumeFromVar (fun -> stack -> thisVar));
 	if (p.get () == NULL) return BR_ERROR;
@@ -1625,8 +1640,9 @@ builtIn(addCharacter)
 	trimStack (fun -> stack);
 	if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	if (addPerson (x, y, objectNumber, p.get ())) return BR_CONTINUE;
-	return BR_ERROR;
+	if (! addPerson (x, y, objectNumber, p.get ())) return BR_ERROR;
+	if (numParams == 7) setPersonStandPoint (objectNumber, sX, sY, di);
+	return BR_CONTINUE;
 }
 
 builtIn(hideCharacter)
@@ -1952,6 +1968,32 @@ builtIn(setCharacterZ)
 	return BR_CONTINUE;
 }
 
+builtIn(setCharacterStandPoint)
+{
+	UNUSEDALL
+	int obj, x, y, di;
+	if (! getValueType (di, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, setPersonStandPoint (obj, x, y, di));
+	return BR_CONTINUE;
+}
+
+builtIn(clearCharacterStandPoint)
+{
+	UNUSEDALL
+	int obj;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	setVariable (fun -> reg, SVT_INT, clearPersonStandPoint (obj));
+	return BR_CONTINUE;
+}
+
 builtIn(setCharacterParallax)
 {
 	UNUSEDALL
@@ -2013,26 +2055,33 @@ static builtReturn moveChr(int numParams, loadedFunction * fun, bool force, bool
 		case 2:
 		{
 			int toObj, objectNumber;
-			screenRegion * reggie;
 
 			if (! getValueType (toObj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 			trimStack (fun -> stack);
 			if (! getValueType (objectNumber, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
 			trimStack (fun -> stack);
-			reggie = getRegionForObject (toObj);
-			if (reggie == NULL) return BR_CONTINUE;
 
-			if (force)
-			{
-				if (forceWalkingPerson (reggie -> sX, reggie -> sY,	objectNumber, fun, reggie -> di)) return BR_PAUSE;
+			// The walk-to point of a screen region, else of a character that
+			// has one (an offset from where it stands now).
+			int x, y, di;
+			if (screenRegion * reggie = getRegionForObject (toObj)) {
+				x = reggie -> sX;
+				y = reggie -> sY;
+				di = reggie -> di;
+			} else {
+				onScreenPerson * other = findPerson (toObj);
+				if (other == NULL || ! other -> hasStandPoint) return BR_CONTINUE;
+				x = (int) other -> x + other -> standX;
+				y = (int) other -> y + other -> standY;
+				di = other -> standDirection;
 			}
-			else if (immediate)
-			{
-				jumpPerson (reggie -> sX, reggie -> sY,	objectNumber);
-			}
-			else
-			{
-				if (makeWalkingPerson (reggie -> sX, reggie -> sY, objectNumber, fun, reggie -> di)) return BR_PAUSE;
+
+			if (force) {
+				if (forceWalkingPerson (x, y, objectNumber, fun, di)) return BR_PAUSE;
+			} else if (immediate) {
+				jumpPerson (x, y, objectNumber);
+			} else {
+				if (makeWalkingPerson (x, y, objectNumber, fun, di)) return BR_PAUSE;
 			}
 			return BR_CONTINUE;
 		}

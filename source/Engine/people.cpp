@@ -255,6 +255,24 @@ bool clearPersonZ (int thisNum) {
 	return true;
 }
 
+bool setPersonStandPoint (int thisNum, int x, int y, int di) {
+	return forEachPerson (thisNum, [x, y, di] (onScreenPerson & p) {
+		p.hasStandPoint = true;
+		p.standX = x;
+		p.standY = y;
+		p.standDirection = di;
+	});
+}
+
+bool clearPersonStandPoint (int thisNum) {
+	return forEachPerson (thisNum, [] (onScreenPerson & p) {
+		p.hasStandPoint = false;
+		p.standX = 0;
+		p.standY = 0;
+		p.standDirection = -1;
+	});
+}
+
 bool setPersonParallax (int thisNum, float x, float y) {
 	return forEachPerson (thisNum, [x, y] (onScreenPerson & p) {
 		p.parallaxX = x;
@@ -1532,6 +1550,11 @@ bool savePeople (FILE * fp) {
 		// Since 2.9: its parallax.
 		putFloat (me -> parallaxX, fp);
 		putFloat (me -> parallaxY, fp);
+		// Since 2.11: its walk-to point.
+		fputc (me -> hasStandPoint ? 1 : 0, fp);
+		putSigned (me -> standX, fp);
+		putSigned (me -> standY, fp);
+		putSigned (me -> standDirection, fp);
 
 		me = me -> next;
 	}
@@ -1698,6 +1721,14 @@ bool loadPeople (FILE * fp) {
 			if (ssgVersion >= VERSION (2, 9)) {
 				me -> parallaxX = getFloat (fp);
 				me -> parallaxY = getFloat (fp);
+			}
+			if (ssgVersion >= VERSION (2, 11)) {
+				int hasStandPoint = fgetc (fp);
+				if (hasStandPoint < 0 || hasStandPoint > 1) return false;
+				me -> hasStandPoint = hasStandPoint;
+				me -> standX = getSigned (fp);
+				me -> standY = getSigned (fp);
+				me -> standDirection = getSigned (fp);
 			}
 		} else {
 			me -> sequence = a + 1;

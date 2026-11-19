@@ -139,6 +139,10 @@ Two characters can share an objectType, such as a desk and a fence that you neve
 The room shows what it can: the facing picks the costume's standing picture for that direction, the draw mode colours the character as the game does (but not a character of parts, which the room shows in its own colours), FIXEDSIZE keeps it at full size, and FRONT and Depth change which character is drawn in front. An INVISIBLE character is drawn as a ring with a cross, like a character without a picture, or you'd never find it again. The other extras, the walk speed and the parallax only show in the game. The room is shown as if the camera were centred on each character, which is just where a parallax character is drawn where you put it.
 </P>
 
+<P>
+<b>Walk To</b> and <b>Direction</b> are the walk-to point of the character, the last three numbers of its <a href="addCharacter.html">addCharacter</a>. Tell another character to walk to this one, with <a href="moveCharacter.html">moveCharacter</a> (<i>ego</i>, <i>barman</i>), and it heads for that point, then turns to face the direction. Unlike a region's, the two numbers are measured from the character's feet, so -40 and 0 means 40 pixels to its left, wherever it has wandered off to. Type them in, or drag the cross, which the Characters tab shows for every character that has a point. Empty both fields and the three numbers come out of the addCharacter again. A walk-to point also belongs to every character of the objectType, like the depth. For changing it while the game runs, see <a href="setCharacterStandPoint_and_clearCharacterStandPoint.html">setCharacterStandPoint and clearCharacterStandPoint</a>.
+</P>
+
 <H3>Scaling:</H3>
 
 <P>

@@ -116,7 +116,7 @@ private:
 		TintedFrame ();
 	};
 	// What the mouse drags.
-	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER, DRAG_TRY, DRAG_SIZE };
+	enum Drag { DRAG_NONE, DRAG_REGION, DRAG_HANDLE, DRAG_STAND, DRAG_RECTANGLE, DRAG_OVERLAY, DRAG_CHARACTER, DRAG_CHARACTER_STAND, DRAG_TRY, DRAG_SIZE };
 
 	void update ();
 	const Room * room () const;
@@ -222,6 +222,9 @@ private:
 	// The coordinates of a region as they are shown: as a drag leaves them.
 	std::vector<int> shownValues (int region) const;
 	void standShown (int region, int * x, int * y) const;
+	// Where the walk-to point of a character is in the scene, as a drag
+	// leaves it: false when it has none we can read.
+	bool characterStandShown (int character, int * x, int * y);
 	// The handles of a region: each the index of its x and y in its
 	// coordinates, or -1 for a coordinate that it doesn't move.
 	std::vector<std::pair<int, int> > handlesOf (const RoomRegion & region) const;
@@ -331,7 +334,7 @@ private:
 	// The fields of the Inspector, while the user changes them.
 	float fieldTopLeft[2], fieldBottomRight[2], fieldStand[2], fieldOverlay[2], fieldCharacter[2];
 	// The walk speed, depth and parallax of a character as typed, while typed.
-	std::string fieldWalkSpeed, fieldDepth, fieldParallaxX, fieldParallaxY;
+	std::string fieldWalkSpeed, fieldDepth, fieldParallaxX, fieldParallaxY, fieldStandX, fieldStandY;
 	bool textFieldsEditing;
 	bool fieldsEditing;
 

@@ -105,6 +105,7 @@
                     <keyword>cancelSub</keyword>
                     <keyword>captureAllKeys</keyword>
                     <keyword>clearCharacterZ</keyword>
+                    <keyword>clearCharacterStandPoint</keyword>
                     <keyword>panCamera</keyword>
                     <keyword>setCameraDeadZone</keyword>
                     <keyword>setCameraSpeed</keyword>
@@ -210,6 +211,7 @@
                     <keyword>setCharacterOutlineThickness</keyword>
                     <keyword>setCharacterParallax</keyword>
                     <keyword>setCharacterSpinSpeed</keyword>
+                    <keyword>setCharacterStandPoint</keyword>
                     <keyword>setCharacterTransparency</keyword>
                     <keyword>setCharacterWalkSpeed</keyword>
                     <keyword>setCharacterZ</keyword>

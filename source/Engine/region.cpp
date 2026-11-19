@@ -64,18 +64,20 @@ void saveRegions (FILE * fp) {
 	put2bytes (numRegions, fp);
 	thisRegion = allScreenRegions;
 	while (thisRegion) {
-		put2bytes (thisRegion -> x1, fp);
-		put2bytes (thisRegion -> y1, fp);
-		put2bytes (thisRegion -> x2, fp);
-		put2bytes (thisRegion -> y2, fp);
-		put2bytes (thisRegion -> sX, fp);
-		put2bytes (thisRegion -> sY, fp);
-		put2bytes (thisRegion -> di, fp);
+		// Since saves of version 2.11 signed, so that a direction of -1 and
+		// points left of or above the scene come back as they were.
+		putSigned (thisRegion -> x1, fp);
+		putSigned (thisRegion -> y1, fp);
+		putSigned (thisRegion -> x2, fp);
+		putSigned (thisRegion -> y2, fp);
+		putSigned (thisRegion -> sX, fp);
+		putSigned (thisRegion -> sY, fp);
+		putSigned (thisRegion -> di, fp);
 		saveObjectRef (thisRegion -> thisType, fp);
 		// Since saves of version 2.4: the points of a shaped region.
 		put2bytes ((int) thisRegion -> points.size () / 2, fp);
 		for (size_t i = 0; i < thisRegion -> points.size (); i ++) {
-			put2bytes (thisRegion -> points[i], fp);
+			putSigned (thisRegion -> points[i], fp);
 		}
 
 		thisRegion = thisRegion -> next;
@@ -94,18 +96,22 @@ void loadRegions (FILE * fp) {
 		* pointy = newRegion;
 		pointy = & (newRegion -> next);
 
-		newRegion -> x1 = get2bytes (fp);
-		newRegion -> y1 = get2bytes (fp);
-		newRegion -> x2 = get2bytes (fp);
-		newRegion -> y2 = get2bytes (fp);
-		newRegion -> sX = get2bytes (fp);
-		newRegion -> sY = get2bytes (fp);
-		newRegion -> di = get2bytes (fp);
+		// Older saves have them unsigned, and negative numbers broken (-1
+		// as 255), which we can't tell from real ones.
+		bool isSigned = ssgVersion >= VERSION (2, 11);
+		auto number = [fp, isSigned] () { return isSigned ? (int) getSigned (fp) : get2bytes (fp); };
+		newRegion -> x1 = number ();
+		newRegion -> y1 = number ();
+		newRegion -> x2 = number ();
+		newRegion -> y2 = number ();
+		newRegion -> sX = number ();
+		newRegion -> sY = number ();
+		newRegion -> di = number ();
 		newRegion -> thisType = loadObjectRef (fp);
 		if (ssgVersion >= VERSION (2, 4)) {
 			int numPoints = get2bytes (fp);
 			for (int i = 0; i < numPoints * 2 && ! feof (fp); i ++) {
-				newRegion -> points.push_back (get2bytes (fp));
+				newRegion -> points.push_back (number ());
 			}
 		}
 	}

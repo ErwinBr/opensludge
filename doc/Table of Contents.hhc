@@ -544,6 +544,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterSpinSpeed.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCharacterStandPoint and clearCharacterStandPoint">
+					<param name="Local" value="SLUDGEDevKitHelp\setCharacterStandPoint_and_clearCharacterStandPoint.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCharacterTransparency">
 					<param name="Local" value="SLUDGEDevKitHelp\setCharacterTransparency.html">
 					</OBJECT>

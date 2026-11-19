@@ -166,7 +166,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			CameraTest.slp camera.slu
 			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
 			FindStackTest.slp findstack.slu FindStackFatalTest.slp findstackfatal.slu
-			SharedTypeTest.slp sharedtype.slu
+			SharedTypeTest.slp sharedtype.slu StandPointTest.slp standpoint.slu
 			CompositeTest.slp composite.slu ego-script.slu
 			CompositeAssetsTest.slp ego-assets.slu
 			big.png hole.png light.png scalemap.png sky.png movie.webm)
@@ -273,6 +273,18 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DMESSAGE=sharedType OK"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
 	set_tests_properties(capture-sharedtype PROPERTIES LABELS capture TIMEOUT 300)
+	# Walk-to points of characters: walking to a character goes to an offset
+	# from it, and faces a direction, as for a screen region; the game checks
+	# it, after loading too, and stops with "standPoint OK".
+	sludge_compile_game(StandPointTest ${render_project}/StandPointTest.slp)
+	add_test(NAME capture-standpoint
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/StandPointTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/standpoint
+			"-DMESSAGE=standPoint OK"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/expect-fatal.cmake)
+	set_tests_properties(capture-standpoint PROPERTIES LABELS capture TIMEOUT 300)
 
 	# Watches on screen regions: the game checks the events of characters
 	# going in and out, fresh, frozen, after saving and after loading.

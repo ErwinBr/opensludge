@@ -5,7 +5,7 @@ with it (Engine/builtin.cpp), and the script editor of the Dev Kit warns of
 calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 */
 
--1, 0, 1, 1, -1, -1, 1, 3, 4, 1, 0, 0, -1, -1,		// SAY -> MOVEMOUSE
+-1, 0, 1, 1, -1, -1, 1, 3, -1, 1, 0, 0, -1, -1,		// SAY -> MOVEMOUSE
 -1, 0, 0, -1, -1, 1, 1, 1, 1, 4, 1, 1, 2, 1,// FOCUS -> REMOVEREGION
 2, 2, 0, 0, 2,								// ANIMATE -> SETSCALE
 -1, 2, 1, 0, 0, 0, 1, 0, 3, 				// new/push/pop stack, status stuff
@@ -38,4 +38,5 @@ calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 5, 2, 5,									// setCharacterOutlineColour, setCharacterOutlineThickness, setCursorOutline
 3,											// setCharacterParallax
 2,											// findInStack
-1, 0, 2, 3, 2								// trackCharacter, stopTracking, panCamera, setCameraSpeed, setCameraDeadZone
+1, 0, 2, 3, 2,								// trackCharacter, stopTracking, panCamera, setCameraSpeed, setCameraDeadZone
+4, 1										// setCharacterStandPoint, clearCharacterStandPoint

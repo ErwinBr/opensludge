@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCharacterStandPoint and clearCharacterStandPoint</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCharacterStandPoint and clearCharacterStandPoint</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCharacterStandPoint (<i>thisCharacter, sX, sY, direction</i>);</pre>
+</P>
+
+<P>
+<pre class="syntax">clearCharacterStandPoint (<i>thisCharacter</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+setCharacterStandPoint gives <i>thisCharacter</i> a walk-to point, so that other characters can walk to it, just as they can walk to a screen region. clearCharacterStandPoint takes the point away again.
+</P>
+
+<P>
+A screen region made with <a href="addScreenRegion.html">addScreenRegion</a> has a point where a character stands when it's told to walk to the region, and a direction to face when it gets there. A character can have the same, either from the last three parameters of <a href="addCharacter.html">addCharacter</a> or from this function. Then <a href="moveCharacter.html">moveCharacter</a>, <a href="forceCharacter.html">forceCharacter</a> and <a href="jumpCharacter.html">jumpCharacter</a> with two parameters take <i>thisCharacter</i> as the place to go, and the walking character turns to face <i>direction</i> on arrival (unless it's -1).
+</P>
+
+<P>
+There's one difference from a region: <i>sX</i> and <i>sY</i> are measured from where <i>thisCharacter</i> stands, not from the top left of the scene. Characters wander about, and a fixed point would be left behind as soon as they did. So -50, 0 means "50 pixels to the left of wherever the character is right now".
+</P>
+
+<P>
+Without a walk-to point, telling a character to walk to another character does nothing, as it always has. <a href="getObjectX_and_getObjectY.html">getObjectX and getObjectY</a> still give the character's own position, not its walk-to point. Saving the game keeps the point.
+</P>
+
+<P>
+If <i>thisCharacter</i> is an object type which is not currently represented on the screen as a character, the code has no effect. If more than one character has the object type <i>thisCharacter</i>, they all change, not just one of them.
+</P>
+
+<H3>Return value:</H3>
+
+<P>
+TRUE if <i>thisCharacter</i> is an object type which is currently represented on the screen as a character, otherwise FALSE.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub talkToBarman () {
+   # Stand at the bar, in front of him, looking north at him
+   setCharacterStandPoint (barman, 0, 40, NORTH);
+   moveCharacter (ego, barman);
+   say (ego, "A glass of your finest tap water, please.");
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="addCharacter.html">addCharacter</a>
+</P>
+
+<P>
+<a href="addScreenRegion.html">addScreenRegion</a>
+</P>
+
+<P>
+<a href="forceCharacter.html">forceCharacter</a>
+</P>
+
+<P>
+<a href="jumpCharacter.html">jumpCharacter</a>
+</P>
+
+<P>
+<a href="moveCharacter.html">moveCharacter</a>
+</P>
+
+<P>
+<a href="Object_Types_as_Characters.html">Object Types as Characters</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

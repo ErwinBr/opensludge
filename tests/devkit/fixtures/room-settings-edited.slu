@@ -12,7 +12,7 @@ sub outsideRoom () {
 		anim ('outside/duck.duc', 0, 1, 2, 2, 1, 0, 3, 3),
 		NULL,
 		anim ('outside/duck.duc', 4, 5, 5, 4, 3, 4, 3, 5, 4, 3)
-	));
+	), -40, 0, EAST);
 	turnCharacter (duck, EAST);
 	setCharacterDrawMode (duck, DARK1);
 	setCharacterExtra (duck, FRONT + FIXEDSIZE);

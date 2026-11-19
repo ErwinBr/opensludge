@@ -17,6 +17,10 @@
 <pre class="syntax">addCharacter (<i>thisObject, atX, atY, thisCostume</i>);</pre>
 </P>
 
+<P>
+<pre class="syntax">addCharacter (<i>thisObject, atX, atY, thisCostume, sX, sY, direction</i>);</pre>
+</P>
+
 <H3>Purpose:</H3>
 
 <P>
@@ -25,6 +29,10 @@ Adds a character on the screen which represents <i>thisObject</i>. The character
 
 <P>
 The <i>thisCostume</i> parameter must be a complete costume (the result of a call to the <a href="costume.html">costume</a> function) or a single animation (the result of a call to the <a href="anim.html">anim</a> function).
+</P>
+
+<P>
+If you give the three extra parameters, the character gets a walk-to point, just like a screen region made with <a href="addScreenRegion.html">addScreenRegion</a>. Tell another character to walk to <i>thisObject</i> with <a href="moveCharacter.html">moveCharacter</a> (or <a href="forceCharacter.html">forceCharacter</a> or <a href="jumpCharacter.html">jumpCharacter</a>) and it will head for that point, then turn to face <i>direction</i> (unless it's -1). Unlike a region's, the point is measured from where the character stands: <i>sX</i>, <i>sY</i> of -50, 0 means 50 pixels to its left. That way the point goes wherever the character goes, which a region never has to worry about. You can change or remove it later with <a href="setCharacterStandPoint_and_clearCharacterStandPoint.html">setCharacterStandPoint and clearCharacterStandPoint</a>.
 </P>
 
 <H3>Return value:</H3>
@@ -45,6 +53,11 @@ No return value.
 
 <P>
 <pre>addCharacter (ego, 500, 300, myCostume);</pre>
+</P>
+
+<P>
+<pre># Walk up to the barman from his left, facing east
+addCharacter (barman, 400, 280, anim ('barman.duc', 0), -50, 0, EAST);</pre>
 </P>
 
 <H3>See also:</H3>
@@ -95,6 +108,10 @@ No return value.
 
 <P>
 <a href="setCharacterExtra.html">setCharacterExtra</a>
+</P>
+
+<P>
+<a href="setCharacterStandPoint_and_clearCharacterStandPoint.html">setCharacterStandPoint and clearCharacterStandPoint</a>
 </P>
 
 <P>

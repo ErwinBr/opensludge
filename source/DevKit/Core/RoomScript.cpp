@@ -407,7 +407,7 @@ private:
 				setup = true;
 			} else if (word == "setZBuffer") {
 				setup = true;
-			} else if (word == "addCharacter" && args.size () == 4 && ! args[0].empty ()) {
+			} else if (word == "addCharacter" && (args.size () == 4 || args.size () == 7) && ! args[0].empty ()) {
 				RoomCharacter character;
 				character.objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
 				character.call = token.at;
@@ -416,6 +416,12 @@ private:
 				character.y = argument (args[2]);
 				character.costume = argument (args[3]);
 				character.picture = costumeIn (t, args[3].from, args[3].to, &character.costumeSub, open);
+				if (args.size () == 7) {
+					character.hasStandPoint = true;
+					character.standX = argument (args[4]);
+					character.standY = argument (args[5]);
+					character.standDirection = argument (args[6]);
+				}
 				costumes.push_back (args[3]);
 				character.scale = scale;
 				character.conditional = conditional;
@@ -903,6 +909,28 @@ std::vector<TextChange> moveCharacter (const RoomCharacter & character, int x, i
 	change (changes, character.x, x);
 	change (changes, character.y, y);
 	return ordered (changes);
+}
+
+std::vector<TextChange> setStandPoint (const RoomCharacter & character, bool has, int x, int y) {
+	std::vector<TextChange> changes;
+	if (has && character.hasStandPoint) {
+		if (! character.standX.literal || ! character.standY.literal) return changes;
+		change (changes, character.standX, x);
+		change (changes, character.standY, y);
+		return ordered (changes);
+	}
+	// After the costume: three more arguments, or none.
+	if (has) changes.push_back (TextChange (character.costume.to, character.costume.to, ", " + numberText (x) + ", " + numberText (y) + ", -1"));
+	else if (character.hasStandPoint) changes.push_back (TextChange (character.costume.to, character.standDirection.to, ""));
+	return changes;
+}
+
+std::vector<TextChange> setDirection (const RoomCharacter & character, int direction) {
+	std::vector<TextChange> changes;
+	if (character.hasStandPoint && character.standDirection.literal && character.standDirection.value != direction) {
+		change (changes, character.standDirection, directionText (direction));
+	}
+	return changes;
 }
 
 std::vector<TextChange> remove (const TextBuffer & text, const RoomCharacter & character) {
