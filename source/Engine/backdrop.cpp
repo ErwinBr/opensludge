@@ -30,6 +30,7 @@
 #include "statusba.h"
 
 #include "version.h"
+#include "camera.h"
 
 extern inputType input;
 
@@ -252,6 +253,7 @@ void killParallax () {
 bool reserveBackdrop () {
 	cameraX = 0;
 	cameraY = 0;
+	cameraNewScene ();
 	input.mouseX = (int)((float)input.mouseX * cameraZoom);
 	input.mouseY = (int)((float)input.mouseY * cameraZoom);
 	cameraZoom = 1.0;
@@ -483,6 +485,18 @@ inline int sortOutPCamera (int cX, int fX, int sceneMax, int boxMax) {
 	((cX * fX) / 100);
 }
 
+// Where a parallax layer is drawn from, for the camera at cX to a fraction of
+// a pixel (cameraDrawX): as sortOutPCamera has it for the camera on a whole
+// pixel, whole; and while the camera moves, to a pixel of the window.
+static float parallaxCamera (float cX, int whole, int fX, int sceneMax, int boxMax, float windowPixelsPerPixel) {
+	if (cX == whole || windowPixelsPerPixel <= 0) return sortOutPCamera (whole, fX, sceneMax, boxMax);
+	float v = (fX == 65535) ?
+		(sceneMax ? (cX * boxMax) / sceneMax : 0)
+		:
+		(cX * fX) / 100;
+	return floorf (v * windowPixelsPerPixel) / windowPixelsPerPixel;
+}
+
 
 void drawBackDrop () {
 
@@ -491,6 +505,7 @@ void drawBackDrop () {
 	gfx::PipelineState state (gfx::PROG_SMART_SCALER, gfx::BLEND_ALPHA);
 	gfx::DrawUniforms uniforms = engineUniforms ();
 	uniforms.antialias = gameSettings.antiAlias == 1;
+	float camX = cameraDrawX (), camY = cameraDrawY ();
 
 	if (parallaxStuff) {
 		parallaxLayer * ps = parallaxStuff;
@@ -498,8 +513,10 @@ void drawBackDrop () {
 		while (ps->next) ps = ps->next;
 
 		while (ps) {
-			ps -> cameraX = sortOutPCamera (cameraX, ps -> fractionX, (int)(sceneWidth - (float)winWidth/cameraZoom), (int)(ps -> width - (float)winWidth/cameraZoom));
-			ps -> cameraY = sortOutPCamera (cameraY, ps -> fractionY, (int)(sceneHeight - (float)winHeight/cameraZoom), (int)(ps -> height - (float)winHeight/cameraZoom));
+			float pcX = parallaxCamera (camX, cameraX, ps -> fractionX, (int)(sceneWidth - (float)winWidth/cameraZoom), (int)(ps -> width - (float)winWidth/cameraZoom), viewportWidth * cameraZoom / winWidth);
+			float pcY = parallaxCamera (camY, cameraY, ps -> fractionY, (int)(sceneHeight - (float)winHeight/cameraZoom), (int)(ps -> height - (float)winHeight/cameraZoom), viewportHeight * cameraZoom / winHeight);
+			ps -> cameraX = (int) pcX;
+			ps -> cameraY = (int) pcY;
 
 			float w = (ps->wrapS) ? sceneWidth : ps->width;
 			float h = (ps->wrapT) ? sceneHeight : ps->height;
@@ -514,10 +531,10 @@ void drawBackDrop () {
 			}
 
 			const GLfloat vertices[] = { 
-				(GLfloat)-ps -> cameraX, (GLfloat)-ps -> cameraY, 0.1f, 
-				w -ps -> cameraX, (GLfloat)-ps -> cameraY, 0.1f, 
-				(GLfloat)-ps -> cameraX, h -ps -> cameraY, 0.1f,
-				w -ps -> cameraX, h -ps -> cameraY, 0.1f
+				-pcX, -pcY, 0.1f,
+				w - pcX, -pcY, 0.1f,
+				-pcX, h - pcY, 0.1f,
+				w - pcX, h - pcY, 0.1f
 			};
 
 			const GLfloat texCoords[] = { 
@@ -540,10 +557,10 @@ void drawBackDrop () {
 	}; 
 
 	const GLfloat vertices[] = { 
-		(GLfloat)-cameraX, (GLfloat)-cameraY, 0., 
-		(GLfloat)sceneWidth- (GLfloat)cameraX, (GLfloat)-cameraY, 0., 
-		(GLfloat)-cameraX, (GLfloat)sceneHeight- (GLfloat)cameraY, 0.,
-		(GLfloat)sceneWidth- (GLfloat)cameraX, (GLfloat)sceneHeight- (GLfloat)cameraY, 0.
+		-camX, -camY, 0.,
+		(GLfloat)sceneWidth - camX, -camY, 0.,
+		-camX, (GLfloat)sceneHeight - camY, 0.,
+		(GLfloat)sceneWidth - camX, (GLfloat)sceneHeight - camY, 0.
 	};
 
 	gfx::draw (state, uniforms, backdropTex, vertices, backdropTexCoords);

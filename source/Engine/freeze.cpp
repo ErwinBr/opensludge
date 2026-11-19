@@ -19,6 +19,7 @@
 #include "freeze.h"
 #include "cursors.h"
 #include "zbuffer.h"
+#include "camera.h"
 
 extern onScreenPerson * allPeople;
 extern screenRegion * allScreenRegions;
@@ -149,6 +150,7 @@ bool freeze () {
 	newFreezer -> cameraX = cameraX;
 	newFreezer -> cameraY = cameraY;
 	newFreezer -> cameraZoom = cameraZoom;
+	newFreezer -> camera = takeCamera ();
 
 	newFreezer -> lightMapTexture = lightMap.data;
 	gfx::Texture * oldLightMap = lightMap.tex;
@@ -258,6 +260,7 @@ void unfreeze (bool killImage) {
 
 	cameraX = frozenStuff -> cameraX;
 	cameraY = frozenStuff -> cameraY;
+	restoreCamera (frozenStuff -> camera);
 	input.mouseX = (int)(input.mouseX * cameraZoom);
 	input.mouseY = (int)(input.mouseY * cameraZoom);
 	cameraZoom = frozenStuff -> cameraZoom;

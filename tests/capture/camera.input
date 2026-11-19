@@ -1,0 +1,5 @@
+# CameraTest (tests/render/camera.slu): the mouse stays in the middle of the
+# screen, so the game can tell where the camera is from getMouseX and
+# getMouseScreenX.
+
+0 move 320 240

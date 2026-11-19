@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>panCamera</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>panCamera</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">panCamera (<i>x, y</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Glides the camera until the point (<i>x</i>, <i>y</i>) is in the centre of the window, and waits until it gets there. It ends up exactly where <a href="aimCamera.html">aimCamera</a> would have put it.
+</P>
+
+<P>
+The camera moves with the speed, ease-in and ease-out set by <a href="setCameraSpeed.html">setCameraSpeed</a>. That makes it handy for cut-scenes: show the player the door that just opened, then glide back.
+</P>
+
+<P>
+panCamera stops the camera following a character. If you want it to follow one again afterwards, call <a href="trackCharacter.html">trackCharacter</a>. If you don't want to wait for the camera, call panCamera from a function started with <a href="spawnSub.html">spawnSub</a>.
+</P>
+
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego ("Ego") {
+}
+
+sub showTheDoor () {
+   setCameraSpeed (5, 20, 20);
+   panCamera (1600, 240);
+   say (ego, "The door! It's open!");
+   trackCharacter (ego);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Scrolling_Scenes.html">Scrolling Scenes</a>
+</P>
+
+<P>
+<a href="trackCharacter.html">trackCharacter</a>
+</P>
+
+<P>
+<a href="stopTracking.html">stopTracking</a>
+</P>
+
+<P>
+<a href="setCameraSpeed.html">setCameraSpeed</a>
+</P>
+
+<P>
+<a href="setCameraDeadZone.html">setCameraDeadZone</a>
+</P>
+
+<P>
+<a href="aimCamera.html">aimCamera</a>
+</P>
+
+<P>
+<a href="spawnSub.html">spawnSub</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

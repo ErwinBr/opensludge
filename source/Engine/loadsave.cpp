@@ -27,6 +27,7 @@
 #include "bg_effects.h"
 #include "fileset.h"
 #include "debug.h"
+#include "camera.h"
 
 //----------------------------------------------------------------------
 // From elsewhere
@@ -522,6 +523,9 @@ bool saveGame (char * fname) {
 
 	fputc (languageNum, fp);	// Selected language
 
+	// Since 2.10: the camera as it follows a character or glides.
+	saveCamera (fp);
+
 	saveSnapshot(fp);
 
 	fclose (fp);
@@ -745,6 +749,12 @@ bool loadGame (char * fname) {
 			languageNum = selectedLanguage;
 			setFileIndices (NULL, gameSettings.numLanguages, languageNum);
 		}
+	}
+
+	if (ssgVersion >= VERSION (2, 10)) {
+		if (! loadCamera (fp)) return fatal (ERROR_GAME_LOAD_CORRUPT, fname);
+	} else {
+		killCamera ();
 	}
 
 	nosnapshot ();

@@ -23,6 +23,28 @@ To change the size of the background image, use the <a href="setSceneDimensions.
 When the background is resized, the camera is moved to the top left hand corner of the total area. To move the camera elsewhere in the scene, use the <a href="aimCamera.html">aimCamera</a> function.
 </P>
 
+<H3>Following a Character:</H3>
+
+<P>
+Most of the time, you'll want the camera to keep the player's character on screen. Rather than calling aimCamera every frame, call <a href="trackCharacter.html">trackCharacter</a> once, and the camera follows the character around by itself until you call <a href="stopTracking.html">stopTracking</a>. For cut-scenes, <a href="panCamera.html">panCamera</a> glides the camera over to a point and waits until it's there.
+</P>
+
+<P>
+By default the camera sticks to the character. <a href="setCameraSpeed.html">setCameraSpeed</a> gives it a top speed, and lets it speed up and slow down gently, and <a href="setCameraDeadZone.html">setCameraDeadZone</a> lets the character walk around the middle of the window a bit before the camera bothers to follow. When the window is bigger than the game, the moving camera may draw the scene a fraction of a pixel along, so that it scrolls smoothly, but it always stops on a whole pixel.
+</P>
+
+<pre>objectType ego ("Ego") {
+}
+
+sub enterStreet () {
+   setSceneDimensions (1920, 480);
+   addOverlay ('street.tga', 0, 0);
+   addCharacter (ego, 200, 400, egoCostume ());
+   setCameraSpeed (6, 10, 15);
+   setCameraDeadZone (160, 480);
+   trackCharacter (ego);
+}</pre>
+
 <H3>Parallax Scrolling:</H3>
 
 <P>

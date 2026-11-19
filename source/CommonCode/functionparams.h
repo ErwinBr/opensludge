@@ -37,4 +37,5 @@ calls that don't fit (DevKit/Core/ScriptCatalog.cpp).
 -1,											// setScaleMap
 5, 2, 5,									// setCharacterOutlineColour, setCharacterOutlineThickness, setCursorOutline
 3,											// setCharacterParallax
-2											// findInStack
+2,											// findInStack
+1, 0, 2, 3, 2								// trackCharacter, stopTracking, panCamera, setCameraSpeed, setCameraDeadZone

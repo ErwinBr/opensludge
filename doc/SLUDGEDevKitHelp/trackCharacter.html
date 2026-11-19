@@ -1,0 +1,94 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>trackCharacter</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>trackCharacter</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">trackCharacter (<i>character</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Makes the camera follow <i>character</i> around the scene, keeping it in the centre of the window, so you don't have to call <a href="aimCamera.html">aimCamera</a> every frame yourself.
+</P>
+
+<P>
+How the camera moves is up to <a href="setCameraSpeed.html">setCameraSpeed</a> and <a href="setCameraDeadZone.html">setCameraDeadZone</a>. Without them, the camera sticks to the character. With a speed, it glides after the character, and can speed up and slow down gently. The camera never shows anything outside the scene, just like aimCamera.
+</P>
+
+<P>
+While the camera moves, the scene may be drawn a fraction of a pixel along, when the window is bigger than the game, so that scrolling looks smooth. When the camera stops, it always stops on a whole pixel, so your pixel art stays crisp.
+</P>
+
+<P>
+The first time the camera finds the character in a new scene, it jumps straight to it, instead of gliding there from the top left corner. If the character isn't in the scene, the camera stays where it is until it is.
+</P>
+
+<P>
+The camera keeps following until you call <a href="stopTracking.html">stopTracking</a>, <a href="panCamera.html">panCamera</a> or <a href="aimCamera.html">aimCamera</a>. Saved games remember what the camera is doing.
+</P>
+
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>objectType ego ("Ego") {
+}
+
+sub enterStreet () {
+   setSceneDimensions (1920, 480);
+   addOverlay ('street.tga', 0, 0);
+   addCharacter (ego, 200, 400, egoCostume ());
+   setCameraSpeed (6, 10, 15);
+   trackCharacter (ego);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Scrolling_Scenes.html">Scrolling Scenes</a>
+</P>
+
+<P>
+<a href="stopTracking.html">stopTracking</a>
+</P>
+
+<P>
+<a href="panCamera.html">panCamera</a>
+</P>
+
+<P>
+<a href="setCameraSpeed.html">setCameraSpeed</a>
+</P>
+
+<P>
+<a href="setCameraDeadZone.html">setCameraDeadZone</a>
+</P>
+
+<P>
+<a href="aimCamera.html">aimCamera</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

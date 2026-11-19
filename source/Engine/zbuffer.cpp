@@ -140,7 +140,7 @@ int zBufferPanelFor (float depth) {
 	return i;
 }
 
-void drawZBuffer(int x, int y) {
+void drawZBuffer(float x, float y) {
 	int i;
 	
 	if (! zBuffer.tex) return;

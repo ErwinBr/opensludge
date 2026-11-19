@@ -52,6 +52,7 @@
 #include "capture.h"
 
 #include "debug.h"
+#include "camera.h"
 
 
 extern spritePalette pastePalette;
@@ -557,10 +558,13 @@ void sludgeDisplay () {
 	beginFrame ();
 	gfx::renderer->clear (true, true);	// Clear The Screen
 
+	// The room and its characters, from where the camera is while it moves
+	beginSceneCamera ();
 	drawBackDrop ();				// Draw the room
-	drawZBuffer(cameraX, cameraY);
+	drawZBuffer(cameraDrawX (), cameraDrawY ());
 
 	drawPeople ();					// Then add any moving characters...
+	endSceneCamera ();
 	viewSpeech ();					// ...and anything being said
 	drawStatusBar ();
 	drawControllerSettingsHint ();

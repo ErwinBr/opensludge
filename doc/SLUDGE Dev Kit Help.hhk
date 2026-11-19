@@ -127,9 +127,27 @@
 		<param name="Local" value="SLUDGEDevKitHelp\newRig.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="panCamera">
+		<param name="Name" value="panCamera (built-in function)">
+		<param name="Name" value="Camera">
+		<param name="Local" value="SLUDGEDevKitHelp\panCamera.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="playClip">
 		<param name="Name" value="playClip (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\playClip.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCameraDeadZone">
+		<param name="Name" value="setCameraDeadZone (built-in function)">
+		<param name="Name" value="Camera">
+		<param name="Local" value="SLUDGEDevKitHelp\setCameraDeadZone.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="setCameraSpeed">
+		<param name="Name" value="setCameraSpeed (built-in function)">
+		<param name="Name" value="Camera">
+		<param name="Local" value="SLUDGEDevKitHelp\setCameraSpeed.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="setCharacterRig">
@@ -1842,6 +1860,12 @@
 		<param name="Local" value="SLUDGEDevKitHelp\say_and_think.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="stopTracking">
+		<param name="Name" value="stopTracking (built-in function)">
+		<param name="Name" value="Camera">
+		<param name="Local" value="SLUDGEDevKitHelp\stopTracking.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="think">
 		<param name="Name" value="say and think (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\say_and_think.html">
@@ -2172,6 +2196,12 @@
 		<param name="Name" value="substring">
 		<param name="Name" value="substring (built-in function)">
 		<param name="Local" value="SLUDGEDevKitHelp\substring.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="trackCharacter">
+		<param name="Name" value="trackCharacter (built-in function)">
+		<param name="Name" value="Camera">
+		<param name="Local" value="SLUDGEDevKitHelp\trackCharacter.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="transitionMode">

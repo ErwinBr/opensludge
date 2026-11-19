@@ -21,6 +21,7 @@
 #include "spritebankdecode.h"
 #include "language.h"
 #include "outline.h"
+#include "camera.h"
 
 extern zBufferData zBuffer;
 extern inputType input;
@@ -42,8 +43,8 @@ static Transform2D personTransform (const onScreenPerson * p, bool onScreen) {
 		scale /= cameraZoom;
 	} else if (onScreen) {
 		shownPosition (* p, x, y);
-		x -= cameraX;
-		y -= cameraY;
+		x -= cameraDrawX ();
+		y -= cameraDrawY ();
 	}
 	return Transform2D::translation (x, y) * Transform2D::scaling (scale) * Transform2D::translation (0, (float) p -> floaty);
 }
@@ -195,7 +196,7 @@ bool drawRiggedPerson (const onScreenPerson * p) {
 		// The light map at each corner, as scaleSprite has it.
 		GLfloat ltexCoords[8];
 		for (int k = 0; k < 4; k ++) {
-			sceneTexCoords (c[k * 2] + cameraX + awayX, c[k * 2 + 1] + cameraY + awayY, lightMap.texW, lightMap.texH, ltexCoords[k * 2], ltexCoords[k * 2 + 1]);
+			sceneTexCoords (c[k * 2] + cameraDrawX () + awayX, c[k * 2 + 1] + cameraDrawY () + awayY, lightMap.texW, lightMap.texH, ltexCoords[k * 2], ltexCoords[k * 2 + 1]);
 			if (i == 0 && k == 0) {
 				x1 = x2 = c[0];
 				y1 = y2 = c[1];

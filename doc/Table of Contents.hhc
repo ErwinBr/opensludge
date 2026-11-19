@@ -372,6 +372,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\onRightMouseUp.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="panCamera">
+					<param name="Local" value="SLUDGEDevKitHelp\panCamera.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="parallaxAdd">
 					<param name="Local" value="SLUDGEDevKitHelp\parallaxAdd.html">
 					</OBJECT>
@@ -490,6 +494,14 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setBurnColour (setBurnColor)">
 					<param name="Local" value="SLUDGEDevKitHelp\setBurnColour_(setBurnColor).html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCameraDeadZone">
+					<param name="Local" value="SLUDGEDevKitHelp\setCameraDeadZone.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="setCameraSpeed">
+					<param name="Local" value="SLUDGEDevKitHelp\setCameraSpeed.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="setCharacterAngleOffset">
@@ -724,6 +736,10 @@
 					<param name="Local" value="SLUDGEDevKitHelp\stopSound.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="stopTracking">
+					<param name="Local" value="SLUDGEDevKitHelp\stopTracking.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="stringLength">
 					<param name="Local" value="SLUDGEDevKitHelp\stringLength.html">
 					</OBJECT>
@@ -734,6 +750,10 @@
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="substring">
 					<param name="Local" value="SLUDGEDevKitHelp\substring.html">
+					</OBJECT>
+				<LI> <OBJECT type="text/sitemap">
+					<param name="Name" value="trackCharacter">
+					<param name="Local" value="SLUDGEDevKitHelp\trackCharacter.html">
 					</OBJECT>
 				<LI> <OBJECT type="text/sitemap">
 					<param name="Name" value="transitionMode and transitionLevel">

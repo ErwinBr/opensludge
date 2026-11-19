@@ -163,6 +163,7 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 	foreach(file RenderTest.slp render.slu UnloadTest.slp unload.slu LoadTest.slp load.slu FreezeTest.slp freeze.slu
 			TimelineTest.slp timeline.slu SealTest.slp seal.slu RegionTest.slp region.slu RegionFatalTest.slp regionfatal.slu
 			WatchTest.slp watch.slu WatchFatalTest.slp watchfatal.slu DepthTest.slp depth.slu ParallaxTest.slp parallax.slu
+			CameraTest.slp camera.slu
 			ScaleMapTest.slp scalemap.slu OutlineTest.slp outline.slu
 			FindStackTest.slp findstack.slu FindStackFatalTest.slp findstackfatal.slu
 			SharedTypeTest.slp sharedtype.slu
@@ -337,6 +338,22 @@ if(TARGET sludge-compiler AND NOT CMAKE_CROSSCOMPILING)
 			"-DENGINE_ARGS=--renderer=gl --pot-textures --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/parallax.input"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
 	set_tests_properties(capture-parallax-saveload-pot PROPERTIES LABELS capture TIMEOUT 300)
+
+	# The camera as it follows a character and glides (trackCharacter,
+	# panCamera): with the mouse in the middle of the screen, the game checks
+	# where the camera is, fresh, frozen, after saving and after loading.
+	# Older engines don't have trackCharacter, so no reference.
+	sludge_compile_game(CameraTest ${render_project}/CameraTest.slp)
+	sludge_add_capture_test(camera GAME ${CMAKE_BINARY_DIR}/games/CameraTest.slg
+		INPUT ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/camera.input FRAMES 0-1500/25 NO_REFERENCE)
+	add_test(NAME capture-camera-saveload
+		COMMAND ${CMAKE_COMMAND}
+			-DENGINE=$<TARGET_FILE:sludge-engine>
+			-DGAME=${CMAKE_BINARY_DIR}/games/CameraTest.slg
+			-DOUT=${CMAKE_BINARY_DIR}/capture/camera-saveload
+			"-DENGINE_ARGS=--renderer=gl --input=${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/camera.input"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture/saveload.cmake)
+	set_tests_properties(capture-camera-saveload PROPERTIES LABELS capture TIMEOUT 300)
 
 	# The scale map: the game checks the scale of characters on it, fresh,
 	# frozen, after saving and after loading. Older engines don't have

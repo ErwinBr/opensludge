@@ -27,7 +27,7 @@ FUNCTION_DOC ("addStatus", "addStatus.html",
 	"No return value.")
 FUNCTION_DOC ("aimCamera", "aimCamera.html",
 	"aimCamera (x, y)",
-	"Aims the camera so that the point (x, y) is in the centre of the window. If it is not possible to position the camera so that the point is in the centre of the window without the user seeing an area outside of the scene image, the camera is moved to the closest possible valid position.",
+	"Aims the camera so that the point (x, y) is in the centre of the window. If it is not possible to position the camera so that the point is in the centre of the window without the user seeing an area outside of the scene image, the camera is moved to the closest possible valid position.\n\nThe camera jumps there at once. To glide there smoothly instead, use panCamera, and to have the camera follow a character by itself, use trackCharacter. Calling aimCamera stops the camera doing either.",
 	"No return value.")
 FUNCTION_DOC ("alignStatus", "alignStatus.html",
 	"alignStatus (alignment)",
@@ -365,6 +365,10 @@ FUNCTION_DOC ("onRightMouseUp", "onRightMouseUp.html",
 	"onRightMouseUp (handlerFunction)\nonRightMouseUp ()",
 	"Tells the computer which function to call when the right mouse button is released. The value of handlerFunction must be a pointer to a function which takes no parameters. The function will be called every time the user releases the right mouse button until another call to onRightMouseUp.\n\nIf no parameter is given, the program stops calling the current right mouse button release handler function. No function will be called when the user releases the right mouse button until another call to onRightMouseUp tells it otherwise.\n\nNote that only one handler for releasing the right mouse button can be used at any one time. A subsequent call to onRightMouseUp will replace the current handler function.",
 	"No return value.")
+FUNCTION_DOC ("panCamera", "panCamera.html",
+	"panCamera (x, y)",
+	"Glides the camera until the point (x, y) is in the centre of the window, and waits until it gets there. It ends up exactly where aimCamera would have put it.\n\nThe camera moves with the speed, ease-in and ease-out set by setCameraSpeed. That makes it handy for cut-scenes: show the player the door that just opened, then glide back.\n\npanCamera stops the camera following a character. If you want it to follow one again afterwards, call trackCharacter. If you don't want to wait for the camera, call panCamera from a function started with spawnSub.",
+	"No return value.")
 FUNCTION_DOC ("parallaxAdd", "parallaxAdd.html",
 	"parallaxAdd (thisFile, scrollSpeedX, scrollSpeedY)",
 	"Loads an image from the file handle thisFile and uses it as a parallax layer, visible behind the background image. Parallax layers can scroll at different speeds to the background image, giving the illusion of depth to a scene as it moves.\n\nThe value scrollSpeedX specifies how fast the parallax image will move as a percentage of the the background image as it scrolls. For example, if scrollSpeedX is 50, for every 2 pixels the main scene moves the parallax layer will move only 1. If you specify a scroll speed in this way, the width of the image must be a power of two (i.e. the width must be 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 etc. pixels) in order for proper tiling to occur... that is, the image will repeat horizontally. The same is true of scrollSpeedY which specifies how fast the image moves vertically as a percentage of the movement of the main scene - if a value is specified here, the height of the image must be a power of 2.\n\nThere is one special value which can be used in the place of either scrollSpeedX or scrollSpeedY or neither or both at any time - and that value is the word AUTOFIT. If scrollSpeedX is AUTOFIT, the horizontal scrolling speed of the parallax layer is calculated automatically (and consequently, there's no way the image will need to repeat, so the width need not be a power of 2). However, a new rule is imposed if using this setting - the image must be as wide as, or wider than, the game window. If scrollSpeedY is AUTOFIT, the vertical scrolling speed of the layer is calculated automatically and the height need not be a power of 2 - however, the height of the image must be greater than or equal to the height of the game window. Got all that? Good.\n\nOne more thing - you can have multiple parallax layers at once, each with its own pair of scrolling speeds. The most recently added parallax layer will be visible through any areas of the scenery coloured bright cyan (0, 255, 255 or #00FFFF). (Except for 32-bit images, where the alpha channel is used!) Should there be a further parallax layer, it will be visible through any regions of the most recent coloured bright cyan, and so on, and so on. So, when loading multiple layers using this function, start with the furthest away. Also, for a realistic effect, make any layers that are further away scroll more slowly than those that are nearer the scene.",
@@ -492,6 +496,14 @@ FUNCTION_DOC ("setBlankColour", "setBlankColour_(setBlankColor).html",
 FUNCTION_DOC ("setBurnColour", "setBurnColour_(setBurnColor).html",
 	"setBurnColour (red, green, blue)",
 	"Changes the colour in which the text added to the screen by burnString is drawn. The values of red, green and blue should all be numbers between 0 and 255 inclusive. The command setBurnColor is identical.",
+	"No return value.")
+FUNCTION_DOC ("setCameraDeadZone", "setCameraDeadZone.html",
+	"setCameraDeadZone (width, height)",
+	"Lets the character the camera follows (trackCharacter) wander around a box in the middle of the window, width by height pixels, without the camera moving.\n\nWhen the character steps out of the box, the camera goes along with it, so that the character stays on the edge of the box. That way, a character taking a couple of steps doesn't make the whole scene shuffle about.\n\nA box of 0 by 0, as when the game starts, keeps the character in the centre. To scroll only sideways, make the box as tall as the window. Neither number can be below 0.",
+	"No return value.")
+FUNCTION_DOC ("setCameraSpeed", "setCameraSpeed.html",
+	"setCameraSpeed (speed, easeIn, easeOut)",
+	"Sets how the camera moves when it follows a character (trackCharacter) or glides to a point (panCamera).\n\nspeed is the most pixels the camera moves in a frame. A speed of 0 (as when the game starts) sticks the camera to the character it follows, with no lag at all, and makes panCamera jump straight there.\n\neaseIn is how many frames the camera takes to speed up from standing still to its full speed, and easeOut how many frames it takes to slow down again before it stops. Use 0 for either to start or stop at full speed. Longer ease times give a softer, more film-like camera. With an ease-out, a camera following a walking character stays a few pixels behind it, so that it's ready to slow down when the character stops.\n\nNone of the numbers can be below 0. The settings stay until you change them, through every call to trackCharacter and panCamera.",
 	"No return value.")
 FUNCTION_DOC ("setCharacterAngleOffset", "setCharacterAngleOffset.html",
 	"setCharacterAngleOffset (thisCharacter, value)",
@@ -721,6 +733,10 @@ FUNCTION_DOC ("stopSound", "stopSound.html",
 	"stopSound (soundFile)",
 	"If the sound in the soundFile file is playing, it is stopped.",
 	"No return value.")
+FUNCTION_DOC ("stopTracking", "stopTracking.html",
+	"stopTracking ()",
+	"Stops the camera following the character given to trackCharacter.\n\nIf the camera is moving, it slows down with the ease-out set by setCameraSpeed rather than stopping dead, and comes to rest on a whole pixel. Then it stays there, wherever the character goes.",
+	"No return value.")
 FUNCTION_DOC ("stringLength", "stringLength.html",
 	"stringLength (thisString)",
 	"Counts the number of characters in the string thisString.",
@@ -736,6 +752,10 @@ FUNCTION_DOC ("substring", "substring.html",
 FUNCTION_DOC ("think", "say_and_think.html",
 	"think (thisObject, textToThink)\nthink (thisObject, textToThink, soundFile)",
 	"Makes thisObject say the contents of the textToSay parameter (or think the contents of the textToThink parameter). The text is shown on the screen in the speech colour defined in the object type definition. If a soundFile parameter is specified, the sound may be used instead of (or as well as) the text - this depends on the current setSpeechMode setting.\n\nIf thisObject is a character:\n\nAny displayed text will be shown over the head of the character. If the say command is being used, the character's current animation will be changed to the speaking animation (for the character facing its current direction) defined in the costume assigned to the character. When the character has finished speaking, the character's animation will change to the standing still animation. If the think command is being used, the character will not be made to animate.\n\nIf thisObject is a screen region:\n\nAny displayed text will be shown above the last region to have been added which represents the object; that is, if there are three screen regions which represent the same object and the object is told to speak, the text will appear over the third region.\n\nIf thisObject isn't a character or screen region:\n\nAny displayed text will appear centred at the top of the screen.\n\nThe function from which the say command is called will pause until the object stops speaking. The time this takes depends on the number of characters in textToSay or textToThink and is calculated by the SLUDGE engine at runtime. If the soundFile parameter is specified (and used), the time for which the function pauses is the length of time needed to play the sound.\n\nValid file formats for the soundFile parameter are Windows wave files (.WAV) and Ogg Vorbis (.OGG), as in the playSound and loopSound functions.",
+	"No return value.")
+FUNCTION_DOC ("trackCharacter", "trackCharacter.html",
+	"trackCharacter (character)",
+	"Makes the camera follow character around the scene, keeping it in the centre of the window, so you don't have to call aimCamera every frame yourself.\n\nHow the camera moves is up to setCameraSpeed and setCameraDeadZone. Without them, the camera sticks to the character. With a speed, it glides after the character, and can speed up and slow down gently. The camera never shows anything outside the scene, just like aimCamera.\n\nWhile the camera moves, the scene may be drawn a fraction of a pixel along, when the window is bigger than the game, so that scrolling looks smooth. When the camera stops, it always stops on a whole pixel, so your pixel art stays crisp.\n\nThe first time the camera finds the character in a new scene, it jumps straight to it, instead of gliding there from the top left corner. If the character isn't in the scene, the camera stays where it is until it is.\n\nThe camera keeps following until you call stopTracking, panCamera or aimCamera. Saved games remember what the camera is doing.",
 	"No return value.")
 FUNCTION_DOC ("transitionLevel", "transitionMode_and_transitionLevel.html",
 	"transitionLevel (level)",

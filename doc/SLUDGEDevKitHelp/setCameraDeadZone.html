@@ -1,0 +1,81 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCameraDeadZone</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCameraDeadZone</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCameraDeadZone (<i>width, height</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Lets the character the camera follows (<a href="trackCharacter.html">trackCharacter</a>) wander around a box in the middle of the window, <i>width</i> by <i>height</i> pixels, without the camera moving.
+</P>
+
+<P>
+When the character steps out of the box, the camera goes along with it, so that the character stays on the edge of the box. That way, a character taking a couple of steps doesn't make the whole scene shuffle about.
+</P>
+
+<P>
+A box of 0 by 0, as when the game starts, keeps the character in the centre. To scroll only sideways, make the box as tall as the window. Neither number can be below 0.
+</P>
+
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub init () {
+   # The character can walk 100 pixels either side of the
+   # centre, and anywhere up and down.
+   setCameraDeadZone (200, 480);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Scrolling_Scenes.html">Scrolling Scenes</a>
+</P>
+
+<P>
+<a href="trackCharacter.html">trackCharacter</a>
+</P>
+
+<P>
+<a href="stopTracking.html">stopTracking</a>
+</P>
+
+<P>
+<a href="panCamera.html">panCamera</a>
+</P>
+
+<P>
+<a href="setCameraSpeed.html">setCameraSpeed</a>
+</P>
+
+<P>
+<a href="aimCamera.html">aimCamera</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

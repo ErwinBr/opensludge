@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<TITLE>setCameraSpeed</TITLE>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<BODY>
+<HR>
+<div align="center"><img id="headerGraphic" src="images/sludge300.png" alt="SLUDGE"/></div>
+<h2>setCameraSpeed</h2>
+<HR>
+
+<H3>Syntax:</H3>
+
+<P>
+<pre class="syntax">setCameraSpeed (<i>speed, easeIn, easeOut</i>);</pre>
+</P>
+
+<H3>Purpose:</H3>
+
+<P>
+Sets how the camera moves when it follows a character (<a href="trackCharacter.html">trackCharacter</a>) or glides to a point (<a href="panCamera.html">panCamera</a>).
+</P>
+
+<P>
+<i>speed</i> is the most pixels the camera moves in a frame. A <i>speed</i> of 0 (as when the game starts) sticks the camera to the character it follows, with no lag at all, and makes panCamera jump straight there.
+</P>
+
+<P>
+<i>easeIn</i> is how many frames the camera takes to speed up from standing still to its full speed, and <i>easeOut</i> how many frames it takes to slow down again before it stops. Use 0 for either to start or stop at full speed. Longer ease times give a softer, more film-like camera. With an ease-out, a camera following a walking character stays a few pixels behind it, so that it's ready to slow down when the character stops.
+</P>
+
+<P>
+None of the numbers can be below 0. The settings stay until you change them, through every call to trackCharacter and panCamera.
+</P>
+
+
+<H3>Return value:</H3>
+
+<P>
+No return value.
+</P>
+
+<H3>Example:</H3>
+
+<P>
+<pre>sub init () {
+   # Up to 4 pixels a frame. At 20 frames a second, it takes
+   # half a second to speed up, and a second to slow down.
+   setCameraSpeed (4, 10, 20);
+}</pre>
+</P>
+
+<H3>See also:</H3>
+
+<P>
+<a href="Scrolling_Scenes.html">Scrolling Scenes</a>
+</P>
+
+<P>
+<a href="trackCharacter.html">trackCharacter</a>
+</P>
+
+<P>
+<a href="stopTracking.html">stopTracking</a>
+</P>
+
+<P>
+<a href="panCamera.html">panCamera</a>
+</P>
+
+<P>
+<a href="setCameraDeadZone.html">setCameraDeadZone</a>
+</P>
+
+<P>
+<a href="aimCamera.html">aimCamera</a>
+</P>
+
+<P class="copyright-notice">SLUDGE and this SLUDGE documentation are <A HREF="Copyright.html">copyright</A> Hungry Software and contributors 2000-2026
+</P>
+
+<HR>
+</BODY>
+</html>

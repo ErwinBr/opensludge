@@ -1,4 +1,5 @@
 #include "scalemap.h"
+#include "camera.h"
 
 struct frozenStuffStruct {
 	onScreenPerson * allPeople;
@@ -21,6 +22,7 @@ struct frozenStuffStruct {
 	int mouseCursorFrameNum;
 	int cameraX, cameraY, sceneWidth, sceneHeight;
 	float cameraZoom;
+	CameraState camera;
 
 	frozenStuffStruct * next;
 };

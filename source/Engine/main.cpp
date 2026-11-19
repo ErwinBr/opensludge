@@ -50,6 +50,7 @@
 #include "controllersettings.h"
 #include "capture.h"
 #include "movie.h"
+#include "camera.h"
 
 
 #if defined(_WIN32)
@@ -440,7 +441,10 @@ int main(int argc, char *argv[]) try
 		updateGamepadPointer();
 		// While a movie plays, the characters don't move, and we show the
 		// movie instead of the game, at the frame rate of the movie.
-		if (! movieIsPlaying) walkAllPeople ();
+		if (! movieIsPlaying) {
+			walkAllPeople ();
+			updateCamera ();
+		}
 		handleInput ();
 		if (! movieIsPlaying || ! showMovieFrame ()) {
 			// A game tick: the animations move on, then we draw them.

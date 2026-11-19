@@ -149,7 +149,7 @@ if(SLUDGE_ENGINE)
 	set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source/CommonCode)
 
 	set(ENGINE_SOURCES
-		backdrop.cpp bg_effects.cpp builtin.cpp capture.cpp controllermap.cpp cp1250.cpp controllersettings.cpp cursors.cpp debug.cpp
+		backdrop.cpp bg_effects.cpp builtin.cpp camera.cpp cameramotion.cpp capture.cpp controllermap.cpp cp1250.cpp controllersettings.cpp cursors.cpp debug.cpp
 		fileset.cpp floor.cpp fonttext.cpp freeze.cpp gamepad.cpp graphics.cpp helpers.cpp keys.cpp
 		language.cpp line.cpp loadsave.cpp main.cpp pointer.cpp
 		moreio.cpp newfatal.cpp objtypes.cpp outline.cpp people.cpp
@@ -228,6 +228,10 @@ if(SLUDGE_ENGINE)
 		target_include_directories(cp1250_test PRIVATE ${ENGINE_DIR})
 		target_link_libraries(cp1250_test PRIVATE ${ICONV_LIBRARIES})
 		add_test(NAME cp1250 COMMAND cp1250_test)
+
+		add_executable(camera_test tests/camera_test.cpp ${ENGINE_DIR}/cameramotion.cpp)
+		target_include_directories(camera_test PRIVATE ${ENGINE_DIR})
+		add_test(NAME camera COMMAND camera_test)
 
 		add_executable(spritebank_test tests/spritebank_test.cpp ${ENGINE_DIR}/spritebankdecode.cpp)
 		target_include_directories(spritebank_test PRIVATE ${ENGINE_DIR})

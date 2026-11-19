@@ -17,9 +17,10 @@
 // watches on screen regions (watchScreenRegion); 2.6 the fixed Z of
 // characters (setCharacterZ); 2.7 the scale map (setScaleMap); 2.8 the
 // outlines of characters and of the cursor (setCharacterDrawMode OUTLINE);
-// 2.9 the parallax of characters (setCharacterParallax).
+// 2.9 the parallax of characters (setCharacterParallax); 2.10 the camera as
+// it follows a character or glides (trackCharacter, panCamera).
 #define SAVE_MAJOR_VERSION 2
-#define SAVE_MINOR_VERSION 9
+#define SAVE_MINOR_VERSION 10
 #define SAVE_VERSION	VERSION (SAVE_MAJOR_VERSION, SAVE_MINOR_VERSION)
 
 extern int gameVersion;

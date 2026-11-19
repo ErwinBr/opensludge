@@ -105,6 +105,9 @@
                     <keyword>cancelSub</keyword>
                     <keyword>captureAllKeys</keyword>
                     <keyword>clearCharacterZ</keyword>
+                    <keyword>panCamera</keyword>
+                    <keyword>setCameraDeadZone</keyword>
+                    <keyword>setCameraSpeed</keyword>
                     <keyword>setScaleMap</keyword>
                     <keyword>clearStatus</keyword>
                     <keyword>completeTimers</keyword>
@@ -189,6 +192,7 @@
                     <keyword>renameFile</keyword>
                     <keyword>saveGame</keyword>
                     <keyword>say</keyword>
+                    <keyword>stopTracking</keyword>
                     <keyword>think</keyword>
                     <keyword>setBackgroundEffect</keyword>
                     <keyword>doBackgroundEffect</keyword>
@@ -253,6 +257,7 @@
                     <keyword>stringLength</keyword>
                     <keyword>stringWidth</keyword>
                     <keyword>substring</keyword>
+                    <keyword>trackCharacter</keyword>
                     <keyword>transitionMode</keyword>
                     <keyword>transitionLevel</keyword>
                     <keyword>turnCharacter</keyword>

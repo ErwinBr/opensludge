@@ -23,6 +23,7 @@
 #include "shaders.h"
 #include "spritebankdecode.h"
 #include "outline.h"
+#include "camera.h"
 
 extern zBufferData zBuffer;
 
@@ -435,6 +436,8 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 	int diffY = (int)(((float)single.height) * scale);
 
 	GLfloat x1, y1, x2, y2;
+	// Where the camera is, to a fraction of a pixel while it moves.
+	float camX = cameraX, camY = cameraY;
 
 	if (thisPerson -> extra & EXTRA_FIXTOSCREEN) {
 		x = x / cameraZoom;
@@ -447,8 +450,10 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 		x2 = x1 + (int)(diffX / cameraZoom);
 		y2 = y1 + (int)(diffY / cameraZoom);
 	} else {
-		x -= cameraX;
-		y -= cameraY;
+		camX = cameraDrawX ();
+		camY = cameraDrawY ();
+		x -= camX;
+		y -= camY;
 		if (single.xhot < 0)
 			x1 = x - (int)((mirror ? (float) (single.width - single.xhot) : (float)(single.xhot+1) ) * scale);
 		else
@@ -463,7 +468,7 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 	int panel = 0;
 
 	if (behindZBuffer) {
-		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + cameraY + awayY);
+		int i = zBufferPanelFor (thisPerson -> hasFixedZ ? thisPerson -> fixedZ : y + camY + awayY);
 		panel = i;
 		z = 0.999 - (double) i * (1.0 / 128.0);
 	} else {
@@ -472,15 +477,15 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 
 	float ltx1, ltx2, lty1, lty2;
 	if (! NPOT_textures) {
-		ltx1 = lightMap.texW * (x1+cameraX+awayX) / sceneWidth;
-		ltx2 = lightMap.texW * (x2+cameraX+awayX) / sceneWidth;
-		lty1 = lightMap.texH * (y1+cameraY+awayY) / sceneHeight;
-		lty2 = lightMap.texH * (y2+cameraY+awayY) / sceneHeight;
+		ltx1 = lightMap.texW * (x1+camX+awayX) / sceneWidth;
+		ltx2 = lightMap.texW * (x2+camX+awayX) / sceneWidth;
+		lty1 = lightMap.texH * (y1+camY+awayY) / sceneHeight;
+		lty2 = lightMap.texH * (y2+camY+awayY) / sceneHeight;
 	} else {
-		ltx1 = (float) (x1+cameraX+awayX) / sceneWidth;
-		ltx2 = (float) (x2+cameraX+awayX) / sceneWidth;
-		lty1 = (float) (y1+cameraY+awayY) / sceneHeight;
-		lty2 = (float) (y2+cameraY+awayY) / sceneHeight;
+		ltx1 = (float) (x1+camX+awayX) / sceneWidth;
+		ltx2 = (float) (x2+camX+awayX) / sceneWidth;
+		lty1 = (float) (y1+camY+awayY) / sceneHeight;
+		lty2 = (float) (y2+camY+awayY) / sceneHeight;
 	}
 
 	const GLfloat ltexCoords[] = { 
@@ -492,8 +497,8 @@ bool scaleSprite (const sprite & single, const spriteBank & bank, const onScreen
 
 	if (light && lightMap.data) {
 		if (lightMapMode == LIGHTMAPMODE_HOTSPOT) {
-			int lx=(int)(x+cameraX+awayX);
-			int ly=(int)(y+cameraY+awayY);
+			int lx=(int)(x+camX+awayX);
+			int ly=(int)(y+camY+awayY);
 
 			if (lx<0) lx = 0;
 			else if (lx>=sceneWidth) lx = sceneWidth-1;

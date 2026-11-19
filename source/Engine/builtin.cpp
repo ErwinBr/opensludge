@@ -38,6 +38,7 @@
 #include "moreio.h"
 #include "movie.h"
 #include "savedata.h"
+#include "camera.h"
 #include "freeze.h"
 #include "colours.h"
 #include "language.h"
@@ -435,18 +436,76 @@ builtIn(setSceneDimensions)
 builtIn(aimCamera)
 {
 	UNUSEDALL
-	if (! getValueType (cameraY, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	int x, y;
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
-	if (! getValueType (cameraX, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
 	trimStack (fun -> stack);
 
-	cameraX -= (float)(winWidth >> 1)/ cameraZoom;
-	cameraY -= (float)(winHeight >> 1)/ cameraZoom;
+	aimedCamera (x, y, cameraX, cameraY);
+	cameraAimed ();
+	return BR_CONTINUE;
+}
 
-	if (cameraX < 0) cameraX = 0;
-	else if (cameraX > sceneWidth - (float)winWidth/ cameraZoom) cameraX = sceneWidth - (float)winWidth/ cameraZoom;
-	if (cameraY < 0) cameraY = 0;
-	else if (cameraY > sceneHeight - (float)winHeight/ cameraZoom) cameraY = sceneHeight - (float)winHeight/ cameraZoom;
+builtIn(trackCharacter)
+{
+	UNUSEDALL
+	int obj;
+	if (! getValueType (obj, SVT_OBJTYPE, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	trackCharacter (obj);
+	return BR_CONTINUE;
+}
+
+builtIn(stopTracking)
+{
+	UNUSEDALL
+	stopTracking ();
+	return BR_CONTINUE;
+}
+
+builtIn(panCamera)
+{
+	UNUSEDALL
+	int x, y;
+	if (! getValueType (y, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (x, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	return panCamera (x, y, fun) ? BR_PAUSE : BR_CONTINUE;
+}
+
+builtIn(setCameraSpeed)
+{
+	UNUSEDALL
+	int speed, easeIn, easeOut;
+	if (! getValueType (easeOut, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (easeIn, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (speed, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (speed < 0 || easeIn < 0 || easeOut < 0) {
+		fatal ("setCameraSpeed needs a speed and ease times of 0 or more.");
+		return BR_ERROR;
+	}
+	setCameraSpeed ((float) speed, easeIn, easeOut);
+	return BR_CONTINUE;
+}
+
+builtIn(setCameraDeadZone)
+{
+	UNUSEDALL
+	int width, height;
+	if (! getValueType (height, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (! getValueType (width, SVT_INT, fun -> stack -> thisVar)) return BR_ERROR;
+	trimStack (fun -> stack);
+	if (width < 0 || height < 0) {
+		fatal ("setCameraDeadZone needs a width and height of 0 or more.");
+		return BR_ERROR;
+	}
+	setCameraDeadZone (width, height);
 	return BR_CONTINUE;
 }
 

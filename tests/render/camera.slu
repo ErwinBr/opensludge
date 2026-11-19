@@ -1,0 +1,189 @@
+# CameraTest: the camera as it follows a character (trackCharacter) and
+# glides to a point (panCamera), with a speed, ease-in and ease-out
+# (setCameraSpeed) and a dead zone (setCameraDeadZone). The mouse stays in
+# the middle of the screen (tests/capture/camera.input), so the camera is
+# where getMouseX and getMouseScreenX differ. The game stops with an error
+# when the camera is wrong (see cmake/CaptureTests.cmake):
+#
+#  - A new scene: it jumps to the character it follows.
+#  - It follows a walking character no faster than its speed, and stops on
+#    a whole pixel where the character is in the middle of the screen.
+#  - In the dead zone, the character moves and the camera doesn't.
+#  - panCamera waits until the camera is where aimCamera would put it.
+#  - stopTracking: the camera stops, on a whole pixel, and stays.
+#  - Freezing and unfreezing, and saving and loading, keep it following.
+
+objectType ego ("ego") {
+}
+
+sub check (ok, what) {
+	if (! ok) quitWithFatalError ("CameraTest: " + what);
+}
+
+sub egoCostume () {
+	return costume (
+		anim ('ego/alien.duc', 0),
+		anim ('ego/alien.duc', 0, 1, 2, 3),
+		anim ('ego/alien.duc', 6, 4, 5));
+}
+
+sub cameraX () {
+	return getMouseX () - getMouseScreenX ();
+}
+
+sub cameraY () {
+	return getMouseY () - getMouseScreenY ();
+}
+
+sub expectCamera (x, y, what) {
+	check (cameraX () == x, what + ": the camera is at x " + cameraX () + ", not " + x);
+	check (cameraY () == y, what + ": the camera is at y " + cameraY () + ", not " + y);
+}
+
+# The camera never moves faster than speed in a frame, give or take a
+# pixel for rounding, until it is at x.
+sub watchCamera (speed, x, frames, what) {
+	var last = cameraX ();
+	while (frames > 0) {
+		pause (1);
+		var now = cameraX ();
+		var moved = now - last;
+		if (moved < 0) moved = 0 - moved;
+		check (moved <= speed + 1, what + ": the camera moved " + moved + " pixels in a frame");
+		last = now;
+		if (now == x) return TRUE;
+		frames --;
+	}
+	check (FALSE, what + ": the camera is at " + cameraX () + ", not " + x);
+}
+
+# The camera stays where it is for some frames.
+sub stays (frames, what) {
+	var x = cameraX ();
+	var y = cameraY ();
+	while (frames > 0) {
+		pause (1);
+		expectCamera (x, y, what);
+		frames --;
+	}
+}
+
+sub walkTo (x) {
+	forceCharacter (ego, x, 340);
+}
+
+# For spawnSub, which starts a function without parameters: walking holds
+# the function that walks, so this runs on its own.
+var walkGoal = 0;
+
+sub walkThere () {
+	forceCharacter (ego, walkGoal, 340);
+}
+
+sub walkAway (x) {
+	walkGoal = x;
+	spawnSub (walkThere);
+}
+
+sub init () {
+	setFont ('demofont.duc', "ÉABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"'/?!.,;:()*%& -~`@", 32);
+	addStatus ();
+	setSceneDimensions (1920, 480);
+	addOverlay ('outside/room.tga', 0, 0);
+	addOverlay ('outside/room.tga', 640, 0);
+	addOverlay ('outside/room.tga', 1280, 0);
+
+	# A new scene: the camera jumps to the character, its feet in the
+	# middle of the screen, as far as the scene goes.
+	addCharacter (ego, 960, 340, egoCostume ());
+	trackCharacter (ego);
+	statusText ("jump");
+	pause (1);
+	expectCamera (640, 0, "jump");
+
+	# Locked to the character: it walks, and the camera keeps it in the
+	# middle.
+	setCharacterWalkSpeed (ego, 3);
+	statusText ("locked");
+	walkTo (1100);
+	pause (1);
+	expectCamera (780, 0, "locked");
+
+	# Gliding after it, with an ease-in and an ease-out.
+	setCameraSpeed (4, 10, 10);
+	statusText ("gliding");
+	walkAway (1400);
+	watchCamera (4, 1080, 300, "gliding");
+	stays (10, "gliding stops");
+
+	# Without easing, back the other way.
+	setCameraSpeed (6, 0, 0);
+	statusText ("no easing");
+	walkAway (1000);
+	watchCamera (6, 680, 300, "no easing");
+	stays (5, "no easing stops");
+
+	# In the dead zone, the character moves and the camera doesn't.
+	setCameraSpeed (4, 10, 10);
+	setCameraDeadZone (200, 480);
+	statusText ("dead zone");
+	walkTo (1080);
+	stays (20, "dead zone");
+	# Out of it, the camera goes along until the character is on its edge:
+	# 100 pixels left of the middle.
+	walkAway (1300);
+	watchCamera (4, 880, 300, "out of the dead zone");
+	setCameraDeadZone (0, 0);
+
+	# panCamera waits until the camera is where aimCamera would put it,
+	# and stops it following.
+	statusText ("pan");
+	panCamera (500, 240);
+	expectCamera (180, 0, "pan");
+	walkTo (1400);
+	stays (10, "pan stops following");
+	# A pan to where it is doesn't wait.
+	panCamera (500, 240);
+	expectCamera (180, 0, "pan to where it is");
+
+	# stopTracking: it brakes, stops on a whole pixel, and stays there.
+	trackCharacter (ego);
+	statusText ("stop tracking");
+	watchCamera (4, 1080, 400, "follows again");
+	walkAway (900);
+	pause (20);
+	stopTracking ();
+	pause (30);
+	stays (20, "stopped");
+
+	# aimCamera stops it at once.
+	trackCharacter (ego);
+	aimCamera (960, 240);
+	expectCamera (640, 0, "aimCamera");
+	stopTracking ();
+
+	# Frozen and unfrozen, it follows the character again.
+	trackCharacter (ego);
+	setCameraSpeed (0, 0, 0);
+	pause (1);
+	freeze ();
+	stays (5, "frozen");
+	unfreeze ();
+	setCharacterWalkSpeed (ego, 2);
+	walkTo (1000);
+	pause (1);
+	expectCamera (680, 0, "unfrozen");
+
+	# Save, walk, load, and walk again: the second time round, saved is
+	# FALSE, as it was when the game saved. The frames show the same both
+	# times, which saveload.cmake compares.
+	setCameraSpeed (3, 8, 8);
+	var saved = saveGame ("camera.sav");
+	statusText ("after saving");
+	walkAway (1300);
+	# Still moving at the end, so the frames before loading change.
+	for (var i = 0; i < 60; i ++) pause (1);
+	check (cameraX () > 680 && cameraX () < 980, "after saving: the camera is at " + cameraX ());
+	if (saved) loadGame ("camera.sav");
+	quitGame ();
+}
