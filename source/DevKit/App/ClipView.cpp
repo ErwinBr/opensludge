@@ -115,18 +115,6 @@ float wrapDegrees (float d) {
 	return d;
 }
 
-bool loadAsset (const std::string & path, animformat::Asset & asset) {
-	FILE * f = fopen (path.c_str (), "rb");
-	if (! f) return false;
-	animformat::Bytes bytes;
-	unsigned char buffer[4096];
-	size_t n;
-	while ((n = fread (buffer, 1, sizeof (buffer), f)) > 0) bytes.insert (bytes.end (), buffer, buffer + n);
-	fclose (f);
-	std::string why;
-	return animformat::decodeAsset (bytes.data (), bytes.size (), asset, why);
-}
-
 }
 
 ClipView::ClipView (ClipDocument * c, WorkspaceActions & a, const CanvasGraphics & g)
@@ -199,7 +187,7 @@ bool ClipView::findRig () {
 	if (full != rigFile) {
 		rigFile = full;
 		animformat::Asset loaded;
-		haveRig = loadAsset (full, loaded) && loaded.kind == animformat::Asset::RIG && loaded.id == a.rigId;
+		haveRig = readAsset (full, loaded) && loaded.kind == animformat::Asset::RIG && loaded.id == a.rigId;
 		if (haveRig) rigAsset = loaded;
 	}
 	return haveRig;
@@ -215,7 +203,7 @@ void ClipView::findSecond () {
 		secondAsset = open->asset ();
 		haveSecond = true;
 	} else if (! haveSecond) {
-		haveSecond = loadAsset (secondFile, secondAsset) && secondAsset.kind == animformat::Asset::CLIP;
+		haveSecond = readAsset (secondFile, secondAsset) && secondAsset.kind == animformat::Asset::CLIP;
 		if (! haveSecond) secondFile.clear ();
 	}
 }
@@ -764,7 +752,7 @@ void ClipView::drawToolbar () {
 			std::string path = relativePathFrom (base, rigs[i]);
 			if (ImGui::Selectable (path.c_str (), path == clip->asset ().rigPath)) {
 				animformat::Asset a;
-				if (loadAsset (rigs[i], a) && a.kind == animformat::Asset::RIG) {
+				if (readAsset (rigs[i], a) && a.kind == animformat::Asset::RIG) {
 					clip->bindToRig (a.id, path);
 					rigFile.clear ();
 				} else {

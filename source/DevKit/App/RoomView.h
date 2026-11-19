@@ -31,6 +31,7 @@
 #include "CanvasView.h"
 #include "FloorDocument.h"
 #include "FloorTools.h"
+#include "PosePreview.h"
 #include "posedraw.h"
 #include "RoomScript.h"
 #include "ScriptDocument.h"
@@ -82,12 +83,25 @@ private:
 		bool loaded;
 		BankFile ();
 	};
-	// Where a character is drawn: its frame of its bank, and the box of
-	// the sprite on the scene.
+	// A rig or clip of the animation editor, with its sprite banks: from
+	// its file, or from its tab while it is open, each frame.
+	struct AnimFile {
+		animformat::Asset asset;
+		RigDefinitionRef rig;
+		ClipDefinitionRef clip;
+		int64_t time;			// Of the file, or STALE to look again
+		int frame;				// That an open tab's asset was taken
+		bool loaded;
+		AnimFile ();
+	};
+	// Where a character is drawn: its frame of its bank, or the pose of
+	// its rig, and the box of the sprite on the scene.
 	struct CharacterShown {
 		int x, y;				// Its feet, as a drag leaves them
 		float scale;
-		const spriteBank * bank;	// NULL for a marker
+		const spriteBank * bank;	// NULL for a marker or a pose
+		bool posed = false;		// Of a rig: pose, in scene coordinates
+		Pose pose;
 		int frame;
 		bool mirror;
 		float x1, y1, x2, y2;
@@ -147,6 +161,11 @@ private:
 	// The standing picture of a character's costume, looking into a sub
 	// when the costume is one.
 	CostumePicture pictureOfCharacter (const RoomCharacter & character);
+	// A .rig or .clp of the script, with its banks, or NULL.
+	const AnimFile * animOf (const std::string & file, animformat::Asset::Kind kind);
+	// The pose of a character's rig, with its clip at its start, at a place
+	// and size; false without both or with nothing to draw.
+	bool poseOf (const RoomCharacter & character, const std::string & clipFile, float x, float y, float scale, Pose & out);
 	// The scale of the game at a point, with that setScale or scale map.
 	float scaleAt (const RoomScale & scale, float x, float y);
 	// How a character is drawn; false when its place isn't numbers.
@@ -238,6 +257,8 @@ private:
 	// change.
 	std::map<std::string, CostumePicture> subPictures;
 	std::map<std::string, std::unique_ptr<TintedFrame> > tinted;
+	std::map<std::string, AnimFile> anims;	// By path
+	PosePreview preview;					// Their banks
 
 	// The Scaling tab: where its drags left the characters (by index), the
 	// reference character, which is selected (REFERENCE for it), the two

@@ -77,7 +77,7 @@ void square (Draw2D & draw, float x, float y, float half) {
 
 }
 
-void drawPose (Draw2D & draw, const Pose & pose) {
+void drawPose (Draw2D & draw, const Pose & pose, float alpha) {
 	draw.setDrawingColour (1, 1, 1, 1);
 	for (size_t i = 0; i < pose.drawOrder.size (); i ++) {
 		const PosedPart & p = pose.parts[pose.drawOrder[i]];
@@ -85,7 +85,7 @@ void drawPose (Draw2D & draw, const Pose & pose) {
 		if (! s || ! s -> width || ! s -> height || ! s -> data) continue;
 		float c[8];
 		corners (p, c);
-		draw.setTint (p.colour[0], p.colour[1], p.colour[2], p.colour[3]);
+		draw.setTint (p.colour[0], p.colour[1], p.colour[2], p.colour[3] * alpha);
 		draw.drawPictureQuad (devkitBank (p.sprite.bank), p.sprite.number, false, c);
 	}
 	draw.setTint (1, 1, 1, 1);

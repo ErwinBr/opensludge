@@ -48,8 +48,8 @@ inline const spriteBank * devkitBank (const AnimBankRef & bank) {
 	return bank ? & static_cast<const DevKitAnimBank *> (bank.get ()) -> sprites () : NULL;
 }
 
-// Draw the parts of a pose, back to front.
-void drawPose (Draw2D & draw, const Pose & pose);
+// Draw the parts of a pose, back to front, alpha times as opaque.
+void drawPose (Draw2D & draw, const Pose & pose, float alpha = 1.0f);
 
 // The part (an index of the rig) whose sprite shows at x, y, the one on top,
 // or -1. With canPick, only of the parts it says yes to (not locked ones).

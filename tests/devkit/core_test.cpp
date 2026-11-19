@@ -2836,10 +2836,40 @@ static void testRoomScript () {
 		const std::vector<RoomCharacter> & c = rooms[0].characters;
 		CHECK (c[0].picture.known && c[0].picture.bank == "a.duc" && c[0].picture.frame == 3 && ! c[0].picture.mirror);
 		CHECK (c[1].picture.known && c[1].picture.bank == "b.duc" && c[1].picture.frame == 2 && c[1].picture.mirror);
-		CHECK (! c[2].picture.known && c[2].costumeSub.empty ());
+		CHECK (c[2].picture.known && c[2].picture.clip == "c.clp" && c[2].picture.bank.empty () && c[2].costumeSub.empty ());
 		CHECK (! c[3].picture.known && c[3].costumeSub.empty () && ! c[3].movable ());
 		CHECK (! c[4].picture.known);
 		CHECK (! rooms[0].scale.set && fabsf (rooms[0].scale.at (100) - 1.0f) < 0.001f);
+	}
+
+	// Characters of parts: a clip for a costume, and the rig of the latest
+	// character of its objectType, also by a variable.
+	std::unique_ptr<ScriptDocument> rigged (scriptOf (
+		"sub clipCostume () {\n"
+		"\treturn costume (loadClip ('s.clp'), loadClip ('w.clp'), loadClip ('n.clp'), loadClip ('e.clp'), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);\n"
+		"}\n"
+		"sub room () {\n"
+		"\taddCharacter (ego, 1274, 876, loadClip ('actors/ego/clips/idle_south.clp'));\n"
+		"\taddCharacter (ego, 10, 20, loadClip ('b.clp'));\n"
+		"\tsetCharacterRig (ego, loadRig ('actors/ego/ego.rig'));\n"
+		"\tvar r = loadRig ('two.rig');\n"
+		"\taddCharacter (duck, 1, 2, costume (loadClip ('s.clp'), loadClip ('w.clp'), loadClip ('n.clp'), loadClip ('e.clp'), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL));\n"
+		"\tsetCharacterRig (duck, r);\n"
+		"\tturnCharacter (duck, NORTH);\n"
+		"\taddCharacter (cat, 1, 2, loadClip ('c.clp'));\n"
+		"\tsetCharacterRig (cat, 0);\n"
+		"}\n", TextPos ()));
+	CostumePicture clipPicture;
+	CHECK (costumeOfSub (rigged->buffer (), "clipCostume", &clipPicture, 90) && clipPicture.known && clipPicture.clip == "e.clp");
+	rooms = readRooms (rigged->buffer ());
+	CHECK (rooms.size () == 1 && rooms[0].characters.size () == 4);
+	if (rooms.size () == 1 && rooms[0].characters.size () == 4) {
+		const std::vector<RoomCharacter> & c = rooms[0].characters;
+		CHECK (c[0].picture.known && c[0].picture.clip == "actors/ego/clips/idle_south.clp");
+		CHECK (! c[0].rig.present && c[0].rigFile.empty ());
+		CHECK (c[1].rig.present && c[1].rigFile == "actors/ego/ego.rig");
+		CHECK (c[2].rigFile == "two.rig" && c[2].picture.known && c[2].picture.clip == "n.clp");
+		CHECK (c[3].rig.present && c[3].rigFile.empty () && c[3].picture.clip == "c.clp");
 	}
 
 	// Costumes in variables: of the costume sub, as an old example writes

@@ -83,6 +83,9 @@ struct RoomRegion {
 // as addCharacter puts it: the first frame of its first animation.
 struct CostumePicture {
 	std::string bank;		// The sprite bank, as written
+	// Or the file of loadClip, as written: a clip of the animation editor,
+	// posed at its start. bank and frame are not used then.
+	std::string clip;
 	int frame;
 	bool mirror;			// A negative frame number
 	bool known;				// False for NULL, clips, variables...
@@ -144,6 +147,10 @@ struct RoomCharacter {
 	bool conditional;
 	// The first of each of these after the addCharacter, for this character.
 	RoomSetting drawMode, extra, walkSpeed, facing, depth, parallax;
+	// Its setCharacterRig, and the file of the loadRig it takes (maybe by
+	// a variable), as written; empty for 0 or what we can't read.
+	RoomSetting rig;
+	std::string rigFile;
 	RoomCharacter () : conditional (false) {}
 	// What they come to: NORMAL, no extras, the objectType's speed (-1),
 	// facing south (180), no fixed depth, no parallax (100).

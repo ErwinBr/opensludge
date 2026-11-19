@@ -641,6 +641,8 @@ void findFiles (const std::string & folder, const std::string & extension, int d
 	}
 }
 
+}
+
 bool readAsset (const std::string & path, animformat::Asset & a) {
 	FILE * f = fopen (path.c_str (), "rb");
 	if (! f) return false;
@@ -651,8 +653,6 @@ bool readAsset (const std::string & path, animformat::Asset & a) {
 	fclose (f);
 	std::string why;
 	return animformat::decodeAsset (bytes.data (), bytes.size (), a, why);
-}
-
 }
 
 std::vector<std::string> filesWithExtension (const std::string & folder, const std::string & extension) {

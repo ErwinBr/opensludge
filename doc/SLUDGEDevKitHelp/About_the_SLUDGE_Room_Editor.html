@@ -98,7 +98,7 @@ The editor then asks which objectType the region is for. Choose one from the lis
 <H3>Adding and moving characters:</H3>
 
 <P>
-The <b>Characters</b> tab shows the characters that the room adds with <a href="addCharacter.html">addCharacter</a>, standing still and facing you, as they are when they arrive: the first picture of the first animation of their costume. If the costume comes from a sub, such as makeEgoAnim () in the verb coin example, the editor looks in the sub to find it. When it can't tell what a character looks like (a costume in a variable, say, or a sprite bank it can't find), it draws a ring with a cross where the character's feet are.
+The <b>Characters</b> tab shows the characters that the room adds with <a href="addCharacter.html">addCharacter</a>, standing still and facing you, as they are when they arrive: the first picture of the first animation of their costume. If the costume comes from a sub, such as makeEgoAnim () in the verb coin example, the editor looks in the sub to find it. A character of parts, whose costume is a clip from <a href="loadClip.html">loadClip</a> and whose rig comes from <a href="setCharacterRig.html">setCharacterRig</a>, is drawn posed as at the start of its clip. A clip without a rig shows the sprite of its root. When it can't tell what a character looks like (a costume in a variable, say, or a sprite bank it can't find), it draws a ring with a cross where the character's feet are.
 </P>
 
 <P>
@@ -136,7 +136,7 @@ Two characters can share an objectType, such as a desk and a fence that you neve
 </P>
 
 <P>
-The room shows what it can: the facing picks the costume's standing picture for that direction, the draw mode colours the character as the game does, FIXEDSIZE keeps it at full size, and FRONT and Depth change which character is drawn in front. An INVISIBLE character is drawn as a ring with a cross, like a character without a picture, or you'd never find it again. The other extras, the walk speed and the parallax only show in the game. The room is shown as if the camera were centred on each character, which is just where a parallax character is drawn where you put it.
+The room shows what it can: the facing picks the costume's standing picture for that direction, the draw mode colours the character as the game does (but not a character of parts, which the room shows in its own colours), FIXEDSIZE keeps it at full size, and FRONT and Depth change which character is drawn in front. An INVISIBLE character is drawn as a ring with a cross, like a character without a picture, or you'd never find it again. The other extras, the walk speed and the parallax only show in the game. The room is shown as if the camera were centred on each character, which is just where a parallax character is drawn where you put it.
 </P>
 
 <H3>Scaling:</H3>

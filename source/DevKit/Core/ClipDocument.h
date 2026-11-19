@@ -164,6 +164,9 @@ private:
 	animformat::Asset state;
 };
 
+// The rig or clip of a file; false when it can't be read.
+bool readAsset (const std::string & path, animformat::Asset & asset);
+
 // The files of an extension ("rig", without the dot) in a folder and the
 // folders in it, in order of their paths.
 std::vector<std::string> filesWithExtension (const std::string & folder, const std::string & extension);

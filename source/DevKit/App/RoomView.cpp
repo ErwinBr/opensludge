@@ -8,12 +8,15 @@
 #include "imgui.h"
 #include "imgui_stdlib.h"
 
+#include "animpose.h"
 #include "draw2d.h"
 
+#include "ClipDocument.h"
 #include "FileMemory.h"
 #include "Platform.h"
 #include "ProjectCheck.h"
 #include "ProjectDocument.h"
+#include "RigDocument.h"
 #include "Properties.h"
 #include "RoomView.h"
 #include "ScriptIndex.h"
@@ -63,6 +66,8 @@ RoomView::FloorFile::FloorFile () : time (STALE), loaded (false) {}
 
 RoomView::BankFile::BankFile () : time (STALE), loaded (false) {}
 
+RoomView::AnimFile::AnimFile () : time (STALE), frame (-1), loaded (false) {}
+
 RoomView::TintedFrame::TintedFrame () {
 	memset (&bank, 0, sizeof (bank));
 	bank.type = 2;
@@ -78,7 +83,7 @@ RoomView::Picture::Picture () : time (STALE), loaded (false) {
 }
 
 RoomView::RoomView (ScriptDocument * s, WorkspaceActions & a, const CanvasGraphics & g, FileMemory & m)
-	: script (s), actions (a), graphics (g), memory (m), canvas (g), roomsVersion (0), read (false), roomIndex (-1),
+	: script (s), actions (a), graphics (g), memory (m), canvas (g), roomsVersion (0), read (false), roomIndex (-1), preview (g.draw),
 	  nextFileCheck (0), showFloor (true),
 	  floorTools (FloorTools::TOOL_MOVE, [this] (const std::string & text) { say (text); }),
 	  chosenFloor (new std::string), newFloor (new std::string), sceneWidth (DEFAULT_WIDTH), sceneHeight (DEFAULT_HEIGHT),
@@ -525,6 +530,49 @@ const spriteBank * RoomView::bankAtPath (const std::string & path) {
 	return b->loaded ? &b->bank.sprites () : NULL;
 }
 
+const RoomView::AnimFile * RoomView::animOf (const std::string & file, animformat::Asset::Kind kind) {
+	if (file.empty ()) return NULL;
+	std::string path = pathOf (file);
+	AnimFile & a = anims[path];
+	// The banks are from the folder of the project, as the compiler has them.
+	std::string folder = ! actions.projectFile ().empty () ? folderOf (actions.projectFile ()) : folderOf (script->path ());
+	// An open tab as it is edited, before it is saved.
+	Document * open = actions.findDocument (path);
+	const animformat::Asset * live = NULL;
+	if (RigDocument * rig = dynamic_cast<RigDocument *> (open)) live = &rig->asset ();
+	else if (ClipDocument * clip = dynamic_cast<ClipDocument *> (open)) live = &clip->asset ();
+	if (live) {
+		if (a.frame != ImGui::GetFrameCount ()) {
+			a.asset = *live;
+			a.loaded = true;
+			a.frame = ImGui::GetFrameCount ();
+			a.time = STALE;
+			a.rig = a.asset.kind == animformat::Asset::RIG ? preview.rig (a.asset, folder) : RigDefinitionRef ();
+			a.clip = a.asset.kind == animformat::Asset::CLIP ? preview.clip (a.asset, folder) : ClipDefinitionRef ();
+		}
+	} else if (a.time == STALE || a.frame >= 0) {
+		a.time = fileTime (path);
+		a.frame = -1;
+		a.loaded = a.time >= 0 && readAsset (path, a.asset);
+		a.rig = a.loaded && a.asset.kind == animformat::Asset::RIG ? preview.rig (a.asset, folder) : RigDefinitionRef ();
+		a.clip = a.loaded && a.asset.kind == animformat::Asset::CLIP ? preview.clip (a.asset, folder) : ClipDefinitionRef ();
+	}
+	return a.loaded && a.asset.kind == kind ? &a : NULL;
+}
+
+bool RoomView::poseOf (const RoomCharacter & character, const std::string & clipFile, float x, float y, float scale, Pose & out) {
+	const AnimFile * rig = animOf (character.rigFile, animformat::Asset::RIG);
+	const AnimFile * clip = rig ? animOf (clipFile, animformat::Asset::CLIP) : NULL;
+	if (! rig || ! clip) return false;
+	// As computePose (Engine/people.cpp) on the first frame, through
+	// personTransform (Engine/composite.cpp).
+	TrackSamples samples;
+	evaluateClip (*clip->clip, 0, samples);
+	PoseBinding binding;
+	evaluatePose (rig->rig, clip->clip, samples, Transform2D::translation (x, y) * Transform2D::scaling (scale), binding, out);
+	return ! out.drawOrder.empty ();
+}
+
 CostumePicture RoomView::pictureOfCharacter (const RoomCharacter & character) {
 	if (character.picture.known || character.costumeSub.empty ()) return character.picture;
 	char key[32];
@@ -652,8 +700,35 @@ bool RoomView::characterShown (int index, CharacterShown * shown) {
 	shown->bank = shown->picture = NULL;
 	shown->frame = shown->pictureIndex = 0;
 	shown->mirror = false;
+	shown->posed = false;
 	int mode = character.drawModeValue ();
 	CostumePicture picture = pictureOfCharacter (character);
+	if (picture.known && ! picture.clip.empty () && mode != ROOM_INVISIBLE) {
+		// A character of parts draws its pose, whatever its animation. The
+		// draw mode doesn't colour it here.
+		float px1, py1, px2, py2;
+		if (! character.rigFile.empty () && shown->scale > 0.05f
+				&& poseOf (character, picture.clip, (float) shown->x, (float) shown->y, shown->scale, shown->pose)
+				&& poseBounds (shown->pose, px1, py1, px2, py2)) {
+			shown->posed = true;
+			shown->x1 = px1;
+			shown->y1 = py1;
+			shown->x2 = px2;
+			shown->y2 = py2;
+			return true;
+		}
+		// Without a rig, the sprite of the clip's root at its start.
+		const AnimFile * clip = character.rigFile.empty () ? animOf (picture.clip, animformat::Asset::CLIP) : NULL;
+		const SpriteRef * root = clip ? sampleSprite (*clip->clip, "", 0) : NULL;
+		CostumePicture sprite;
+		if (root && root->kind == SpriteRef::SPRITE && root->bankFile >= 0 && (size_t) root->bankFile < clip->asset.banks.size ()) {
+			sprite.bank = clip->asset.banks[root->bankFile];
+			sprite.frame = root->number;
+			sprite.mirror = root->mirror;
+			sprite.known = true;
+		}
+		picture = sprite;
+	}
 	// An INVISIBLE character shows as one without a picture, to be found.
 	const spriteBank * bank = picture.known && mode != ROOM_INVISIBLE ? bankOf (picture.bank) : NULL;
 	// As drawPeople (Engine/people.cpp): no picture at all below 5%.
@@ -709,6 +784,7 @@ int RoomView::characterAt (float fx, float fy) {
 		// Near the feet always counts, so that a small one can be taken.
 		if (nearFeet (shown, fx, fy)) return order[i].second;
 		if (fx < shown.x1 || fx >= shown.x2 || fy < shown.y1 || fy >= shown.y2) continue;
+		if (shown.posed && partAt (shown.pose, fx, fy) < 0) continue;
 		if (shown.bank) {
 			// Not where the sprite is transparent.
 			const sprite & sp = shown.bank->sprites[shown.frame];
@@ -1259,7 +1335,9 @@ void RoomView::paint (Draw2D & draw) {
 		CharacterShown shown;
 		characterShown (c, &shown);
 		float alpha = r->characters[c].conditional ? 0.6f : 1.0f;
-		if (shown.bank) {
+		if (shown.posed) {
+			drawPose (draw, shown.pose, alpha);
+		} else if (shown.bank) {
 			draw.setDrawingColour (1.0f, 1.0f, 1.0f, alpha);
 			draw.drawPicture (shown.picture, shown.pictureIndex, false, shown.x1, shown.y1, shown.x2, shown.y2,
 				shown.mirror ? 1.0f : 0.0f, 0, shown.mirror ? 0.0f : 1.0f, 1);
@@ -1283,7 +1361,7 @@ void RoomView::paint (Draw2D & draw) {
 			draw.setDrawingColour (1.0f, 0.8f, 0.2f, 1.0f);
 			draw.drawLineLoop (box, 4);
 			// Handles to try other sizes.
-			if (scalingTab && shown.bank) {
+			if (scalingTab && (shown.bank || shown.posed)) {
 				float h = canvas.pixelsOfPoints (3.5f);
 				for (int k = 0; k < 4; k ++) {
 					float hx = box[k * 2], hy = box[k * 2 + 1];
@@ -1724,6 +1802,9 @@ void RoomView::draw () {
 		for (std::map<std::string, std::unique_ptr<BankFile> >::iterator b = banks.begin (); b != banks.end (); ++ b) {
 			if (fileTime (b->first) != b->second->time) b->second->time = STALE;
 		}
+		for (std::map<std::string, AnimFile>::iterator a = anims.begin (); a != anims.end (); ++ a) {
+			if (a->second.frame < 0 && fileTime (a->first) != a->second.time) a->second.time = STALE;
+		}
 		// The costume subs may have changed.
 		subPictures.clear ();
 		// A file may have come, or changed its case.
@@ -2047,7 +2128,7 @@ void RoomView::drawCharacterInspector () {
 		CharacterShown shown;
 		if (! character.movable ()) {
 			ImGui::TextDisabled ("Not a number");
-		} else if (characterShown (c, &shown) && ! shown.bank) {
+		} else if (characterShown (c, &shown) && ! shown.bank && ! shown.posed) {
 			ImGui::TextDisabled ("No picture");
 		} else {
 			std::string detail = character.x.text + ", " + character.y.text;
@@ -2269,7 +2350,7 @@ float RoomView::draggedScale (const CharacterShown & shown) const {
 int RoomView::sizeHandleAt (float fx, float fy) {
 	CharacterShown shown;
 	bool has = scalingSelected == REFERENCE ? referenceShown (&shown) : scalingSelected >= 0 && characterShown (scalingSelected, &shown);
-	if (! has || ! shown.bank) return -1;
+	if (! has || ! (shown.bank || shown.posed)) return -1;
 	float near = closeness ();
 	const float corners[] = { shown.x1, shown.y1, shown.x2, shown.y1, shown.x2, shown.y2, shown.x1, shown.y2 };
 	for (int k = 0; k < 4; k ++) {

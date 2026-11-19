@@ -133,6 +133,14 @@ CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t 
 	if (! call) return picture;
 	const std::string & name = t[from].text;
 	std::vector<TokenRange> args = splitArguments (t, from + 1, last);
+	if (name == "loadClip") {
+		// A clip of the animation editor: the room poses it at its start.
+		if (args.size () != 1 || args[0].to - args[0].from != 1 || t[args[0].from].kind != TOKEN_FILE) return picture;
+		const std::string & q = t[args[0].from].text;
+		picture.clip = q.size () >= 2 ? q.substr (1, q.size () - 2) : std::string ();
+		picture.known = ! picture.clip.empty ();
+		return picture;
+	}
 	if (name == "costume") {
 		if (args.empty ()) return picture;
 		// Standing, walking, talking: each in n directions. The standing
@@ -173,6 +181,20 @@ CostumePicture costumeIn (const std::vector<FileToken> & t, size_t from, size_t 
 	}
 	if (sub && args.empty ()) *sub = name;
 	return picture;
+}
+
+// The file of loadRig ('file') written from token from to before to, or a
+// variable of the sub whose { is at scope that got one: empty for any other.
+std::string rigFileIn (const std::vector<FileToken> & t, size_t from, size_t to, size_t scope, int depth = 0) {
+	if (to <= from || to > t.size () || depth > 8) return std::string ();
+	if (to - from == 1 && scope != NO_SCOPE && (t[from].kind == TOKEN_IDENTIFIER || t[from].kind == TOKEN_VARIABLE)) {
+		size_t valueFrom, valueTo;
+		if (valueOf (t, scope, from, t[from].text, &valueFrom, &valueTo)) return rigFileIn (t, valueFrom, valueTo, scope, depth + 1);
+		return std::string ();
+	}
+	if (to - from != 4 || t[from].text != "loadRig" || t[from + 1].text != "(" || t[from + 2].kind != TOKEN_FILE || t[from + 3].text != ")") return std::string ();
+	const std::string & q = t[from + 2].text;
+	return q.size () >= 2 ? q.substr (1, q.size () - 2) : std::string ();
 }
 
 // The first return of the sub of a name, outside objectTypes: the tokens of
@@ -406,6 +428,24 @@ private:
 					room.hasCharacterAnchor = true;
 					room.characterAnchorStart = token.at;
 					room.characterAnchorEnd = end;
+				}
+			}
+			if (word == "setCharacterRig" && args.size () == 2 && ! args[0].empty ()) {
+				// The latest character of the objectType, as setPersonRig
+				// finds it.
+				std::string objectType = text.textIn (t[args[0].from].at, t[args[0].to - 1].end);
+				for (int c = (int) room.characters.size () - 1; c >= 0; c --) {
+					RoomCharacter & character = room.characters[c];
+					if (character.objectType != objectType) continue;
+					if (! character.rig.present) {
+						character.rig.present = true;
+						character.rig.value = argument (args[1]);
+						character.rig.call = token.at;
+						character.rig.statementEnd = end;
+						character.rig.conditional = conditional;
+						character.rigFile = rigFileIn (t, args[1].from, args[1].to, open);
+					}
+					break;
 				}
 			}
 			if (((word == "setCharacterDrawMode" || word == "setCharacterExtra" || word == "setCharacterWalkSpeed"
