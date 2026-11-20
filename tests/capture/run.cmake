@@ -18,8 +18,9 @@
 # a game made another way, for example. The second run has
 # the environment variables of ENGINE_ENV, separated by spaces, and its
 # output must match REQUIRE. We unset SLUDGE_RENDERER for both runs. The
-# frames are in OUT/expected and OUT/actual, and the images that differ in
-# OUT/difference.
+# frames are in OUT/expected and OUT/actual. For the frames that differ,
+# OUT/difference has the expected and actual frames and the difference, with
+# the logs of both runs.
 
 foreach(var ENGINE FRAMEDIFF GAME OUT)
 	if(NOT DEFINED ${var})
@@ -91,5 +92,20 @@ execute_process(
 		"${OUT}/expected" "${OUT}/actual"
 	RESULT_VARIABLE result)
 if(NOT result EQUAL 0)
+	# Next to each <name>-actual.png that framediff wrote, the expected frame,
+	# and the logs of both runs, so that the folder has all there is to see.
+	file(GLOB actual_frames "${OUT}/difference/*-actual.png")
+	foreach(frame ${actual_frames})
+		get_filename_component(name "${frame}" NAME)
+		string(REGEX REPLACE "-actual\\.png$" "" name "${name}")
+		if(EXISTS "${OUT}/expected/${name}.png")
+			file(COPY_FILE "${OUT}/expected/${name}.png" "${OUT}/difference/${name}-expected.png")
+		endif()
+	endforeach()
+	foreach(run expected actual)
+		if(EXISTS "${OUT}/${run}.log")
+			file(COPY_FILE "${OUT}/${run}.log" "${OUT}/difference/${run}.log")
+		endif()
+	endforeach()
 	message(FATAL_ERROR "The frames differ. See ${OUT}/difference.")
 endif()
