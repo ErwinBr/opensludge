@@ -1,8 +1,8 @@
 # The tools of the character creator, on fixtures/rig.rig in the window of
 # a smoke test (1280 x 800): a part's axes scaled apart with a side handle,
 # its pivot put in the middle of its sprite, and a locked part that a click
-# goes through. The canvas shows the character at 172%, with its origin at
-# (733, 310); the alien's box is from (698, 219) to (767, 315).
+# goes through. The canvas shows the character at 166%, with its origin at
+# (742, 319); the alien's box is from (708, 230) to (775, 323).
 wait 3
 
 # A part with the alien.
@@ -19,12 +19,12 @@ down
 up
 wait 2
 
-# Twice as wide, by the handle in the middle of its right side, 35 points
+# Twice as wide, by the handle in the middle of its right side, 34 points
 # (20 pixels) from its origin.
-move 767 268
+move 775 278
 down
-move 785 268
-move 802 268
+move 792 278
+move 809 278
 up
 wait 2
 
@@ -48,10 +48,10 @@ wait 2
 
 # A click on both of them selects the first, under the locked one, and a
 # drag moves it 20 points to the right.
-move 733 250
+move 742 260
 down
-move 743 250
-move 753 250
+move 752 260
+move 762 260
 up
 wait 3
 save ${OUTPUT}

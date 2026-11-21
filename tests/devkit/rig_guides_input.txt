@@ -1,0 +1,53 @@
+# The rulers and guides of the character creator, on fixtures/rig.rig in
+# the window of a smoke test (1280 x 800). The canvas shows the character
+# at 166%, with its origin at (742, 319), under the top ruler (y 75 to 91)
+# and right of the left ruler (x 453 to 469). Guides don't go in the file:
+# what we save shows that a part under a guide still takes the click.
+wait 3
+
+# A part with the alien, whose sprite is just above the origin.
+move 302 60
+down
+up
+wait 2
+drop ${FIXTURES}/alien-edited.duc
+wait 3
+
+# A horizontal guide from the top ruler through the sprite, and a vertical
+# one from the left ruler through the origin.
+move 600 84
+down
+move 600 150
+move 600 280
+up
+wait 1
+move 460 400
+down
+move 600 400
+move 742 400
+up
+wait 1
+
+# A third guide, taken again on the empty canvas and dragged back into its
+# ruler, which removes it.
+move 900 84
+down
+move 900 450
+up
+wait 1
+move 950 450
+down
+move 950 300
+move 950 84
+up
+wait 1
+
+# A click where the guides cross the sprite selects the part, and a drag
+# moves it 39 points (23 pixels) to the right.
+move 742 280
+down
+move 761 280
+move 781 280
+up
+wait 2
+save ${OUTPUT}

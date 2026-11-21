@@ -56,6 +56,7 @@ RigView::RigView (RigDocument * r, WorkspaceActions & a, const CanvasGraphics & 
 	: rig (r), actions (a), graphics (g), canvas (g), selected (0), haveSelection (false), preview (g.draw),
 	  drag (DRAG_NONE), dragX (0), dragY (0), dragPivotX (0), dragPivotY (0), nameFieldPart (0), nameEditing (false),
 	  keepPivotInPlace (true), pending (new Pending), noticeUntil (0) {
+	canvas.setRulers (true);
 }
 
 RigView::~RigView () {
@@ -276,7 +277,8 @@ void RigView::handleMouse () {
 				selected = rig->rig ().parts[hit].id;
 				haveSelection = true;
 				drag = DRAG_MOVE;
-			} else {
+			} else if (! canvas.grabGuide ()) {
+				// The handles and the parts come before a guide under them.
 				haveSelection = false;
 			}
 		}

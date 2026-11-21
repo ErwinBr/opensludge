@@ -8,10 +8,16 @@
  * with the middle or right button or with Space and the left button, and
  * zooms to 100% and to fit. The editor gets the left button in the
  * coordinates of the picture.
+ *
+ * With rulers, the top and the left of the box show the pixels of the
+ * picture from its origin, and the user drags guides out of them: a
+ * horizontal one from the top ruler, a vertical one from the left one.
+ * Dragging a guide back into a ruler, or out of the canvas, removes it.
  */
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "imgui.h"
 
@@ -48,6 +54,8 @@ public:
 	// the hotspot. The mouse is still in y that grows downwards: -y of the
 	// sprite's.
 	void setSpriteView (bool on) { spriteView = on; }
+	// Rulers on the top and the left of the box, which the guides come from.
+	void setRulers (bool on) { rulers = on; }
 	void zoomToFit ();
 	void zoomToActualSize ();
 	void zoomBy (float factor);
@@ -78,12 +86,24 @@ public:
 	ImVec2 viewMin () const { return viewOrigin; }
 	ImVec2 viewMax () const { return ImVec2 (viewOrigin.x + viewSize.x, viewOrigin.y + viewSize.y); }
 
-	// Whether the user is panning, and we need frames.
-	bool animating () const { return panning; }
+	// After a press that the editor has no use for: take the guide under
+	// the mouse, if there is one, which the user then drags. The left
+	// button isn't held for the editor any more.
+	bool grabGuide ();
+
+	// Whether the user is panning or dragging a guide, and we need frames.
+	bool animating () const { return panning || guideDrag != GUIDE_NONE; }
 
 private:
+	enum GuideDrag { GUIDE_NONE, GUIDE_HORIZONTAL, GUIDE_VERTICAL };
+
 	void ensureTarget (int width, int height);
 	void centre ();
+	// The guide that the mouse is on, if any, at most a few points away.
+	bool guideAtMouse (GuideDrag & kind, int & index) const;
+	void dragGuide (bool overView);
+	void drawRulers (ImDrawList * list, const ImVec2 & box, const ImVec2 & boxEnd);
+	void drawGuides (ImDrawList * list);
 
 	CanvasGraphics graphics;
 	gfx::Texture * texture;
@@ -92,6 +112,12 @@ private:
 
 	int pictureX, pictureY, pictureWidth, pictureHeight;
 	bool spriteView;
+	bool rulers;
+	// The guides, in pixels of the picture: y for horizontal ones, x for
+	// vertical ones; and the one that the user drags.
+	std::vector<float> horizontalGuides, verticalGuides;
+	GuideDrag guideDrag;
+	float guidePosition;
 	bool fitPending;
 	// Whether we show the picture as Fit did, so that we fit it again when
 	// the view changes size, until the user zooms or pans.

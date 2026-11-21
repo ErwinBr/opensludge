@@ -317,6 +317,17 @@ if(SLUDGE_DEVKIT)
 				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig-tools
 				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
 		set_tests_properties(capture-devkit-rig-tools PROPERTIES LABELS capture)
+		# And its rulers: guides dragged out of both, one taken again and
+		# dragged back into its ruler, and a part under the guides moved.
+		add_test(NAME capture-devkit-rig-guides
+			COMMAND ${CMAKE_COMMAND} -DDEVKIT=$<TARGET_FILE:sludge-devkit>
+				-DDOCUMENT=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig.rig
+				-DFIXTURES=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures
+				-DINPUT=${PROJECT_SOURCE_DIR}/tests/devkit/rig_guides_input.txt
+				-DEXPECTED=${PROJECT_SOURCE_DIR}/tests/devkit/fixtures/rig-guides.rig
+				-DWORK_DIR=${CMAKE_BINARY_DIR}/devkit-rig-guides
+				-P ${PROJECT_SOURCE_DIR}/tests/devkit/input_test.cmake)
+		set_tests_properties(capture-devkit-rig-guides PROPERTIES LABELS capture)
 		# And for a clip: keyed by dragging a part at two ticks, a sprite bank
 		# dropped on it, an easing chosen and an event added.
 		add_test(NAME capture-devkit-clip

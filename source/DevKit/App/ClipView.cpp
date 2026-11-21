@@ -123,6 +123,7 @@ ClipView::ClipView (ClipDocument * c, WorkspaceActions & a, const CanvasGraphics
 	  havePart (false), currentTrack (0), timelineDrag (TL_NONE), dragStartX (0), dragStartY (0), dragTicks (0),
 	  dragCopy (false), dragEventTime (0), tickWidth (1), laneLeft (0), drag (DRAG_NONE), dragMoved (false), dragX (0), dragY (0),
 	  pendingLength (0), lengthDialog (false), functionDialog (false), pending (new Pending), pendingPart (0), pendingTick (0), pendingBasis (0), split (0), noticeUntil (0) {
+	canvas.setRulers (true);
 }
 
 ClipView::~ClipView () {
@@ -927,7 +928,8 @@ void ClipView::handleCanvasMouse () {
 				selectedPart = posedRig->parts[hit].id;
 				havePart = true;
 				drag = DRAG_MOVE;
-			} else {
+			} else if (! canvas.grabGuide ()) {
+				// The handles and the parts come before a guide under them.
 				havePart = false;
 			}
 		}

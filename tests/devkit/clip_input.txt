@@ -1,7 +1,7 @@
 # The animation editor with the mouse and the keys, on fixtures/clip.clp (a
 # clip of 24 ticks of nothing, made for fixtures/rig-edited.rig) in the
 # window of a smoke test (1280 x 800). The hierarchy is on the left of the
-# canvas, which shows the rig at 211%, with part 2 to the right; Auto key is
+# canvas, which shows the rig at 197%, with part 2 to the right; Auto key is
 # in the row above the timeline, whose ruler is at y 401, with tick 12 at
 # x 752.
 wait 5
@@ -13,10 +13,10 @@ up
 wait 2
 
 # Drag part 2 10 pixels to the right: it keys its place at tick 0.
-move 790 245
+move 795.14 250.32
 down
-move 800 245
-move 810 245
+move 804.47 250.32
+move 813.79 250.32
 up
 wait 2
 
@@ -25,10 +25,10 @@ move 752 401
 down
 up
 wait 2
-move 790 245
+move 795.14 250.32
 down
-move 790 260
-move 790 275
+move 795.14 264.31
+move 795.14 278.29
 up
 wait 2
 
