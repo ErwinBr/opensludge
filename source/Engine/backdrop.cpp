@@ -550,18 +550,31 @@ void drawBackDrop () {
 		}
 	}
 
-	const GLfloat backdropTexCoords[] = { 
-		0.0f, 0.0f,
-		backdropTexW, 0.0f,
-		0.0f, backdropTexH,
-		backdropTexW, backdropTexH
-	}; 
+	// Only the part of the scene on the screen: at some camera positions,
+	// Apple's software OpenGL (as on the macOS runners of GitHub) leaves out
+	// the whole backdrop when it reaches far past the screen.
+	float x0 = camX, x1 = camX + winWidth / cameraZoom;
+	float y0 = camY, y1 = camY + winHeight / cameraZoom;
+	if (x0 < 0) x0 = 0;
+	if (x1 > sceneWidth) x1 = sceneWidth;
+	if (y0 < 0) y0 = 0;
+	if (y1 > sceneHeight) y1 = sceneHeight;
+	if (x1 <= x0 || y1 <= y0) return;
+	float u0 = backdropTexW * x0 / sceneWidth, u1 = backdropTexW * x1 / sceneWidth;
+	float v0 = backdropTexH * y0 / sceneHeight, v1 = backdropTexH * y1 / sceneHeight;
 
-	const GLfloat vertices[] = { 
-		-camX, -camY, 0.,
-		(GLfloat)sceneWidth - camX, -camY, 0.,
-		-camX, (GLfloat)sceneHeight - camY, 0.,
-		(GLfloat)sceneWidth - camX, (GLfloat)sceneHeight - camY, 0.
+	const GLfloat backdropTexCoords[] = {
+		u0, v0,
+		u1, v0,
+		u0, v1,
+		u1, v1
+	};
+
+	const GLfloat vertices[] = {
+		x0 - camX, y0 - camY, 0.,
+		x1 - camX, y0 - camY, 0.,
+		x0 - camX, y1 - camY, 0.,
+		x1 - camX, y1 - camY, 0.
 	};
 
 	gfx::draw (state, uniforms, backdropTex, vertices, backdropTexCoords);
